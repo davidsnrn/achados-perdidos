@@ -83,6 +83,12 @@ const setStorage = <T>(key: string, data: T) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
+// Session constants
+const SESSION_USER_KEY = 'coades_session_user';
+const LAST_ACTIVE_KEY = 'coades_last_active';
+const TIMEOUT_MINUTES = 5;
+const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
+
 // API Services
 export const StorageService = {
   // Users
@@ -220,9 +226,40 @@ export const StorageService = {
     setStorage('reports', reports);
   },
 
-  // Auth Simulation
+  // Auth Simulation & Session Management
   login: (matricula: string, pass: string): User | null => {
     const users = StorageService.getUsers();
-    return users.find(u => u.matricula === matricula && u.password === pass) || null;
+    const user = users.find(u => u.matricula === matricula && u.password === pass) || null;
+    return user;
+  },
+
+  // Persist Session
+  setSessionUser: (user: User) => {
+    setStorage(SESSION_USER_KEY, user);
+    StorageService.updateLastActive();
+  },
+
+  getSessionUser: (): User | null => {
+    const user = localStorage.getItem(SESSION_USER_KEY);
+    return user ? JSON.parse(user) : null;
+  },
+
+  clearSession: () => {
+    localStorage.removeItem(SESSION_USER_KEY);
+    localStorage.removeItem(LAST_ACTIVE_KEY);
+  },
+
+  updateLastActive: () => {
+    localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+  },
+
+  isSessionExpired: (): boolean => {
+    const lastActive = localStorage.getItem(LAST_ACTIVE_KEY);
+    if (!lastActive) return true;
+    
+    const now = Date.now();
+    const last = parseInt(lastActive, 10);
+    
+    return (now - last) > TIMEOUT_MS;
   }
 };

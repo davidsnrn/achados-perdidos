@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from './services/storage';
 import { User, UserLevel, FoundItem, LostReport, Person } from './types';
 import { IfrnLogo } from './components/Logo';
@@ -6,7 +6,7 @@ import { FoundItemsTab } from './components/Tabs/FoundItemsTab';
 import { LostReportsTab } from './components/Tabs/LostReportsTab';
 import { PeopleTab } from './components/Tabs/PeopleTab';
 import { UsersTab } from './components/Tabs/UsersTab';
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, Zap, KeyRound, Menu, X } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 
 const App: React.FC = () => {
@@ -31,17 +31,69 @@ const App: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Initial Load
-  useEffect(() => {
-    refreshData();
-  }, []);
-
+  // Refresh Data Helper
   const refreshData = () => {
     setItems(StorageService.getItems());
     setReports(StorageService.getReports());
     setPeople(StorageService.getPeople());
     setUsers(StorageService.getUsers());
   };
+
+  const handleLogout = useCallback(() => {
+    StorageService.clearSession();
+    setUser(null);
+    setLoginMat('');
+    setLoginPass('');
+    setActiveTab('achados');
+    setMobileMenuOpen(false);
+  }, []);
+
+  // Initial Load & Session Management
+  useEffect(() => {
+    // 1. Try to restore session
+    const sessionUser = StorageService.getSessionUser();
+    if (sessionUser) {
+      // Check if session expired while closed
+      if (StorageService.isSessionExpired()) {
+        handleLogout();
+      } else {
+        setUser(sessionUser);
+        refreshData();
+        StorageService.updateLastActive(); // Refresh timestamp on load
+      }
+    }
+
+    // 2. Inactivity Timer Logic
+    const handleActivity = () => {
+       if (user) {
+         StorageService.updateLastActive();
+       }
+    };
+
+    // Events to track activity
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('scroll', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+
+    // Check for expiration periodically (every 30 seconds)
+    const intervalId = setInterval(() => {
+      if (user && StorageService.isSessionExpired()) {
+        handleLogout();
+        alert("Sua sessão expirou por inatividade (5 minutos).");
+      }
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('scroll', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+      clearInterval(intervalId);
+    };
+  }, [user, handleLogout]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,25 +103,13 @@ const App: React.FC = () => {
   const attemptLogin = (mat: string, pass: string) => {
     const loggedUser = StorageService.login(mat, pass);
     if (loggedUser) {
+      StorageService.setSessionUser(loggedUser); // Save session
       setUser(loggedUser);
       setLoginError('');
+      refreshData();
     } else {
       setLoginError('Credenciais inválidas. Tente novamente.');
     }
-  };
-
-  const handleDevLogin = () => {
-    setLoginMat('admin');
-    setLoginPass('admin');
-    attemptLogin('admin', 'admin');
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setLoginMat('');
-    setLoginPass('');
-    setActiveTab('achados');
-    setMobileMenuOpen(false);
   };
 
   const handleChangePassword = (e: React.FormEvent) => {
@@ -91,7 +131,8 @@ const App: React.FC = () => {
 
     const updatedUser = StorageService.changePassword(user.id, newPassword, user.name);
     if (updatedUser) {
-      setUser(updatedUser); // Atualiza estado local
+      setUser(updatedUser);
+      StorageService.setSessionUser(updatedUser); // Update session with new password/data
       alert("Senha alterada com sucesso!");
       setShowPasswordModal(false);
       setCurrentPassword('');
@@ -143,25 +184,7 @@ const App: React.FC = () => {
               >
                 Entrar
               </button>
-              
-              <div className="relative flex py-2 items-center">
-                <div className="flex-grow border-t border-gray-200"></div>
-                <span className="flex-shrink-0 mx-4 text-gray-400 text-xs">Desenvolvimento</span>
-                <div className="flex-grow border-t border-gray-200"></div>
-              </div>
-              
-              <button 
-                type="button" 
-                onClick={handleDevLogin}
-                className="w-full bg-gray-100 text-gray-600 font-semibold py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm flex items-center justify-center gap-2"
-              >
-                <Zap size={16} /> Modo Dev (Login Rápido)
-              </button>
             </form>
-            <div className="mt-6 text-center text-xs text-gray-400">
-              <p>Admin: admin / admin</p>
-              <p>Padrão: op1 / 123</p>
-            </div>
           </div>
         </div>
       </div>
@@ -362,7 +385,7 @@ const App: React.FC = () => {
       <footer className="bg-white border-t border-gray-200 py-6">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <p className="text-xs text-gray-400">
-            &copy; {new Date().getFullYear()} IFRN Campus Nova Cruz. COADES.
+            &copy; {new Date().getFullYear()} Desenvolvido por David Galdino
           </p>
         </div>
       </footer>

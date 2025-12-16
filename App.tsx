@@ -6,7 +6,7 @@ import { FoundItemsTab } from './components/Tabs/FoundItemsTab';
 import { LostReportsTab } from './components/Tabs/LostReportsTab';
 import { PeopleTab } from './components/Tabs/PeopleTab';
 import { UsersTab } from './components/Tabs/UsersTab';
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, Save, Building2 } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 
 type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'FACTORY_RESET' | null;
@@ -18,9 +18,19 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Settings / Admin Config State
-  const [configMenuOpen, setConfigMenuOpen] = useState(false); // Mobile Accordion
+  const [configMenuOpen, setConfigMenuOpen] = useState(false); // Mobile Accordion Level 1
+  const [mobileDeleteOpen, setMobileDeleteOpen] = useState(false); // Mobile Accordion Level 2 (Delete Data)
   const [showConfigModal, setShowConfigModal] = useState(false); // Desktop Modal or generic Trigger
+  const [desktopDeleteOpen, setDesktopDeleteOpen] = useState(false); // Desktop Modal Accordion
   
+  // System Config State (Logo Text)
+  const [systemSector, setSystemSector] = useState('COADES');
+  const [systemCampus, setSystemCampus] = useState('NOVA CRUZ');
+
+  // Temp State for Config Form
+  const [configSector, setConfigSector] = useState('');
+  const [configCampus, setConfigCampus] = useState('');
+
   // Confirmation Modal State (Password protection)
   const [confirmAction, setConfirmAction] = useState<ConfirmActionType>(null);
   const [confirmationPassword, setConfirmationPassword] = useState('');
@@ -57,6 +67,12 @@ const App: React.FC = () => {
     setUsers(StorageService.getUsers());
   };
 
+  const loadSystemConfig = useCallback(() => {
+    const config = StorageService.getConfig();
+    setSystemSector(config.sector);
+    setSystemCampus(config.campus);
+  }, []);
+
   const handleLogout = useCallback(() => {
     StorageService.clearSession();
     setUser(null);
@@ -66,10 +82,15 @@ const App: React.FC = () => {
     localStorage.removeItem('activeTab');
     setMobileMenuOpen(false);
     setConfigMenuOpen(false);
+    setMobileDeleteOpen(false);
+    setDesktopDeleteOpen(false);
   }, []);
 
   // Initial Load & Session Management
   useEffect(() => {
+    // Load config always
+    loadSystemConfig();
+
     // 1. Try to restore session
     const sessionUser = StorageService.getSessionUser();
     if (sessionUser) {
@@ -113,7 +134,7 @@ const App: React.FC = () => {
       window.removeEventListener('touchstart', handleActivity);
       clearInterval(intervalId);
     };
-  }, [user, handleLogout]);
+  }, [user, handleLogout, loadSystemConfig]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +189,23 @@ const App: React.FC = () => {
 
   // --- Admin Config Logic ---
 
+  const openConfigModal = () => {
+     // Init form state with current config
+     setConfigSector(systemSector);
+     setConfigCampus(systemCampus);
+     setDesktopDeleteOpen(false); // Reset desktop accordion
+     setShowConfigModal(true);
+  };
+
+  const handleSaveSystemConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    StorageService.saveConfig(configSector, configCampus);
+    setSystemSector(configSector);
+    setSystemCampus(configCampus);
+    alert('Configurações de sistema atualizadas!');
+    setShowConfigModal(false);
+  };
+
   const initiateConfigAction = (action: ConfirmActionType) => {
     setConfirmAction(action);
     setConfirmationPassword('');
@@ -216,13 +254,15 @@ const App: React.FC = () => {
     }
   };
 
+  const canConfigure = user?.level === UserLevel.ADMIN || user?.level === UserLevel.ADVANCED;
+
   // Login Screen
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
           <div className="bg-gray-50 p-8 flex flex-col items-center border-b border-gray-100">
-            <IfrnLogo className="mb-2" />
+            <IfrnLogo className="mb-2" sector={systemSector} campus={systemCampus} />
           </div>
           <div className="p-8">
             <h2 className="text-xl font-bold text-gray-800 text-center mb-6">Acesso ao Sistema</h2>
@@ -276,7 +316,7 @@ const App: React.FC = () => {
           {/* Drawer */}
           <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col animate-slideInLeft overflow-y-auto">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <IfrnLogo className="scale-90 origin-left" />
+              <IfrnLogo className="scale-90 origin-left" sector={systemSector} campus={systemCampus} />
               <button onClick={() => setMobileMenuOpen(false)} className="text-gray-400 hover:text-red-500 p-1">
                 <X size={24} />
               </button>
@@ -329,7 +369,7 @@ const App: React.FC = () => {
               )}
 
               {/* ADMIN CONFIGURATION SECTION (Mobile Accordion) */}
-              {user.level === UserLevel.ADMIN && (
+              {canConfigure && (
                 <div className="pt-4 mt-2 border-t border-gray-100">
                   <button 
                     onClick={() => setConfigMenuOpen(!configMenuOpen)}
@@ -343,36 +383,63 @@ const App: React.FC = () => {
                   
                   {configMenuOpen && (
                     <div className="bg-gray-50 rounded-lg mt-1 overflow-hidden transition-all p-2 space-y-1">
+                      {/* 1. Customize Campus */}
                       <button 
-                        onClick={() => initiateConfigAction('DELETE_ITEMS')}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
+                        onClick={() => { openConfigModal(); setMobileMenuOpen(false); }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-200 rounded"
                       >
-                        <Trash size={14} /> Apagar Itens Achados
+                        <Building2 size={14} /> Personalizar Campus
                       </button>
-                      <button 
-                        onClick={() => initiateConfigAction('DELETE_REPORTS')}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <FileX size={14} /> Apagar Relatos
-                      </button>
-                      <button 
-                        onClick={() => initiateConfigAction('DELETE_PEOPLE')}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <UserX size={14} /> Apagar Pessoas
-                      </button>
-                      <button 
-                        onClick={() => initiateConfigAction('DELETE_USERS')}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
-                      >
-                        <ShieldCheck size={14} /> Apagar Usuários
-                      </button>
-                      <button 
-                        onClick={() => initiateConfigAction('FACTORY_RESET')}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 rounded"
-                      >
-                        <AlertTriangle size={14} /> Reset de Fábrica
-                      </button>
+
+                      {/* 2. Delete Data Accordion (Admin Only) */}
+                      {user.level === UserLevel.ADMIN && (
+                        <>
+                          <button 
+                            onClick={() => setMobileDeleteOpen(!mobileDeleteOpen)}
+                            className="w-full flex items-center justify-between px-4 py-2 text-xs font-medium text-red-700 hover:bg-red-50 rounded mt-1"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Trash size={14} /> Apagar Dados
+                            </div>
+                            {mobileDeleteOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          </button>
+
+                          {mobileDeleteOpen && (
+                            <div className="pl-4 space-y-1 mt-1 border-l-2 border-red-100 ml-2 animate-fadeIn">
+                              <button 
+                                onClick={() => initiateConfigAction('DELETE_ITEMS')}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <Trash size={14} /> Apagar Itens Achados
+                              </button>
+                              <button 
+                                onClick={() => initiateConfigAction('DELETE_REPORTS')}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <FileX size={14} /> Apagar Relatos
+                              </button>
+                              <button 
+                                onClick={() => initiateConfigAction('DELETE_PEOPLE')}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <UserX size={14} /> Apagar Pessoas
+                              </button>
+                              <button 
+                                onClick={() => initiateConfigAction('DELETE_USERS')}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <ShieldCheck size={14} /> Apagar Usuários
+                              </button>
+                              <button 
+                                onClick={() => initiateConfigAction('FACTORY_RESET')}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-700 hover:bg-red-100 rounded"
+                              >
+                                <AlertTriangle size={14} /> Reset de Fábrica
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -402,7 +469,7 @@ const App: React.FC = () => {
             >
               <Menu size={24} />
             </button>
-            <IfrnLogo />
+            <IfrnLogo sector={systemSector} campus={systemCampus} />
           </div>
           
           <div className="flex items-center gap-4">
@@ -420,10 +487,10 @@ const App: React.FC = () => {
               <div className="text-xs text-gray-500">{user.level} • {user.matricula}</div>
             </div>
             
-            {/* Admin Desktop Settings Button */}
-            {user.level === UserLevel.ADMIN && (
+            {/* Admin/Advanced Desktop Settings Button */}
+            {canConfigure && (
               <button 
-                onClick={() => setShowConfigModal(true)}
+                onClick={openConfigModal}
                 className="hidden md:block p-2 text-gray-500 hover:text-ifrn-green transition-colors"
                 title="Configurações Administrativas"
               >
@@ -568,86 +635,138 @@ const App: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Admin Configuration Modal (Desktop Selection) */}
+      {/* Configuration Modal (Desktop/Tablet) */}
       <Modal
         isOpen={showConfigModal}
         onClose={() => setShowConfigModal(false)}
-        title="Configurações Administrativas"
+        title="Configurações do Sistema"
       >
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-           <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg text-sm text-yellow-800">
-             <p className="font-bold flex items-center gap-2"><AlertTriangle size={16}/> Área de Perigo</p>
-             <p className="mt-1">As ações abaixo são irreversíveis. Use com cautela.</p>
-           </div>
-           
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-             <button 
-               onClick={() => initiateConfigAction('DELETE_ITEMS')}
-               className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
-             >
-               <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
-                 <Trash size={20} />
-               </div>
-               <div className="text-left">
-                 <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Itens Achados</p>
-                 <p className="text-[10px] text-gray-500">Remove todos os itens registrados.</p>
-               </div>
-             </button>
+        <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
+           {/* Customization Form */}
+           <form onSubmit={handleSaveSystemConfig} className="space-y-4 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+              <h4 className="font-bold text-gray-800 flex items-center gap-2 pb-2 border-b border-blue-100">
+                <Building2 size={18} className="text-blue-600"/> Personalizar Campus
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nome do Setor</label>
+                  <input 
+                    type="text"
+                    value={configSector}
+                    onChange={e => setConfigSector(e.target.value.toUpperCase())}
+                    className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                    placeholder="Ex: COADES"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nome do Campus</label>
+                  <input 
+                    type="text"
+                    value={configCampus}
+                    onChange={e => setConfigCampus(e.target.value.toUpperCase())}
+                    className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none uppercase"
+                    placeholder="Ex: NOVA CRUZ"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <button 
+                  type="submit" 
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"
+                >
+                  <Save size={16} /> Salvar Alterações
+                </button>
+              </div>
+           </form>
 
-             <button 
-               onClick={() => initiateConfigAction('DELETE_REPORTS')}
-               className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
-             >
-               <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
-                 <FileX size={20} />
-               </div>
-               <div className="text-left">
-                 <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Relatos</p>
-                 <p className="text-[10px] text-gray-500">Remove todos os relatos de perdas.</p>
-               </div>
-             </button>
+           {/* Admin Delete Section (Accordion for Desktop) */}
+           {user.level === UserLevel.ADMIN && (
+             <div className="border-t border-gray-100 pt-4 mt-4">
+               {/* Accordion Toggle */}
+               <button 
+                  type="button"
+                  onClick={() => setDesktopDeleteOpen(!desktopDeleteOpen)}
+                  className="w-full flex items-center justify-between p-3 bg-red-50 text-red-800 rounded-lg hover:bg-red-100 transition-colors"
+               >
+                 <div className="flex items-center gap-2 font-bold">
+                    <Trash size={18} /> Apagar Dados
+                 </div>
+                 {desktopDeleteOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+               </button>
 
-             <button 
-               onClick={() => initiateConfigAction('DELETE_PEOPLE')}
-               className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
-             >
-               <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
-                 <UserX size={20} />
-               </div>
-               <div className="text-left">
-                 <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Pessoas</p>
-                 <p className="text-[10px] text-gray-500">Remove todos os cadastros de pessoas.</p>
-               </div>
-             </button>
+               {/* Collapsible Content */}
+               {desktopDeleteOpen && (
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 animate-fadeIn">
+                    <button 
+                      onClick={() => initiateConfigAction('DELETE_ITEMS')}
+                      className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
+                    >
+                      <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
+                        <Trash size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Itens</p>
+                        <p className="text-[10px] text-gray-500">Todos os achados.</p>
+                      </div>
+                    </button>
 
-             <button 
-               onClick={() => initiateConfigAction('DELETE_USERS')}
-               className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
-             >
-               <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
-                 <ShieldCheck size={20} />
-               </div>
-               <div className="text-left">
-                 <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Usuários</p>
-                 <p className="text-[10px] text-gray-500">Remove usuários (exceto você).</p>
-               </div>
-             </button>
-           </div>
+                    <button 
+                      onClick={() => initiateConfigAction('DELETE_REPORTS')}
+                      className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
+                    >
+                      <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
+                        <FileX size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Relatos</p>
+                        <p className="text-[10px] text-gray-500">Todos os perdidos.</p>
+                      </div>
+                    </button>
 
-           <button 
-             onClick={() => initiateConfigAction('FACTORY_RESET')}
-             className="w-full flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 transition-colors group"
-           >
-             <div className="flex items-center gap-3">
-               <div className="p-2 bg-white rounded-lg text-red-600">
-                 <AlertTriangle size={20} />
-               </div>
-               <div className="text-left">
-                 <p className="font-bold text-red-800">Configuração de Fábrica</p>
-                 <p className="text-xs text-red-600">Apaga TUDO e restaura o estado inicial do sistema.</p>
-               </div>
+                    <button 
+                      onClick={() => initiateConfigAction('DELETE_PEOPLE')}
+                      className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
+                    >
+                      <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
+                        <UserX size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Pessoas</p>
+                        <p className="text-[10px] text-gray-500">Todos os cadastros.</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => initiateConfigAction('DELETE_USERS')}
+                      className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-red-50 hover:border-red-200 transition-colors group gap-3"
+                    >
+                      <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-white text-gray-600 group-hover:text-red-500">
+                        <ShieldCheck size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-800 text-sm group-hover:text-red-700">Apagar Usuários</p>
+                        <p className="text-[10px] text-gray-500">Exceto você.</p>
+                      </div>
+                    </button>
+
+                    <button 
+                      onClick={() => initiateConfigAction('FACTORY_RESET')}
+                      className="col-span-1 md:col-span-2 w-full flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 transition-colors group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white rounded-lg text-red-600">
+                          <AlertTriangle size={20} />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-red-800">Configuração de Fábrica</p>
+                          <p className="text-xs text-red-600">Apaga TUDO e restaura o estado inicial.</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+               )}
              </div>
-           </button>
+           )}
         </div>
       </Modal>
 

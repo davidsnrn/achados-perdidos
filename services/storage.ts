@@ -69,6 +69,9 @@ const INITIAL_REPORTS: LostReport[] = [
   }
 ];
 
+const SYSTEM_CONFIG_KEY = 'coades_system_config';
+const DEFAULT_CONFIG = { sector: 'COADES', campus: 'NOVA CRUZ' };
+
 // Helper to manage localStorage
 const getStorage = <T>(key: string, initial: T): T => {
   const stored = localStorage.getItem(key);
@@ -91,6 +94,10 @@ const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 
 // API Services
 export const StorageService = {
+  // System Config
+  getConfig: () => getStorage(SYSTEM_CONFIG_KEY, DEFAULT_CONFIG),
+  saveConfig: (sector: string, campus: string) => setStorage(SYSTEM_CONFIG_KEY, { sector, campus }),
+
   // Users
   getUsers: (): User[] => getStorage('users', INITIAL_USERS),
   

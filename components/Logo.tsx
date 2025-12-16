@@ -1,6 +1,12 @@
 import React from 'react';
 
-export const IfrnLogo: React.FC<{ className?: string }> = ({ className = "" }) => {
+interface LogoProps {
+  className?: string;
+  sector?: string;
+  campus?: string;
+}
+
+export const IfrnLogo: React.FC<LogoProps> = ({ className = "", sector = "COADES", campus = "NOVA CRUZ" }) => {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       {/* SVG Logo */}
@@ -34,7 +40,9 @@ export const IfrnLogo: React.FC<{ className?: string }> = ({ className = "" }) =
       {/* Text */}
       <div className="flex flex-col leading-none">
         <span className="font-bold text-xl tracking-tight text-gray-800">IFRN</span>
-        <span className="text-xs font-semibold text-gray-500 tracking-wider">COADES - NOVA CRUZ</span>
+        <span className="text-xs font-semibold text-gray-500 tracking-wider uppercase">
+          {sector} - {campus}
+        </span>
       </div>
     </div>
   );

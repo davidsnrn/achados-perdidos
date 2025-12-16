@@ -6,7 +6,7 @@ import { FoundItemsTab } from './components/Tabs/FoundItemsTab';
 import { LostReportsTab } from './components/Tabs/LostReportsTab';
 import { PeopleTab } from './components/Tabs/PeopleTab';
 import { UsersTab } from './components/Tabs/UsersTab';
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, Save, Building2 } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, Save, Building2, Eye, EyeOff } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 
 type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'FACTORY_RESET' | null;
@@ -44,6 +44,7 @@ const App: React.FC = () => {
   // Login State
   const [loginMat, setLoginMat] = useState('');
   const [loginPass, setLoginPass] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   // Change Password State
@@ -78,6 +79,7 @@ const App: React.FC = () => {
     setUser(null);
     setLoginMat('');
     setLoginPass('');
+    setShowLoginPassword(false);
     setActiveTab('achados'); // Reset tab on logout
     localStorage.removeItem('activeTab');
     setMobileMenuOpen(false);
@@ -279,13 +281,23 @@ const App: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Senha</label>
-                <input 
-                  type="password"
-                  value={loginPass}
-                  onChange={e => setLoginPass(e.target.value)}
-                  className="w-full border rounded-lg p-3 outline-none focus:ring-2 focus:ring-ifrn-green" 
-                  placeholder="Sua senha..."
-                />
+                <div className="relative group">
+                  <input 
+                    type={showLoginPassword ? "text" : "password"}
+                    value={loginPass}
+                    onChange={e => setLoginPass(e.target.value)}
+                    className="w-full border rounded-lg p-3 pr-10 outline-none focus:ring-2 focus:ring-ifrn-green" 
+                    placeholder="Sua senha..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="absolute right-3 top-3 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
+                    tabIndex={-1} // Evita foco via tab, apenas visível se o input tiver foco ou hover
+                  >
+                    {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
               {loginError && <p className="text-sm text-red-500 text-center">{loginError}</p>}
               <button 

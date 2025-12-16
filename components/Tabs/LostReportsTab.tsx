@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { LostReport, ReportStatus, Person, PersonType, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -350,6 +350,16 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
                     className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
                   >
                     <CheckCircle size={16} /> Marcar Resolvido
+                  </button>
+                )}
+                
+                {/* Reopen Button - Only for Advanced/Admin when status is Resolved */}
+                {viewingReport.status === ReportStatus.RESOLVED && (user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED) && (
+                  <button 
+                    onClick={() => changeStatus(ReportStatus.OPEN)}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium"
+                  >
+                    <RotateCcw size={16} /> Reabrir
                   </button>
                 )}
               </div>

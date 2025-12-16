@@ -177,13 +177,22 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     const formData = new FormData(e.currentTarget);
     const isNew = !editingItem || editingItem.id === 0;
 
+    const dateFoundInput = formData.get('dateFound') as string;
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Validação de data futura
+    if (dateFoundInput > todayStr) {
+      alert("A data em que o item foi achado não pode ser futura.");
+      return;
+    }
+
     const newItem: FoundItem = {
       id: editingItem ? editingItem.id : 0,
       description: formData.get('description') as string,
       detailedDescription: formData.get('detailedDescription') as string,
       locationFound: formData.get('locationFound') as string,
       locationStored: formData.get('locationStored') as string,
-      dateFound: formData.get('dateFound') as string,
+      dateFound: dateFoundInput,
       dateRegistered: editingItem ? editingItem.dateRegistered : new Date().toISOString(),
       status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
     };
@@ -545,7 +554,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           </div>
           <div className="col-span-2 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Data que foi achado *</label>
-            <input type="date" name="dateFound" required defaultValue={editingItem?.dateFound || new Date().toISOString().split('T')[0]} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" />
+            <input 
+              type="date" 
+              name="dateFound" 
+              required 
+              max={new Date().toISOString().split('T')[0]}
+              defaultValue={editingItem?.dateFound || new Date().toISOString().split('T')[0]} 
+              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" 
+            />
           </div>
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Descrição Detalhada</label>

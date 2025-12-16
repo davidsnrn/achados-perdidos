@@ -43,6 +43,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   const userString = `${user.name} (${user.matricula})`;
   
+  // Define quais abas estão visíveis baseado no nível do usuário
+  const availableTabs = useMemo(() => {
+    const statuses = Object.values(ItemStatus);
+    // Usuário Padrão não vê "Descartado/Doado"
+    if (user.level === UserLevel.STANDARD) {
+      return statuses.filter(s => s !== ItemStatus.DISCARDED);
+    }
+    return statuses;
+  }, [user.level]);
+
   // Helper: Remove accents and lower case for search
   const normalizeText = (text: string) => {
     return text
@@ -313,7 +323,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       {/* Sub-tabs & Actions */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex p-1 bg-gray-200 rounded-lg">
-          {Object.values(ItemStatus).map((status) => (
+          {availableTabs.map((status) => (
             <button
               key={status}
               onClick={() => { setActiveSubTab(status); setSelectedItems([]); }}
@@ -501,13 +511,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                              {item.returnedDate && <span className="text-xs text-gray-400 ml-1">({new Date(item.returnedDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})})</span>}
                           </td>
                           <td className="p-4 text-center">
-                            <button 
-                              onClick={(e) => handleCancelReturn(e, item)}
-                              title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
-                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
-                            >
-                              <RotateCcw size={14} /> Estornar
-                            </button>
+                            {user.level !== UserLevel.STANDARD && (
+                              <button 
+                                onClick={(e) => handleCancelReturn(e, item)}
+                                title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
+                              >
+                                <RotateCcw size={14} /> Estornar
+                              </button>
+                            )}
                           </td>
                         </>
                      )}

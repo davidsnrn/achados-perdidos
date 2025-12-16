@@ -2,8 +2,22 @@ import { FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, Us
 
 // Initial Mock Data
 const INITIAL_USERS: User[] = [
-  { id: '1', matricula: 'admin', name: 'Administrador COADES', password: 'admin', level: UserLevel.ADMIN },
-  { id: '2', matricula: 'op1', name: 'Operador Padrão', password: '123', level: UserLevel.STANDARD },
+  { 
+    id: '1', 
+    matricula: 'admin', 
+    name: 'Administrador COADES', 
+    password: 'admin', 
+    level: UserLevel.ADMIN,
+    logs: ['Usuário inicial do sistema.']
+  },
+  { 
+    id: '2', 
+    matricula: 'op1', 
+    name: 'Operador Padrão', 
+    password: '123', 
+    level: UserLevel.STANDARD,
+    logs: ['Usuário inicial do sistema.']
+  },
 ];
 
 const INITIAL_ITEMS: FoundItem[] = [
@@ -73,19 +87,56 @@ const setStorage = <T>(key: string, data: T) => {
 export const StorageService = {
   // Users
   getUsers: (): User[] => getStorage('users', INITIAL_USERS),
-  saveUser: (user: User) => {
+  
+  saveUser: (user: User, actorName: string) => {
     const users = StorageService.getUsers();
+    
+    // Check for duplicate matricula on OTHER users
+    const duplicate = users.find(u => u.matricula === user.matricula && u.id !== user.id);
+    if (duplicate) {
+      throw new Error(`Erro: A matrícula '${user.matricula}' já está cadastrada para o usuário '${duplicate.name}'.`);
+    }
+
     const existingIndex = users.findIndex(u => u.id === user.id);
+    const dateStr = new Date().toLocaleString('pt-BR');
+
     if (existingIndex >= 0) {
+      // Update
+      const existingUser = users[existingIndex];
+      // Mantém a senha antiga, a menos que tenha sido alterada explicitamente (aqui assumimos que saveUser via admin NÃO muda senha, apenas reset)
+      
+      const logMessage = `Editado por ${actorName} em ${dateStr}.`;
+      user.logs = [...(existingUser.logs || []), logMessage];
+      
       users[existingIndex] = user;
     } else {
+      // Create
+      // Senha padrão na criação
+      user.password = 'ifrn123';
+      const logMessage = `Criado por ${actorName} em ${dateStr} com senha padrão.`;
+      user.logs = [logMessage];
       users.push(user);
     }
     setStorage('users', users);
   },
+
   deleteUser: (id: string) => {
     const users = StorageService.getUsers().filter(u => u.id !== id);
     setStorage('users', users);
+  },
+
+  changePassword: (userId: string, newPass: string, actorName: string) => {
+    const users = StorageService.getUsers();
+    const index = users.findIndex(u => u.id === userId);
+    if (index >= 0) {
+      users[index].password = newPass;
+      const dateStr = new Date().toLocaleString('pt-BR');
+      const log = `Senha alterada pelo próprio usuário em ${dateStr}.`;
+      users[index].logs = [...(users[index].logs || []), log];
+      setStorage('users', users);
+      return users[index];
+    }
+    return null;
   },
   
   // People

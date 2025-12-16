@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { FoundItem, ItemStatus, Person, LostReport, ReportStatus } from '../../types';
+import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, RotateCcw, User, FileText, CheckCircle } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, RotateCcw, User as UserIcon, FileText, CheckCircle } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -9,11 +9,12 @@ interface Props {
   people: Person[]; // Lista de Pessoas para selecionar na devolução
   reports: LostReport[]; // Lista de Relatos para vincular
   onUpdate: () => void;
+  user: User;
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'CUSTOM';
 
-export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate }) => {
+export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -155,6 +156,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   const handleDelete = (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
+    if (user.level === UserLevel.STANDARD) {
+      alert("Usuários Padrão não podem excluir itens.");
+      return;
+    }
     if (confirm('Tem certeza que deseja excluir este item?')) {
       StorageService.deleteItem(id);
       onUpdate();
@@ -233,6 +238,17 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   };
 
   const handleBatchDonate = () => {
+    // Apesar de não ser "deletar", mudar status em lote geralmente é uma ação mais sensível.
+    // O pedido focou em não deletar. Vou manter a permissão de edição/doação para padrão?
+    // "apenas devolver ou editar". Doar é editar status. Vou manter visível, 
+    // mas se quiser restringir também, posso adicionar a checagem aqui.
+    // Por segurança e coerência com sistemas hierárquicos, vou restringir o botão de Doação em Lote também, 
+    // já que é uma forma de "limpar" a lista.
+    if (user.level === UserLevel.STANDARD) {
+        alert("Ação não permitida para nível Padrão.");
+        return;
+    }
+
     if (confirm(`Marcar ${selectedItems.length} itens como Doado/Descartado?`)) {
       selectedItems.forEach(id => {
         const item = items.find(i => i.id === id);
@@ -281,7 +297,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
-          {selectedItems.length > 0 && (
+          {selectedItems.length > 0 && user.level !== UserLevel.STANDARD && (
             <button 
               onClick={handleBatchDonate}
               className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
@@ -359,6 +375,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                         else setSelectedItems([]);
                       }}
                       checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
+                      // Desabilita seleção em lote se não tiver permissão de doar em lote (opcional, mas bom pra UX)
+                      disabled={user.level === UserLevel.STANDARD}
                     />
                   </th>
                 )}
@@ -393,6 +411,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                           type="checkbox" 
                           checked={selectedItems.includes(item.id)}
                           onChange={() => toggleSelection(item.id)}
+                          disabled={user.level === UserLevel.STANDARD}
                         />
                       </td>
                     )}
@@ -430,13 +449,17 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                             >
                               <Pencil size={18} />
                             </button>
-                            <button 
-                              onClick={(e) => handleDelete(e, item.id)}
-                              title="Excluir"
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            
+                            {/* BOTÃO DE EXCLUIR: OCULTO PARA USUÁRIO PADRÃO */}
+                            {user.level !== UserLevel.STANDARD && (
+                              <button 
+                                onClick={(e) => handleDelete(e, item.id)}
+                                title="Excluir"
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </>
                         )}
 
@@ -514,7 +537,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 onClick={() => setReturnType('PERSON')}
                 className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'PERSON' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}
              >
-                <User size={16} /> Selecionar Pessoa
+                <UserIcon size={16} /> Selecionar Pessoa
              </button>
              <button 
                 onClick={() => setReturnType('REPORT')}
@@ -542,7 +565,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               {selectedPerson ? (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
                   <div className="bg-green-100 p-2 rounded-full text-green-700">
-                    <User size={20} />
+                    <UserIcon size={20} />
                   </div>
                   <div>
                     <p className="font-bold text-green-900 text-sm">{selectedPerson.name}</p>

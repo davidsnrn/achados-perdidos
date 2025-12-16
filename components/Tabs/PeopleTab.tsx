@@ -1,15 +1,16 @@
 import React, { useState, useRef } from 'react';
-import { Person, PersonType } from '../../types';
+import { Person, PersonType, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
   people: Person[];
   onUpdate: () => void;
+  user: User;
 }
 
-export const PeopleTab: React.FC<Props> = ({ people, onUpdate }) => {
+export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
   const [filterType, setFilterType] = useState<PersonType | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
@@ -31,6 +32,10 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate }) => {
   // Edit State
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+
+  // Delete All State
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
 
   // Helper: Title Case for Names
   const toTitleCase = (str: string) => {
@@ -264,6 +269,19 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate }) => {
     }
   };
 
+  const handleDeleteAll = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (user.password !== deletePassword) {
+      alert("Senha incorreta.");
+      return;
+    }
+    StorageService.deleteAllPeople();
+    onUpdate();
+    setShowDeleteAllModal(false);
+    setDeletePassword('');
+    alert("Todas as pessoas foram removidas com sucesso.");
+  };
+
   const filtered = people.filter(p => {
     // 1. Filter by Type
     const matchesType = filterType === 'ALL' || p.type === filterType;
@@ -299,21 +317,37 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate }) => {
     setCurrentPage(1);
   }, [filterType, search]);
 
+  const canDeleteAll = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
+
   return (
     <div className="space-y-6">
-      <div className="flex gap-4 border-b border-gray-200">
-        <button 
-          onClick={() => setActiveTab('manual')}
-          className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'manual' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
-        >
-          Cadastro Manual
-        </button>
-        <button 
-          onClick={() => setActiveTab('import')}
-          className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'import' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
-        >
-          Importar CSV
-        </button>
+      {/* Top Navigation & Actions Bar */}
+      <div className="flex items-center border-b border-gray-200">
+        <div className="flex gap-4 items-center">
+          <button 
+            onClick={() => setActiveTab('manual')}
+            className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'manual' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
+          >
+            Cadastro Manual
+          </button>
+          <button 
+            onClick={() => setActiveTab('import')}
+            className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'import' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
+          >
+            Importar CSV
+          </button>
+          
+          {/* Delete All Button - Next to tabs as Icon */}
+          {canDeleteAll && people.length > 0 && (
+            <button 
+              onClick={() => setShowDeleteAllModal(true)}
+              className="mb-1.5 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+              title="Excluir todas as pessoas cadastradas"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -406,23 +440,27 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate }) => {
       </div>
 
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h3 className="font-bold text-gray-700">Pessoas Cadastradas ({filtered.length})</h3>
-          <div className="flex gap-2">
-            <select 
-              className="text-sm border rounded-lg px-2 py-1"
-              value={filterType}
-              onChange={e => setFilterType(e.target.value as any)}
-            >
-              <option value="ALL">Todos</option>
-              {Object.values(PersonType).map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input 
-              className="text-sm border rounded-lg px-3 py-1 w-48" 
-              placeholder="Buscar (nome, matrícula)..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+        {/* Layout Reorganizado: Título acima, filtros à direita */}
+        <div className="flex flex-col gap-4">
+          <h3 className="font-bold text-gray-700 text-lg">Pessoas Cadastradas ({filtered.length})</h3>
+          
+          <div className="flex flex-col md:flex-row justify-end items-center gap-3">
+             <div className="flex gap-2 w-full md:w-auto">
+                <select 
+                  className="text-sm border rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-ifrn-green outline-none"
+                  value={filterType}
+                  onChange={e => setFilterType(e.target.value as any)}
+                >
+                  <option value="ALL">Todos</option>
+                  {Object.values(PersonType).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input 
+                  className="text-sm border rounded-lg px-3 py-1.5 w-full md:w-56 focus:ring-2 focus:ring-ifrn-green outline-none" 
+                  placeholder="Buscar (nome, matrícula)..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
           </div>
         </div>
         
@@ -544,6 +582,50 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate }) => {
           <div className="pt-4 flex justify-end gap-3 border-t mt-4">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
             <button type="submit" className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">Salvar Alterações</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete All Modal Confirmation */}
+      <Modal
+        isOpen={showDeleteAllModal}
+        onClose={() => { setShowDeleteAllModal(false); setDeletePassword(''); }}
+        title="Confirmar Exclusão em Massa"
+      >
+        <form onSubmit={handleDeleteAll} className="space-y-4">
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg text-sm mb-4 border border-red-200">
+             <p className="font-bold flex items-center gap-2"><AlertTriangle size={16}/> Ação Irreversível</p>
+             <p className="mt-1">Você está prestes a excluir <strong>TODAS</strong> as pessoas cadastradas.</p>
+             <p>Esta ação não pode ser desfeita.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sua Senha</label>
+            <input 
+              type="password"
+              required 
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none" 
+              placeholder="Confirme sua senha para continuar..."
+              autoFocus
+            />
+          </div>
+
+          <div className="pt-4 flex justify-end gap-3 border-t">
+            <button 
+              type="button" 
+              onClick={() => { setShowDeleteAllModal(false); setDeletePassword(''); }} 
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit" 
+              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold flex items-center gap-2"
+            >
+              <Trash2 size={18} /> Confirmar Exclusão
+            </button>
           </div>
         </form>
       </Modal>

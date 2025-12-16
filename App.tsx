@@ -507,7 +507,7 @@ const App: React.FC = () => {
             />
           )}
           {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} onUpdate={refreshData} />}
-          {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} />}
+          {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} />}
           {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} />}
         </div>
 

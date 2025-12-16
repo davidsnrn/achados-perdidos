@@ -1,90 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 import { FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel } from "../types";
 
-// Initial Mock Data
-const INITIAL_USERS: User[] = [
-  { 
-    id: '1', 
-    matricula: 'admin', 
-    name: 'Administrador COADES', 
-    password: 'admin', 
-    level: UserLevel.ADMIN,
-    logs: ['Usuário inicial do sistema.']
-  },
-  { 
-    id: '2', 
-    matricula: 'op1', 
-    name: 'Operador Padrão', 
-    password: '123', 
-    level: UserLevel.STANDARD,
-    logs: ['Usuário inicial do sistema.']
-  },
-];
+// Configuração do Supabase
+const SUPABASE_URL = 'https://vfcnptykhuljtoykpbmv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_jjl3YMTXv7Ly-LwahfI3Yw_5GZD4fpv';
 
-const INITIAL_ITEMS: FoundItem[] = [
-  {
-    id: 1,
-    description: 'Garrafa Azul',
-    detailedDescription: 'Garrafa térmica marca Contigo, azul marinho, amassada na base.',
-    locationFound: 'Auditório',
-    locationStored: 'Armário 2, Prateleira B',
-    dateFound: new Date().toISOString().split('T')[0],
-    dateRegistered: new Date().toISOString(),
-    status: ItemStatus.AVAILABLE,
-    history: [
-      { date: new Date().toISOString(), action: 'Item registrado no sistema.', user: 'Administrador COADES (admin)' }
-    ]
-  },
-  {
-    id: 2,
-    description: 'Caderno Capa Dura',
-    locationFound: 'Sala 60',
-    locationStored: 'Sala AP',
-    dateFound: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0],
-    dateRegistered: new Date(Date.now() - 86400000 * 5).toISOString(),
-    status: ItemStatus.RETURNED,
-    returnedTo: 'João Silva',
-    returnedDate: new Date().toISOString(),
-    history: [
-      { date: new Date(Date.now() - 86400000 * 5).toISOString(), action: 'Item registrado.', user: 'Operador Padrão (op1)' },
-      { date: new Date().toISOString(), action: 'Item devolvido para João Silva.', user: 'Administrador COADES (admin)' }
-    ]
-  }
-];
-
-const INITIAL_PEOPLE: Person[] = [
-  { id: 'p1', matricula: '20231011110055', name: 'Maria Souza', type: PersonType.STUDENT },
-  { id: 'p2', matricula: '1552233', name: 'Prof. Carlos Lima', type: PersonType.SERVER },
-];
-
-const INITIAL_REPORTS: LostReport[] = [
-  {
-    id: 'r1',
-    itemDescription: 'Chave do carro Honda',
-    personName: 'Maria Souza',
-    personId: 'p1',
-    whatsapp: '84999998888',
-    status: ReportStatus.OPEN,
-    createdAt: new Date().toISOString(),
-    history: [{ date: new Date().toISOString(), note: 'Relato criado.', user: 'Administrador COADES (admin)' }]
-  }
-];
-
-const SYSTEM_CONFIG_KEY = 'coades_system_config';
-const DEFAULT_CONFIG = { sector: 'COADES', campus: 'NOVA CRUZ' };
-
-// Helper to manage localStorage
-const getStorage = <T>(key: string, initial: T): T => {
-  const stored = localStorage.getItem(key);
-  if (!stored) {
-    localStorage.setItem(key, JSON.stringify(initial));
-    return initial;
-  }
-  return JSON.parse(stored);
-};
-
-const setStorage = <T>(key: string, data: T) => {
-  localStorage.setItem(key, JSON.stringify(data));
-};
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Session constants
 const SESSION_USER_KEY = 'coades_session_user';
@@ -92,178 +13,303 @@ const LAST_ACTIVE_KEY = 'coades_last_active';
 const TIMEOUT_MINUTES = 5;
 const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 
-// API Services
 export const StorageService = {
   // System Config
-  getConfig: () => getStorage(SYSTEM_CONFIG_KEY, DEFAULT_CONFIG),
-  saveConfig: (sector: string, campus: string) => setStorage(SYSTEM_CONFIG_KEY, { sector, campus }),
+  getConfig: async () => {
+    const { data, error } = await supabase.from('config').select('*').limit(1).single();
+    if (error || !data) return { sector: 'COADES', campus: 'NOVA CRUZ' };
+    return { sector: data.sector, campus: data.campus };
+  },
+
+  saveConfig: async (sector: string, campus: string) => {
+    // Tenta atualizar o primeiro registro, se não existir, cria
+    const { data } = await supabase.from('config').select('id').limit(1);
+    
+    if (data && data.length > 0) {
+      await supabase.from('config').update({ sector, campus }).eq('id', data[0].id);
+    } else {
+      await supabase.from('config').insert({ sector, campus });
+    }
+  },
 
   // Users
-  getUsers: (): User[] => getStorage('users', INITIAL_USERS),
+  getUsers: async (): Promise<User[]> => {
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) {
+      console.error('Error fetching users:', error);
+      return [];
+    }
+    return data || [];
+  },
   
-  saveUser: (user: User, actorName: string) => {
-    const users = StorageService.getUsers();
-    
-    // Check for duplicate matricula on OTHER users
-    const duplicate = users.find(u => u.matricula === user.matricula && u.id !== user.id);
-    if (duplicate) {
-      throw new Error(`Erro: A matrícula '${user.matricula}' já está cadastrada para o usuário '${duplicate.name}'.`);
+  saveUser: async (user: User, actorName: string) => {
+    // Check duplication (exceto o próprio usuário)
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('matricula', user.matricula)
+      .neq('id', user.id); // Garante que não é ele mesmo
+
+    if (existing && existing.length > 0) {
+      throw new Error(`Erro: A matrícula '${user.matricula}' já está cadastrada para o usuário '${existing[0].name}'.`);
     }
 
-    const existingIndex = users.findIndex(u => u.id === user.id);
     const dateStr = new Date().toLocaleString('pt-BR');
+    
+    // Check if updating or creating
+    const { data: currentUser } = await supabase.from('users').select('*').eq('id', user.id).single();
 
-    if (existingIndex >= 0) {
+    if (currentUser) {
       // Update
-      const existingUser = users[existingIndex];
-      // Mantém a senha antiga, a menos que tenha sido alterada explicitamente (aqui assumimos que saveUser via admin NÃO muda senha, apenas reset)
-      
       const logMessage = `Editado por ${actorName} em ${dateStr}.`;
-      user.logs = [...(existingUser.logs || []), logMessage];
+      const updatedLogs = [...(currentUser.logs || []), logMessage];
       
-      users[existingIndex] = user;
+      const { error } = await supabase.from('users').update({
+        matricula: user.matricula,
+        name: user.name,
+        level: user.level,
+        password: user.password, // Em prod, não atualize senha aqui sem hash
+        logs: updatedLogs
+      }).eq('id', user.id);
+      
+      if (error) throw error;
     } else {
       // Create
-      // Senha padrão na criação
-      user.password = 'ifrn123';
+      const password = user.password || 'ifrn123';
       const logMessage = `Criado por ${actorName} em ${dateStr} com senha padrão.`;
-      user.logs = [logMessage];
-      users.push(user);
+      
+      const { error } = await supabase.from('users').insert({
+        id: user.id,
+        matricula: user.matricula,
+        name: user.name,
+        password: password,
+        level: user.level,
+        logs: [logMessage]
+      });
+
+      if (error) throw error;
     }
-    setStorage('users', users);
   },
 
-  deleteUser: (id: string) => {
-    const users = StorageService.getUsers().filter(u => u.id !== id);
-    setStorage('users', users);
+  deleteUser: async (id: string) => {
+    await supabase.from('users').delete().eq('id', id);
   },
 
-  deleteAllUsers: (currentAdminId: string) => {
-    const users = StorageService.getUsers();
-    // Keep only the current admin
-    const remaining = users.filter(u => u.id === currentAdminId);
-    setStorage('users', remaining);
+  deleteAllUsers: async (currentAdminId: string) => {
+    await supabase.from('users').delete().neq('id', currentAdminId);
   },
 
-  changePassword: (userId: string, newPass: string, actorName: string) => {
-    const users = StorageService.getUsers();
-    const index = users.findIndex(u => u.id === userId);
-    if (index >= 0) {
-      users[index].password = newPass;
+  changePassword: async (userId: string, newPass: string, actorName: string): Promise<User | null> => {
+    const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
+    
+    if (user) {
       const dateStr = new Date().toLocaleString('pt-BR');
       const log = `Senha alterada pelo próprio usuário em ${dateStr}.`;
-      users[index].logs = [...(users[index].logs || []), log];
-      setStorage('users', users);
-      return users[index];
+      const updatedLogs = [...(user.logs || []), log];
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({ password: newPass, logs: updatedLogs })
+        .eq('id', userId)
+        .select()
+        .single();
+        
+      if (!error) return data as User;
     }
     return null;
   },
   
   // People
-  getPeople: (): Person[] => getStorage('people', INITIAL_PEOPLE),
-  savePerson: (person: Person) => {
-    const people = StorageService.getPeople();
-    
-    // Check for duplicate matricula on OTHER people
-    if (people.some(p => p.matricula === person.matricula && p.id !== person.id)) {
+  getPeople: async (): Promise<Person[]> => {
+    const { data, error } = await supabase.from('people').select('*');
+    if (error) return [];
+    return data || [];
+  },
+
+  savePerson: async (person: Person) => {
+    // Check duplicate matricula
+    const { data: existing } = await supabase
+      .from('people')
+      .select('id')
+      .eq('matricula', person.matricula)
+      .neq('id', person.id);
+
+    if (existing && existing.length > 0) {
       throw new Error("Matrícula já cadastrada para outra pessoa.");
     }
 
-    const existingIndex = people.findIndex(p => p.id === person.id);
-    let newList;
+    const { error } = await supabase.from('people').upsert({
+      id: person.id,
+      matricula: person.matricula,
+      name: person.name,
+      type: person.type
+    });
+
+    if (error) throw error;
+  },
+
+  deletePerson: async (id: string) => {
+    await supabase.from('people').delete().eq('id', id);
+  },
+
+  deleteAllPeople: async () => {
+    await supabase.from('people').delete().neq('id', '0'); // Delete all (hacky neq check) or allow delete without where
+  },
+
+  importPeople: async (people: Person[]) => {
+    // Supabase permite insert de array
+    // Filtra duplicatas locais antes de enviar ou usa onConflict (mas id é uuid, matricula é unique)
+    // Vamos fazer um insert "ignore" based on matricula se possível, ou loop.
+    // Para simplificar, vamos inserir um por um ou em batch e ignorar erros de constraint unique
     
-    if (existingIndex >= 0) {
-      // Update
-      people[existingIndex] = person;
-      newList = [...people];
-    } else {
-      // Create
-      newList = [...people, person];
+    // Buscar matrículas existentes para não tentar inserir
+    const { data: existing } = await supabase.from('people').select('matricula');
+    const existingMats = new Set(existing?.map(p => p.matricula));
+    
+    const toInsert = people.filter(p => !existingMats.has(p.matricula)).map(p => ({
+       id: p.id,
+       matricula: p.matricula,
+       name: p.name,
+       type: p.type
+    }));
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from('people').insert(toInsert);
+      if (error) console.error("Erro import:", error);
     }
-    
-    setStorage('people', newList);
-    return newList;
-  },
-  deletePerson: (id: string) => {
-    const people = StorageService.getPeople().filter(p => p.id !== id);
-    setStorage('people', people);
-  },
-  deleteAllPeople: () => {
-    setStorage('people', []);
-  },
-  importPeople: (people: Person[]) => {
-    const current = StorageService.getPeople();
-    // Simple merge avoiding duplicates by matricula
-    const newPeople = people.filter(p => !current.some(c => c.matricula === p.matricula));
-    setStorage('people', [...current, ...newPeople]);
   },
 
   // Items
-  getItems: (): FoundItem[] => getStorage('items', INITIAL_ITEMS),
-  saveItem: (item: FoundItem, actionDescription?: string, actorName: string = 'Sistema') => {
-    const items = StorageService.getItems();
-    const exists = items.find(i => i.id === item.id);
+  getItems: async (): Promise<FoundItem[]> => {
+    const { data, error } = await supabase.from('items').select('*').order('id', { ascending: false });
     
-    // Create history entry
+    if (error) return [];
+    
+    // Map snake_case to camelCase manually if needed, or rely on TS checks
+    // Supabase returns keys as columns in DB. If DB columns are snake_case, we need map.
+    // My provided SQL used snake_case for DB columns.
+    
+    return data.map((d: any) => ({
+      id: d.id,
+      description: d.description,
+      detailedDescription: d.detailed_description,
+      locationFound: d.location_found,
+      locationStored: d.location_stored,
+      dateFound: d.date_found,
+      dateRegistered: d.date_registered,
+      status: d.status as ItemStatus,
+      returnedTo: d.returned_to,
+      returnedDate: d.returned_date,
+      history: d.history
+    }));
+  },
+
+  saveItem: async (item: FoundItem, actionDescription?: string, actorName: string = 'Sistema') => {
+    // Se ID for 0, é create
+    const isNew = item.id === 0;
+
     const newHistoryEntry = {
       date: new Date().toISOString(),
-      action: actionDescription || (exists ? 'Item atualizado.' : 'Item registrado.'),
+      action: actionDescription || (isNew ? 'Item registrado.' : 'Item atualizado.'),
       user: actorName
     };
 
-    if (exists) {
-      // Preserve existing history and add new entry
-      item.history = [...(exists.history || []), newHistoryEntry];
-      const updated = items.map(i => i.id === item.id ? item : i);
-      setStorage('items', updated);
+    let history = [];
+    if (!isNew) {
+       // Fetch current history
+       const { data } = await supabase.from('items').select('history').eq('id', item.id).single();
+       history = data?.history || [];
+    }
+    
+    history.push(newHistoryEntry);
+
+    const payload = {
+      description: item.description,
+      detailed_description: item.detailedDescription,
+      location_found: item.locationFound,
+      location_stored: item.locationStored,
+      date_found: item.dateFound,
+      date_registered: item.dateRegistered,
+      status: item.status,
+      returned_to: item.returnedTo,
+      returned_date: item.returnedDate,
+      history: history
+    };
+
+    if (isNew) {
+      // Remove ID para deixar o banco gerar (serial)
+      await supabase.from('items').insert(payload);
     } else {
-      // Generate ID if new (simple max + 1)
-      const maxId = items.reduce((max, i) => Math.max(max, i.id), 0);
-      item.id = maxId + 1;
-      item.history = [newHistoryEntry];
-      setStorage('items', [item, ...items]);
+      await supabase.from('items').update(payload).eq('id', item.id);
     }
   },
-  deleteItem: (id: number) => {
-    const items = StorageService.getItems().filter(i => i.id !== id);
-    setStorage('items', items);
+
+  deleteItem: async (id: number) => {
+    await supabase.from('items').delete().eq('id', id);
   },
 
-  deleteAllItems: () => {
-    setStorage('items', []);
+  deleteAllItems: async () => {
+    await supabase.from('items').delete().gt('id', -1);
   },
   
   // Reports
-  getReports: (): LostReport[] => getStorage('reports', INITIAL_REPORTS),
-  saveReport: (report: LostReport) => {
-    const reports = StorageService.getReports();
-    const existing = reports.findIndex(r => r.id === report.id);
-    if (existing >= 0) {
-      reports[existing] = report;
-    } else {
-      setStorage('reports', [report, ...reports]);
-      return;
-    }
-    setStorage('reports', reports);
-  },
-  deleteReport: (id: string) => {
-    const reports = StorageService.getReports().filter(r => r.id !== id);
-    setStorage('reports', reports);
-  },
-  deleteAllReports: () => {
-    setStorage('reports', []);
+  getReports: async (): Promise<LostReport[]> => {
+    const { data, error } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+    if (error) return [];
+
+    return data.map((d: any) => ({
+      id: d.id,
+      itemDescription: d.item_description,
+      personId: d.person_id,
+      personName: d.person_name,
+      whatsapp: d.whatsapp,
+      email: d.email,
+      status: d.status as ReportStatus,
+      createdAt: d.created_at,
+      history: d.history
+    }));
   },
 
-  // Auth Simulation & Session Management
-  login: (matricula: string, pass: string): User | null => {
-    const users = StorageService.getUsers();
-    const user = users.find(u => u.matricula === matricula && u.password === pass) || null;
-    return user;
+  saveReport: async (report: LostReport) => {
+    const payload = {
+      id: report.id,
+      item_description: report.itemDescription,
+      person_id: report.personId,
+      person_name: report.personName,
+      whatsapp: report.whatsapp,
+      email: report.email,
+      status: report.status,
+      created_at: report.createdAt,
+      history: report.history
+    };
+
+    await supabase.from('reports').upsert(payload);
   },
 
-  // Persist Session
+  deleteReport: async (id: string) => {
+    await supabase.from('reports').delete().eq('id', id);
+  },
+
+  deleteAllReports: async () => {
+    await supabase.from('reports').delete().neq('id', '0');
+  },
+
+  // Auth Simulation (Using custom table, not Gotrue/Supabase Auth to keep logic simple)
+  login: async (matricula: string, pass: string): Promise<User | null> => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('matricula', matricula)
+      .eq('password', pass) // Note: In production, compare Hash
+      .single();
+
+    if (error || !data) return null;
+    return data as User;
+  },
+
+  // Persist Session (Local Storage for Client Session Persistence Only)
   setSessionUser: (user: User) => {
-    setStorage(SESSION_USER_KEY, user);
+    localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
     StorageService.updateLastActive();
   },
 
@@ -291,8 +337,13 @@ export const StorageService = {
     return (now - last) > TIMEOUT_MS;
   },
 
-  factoryReset: () => {
-    localStorage.clear();
-    // O reload será tratado pela UI
+  factoryReset: async () => {
+     // Warning: This destroys DB data
+     await StorageService.deleteAllItems();
+     await StorageService.deleteAllReports();
+     await StorageService.deleteAllPeople();
+     // Keep admin user usually? But requested factory reset.
+     // In supabase context, we might keep the structure but empty data.
+     localStorage.clear();
   }
 };

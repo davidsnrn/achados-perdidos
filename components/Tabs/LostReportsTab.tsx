@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { LostReport, ReportStatus, Person, PersonType, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -16,6 +16,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [viewingReport, setViewingReport] = useState<LostReport | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Delete Confirmation State
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -27,7 +28,6 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
 
   const userString = `${user.name} (${user.matricula})`;
 
-  // Helper: Remove accents and lower case for search (Igual ao FoundItemsTab)
   const normalizeText = (text: string) => {
     return text
       .normalize("NFD")
@@ -35,7 +35,6 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
       .toLowerCase();
   };
 
-  // Improved Search Logic (Igual ao FoundItemsTab)
   const filteredPeople = useMemo(() => {
     if (!personSearch.trim()) return [];
     
@@ -44,17 +43,17 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
     return people.filter(p => {
       const personText = normalizeText(`${p.name} ${p.matricula}`);
       return searchTerms.every(term => personText.includes(term));
-    }).slice(0, 5); // Limit to 5 suggestions
+    }).slice(0, 5);
   }, [people, personSearch]);
 
-  const handleCreateReport = (e: React.FormEvent) => {
+  const handleCreateReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPerson) {
       alert('Selecione uma pessoa cadastrada.');
       return;
     }
 
-    // Remove máscara antes de salvar (opcional, mas recomendado para consistência)
+    setIsLoading(true);
     const cleanPhone = newWhatsapp.replace(/\D/g, '');
 
     const newReport: LostReport = {
@@ -62,51 +61,56 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
       itemDescription: newItemDesc,
       personId: selectedPerson.id,
       personName: selectedPerson.name,
-      whatsapp: cleanPhone, // Salva apenas números ou mantenha newWhatsapp se preferir salvar formatado
+      whatsapp: cleanPhone,
       email: newEmail,
       status: ReportStatus.OPEN,
       createdAt: new Date().toISOString(),
       history: [{ date: new Date().toISOString(), note: 'Relato de perda criado.', user: userString }]
     };
 
-    StorageService.saveReport(newReport);
-    onUpdate();
-    
-    // Critical: Clean form
-    setNewItemDesc('');
-    setNewWhatsapp('');
-    setNewEmail('');
-    setPersonSearch('');
-    setSelectedPerson(null);
-    alert('Relato registrado com sucesso!');
+    try {
+        await StorageService.saveReport(newReport);
+        onUpdate();
+        
+        setNewItemDesc('');
+        setNewWhatsapp('');
+        setNewEmail('');
+        setPersonSearch('');
+        setSelectedPerson(null);
+        alert('Relato registrado com sucesso!');
+    } catch (e) {
+        alert("Erro ao registrar relato.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
-  const addNote = (note: string) => {
+  const addNote = async (note: string) => {
     if (!viewingReport || !note.trim()) return;
     const updated = {
       ...viewingReport,
       history: [...viewingReport.history, { date: new Date().toISOString(), note, user: userString }]
     };
-    StorageService.saveReport(updated);
+    await StorageService.saveReport(updated);
     setViewingReport(updated);
     onUpdate();
   };
 
-  const changeStatus = (status: ReportStatus) => {
+  const changeStatus = async (status: ReportStatus) => {
     if (!viewingReport) return;
     const updated = {
       ...viewingReport,
       status,
       history: [...viewingReport.history, { date: new Date().toISOString(), note: `Status alterado para: ${status}`, user: userString }]
     };
-    StorageService.saveReport(updated);
+    await StorageService.saveReport(updated);
     setViewingReport(updated);
     onUpdate();
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!viewingReport) return;
-    StorageService.deleteReport(viewingReport.id);
+    await StorageService.deleteReport(viewingReport.id);
     setShowDeleteConfirm(false);
     setViewingReport(null);
     onUpdate();
@@ -122,7 +126,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
           </h3>
           <form onSubmit={handleCreateReport} className="space-y-4">
             
-            {/* Person Autocomplete (Visual aprimorado) */}
+            {/* Person Autocomplete */}
             <div className="relative space-y-2">
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Quem Perdeu?</label>
               
@@ -154,15 +158,10 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
                   />
                   <Search className="absolute left-3 top-3 text-gray-400" size={16} />
                   
-                  {/* Lista de Sugestões */}
                   {filteredPeople.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
                       {filteredPeople.map(p => (
-                        <div 
-                          key={p.id}
-                          onClick={() => { setSelectedPerson(p); setPersonSearch(''); }}
-                          className="p-3 hover:bg-gray-50 cursor-pointer text-sm group"
-                        >
+                        <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); }} className="p-3 hover:bg-gray-50 cursor-pointer text-sm group">
                           <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
                           <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                         </div>
@@ -229,8 +228,8 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
               </div>
             </div>
 
-            <button type="submit" className="w-full py-2.5 bg-ifrn-red text-white font-bold rounded-lg shadow-sm hover:bg-red-700 transition-colors flex items-center justify-center gap-2">
-              <Send size={18} /> Registrar
+            <button type="submit" disabled={isLoading} className="w-full py-2.5 bg-ifrn-red text-white font-bold rounded-lg shadow-sm hover:bg-red-700 transition-colors flex items-center justify-center gap-2">
+              {isLoading ? <Loader2 className="animate-spin" size={18} /> : <><Send size={18} /> Registrar</>}
             </button>
           </form>
         </div>
@@ -239,7 +238,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
       {/* RIGHT: List */}
       <div className="lg:col-span-2 space-y-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          {/* Header Responsivo: Column no mobile, Row no desktop */}
+          {/* Header */}
           <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
             <h3 className="font-bold text-gray-700">Relatos Recentes</h3>
             <div className="relative w-full sm:w-auto">
@@ -310,7 +309,6 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
               <div>
                 <span className="block text-gray-500 text-xs uppercase">Contato</span>
                 <div className="flex gap-2 mt-1">
-                   {/* Remove formatação para o link do WhatsApp (mantém apenas números) */}
                    <a href={`https://wa.me/55${viewingReport.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="text-green-600 hover:underline flex items-center gap-1">
                      WhatsApp ({viewingReport.whatsapp})
                    </a>
@@ -343,7 +341,6 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t">
-              {/* Delete Button (Left) */}
               {(user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED) ? (
                 <button 
                   onClick={() => setShowDeleteConfirm(true)}
@@ -352,34 +349,17 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
                   <Trash2 size={16} /> Excluir
                 </button>
               ) : (
-                <div></div> // Spacer if no permission
+                <div></div>
               )}
 
-              {/* Action Buttons (Right) */}
               <div className="flex gap-2">
-                <button 
-                   onClick={() => setViewingReport(null)}
-                   className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
-                >
-                  Fechar
-                </button>
+                <button onClick={() => setViewingReport(null)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm">Fechar</button>
                 {viewingReport.status !== ReportStatus.RESOLVED && (
-                  <button 
-                    onClick={() => changeStatus(ReportStatus.RESOLVED)}
-                    className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-                  >
-                    <CheckCircle size={16} /> Marcar Resolvido
-                  </button>
+                  <button onClick={() => changeStatus(ReportStatus.RESOLVED)} className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"><CheckCircle size={16} /> Marcar Resolvido</button>
                 )}
                 
-                {/* Reopen Button - Only for Advanced/Admin when status is Resolved */}
                 {viewingReport.status === ReportStatus.RESOLVED && (user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED) && (
-                  <button 
-                    onClick={() => changeStatus(ReportStatus.OPEN)}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium"
-                  >
-                    <RotateCcw size={16} /> Reabrir
-                  </button>
+                  <button onClick={() => changeStatus(ReportStatus.OPEN)} className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium"><RotateCcw size={16} /> Reabrir</button>
                 )}
               </div>
             </div>
@@ -388,11 +368,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
       </Modal>
 
       {/* Confirmation Delete Modal */}
-      <Modal 
-        isOpen={showDeleteConfirm} 
-        onClose={() => setShowDeleteConfirm(false)}
-        title="Confirmar Exclusão"
-      >
+      <Modal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} title="Confirmar Exclusão">
          <div className="space-y-4">
             <div className="bg-red-50 text-red-800 p-4 rounded-lg flex items-start gap-3 border border-red-200">
                <AlertTriangle className="flex-shrink-0" size={20} />
@@ -404,18 +380,8 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate, use
             </div>
             
             <div className="flex justify-end gap-3 pt-2">
-               <button 
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
-               >
-                  Cancelar
-               </button>
-               <button 
-                  onClick={confirmDelete}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold flex items-center gap-2"
-               >
-                  <Trash2 size={16} /> Sim, Excluir
-               </button>
+               <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">Cancelar</button>
+               <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-bold flex items-center gap-2"><Trash2 size={16} /> Sim, Excluir</button>
             </div>
          </div>
       </Modal>

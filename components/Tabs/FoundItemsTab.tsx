@@ -1,18 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, RotateCcw, User as UserIcon, FileText, CheckCircle } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
   items: FoundItem[];
-  people: Person[]; // Lista de Pessoas para selecionar na devolução
-  reports: LostReport[]; // Lista de Relatos para vincular
+  people: Person[];
+  reports: LostReport[];
   onUpdate: () => void;
   user: User;
 }
 
-// Updated DateFilterType
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
 
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user }) => {
@@ -22,6 +21,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   // Modals State
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Return Modal State
   const [showReturnModal, setShowReturnModal] = useState(false);
@@ -43,17 +43,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   const userString = `${user.name} (${user.matricula})`;
   
-  // Define quais abas estão visíveis baseado no nível do usuário
   const availableTabs = useMemo(() => {
     const statuses = Object.values(ItemStatus);
-    // Usuário Padrão não vê "Descartado/Doado"
     if (user.level === UserLevel.STANDARD) {
       return statuses.filter(s => s !== ItemStatus.DISCARDED);
     }
     return statuses;
   }, [user.level]);
 
-  // Helper: Remove accents and lower case for search
   const normalizeText = (text: string) => {
     return text
       .normalize("NFD")
@@ -61,7 +58,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       .toLowerCase();
   };
 
-  // Derived state for filtered items
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchesStatus = item.status === activeSubTab;
@@ -70,16 +66,13 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       let matchesSearch = true;
 
       if (rawSearch.startsWith('#')) {
-         // Busca específica por ID (ex: #1)
          const searchId = parseInt(rawSearch.replace('#', ''));
          if (!isNaN(searchId)) {
             matchesSearch = item.id === searchId;
          } else {
-            // Se digitou # mas não seguiu de numero válido, não retorna nada
             matchesSearch = false;
          }
       } else {
-        // Busca textual padrão
         const searchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
         if (searchTerms.length > 0) {
           const itemSearchableText = normalizeText(`
@@ -95,9 +88,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
       let matchesDate = true;
       if (dateFilter !== 'ALL') {
-        const itemDate = new Date(item.dateFound + 'T12:00:00'); // Normalize time
+        const itemDate = new Date(item.dateFound + 'T12:00:00'); 
         const today = new Date();
-        // Reset hours for date comparison
         today.setHours(0, 0, 0, 0);
 
         if (dateFilter === 'TODAY') {
@@ -105,11 +97,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           iDate.setHours(0,0,0,0);
           matchesDate = iDate.getTime() === today.getTime();
         } else if (dateFilter === 'WEEK') {
-          // "Esta Semana" (últimos 7 dias ou semana corrente? Geralmente last 7 days ou domingo-sabado. Vamos usar semana corrente)
           const firstDay = new Date(today);
-          firstDay.setDate(today.getDate() - today.getDay()); // Sunday
+          firstDay.setDate(today.getDate() - today.getDay()); 
           const lastDay = new Date(today);
-          lastDay.setDate(today.getDate() + (6 - today.getDay())); // Saturday
+          lastDay.setDate(today.getDate() + (6 - today.getDay())); 
           
           const iDate = new Date(item.dateFound + 'T00:00:00');
           iDate.setHours(0,0,0,0);
@@ -130,7 +121,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     });
   }, [items, activeSubTab, searchTerm, dateFilter, startDate, endDate]);
 
-  // Autocomplete Filter for People (Enhanced Search)
   const filteredPeople = useMemo(() => {
     if (!personSearch.trim()) return [];
     
@@ -138,12 +128,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
     return people.filter(p => {
       const personText = normalizeText(`${p.name} ${p.matricula}`);
-      // Verifica se TODOS os termos digitados estão presentes no texto da pessoa (Nome ou Matrícula)
       return searchTerms.every(term => personText.includes(term));
-    }).slice(0, 5); // Limit to 5 suggestions
+    }).slice(0, 5); 
   }, [people, personSearch]);
 
-  // Open Reports Filter
   const openReports = useMemo(() => {
     return reports.filter(r => r.status === ReportStatus.OPEN);
   }, [reports]);
@@ -171,18 +159,18 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
   };
 
-  // Handlers
-  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsLoading(true);
     const formData = new FormData(e.currentTarget);
     const isNew = !editingItem || editingItem.id === 0;
 
     const dateFoundInput = formData.get('dateFound') as string;
     const todayStr = new Date().toISOString().split('T')[0];
 
-    // Validação de data futura
     if (dateFoundInput > todayStr) {
       alert("A data em que o item foi achado não pode ser futura.");
+      setIsLoading(false);
       return;
     }
 
@@ -197,39 +185,43 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
     };
 
-    StorageService.saveItem(newItem, isNew ? 'Novo item cadastrado.' : 'Detalhes do item editados.', userString);
-    onUpdate();
-    setShowEditModal(false);
-    setEditingItem(null);
+    try {
+      await StorageService.saveItem(newItem, isNew ? 'Novo item cadastrado.' : 'Detalhes do item editados.', userString);
+      onUpdate();
+      setShowEditModal(false);
+      setEditingItem(null);
+    } catch (e) {
+      alert("Erro ao salvar item");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDelete = (e: React.MouseEvent, id: number) => {
+  const handleDelete = async (e: React.MouseEvent, id: number) => {
     e.stopPropagation();
     if (user.level === UserLevel.STANDARD) {
       alert("Usuários Padrão não podem excluir itens.");
       return;
     }
     if (confirm('Tem certeza que deseja excluir este item?')) {
-      StorageService.deleteItem(id);
+      await StorageService.deleteItem(id);
       onUpdate();
     }
   };
 
-  // Start Return Process
   const handleOpenReturnModal = (e: React.MouseEvent, item: FoundItem) => {
     e.stopPropagation();
     setItemToReturn(item);
     setShowReturnModal(true);
-    // Reset states
     setPersonSearch('');
     setSelectedPerson(null);
     setSelectedReport(null);
     setReturnType('PERSON');
   };
 
-  // Confirm Return
-  const handleConfirmReturn = () => {
+  const handleConfirmReturn = async () => {
     if (!itemToReturn) return;
+    setIsLoading(true);
 
     let receiverName = '';
     let logMessage = '';
@@ -237,6 +229,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     if (returnType === 'PERSON') {
       if (!selectedPerson) {
         alert("Selecione uma pessoa.");
+        setIsLoading(false);
         return;
       }
       receiverName = selectedPerson.name;
@@ -244,18 +237,18 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     } else {
       if (!selectedReport) {
         alert("Selecione um relato.");
+        setIsLoading(false);
         return;
       }
       receiverName = selectedReport.personName;
       logMessage = `Item vinculado ao Relato de Perda de ${selectedReport.personName}. Status do relato atualizado.`;
       
-      // Update Report Status
       const updatedReport: LostReport = {
         ...selectedReport,
         status: ReportStatus.RESOLVED,
         history: [...selectedReport.history, { date: new Date().toISOString(), note: `Item encontrado (ID: ${itemToReturn.id}) e devolvido.`, user: userString }]
       };
-      StorageService.saveReport(updatedReport);
+      await StorageService.saveReport(updatedReport);
     }
 
     const updatedItem = {
@@ -265,14 +258,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       returnedDate: new Date().toISOString()
     };
     
-    StorageService.saveItem(updatedItem, logMessage, userString);
+    await StorageService.saveItem(updatedItem, logMessage, userString);
     
     onUpdate();
     setShowReturnModal(false);
     setItemToReturn(null);
+    setIsLoading(false);
   };
 
-  const handleCancelReturn = (e: React.MouseEvent, item: FoundItem) => {
+  const handleCancelReturn = async (e: React.MouseEvent, item: FoundItem) => {
     e.stopPropagation();
     const action = item.status === ItemStatus.DISCARDED ? "cancelar o descarte" : "cancelar a devolução";
     
@@ -283,30 +277,35 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         returnedTo: undefined,
         returnedDate: undefined
       };
-      StorageService.saveItem(updated, `${action === "cancelar o descarte" ? 'Descarte' : 'Devolução'} cancelada. Item retornou para Disponível.`, userString);
+      await StorageService.saveItem(updated, `${action === "cancelar o descarte" ? 'Descarte' : 'Devolução'} cancelada. Item retornou para Disponível.`, userString);
       onUpdate();
     }
   };
 
-  const handleBatchDonate = () => {
+  const handleBatchDonate = async () => {
     if (user.level === UserLevel.STANDARD) {
         alert("Ação não permitida para nível Padrão.");
         return;
     }
 
     if (confirm(`Marcar ${selectedItems.length} itens como Doado/Descartado?`)) {
-      selectedItems.forEach(id => {
+      setIsLoading(true);
+      // Processar em série ou paralelo.
+      const promises = selectedItems.map(async (id) => {
         const item = items.find(i => i.id === id);
         if (item) {
-          StorageService.saveItem({ 
+          return StorageService.saveItem({ 
             ...item, 
             status: ItemStatus.DISCARDED,
-            returnedDate: new Date().toISOString() // Registra data da saída
+            returnedDate: new Date().toISOString() 
           }, 'Item marcado como Doado/Descartado em lote.', userString);
         }
       });
+      await Promise.all(promises);
+      
       setSelectedItems([]);
       onUpdate();
+      setIsLoading(false);
     }
   };
 
@@ -321,7 +320,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   const formatDate = (isoString: string) => {
     if (!isoString) return '-';
-    // Se a string tem 'T', é ISO completo. Se não, é YYYY-MM-DD
     const datePart = isoString.split('T')[0];
     const [year, month, day] = datePart.split('-');
     return `${day}/${month}/${year}`;
@@ -351,6 +349,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           {selectedItems.length > 0 && activeSubTab === ItemStatus.AVAILABLE && user.level !== UserLevel.STANDARD && (
             <button 
               onClick={handleBatchDonate}
+              disabled={isLoading}
               className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
             >
               <Gift size={16} /> Doar ({selectedItems.length})
@@ -577,7 +576,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           </div>
           <div className="col-span-2 pt-4 flex justify-end gap-3">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-            <button type="submit" className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">Salvar</button>
+            <button type="submit" disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">{isLoading ? 'Salvando...' : 'Salvar'}</button>
           </div>
         </form>
       </Modal>
@@ -588,65 +587,32 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         onClose={() => setShowReturnModal(false)}
         title="Realizar Devolução do Item"
       >
-        <div className="space-y-6">
+         {/* Conteúdo do Modal de Devolução (mantém-se estruturalmente igual, apenas botões usam handleConfirmReturn que é async) */}
+         <div className="space-y-6">
           <p className="text-sm text-gray-600">
             Você está devolvendo o item: <strong>{itemToReturn?.description}</strong>
           </p>
 
-          {/* Toggle Type */}
           <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">
-             <button 
-                onClick={() => setReturnType('PERSON')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'PERSON' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}
-             >
-                <UserIcon size={16} /> Selecionar Pessoa
-             </button>
-             <button 
-                onClick={() => setReturnType('REPORT')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'REPORT' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}
-             >
-                <FileText size={16} /> Vincular a Relato
-             </button>
+             <button onClick={() => setReturnType('PERSON')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'PERSON' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><UserIcon size={16} /> Selecionar Pessoa</button>
+             <button onClick={() => setReturnType('REPORT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'REPORT' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><FileText size={16} /> Vincular a Relato</button>
           </div>
 
-          {/* Option A: Select Person */}
           {returnType === 'PERSON' && (
             <div className="relative space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
               <div className="relative">
-                <input 
-                  type="text" 
-                  value={personSearch}
-                  onChange={(e) => { setPersonSearch(e.target.value); setSelectedPerson(null); }}
-                  placeholder="Digite o nome ou parte da matrícula..."
-                  className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                />
+                <input type="text" value={personSearch} onChange={(e) => { setPersonSearch(e.target.value); setSelectedPerson(null); }} placeholder="Digite o nome ou parte da matrícula..." className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" />
                 <Search className="absolute left-3 top-3 text-gray-400" size={16} />
               </div>
 
               {selectedPerson ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
-                  <div className="bg-green-100 p-2 rounded-full text-green-700">
-                    <UserIcon size={20} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-green-900 text-sm">{selectedPerson.name}</p>
-                    <p className="text-xs text-green-700">{selectedPerson.matricula} • {selectedPerson.type}</p>
-                  </div>
-                  <CheckCircle size={20} className="text-green-600 ml-auto" />
-                </div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3"><div className="bg-green-100 p-2 rounded-full text-green-700"><UserIcon size={20} /></div><div><p className="font-bold text-green-900 text-sm">{selectedPerson.name}</p><p className="text-xs text-green-700">{selectedPerson.matricula} • {selectedPerson.type}</p></div><CheckCircle size={20} className="text-green-600 ml-auto" /></div>
               ) : (
                 filteredPeople.length > 0 && (
                   <div className="border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100 absolute w-full bg-white z-10 shadow-lg">
                     {filteredPeople.map(p => (
-                      <div 
-                        key={p.id} 
-                        onClick={() => { setSelectedPerson(p); setPersonSearch(p.name); }}
-                        className="p-3 hover:bg-gray-50 cursor-pointer"
-                      >
-                         <p className="text-sm font-medium text-gray-800">{p.name}</p>
-                         <p className="text-xs text-gray-500">{p.matricula}</p>
-                      </div>
+                      <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(p.name); }} className="p-3 hover:bg-gray-50 cursor-pointer"><p className="text-sm font-medium text-gray-800">{p.name}</p><p className="text-xs text-gray-500">{p.matricula}</p></div>
                     ))}
                   </div>
                 )
@@ -654,7 +620,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             </div>
           )}
 
-          {/* Option B: Select Report */}
           {returnType === 'REPORT' && (
             <div className="space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase">Selecionar Relato de Perda (Aberto)</label>
@@ -663,19 +628,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {openReports.map(report => (
-                    <div 
-                      key={report.id}
-                      onClick={() => setSelectedReport(report)}
-                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedReport?.id === report.id ? 'border-ifrn-green bg-green-50 ring-1 ring-ifrn-green' : 'border-gray-200 hover:bg-gray-50'}`}
-                    >
-                      <div className="flex justify-between items-start">
-                         <div>
-                            <p className="font-bold text-sm text-gray-800">{report.itemDescription}</p>
-                            <p className="text-xs text-gray-500">Relatado por: <strong>{report.personName}</strong></p>
-                            <p className="text-xs text-gray-400 mt-1">{new Date(report.createdAt).toLocaleDateString()}</p>
-                         </div>
-                         {selectedReport?.id === report.id && <CheckCircle size={18} className="text-ifrn-green" />}
-                      </div>
+                    <div key={report.id} onClick={() => setSelectedReport(report)} className={`p-3 border rounded-lg cursor-pointer transition-colors ${selectedReport?.id === report.id ? 'border-ifrn-green bg-green-50 ring-1 ring-ifrn-green' : 'border-gray-200 hover:bg-gray-50'}`}>
+                      <div className="flex justify-between items-start"><div><p className="font-bold text-sm text-gray-800">{report.itemDescription}</p><p className="text-xs text-gray-500">Relatado por: <strong>{report.personName}</strong></p><p className="text-xs text-gray-400 mt-1">{new Date(report.createdAt).toLocaleDateString()}</p></div>{selectedReport?.id === report.id && <CheckCircle size={18} className="text-ifrn-green" />}</div>
                     </div>
                   ))}
                 </div>
@@ -684,18 +638,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           )}
 
           <div className="pt-4 flex justify-end gap-3 border-t">
-            <button 
-              onClick={() => setShowReturnModal(false)}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
-            >
-              Cancelar
-            </button>
-            <button 
-              onClick={handleConfirmReturn}
-              className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium text-sm flex items-center gap-2"
-            >
-              <CornerUpRight size={16} /> Confirmar Devolução
-            </button>
+            <button onClick={() => setShowReturnModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm">Cancelar</button>
+            <button onClick={handleConfirmReturn} disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium text-sm flex items-center gap-2">{isLoading ? '...' : <><CornerUpRight size={16} /> Confirmar Devolução</>}</button>
           </div>
         </div>
       </Modal>

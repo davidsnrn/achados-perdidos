@@ -12,7 +12,8 @@ interface Props {
   user: User;
 }
 
-type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'MONTH' | 'YEAR' | 'CUSTOM';
+// Updated DateFilterType
+type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
 
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
@@ -40,11 +41,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   
-  // New Filters State: Month (YYYY-MM) and Year (YYYY)
-  const currentYear = new Date().getFullYear();
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); 
-  const [selectedYear, setSelectedYear] = useState(currentYear.toString());
-
   // Helper: Remove accents and lower case for search
   const normalizeText = (text: string) => {
     return text
@@ -87,22 +83,30 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
       let matchesDate = true;
       if (dateFilter !== 'ALL') {
-        const itemDate = new Date(item.dateFound + 'T12:00:00');
+        const itemDate = new Date(item.dateFound + 'T12:00:00'); // Normalize time
         const today = new Date();
+        // Reset hours for date comparison
         today.setHours(0, 0, 0, 0);
 
         if (dateFilter === 'TODAY') {
-          matchesDate = itemDate.toDateString() === today.toDateString();
+          const iDate = new Date(item.dateFound + 'T00:00:00');
+          iDate.setHours(0,0,0,0);
+          matchesDate = iDate.getTime() === today.getTime();
         } else if (dateFilter === 'WEEK') {
-          const oneWeekAgo = new Date(today);
-          oneWeekAgo.setDate(today.getDate() - 7);
-          matchesDate = itemDate >= oneWeekAgo && itemDate <= new Date();
-        } else if (dateFilter === 'MONTH') {
-          // item.dateFound format is YYYY-MM-DD. selectedMonth is YYYY-MM.
-          matchesDate = item.dateFound.startsWith(selectedMonth);
-        } else if (dateFilter === 'YEAR') {
-          // item.dateFound format is YYYY-MM-DD. selectedYear is YYYY.
-          matchesDate = item.dateFound.startsWith(selectedYear);
+          // "Esta Semana" (últimos 7 dias ou semana corrente? Geralmente last 7 days ou domingo-sabado. Vamos usar semana corrente)
+          const firstDay = new Date(today);
+          firstDay.setDate(today.getDate() - today.getDay()); // Sunday
+          const lastDay = new Date(today);
+          lastDay.setDate(today.getDate() + (6 - today.getDay())); // Saturday
+          
+          const iDate = new Date(item.dateFound + 'T00:00:00');
+          iDate.setHours(0,0,0,0);
+          matchesDate = iDate >= firstDay && iDate <= lastDay;
+
+        } else if (dateFilter === 'THIS_MONTH') {
+          matchesDate = itemDate.getMonth() === today.getMonth() && itemDate.getFullYear() === today.getFullYear();
+        } else if (dateFilter === 'THIS_YEAR') {
+          matchesDate = itemDate.getFullYear() === today.getFullYear();
         } else if (dateFilter === 'CUSTOM' && startDate && endDate) {
           const start = new Date(startDate + 'T00:00:00');
           const end = new Date(endDate + 'T23:59:59');
@@ -112,7 +116,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
       return matchesStatus && matchesSearch && matchesDate;
     });
-  }, [items, activeSubTab, searchTerm, dateFilter, startDate, endDate, selectedMonth, selectedYear]);
+  }, [items, activeSubTab, searchTerm, dateFilter, startDate, endDate]);
 
   // Autocomplete Filter for People (Enhanced Search)
   const filteredPeople = useMemo(() => {
@@ -355,37 +359,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             <option value="ALL">Todo o período</option>
             <option value="TODAY">Hoje</option>
             <option value="WEEK">Esta Semana</option>
-            <option value="MONTH">Por Mês</option>
-            <option value="YEAR">Por Ano</option>
+            <option value="THIS_MONTH">Este Mês</option>
+            <option value="THIS_YEAR">Este Ano</option>
             <option value="CUSTOM">Data Personalizada</option>
           </select>
           
-          {dateFilter === 'MONTH' && (
-             <div className="pl-2 border-l border-gray-300 animate-fadeIn">
-               <input 
-                 type="month" 
-                 value={selectedMonth}
-                 onChange={e => setSelectedMonth(e.target.value)}
-                 className="text-xs border rounded px-2 py-1.5 bg-white outline-none focus:border-ifrn-green"
-               />
-             </div>
-          )}
-
-          {dateFilter === 'YEAR' && (
-             <div className="pl-2 border-l border-gray-300 animate-fadeIn">
-               <select
-                 value={selectedYear}
-                 onChange={e => setSelectedYear(e.target.value)}
-                 className="text-xs border rounded px-2 py-1.5 bg-white outline-none focus:border-ifrn-green"
-               >
-                 {[0, 1, 2, 3, 4].map(i => {
-                   const year = currentYear - i;
-                   return <option key={year} value={year}>{year}</option>;
-                 })}
-               </select>
-             </div>
-          )}
-
           {dateFilter === 'CUSTOM' && (
             <div className="flex items-center gap-1 pl-2 border-l border-gray-300 animate-fadeIn">
               <input 

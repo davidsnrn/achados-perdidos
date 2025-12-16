@@ -131,6 +131,13 @@ export const StorageService = {
     setStorage('users', users);
   },
 
+  deleteAllUsers: (currentAdminId: string) => {
+    const users = StorageService.getUsers();
+    // Keep only the current admin
+    const remaining = users.filter(u => u.id === currentAdminId);
+    setStorage('users', remaining);
+  },
+
   changePassword: (userId: string, newPass: string, actorName: string) => {
     const users = StorageService.getUsers();
     const index = users.findIndex(u => u.id === userId);
@@ -174,6 +181,9 @@ export const StorageService = {
     const people = StorageService.getPeople().filter(p => p.id !== id);
     setStorage('people', people);
   },
+  deleteAllPeople: () => {
+    setStorage('people', []);
+  },
   importPeople: (people: Person[]) => {
     const current = StorageService.getPeople();
     // Simple merge avoiding duplicates by matricula
@@ -211,6 +221,10 @@ export const StorageService = {
     const items = StorageService.getItems().filter(i => i.id !== id);
     setStorage('items', items);
   },
+
+  deleteAllItems: () => {
+    setStorage('items', []);
+  },
   
   // Reports
   getReports: (): LostReport[] => getStorage('reports', INITIAL_REPORTS),
@@ -224,6 +238,9 @@ export const StorageService = {
       return;
     }
     setStorage('reports', reports);
+  },
+  deleteAllReports: () => {
+    setStorage('reports', []);
   },
 
   // Auth Simulation & Session Management
@@ -261,5 +278,10 @@ export const StorageService = {
     const last = parseInt(lastActive, 10);
     
     return (now - last) > TIMEOUT_MS;
+  },
+
+  factoryReset: () => {
+    localStorage.clear();
+    // O reload será tratado pela UI
   }
 };

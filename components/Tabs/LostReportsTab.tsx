@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { LostReport, ReportStatus, Person, PersonType } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Send, Clock, CheckCircle } from 'lucide-react';
+import { Search, Send, Clock, CheckCircle, User as UserIcon } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -21,9 +21,25 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate }) =
   const [newWhatsapp, setNewWhatsapp] = useState('');
   const [newEmail, setNewEmail] = useState('');
 
-  const filteredPeople = personSearch.length > 1 
-    ? people.filter(p => p.name.toLowerCase().includes(personSearch.toLowerCase()) || p.matricula.includes(personSearch))
-    : [];
+  // Helper: Remove accents and lower case for search (Igual ao FoundItemsTab)
+  const normalizeText = (text: string) => {
+    return text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  };
+
+  // Improved Search Logic (Igual ao FoundItemsTab)
+  const filteredPeople = useMemo(() => {
+    if (!personSearch.trim()) return [];
+    
+    const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
+
+    return people.filter(p => {
+      const personText = normalizeText(`${p.name} ${p.matricula}`);
+      return searchTerms.every(term => personText.includes(term));
+    }).slice(0, 5); // Limit to 5 suggestions
+  }, [people, personSearch]);
 
   const handleCreateReport = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,42 +105,59 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate }) =
           </h3>
           <form onSubmit={handleCreateReport} className="space-y-4">
             
-            {/* Person Autocomplete */}
-            <div className="relative">
+            {/* Person Autocomplete (Visual aprimorado) */}
+            <div className="relative space-y-2">
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Quem Perdeu?</label>
+              
               {selectedPerson ? (
-                <div className="flex items-center justify-between p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
-                  <span className="text-sm font-medium text-emerald-800">{selectedPerson.name}</span>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3 animate-fadeIn">
+                  <div className="bg-green-100 p-2 rounded-full text-green-700">
+                    <UserIcon size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-green-900 text-sm truncate">{selectedPerson.name}</p>
+                    <p className="text-xs text-green-700 truncate">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                  </div>
                   <button 
                     type="button" 
                     onClick={() => setSelectedPerson(null)}
-                    className="text-xs text-red-500 hover:underline"
-                  >Alterar</button>
+                    className="text-xs text-red-500 hover:underline hover:text-red-700 font-medium whitespace-nowrap"
+                  >
+                    Alterar
+                  </button>
                 </div>
               ) : (
-                <>
+                <div className="relative">
                   <input
                     type="text"
-                    className="w-full border rounded-lg p-2.5 text-sm outline-none focus:ring-2 focus:ring-ifrn-green"
+                    className="w-full border rounded-lg p-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-ifrn-green"
                     placeholder="Busque por Nome ou Matrícula..."
                     value={personSearch}
                     onChange={e => setPersonSearch(e.target.value)}
                   />
+                  <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                  
+                  {/* Lista de Sugestões */}
                   {filteredPeople.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
                       {filteredPeople.map(p => (
                         <div 
                           key={p.id}
                           onClick={() => { setSelectedPerson(p); setPersonSearch(''); }}
-                          className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
+                          className="p-3 hover:bg-gray-50 cursor-pointer text-sm group"
                         >
-                          <div className="font-bold">{p.name}</div>
+                          <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
                           <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                         </div>
                       ))}
                     </div>
                   )}
-                </>
+                  {personSearch.length > 1 && filteredPeople.length === 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-sm p-3 text-center">
+                       <p className="text-xs text-gray-400 italic">Nenhuma pessoa encontrada.</p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -174,11 +207,12 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, onUpdate }) =
       {/* RIGHT: List */}
       <div className="lg:col-span-2 space-y-4">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+          {/* Header Responsivo: Column no mobile, Row no desktop */}
+          <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
             <h3 className="font-bold text-gray-700">Relatos Recentes</h3>
-            <div className="relative">
+            <div className="relative w-full sm:w-auto">
               <input 
-                className="pl-8 pr-4 py-1.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-ifrn-green" 
+                className="w-full sm:w-auto pl-8 pr-4 py-1.5 bg-gray-50 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-ifrn-green" 
                 placeholder="Filtrar..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}

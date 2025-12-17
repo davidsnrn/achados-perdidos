@@ -18,10 +18,13 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
   
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Form States (Controlled Inputs for Autocomplete)
+  // Form States
   const [formName, setFormName] = useState('');
   const [formMatricula, setFormMatricula] = useState('');
+  
+  // Search States (Same as LostReportsTab)
   const [personSearch, setPersonSearch] = useState('');
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   const userString = `${currentUser.name} (${currentUser.matricula})`;
 
@@ -149,18 +152,27 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
     if (user) {
         setFormName(user.name);
         setFormMatricula(user.matricula);
+        setSelectedPerson(null); // Reset person link on edit to avoid confusion unless we match perfectly
     } else {
         setFormName('');
         setFormMatricula('');
+        setSelectedPerson(null);
     }
     setPersonSearch('');
     setShowEditModal(true);
   };
 
   const selectPerson = (p: Person) => {
+      setSelectedPerson(p);
       setFormName(p.name);
       setFormMatricula(p.matricula);
       setPersonSearch('');
+  };
+
+  const clearSelection = () => {
+      setSelectedPerson(null);
+      setFormName('');
+      setFormMatricula('');
   };
 
   return (
@@ -255,35 +267,58 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title={selectedUser ? 'Editar Usuário' : 'Novo Usuário'}>
         <div className="space-y-4">
             
-          {/* Search Area */}
-          <div className="relative space-y-2 pb-2 border-b border-gray-100">
-             <label className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1"><Search size={12}/> Buscar Pessoa para Vincular (Opcional)</label>
-             <div className="relative">
-                <input 
-                    type="text" 
-                    value={personSearch} 
-                    onChange={(e) => setPersonSearch(e.target.value)} 
-                    placeholder="Digite nome ou matrícula para autocompletar..." 
-                    className="w-full border border-blue-200 bg-blue-50/30 rounded-lg p-2.5 pl-9 text-sm focus:ring-2 focus:ring-blue-500 outline-none placeholder-blue-300" 
-                />
-                <Search className="absolute left-3 top-2.5 text-blue-300" size={16} />
-             </div>
-             {filteredPeople.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
-                    {filteredPeople.map(p => (
-                    <div key={p.id} onClick={() => selectPerson(p)} className="p-3 hover:bg-gray-50 cursor-pointer flex items-center justify-between group">
-                        <div>
-                            <p className="text-sm font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</p>
-                            <p className="text-xs text-gray-500">{p.matricula} • {p.type}</p>
-                        </div>
-                        <Plus size={16} className="text-gray-300 group-hover:text-ifrn-green" />
-                    </div>
-                    ))}
+          {/* SEARCH COMPONENT (Identical Style to LostReportsTab) */}
+          <div className="relative space-y-2">
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Quem é o usuário?</label>
+            
+            {selectedPerson ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3 animate-fadeIn">
+                <div className="bg-green-100 p-2 rounded-full text-green-700">
+                  <UserIcon size={20} />
                 </div>
-             )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-green-900 text-sm truncate">{selectedPerson.name}</p>
+                  <p className="text-xs text-green-700 truncate">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={clearSelection}
+                  className="text-xs text-red-500 hover:underline hover:text-red-700 font-medium whitespace-nowrap"
+                >
+                  Alterar
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  className="w-full border rounded-lg p-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-ifrn-green"
+                  placeholder="Busque por Nome ou Matrícula..."
+                  value={personSearch}
+                  onChange={e => setPersonSearch(e.target.value)}
+                />
+                <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                
+                {filteredPeople.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
+                    {filteredPeople.map(p => (
+                      <div key={p.id} onClick={() => selectPerson(p)} className="p-3 hover:bg-gray-50 cursor-pointer text-sm group">
+                        <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
+                        <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {personSearch.length > 1 && filteredPeople.length === 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-sm p-3 text-center">
+                     <p className="text-xs text-gray-400 italic">Nenhuma pessoa encontrada.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-4 pt-2 border-t border-gray-100">
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
                 <input 
@@ -292,7 +327,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                     value={formName}
                     onChange={e => setFormName(e.target.value)}
                     className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" 
-                    placeholder="Nome do servidor..." 
+                    placeholder="Preenchido automaticamente..." 
                 />
             </div>
             <div>
@@ -303,6 +338,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                     value={formMatricula}
                     onChange={e => setFormMatricula(e.target.value)}
                     className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" 
+                    placeholder="Preenchido automaticamente..."
                 />
             </div>
             

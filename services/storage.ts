@@ -244,23 +244,9 @@ export const StorageService = {
       let error = null;
 
       if (isNew) {
-        // LÓGICA DE ID MANUAL PARA PERMITIR RESET
-        // Busca o último ID cadastrado
-        const { data: maxIdData } = await supabase
-          .from('items')
-          .select('id')
-          .order('id', { ascending: false })
-          .limit(1);
-
-        let nextId = 1;
-        
-        // Se houver dados, pega o maior e soma 1. Se não houver (tabela vazia), mantém 1.
-        if (maxIdData && maxIdData.length > 0) {
-          nextId = maxIdData[0].id + 1;
-        }
-        
-        // Insere com o ID explícito
-        const res = await supabase.from('items').insert({ ...payload, id: nextId });
+        // CORREÇÃO: Deixar o banco gerar o ID automaticamente.
+        // Tentar inserir um ID manualmente em uma coluna IDENTITY GENERATED ALWAYS causa erro.
+        const res = await supabase.from('items').insert(payload);
         error = res.error;
       } else {
         const res = await supabase.from('items').update(payload).eq('id', item.id);

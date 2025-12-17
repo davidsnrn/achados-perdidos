@@ -13,6 +13,7 @@
  * 1. Garante que as tabelas existam com as colunas EXATAS.
  * 2. Aplica as permissões (RLS).
  * 3. Cria uma FUNÇÃO (RPC) para permitir o Reset de Fábrica real (zerando IDs).
+ * 4. Cria uma FUNÇÃO (RPC) para resetar IDs apenas da tabela de Itens.
  */
 
 export const REPAIR_DB_SQL = `
@@ -89,8 +90,7 @@ CREATE POLICY "Permissivo People" ON public.people FOR ALL TO anon, authenticate
 CREATE POLICY "Permissivo Users" ON public.users FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Permissivo Config" ON public.config FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- 4. FUNÇÃO PARA RESETAR IDS (FACTORY RESET)
--- Isso cria uma função que o Front-end pode chamar para zerar tudo e resetar o ID para 1.
+-- 4. FUNÇÃO PARA RESETAR IDS (FACTORY RESET TOTAL)
 CREATE OR REPLACE FUNCTION admin_reset_db()
 RETURNS void
 LANGUAGE plpgsql
@@ -103,8 +103,17 @@ BEGIN
   -- Limpa relatórios e pessoas
   TRUNCATE TABLE public.reports CASCADE;
   TRUNCATE TABLE public.people CASCADE;
-  
-  -- Nota: Usuários são gerenciados pelo JS para não apagar o admin logado acidentalmente.
+END;
+$$;
+
+-- 5. FUNÇÃO PARA RESETAR APENAS ITENS (E RESETAR ID)
+CREATE OR REPLACE FUNCTION admin_clear_items_only()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  TRUNCATE TABLE public.items RESTART IDENTITY CASCADE;
 END;
 $$;
 `;

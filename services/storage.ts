@@ -268,7 +268,13 @@ export const StorageService = {
   },
 
   deleteAllItems: async () => {
-    await supabase.from('items').delete().gt('id', -1);
+    // Tenta usar a RPC 'admin_clear_items_only' se existir para resetar o ID
+    const { error } = await supabase.rpc('admin_clear_items_only');
+
+    if (error) {
+       console.warn("RPC admin_clear_items_only não disponível. Usando fallback DELETE normal (IDs não resetam). Rode o script de reparo.");
+       await supabase.from('items').delete().gt('id', -1);
+    }
   },
   
   // Reports

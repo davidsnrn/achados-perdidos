@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2 } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -13,11 +13,15 @@ interface Props {
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
+type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound';
 
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Sort State
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'desc' });
+
   // Modals State
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -120,6 +124,40 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       return matchesStatus && matchesSearch && matchesDate;
     });
   }, [items, activeSubTab, searchTerm, dateFilter, startDate, endDate]);
+
+  const sortedItems = useMemo(() => {
+    const sorted = [...filteredItems];
+    sorted.sort((a, b) => {
+      let aValue: any = a[sortConfig.key];
+      let bValue: any = b[sortConfig.key];
+
+      // Handle specific types if necessary (dates are strings in format YYYY-MM-DD so string sort works)
+      
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+    return sorted;
+  }, [filteredItems, sortConfig]);
+
+  const requestSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (name: SortKey) => {
+    if (sortConfig.key !== name) {
+      return <div className="w-3 h-3 ml-1"></div>; // Spacer
+    }
+    return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />;
+  };
 
   const filteredPeople = useMemo(() => {
     if (!personSearch.trim()) return [];
@@ -432,12 +470,24 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                         disabled={user.level === UserLevel.STANDARD}
                       />
                     </th>
-                    <th className="p-4"><div className="flex items-center gap-1 cursor-pointer">ID <ChevronUp size={14} /></div></th>
-                    <th className="p-4">Descrição</th>
-                    <th className="p-4">Local Encontrado</th>
-                    <th className="p-4">Guardado Em</th>
-                    <th className="p-4">Data</th>
-                    <th className="p-4">Tempo no Estoque</th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('id')}>
+                      <div className="flex items-center">ID {getSortIcon('id')}</div>
+                    </th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
+                      <div className="flex items-center">Descrição {getSortIcon('description')}</div>
+                    </th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('locationFound')}>
+                      <div className="flex items-center">Local Encontrado {getSortIcon('locationFound')}</div>
+                    </th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('locationStored')}>
+                      <div className="flex items-center">Guardado Em {getSortIcon('locationStored')}</div>
+                    </th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
+                      <div className="flex items-center">Data {getSortIcon('dateFound')}</div>
+                    </th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
+                      <div className="flex items-center">Tempo no Estoque {getSortIcon('dateFound')}</div>
+                    </th>
                     <th className="p-4 text-center">Ações</th>
                   </>
                 )}
@@ -445,8 +495,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 {/* HEADERS FOR RETURNED / DISCARDED */}
                 {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
                   <>
-                    <th className="p-4"><div className="flex items-center gap-1 cursor-pointer">ID <ChevronUp size={14} /></div></th>
-                    <th className="p-4">Descrição</th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('id')}>
+                      <div className="flex items-center">ID {getSortIcon('id')}</div>
+                    </th>
+                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
+                      <div className="flex items-center">Descrição {getSortIcon('description')}</div>
+                    </th>
                     <th className="p-4">Data de {activeSubTab === ItemStatus.RETURNED ? 'Devolução' : 'Saída'}</th>
                     <th className="p-4 text-center">Ações</th>
                   </>
@@ -454,12 +508,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredItems.length === 0 ? (
+              {sortedItems.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-400">Nenhum item encontrado com os filtros atuais.</td>
                 </tr>
               ) : (
-                filteredItems.map(item => (
+                sortedItems.map(item => (
                   <tr 
                     key={item.id} 
                     className="hover:bg-gray-50 transition-colors cursor-pointer"

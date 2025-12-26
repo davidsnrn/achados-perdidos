@@ -315,7 +315,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
       <div className="bg-white border-b border-slate-200 flex justify-between items-center p-4">
         <div className="flex gap-2">
           <button onClick={() => setCurrentView('dashboard')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'dashboard' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}>Painel</button>
-          <button onClick={() => setCurrentView('search')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'search' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}>Pesquisar Aluno</button>
+          <button onClick={() => setCurrentView('search')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'search' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}>NADA CONSTA</button>
           {isAdmin && (
             <button onClick={() => setCurrentView('import')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100 border border-slate-100'}`}>Importar</button>
           )}

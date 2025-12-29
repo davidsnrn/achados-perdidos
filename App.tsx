@@ -139,6 +139,12 @@ const App: React.FC = () => {
         } else {
           setUser(sessionUser);
           StorageService.updateLastActive();
+
+          if (sessionUser.level === UserLevel.STANDARD) {
+            setCurrentSystem('achados');
+            setActiveTab('achados');
+            setShowModuleSelector(false);
+          }
         }
       }
     };
@@ -196,7 +202,15 @@ const App: React.FC = () => {
         StorageService.setSessionUser(loggedUser);
         setUser(loggedUser);
         setLoginError('');
-        setShowModuleSelector(true);
+
+        // Se for padrão, vai direto para achados e não mostra o seletor
+        if (loggedUser.level === UserLevel.STANDARD) {
+          setCurrentSystem('achados');
+          setActiveTab('achados');
+          setShowModuleSelector(false);
+        } else {
+          setShowModuleSelector(true);
+        }
       } else {
         setLoginError('Credenciais inválidas. Tente novamente.');
       }
@@ -533,12 +547,14 @@ const App: React.FC = () => {
                 </div>
               </div>
               <button onClick={() => { setShowPasswordModal(true); setMobileMenuOpen(false); }} className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 py-1.5 rounded-lg hover:bg-gray-50"><KeyRound size={14} /> Alterar Senha</button>
-              <button
-                onClick={() => { setShowModuleSelector(true); setMobileMenuOpen(false); }}
-                className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-bold text-ifrn-green bg-green-50 border border-green-100 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
-              >
-                <LayoutGrid size={14} /> Tela Inicial
-              </button>
+              {user.level !== UserLevel.STANDARD && (
+                <button
+                  onClick={() => { setShowModuleSelector(true); setMobileMenuOpen(false); }}
+                  className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-bold text-ifrn-green bg-green-50 border border-green-100 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
+                >
+                  <LayoutGrid size={14} /> Tela Inicial
+                </button>
+              )}
             </div>
             <nav className="flex-1 p-4 space-y-2">
               {currentSystem === 'achados' && (
@@ -602,13 +618,15 @@ const App: React.FC = () => {
               <div className="text-xs text-gray-500">{user.level} • {user.matricula}</div>
             </div>
 
-            <button
-              onClick={() => setShowModuleSelector(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-600 hover:text-ifrn-green hover:bg-green-50 rounded-lg transition-all text-xs font-bold border border-gray-100"
-              title="Tela Inicial"
-            >
-              <LayoutGrid size={16} /> <span className="hidden lg:inline">Ir para Início</span>
-            </button>
+            {user.level !== UserLevel.STANDARD && (
+              <button
+                onClick={() => setShowModuleSelector(true)}
+                className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-600 hover:text-ifrn-green hover:bg-green-50 rounded-lg transition-all text-xs font-bold border border-gray-100"
+                title="Tela Inicial"
+              >
+                <LayoutGrid size={16} /> <span className="hidden lg:inline">Ir para Início</span>
+              </button>
+            )}
             {canConfigure && (
               <button onClick={openConfigModal} className="hidden md:block p-2 text-gray-500 hover:text-ifrn-green transition-colors" title="Configurações Administrativas"><Settings size={20} /></button>
             )}

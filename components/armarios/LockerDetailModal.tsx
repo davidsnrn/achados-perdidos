@@ -23,6 +23,9 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
 }) => {
   const [isEditingObs, setIsEditingObs] = useState(false);
   const [tempObs, setTempObs] = useState('');
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [maintenanceReason, setMaintenanceReason] = useState('');
+  const [showHistoryType, setShowHistoryType] = useState<'loans' | 'maintenance'>('loans');
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -51,6 +54,16 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
     setIsEditingObs(false);
   };
 
+  const handleMaintenanceSubmit = () => {
+    if (!maintenanceReason.trim()) {
+      alert('O motivo da manutenção é obrigatório.');
+      return;
+    }
+    onUpdateMaintenance(locker.number, maintenanceReason);
+    setShowMaintenanceForm(false);
+    setMaintenanceReason('');
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
       <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-xl overflow-hidden border border-slate-100 my-auto">
@@ -66,7 +79,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
             <div className={`w-28 h-28 rounded-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ${locker.status === LockerStatus.AVAILABLE ? 'bg-green-600 ring-green-100' : locker.status === LockerStatus.OCCUPIED ? 'bg-red-600 ring-red-100' : 'bg-slate-500 ring-slate-100'}`}>
               {locker.number}
             </div>
-            <div>
+            <div className="flex-1">
               <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border ${getStatusColor(locker.status)}`}>
                 {locker.status}
               </span>
@@ -143,65 +156,142 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
               ) : locker.status === LockerStatus.MAINTENANCE && locker.maintenanceRecord ? (
                 <div className="space-y-4">
                   <div className="p-4 bg-slate-200/50 border border-slate-300 rounded-xl text-slate-800">
-                    <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Diagnóstico</p>
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="text-[10px] font-black text-slate-500 uppercase">Diagnóstico / Motivo</p>
+                      <span className="text-[9px] font-bold text-slate-400">{locker.maintenanceRecord.registeredAt}</span>
+                    </div>
                     <p className="text-sm font-bold leading-relaxed">{locker.maintenanceRecord.problem}</p>
+                    {locker.maintenanceRecord.registeredBy && (
+                      <p className="mt-2 text-[9px] font-bold text-slate-400 uppercase">Registrado por: {locker.maintenanceRecord.registeredBy}</p>
+                    )}
                   </div>
-                  <button onClick={() => onResolveMaintenance(locker.number)} className="w-full bg-green-100 hover:bg-green-200 text-green-700 font-black py-3 rounded-xl border border-green-200">Liberar Armário</button>
+                  <button onClick={() => onResolveMaintenance(locker.number)} className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">Concluir Manutenção e Liberar</button>
+                </div>
+              ) : showMaintenanceForm ? (
+                <div className="space-y-4 animate-fade-in">
+                  <div className="p-4 bg-orange-50 border border-orange-100 rounded-xl text-slate-800">
+                    <p className="text-[10px] font-black text-orange-600 uppercase mb-2">Novo Registro de Manutenção</p>
+                    <textarea
+                      placeholder="Descreva o problema ou motivo da manutenção (Obrigatório)..."
+                      className="w-full bg-white border border-orange-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:border-orange-500 outline-none resize-none"
+                      rows={3}
+                      value={maintenanceReason}
+                      onChange={(e) => setMaintenanceReason(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowMaintenanceForm(false)} className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-black text-slate-400 uppercase text-[10px]">Cancelar</button>
+                    <button onClick={handleMaintenanceSubmit} className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg">Confirmar Manutenção</button>
+                  </div>
                 </div>
               ) : (
-                <p className="text-sm text-green-700 font-bold bg-green-100/50 p-4 rounded-xl border border-green-100 text-center">✓ Disponível para novo empréstimo</p>
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-green-700 font-bold bg-green-100/50 p-4 rounded-xl border border-green-100 text-center">✓ Disponível para novo empréstimo</p>
+                  <button onClick={() => setShowMaintenanceForm(true)} className="flex items-center justify-center gap-2 py-2 text-[10px] font-black text-slate-400 hover:text-orange-600 uppercase transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /></svg>
+                    Colocar em Manutenção
+                  </button>
+                </div>
               )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                Histórico de Empréstimos
-              </h4>
-              {locker.loanHistory && locker.loanHistory.length > 0 ? (
-                <div className="space-y-6">
-                  {[...locker.loanHistory]
-                    .sort((a, b) => {
-                      const parseDate = (d: string) => {
-                        if (!d) return 0;
-                        const parts = d.split('/');
-                        if (parts.length !== 3) return 0;
-                        return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
-                      };
-                      return parseDate(b.loanDate) - parseDate(a.loanDate);
-                    })
-                    .map((item, idx) => (
-                      <div key={idx} className="flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
-                        <div className="flex justify-between items-start text-xs">
-                          <div>
-                            <p className="font-black text-slate-800 uppercase mb-0.5">{item.studentName}</p>
-                            <p className="text-slate-400 font-bold">{item.registrationNumber} • {item.studentClass}</p>
+              <div className="flex border-b border-slate-100 mb-6 pb-2 gap-4">
+                <button
+                  onClick={() => setShowHistoryType('loans')}
+                  className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all border-b-2 ${showHistoryType === 'loans' ? 'text-slate-800 border-slate-800' : 'text-slate-300 border-transparent'}`}
+                >
+                  Histórico de Empréstimos
+                </button>
+                <button
+                  onClick={() => setShowHistoryType('maintenance')}
+                  className={`text-[10px] font-bold uppercase tracking-widest pb-1 transition-all border-b-2 ${showHistoryType === 'maintenance' ? 'text-slate-800 border-slate-800' : 'text-slate-300 border-transparent'}`}
+                >
+                  Histórico de Manutenções
+                </button>
+              </div>
+
+              {showHistoryType === 'loans' ? (
+                <>
+                  {locker.loanHistory && locker.loanHistory.length > 0 ? (
+                    <div className="space-y-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {[...locker.loanHistory]
+                        .sort((a, b) => {
+                          const parseDate = (d: string) => {
+                            if (!d) return 0;
+                            const parts = d.split('/');
+                            if (parts.length !== 3) return 0;
+                            return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
+                          };
+                          return parseDate(b.loanDate) - parseDate(a.loanDate);
+                        })
+                        .map((item, idx) => (
+                          <div key={idx} className="flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                            <div className="flex justify-between items-start text-xs">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-slate-800 uppercase mb-0.5 truncate">{item.studentName}</p>
+                                <p className="text-slate-400 font-bold">{item.registrationNumber} • {item.studentClass}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-slate-500 font-black mb-1 whitespace-nowrap">{item.loanDate} — {item.returnDate || '...'}</p>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${item.returnDate ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : 'Ativo'}</span>
+                              </div>
+                            </div>
+                            {item.observation && (
+                              <div className="pl-3 border-l-2 border-slate-100 py-1">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Obs:</p>
+                                <p className="text-[10px] text-slate-500 font-medium italic leading-snug">{item.observation}</p>
+                              </div>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <p className="text-slate-500 font-black mb-1 whitespace-nowrap">{item.loanDate} — {item.returnDate || '...'}</p>
-                            <span className="text-[9px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-black uppercase">Concluído</span>
-                          </div>
-                        </div>
-                        {item.observation && (
-                          <div className="pl-3 border-l-2 border-slate-100 py-1">
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Obs:</p>
-                            <p className="text-[10px] text-slate-500 font-medium italic leading-snug">{item.observation}</p>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-xs text-slate-300 font-bold uppercase tracking-widest italic">Sem registros de empréstimos</p>
+                    </div>
+                  )}
+                </>
               ) : (
-                <div className="text-center py-6">
-                  <p className="text-xs text-slate-300 font-bold uppercase tracking-widest italic">Sem registros anteriores</p>
-                </div>
+                <>
+                  {locker.maintenanceHistory && locker.maintenanceHistory.length > 0 ? (
+                    <div className="space-y-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {[...locker.maintenanceHistory]
+                        .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
+                        .map((m, idx) => (
+                          <div key={idx} className="flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                            <div className="flex justify-between items-start text-xs">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-slate-800 mb-0.5 uppercase">{m.problem}</p>
+                                <p className="text-[9px] text-slate-400 font-bold uppercase truncate">Resp: {m.registeredBy || 'Sist.'} {m.resolvedBy ? `→ Resolvido por ${m.resolvedBy}` : ''}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-slate-500 font-black mb-1 whitespace-nowrap">{new Date(m.registeredAt).toLocaleDateString('pt-BR')} — {m.resolvedAt ? new Date(m.resolvedAt).toLocaleDateString('pt-BR') : '...'}</p>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${m.resolvedAt ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{m.resolvedAt ? 'Resolvido' : 'Em curso'}</span>
+                              </div>
+                            </div>
+                            {m.solution && (
+                              <div className="pl-3 border-l-2 border-slate-100 py-1">
+                                <p className="text-[10px] text-slate-500 font-medium italic leading-snug"><span className="font-black text-slate-400 uppercase text-[9px]">Solução:</span> {m.solution}</p>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-xs text-slate-300 font-bold uppercase tracking-widest italic">Sem registros de manutenções</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
 
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-          {locker.status === LockerStatus.AVAILABLE && (
+          {locker.status === LockerStatus.AVAILABLE && !showMaintenanceForm && (
             <button
               onClick={() => onStartLoan(locker)}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"

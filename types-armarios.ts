@@ -26,8 +26,12 @@ export interface LoanData {
 }
 
 export interface MaintenanceData {
-  problem: string;
-  registeredAt: string;
+  problem: string; // Motivo da manutenção
+  registeredAt: string; // Data de início
+  registeredBy?: string; // Usuário responsável (Nome)
+  solution?: string;
+  resolvedAt?: string; // Data de fim
+  resolvedBy?: string; // Usuário que finalizou
 }
 
 export interface Locker {
@@ -40,4 +44,4 @@ export interface Locker {
   location: string;
 }
 
-export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search';
+export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search' | 'reports' | 'management';

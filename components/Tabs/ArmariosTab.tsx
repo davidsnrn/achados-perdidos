@@ -8,7 +8,9 @@ import LockerForm from '../armarios/LockerForm';
 import LockerDetailModal from '../armarios/LockerDetailModal';
 import CSVImport from '../armarios/CSVImport';
 import StudentSearch from '../armarios/StudentSearch';
-import { Loader2 } from 'lucide-react';
+import ReportsTab from '../armarios/ReportsTab';
+import LockerManagement from '../armarios/LockerManagement';
+import { Loader2, LayoutGrid, FileText, Settings, Key } from 'lucide-react';
 
 interface ArmariosTabProps {
   user: any; // User from Achados system
@@ -77,11 +79,29 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
     if (!isAdmin) return;
     setLoading(true);
     try {
+      // O upsert no StorageService já lida com a substituição de dados se o número for igual
       await StorageService.saveLockers(newData);
-      setLockers(newData);
+
+      // Atualiza o estado local mesclando ou recarregando
+      await refreshLockers();
       setCurrentView('dashboard');
     } catch (e) {
       alert("Erro ao importar dados.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBatchGenerate = async (newLockers: Locker[]) => {
+    if (!isAdmin) return;
+    setLoading(true);
+    try {
+      await StorageService.saveLockers(newLockers);
+      await refreshLockers();
+      setCurrentView('dashboard');
+      alert(`${newLockers.length} armários processados com sucesso!`);
+    } catch (e) {
+      alert("Erro ao gerar armários.");
     } finally {
       setLoading(false);
     }
@@ -225,7 +245,12 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l) return;
 
-    const newRecord: MaintenanceData = { problem, registeredAt: new Date().toISOString().split('T')[0] };
+    const newRecord: MaintenanceData = {
+      problem,
+      registeredAt: new Date().toISOString().split('T')[0],
+      registeredBy: user?.name || 'Sistema'
+    };
+
     const updatedLocker = {
       ...l,
       status: LockerStatus.MAINTENANCE,
@@ -247,9 +272,24 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
 
   const handleResolveMaintenance = async (lockerNumber: number) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
-    if (!l) return;
+    if (!l || !l.maintenanceRecord) return;
 
-    const updatedLocker = { ...l, status: LockerStatus.AVAILABLE, maintenanceRecord: undefined };
+    const finishedRecord: MaintenanceData = {
+      ...l.maintenanceRecord,
+      resolvedAt: new Date().toISOString().split('T')[0],
+      resolvedBy: user?.name || 'Sistema',
+      solution: 'Manutenção concluída'
+    };
+
+    // Atualiza a entrada no histórico (substitui a 'ativa' pela 'concluída')
+    const updatedHistory = [finishedRecord, ...l.maintenanceHistory.filter(h => h.registeredAt !== l.maintenanceRecord?.registeredAt)].slice(0, 50);
+
+    const updatedLocker = {
+      ...l,
+      status: LockerStatus.AVAILABLE,
+      maintenanceRecord: undefined,
+      maintenanceHistory: updatedHistory
+    };
 
     setLoading(true);
     try {
@@ -313,11 +353,15 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
   return (
     <div className="bg-slate-50 text-slate-900 pb-20 font-sans rounded-3xl overflow-hidden shadow-inner">
       <div className="bg-white border-b border-slate-200 flex justify-between items-center p-4">
-        <div className="flex gap-2">
-          <button onClick={() => setCurrentView('dashboard')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'dashboard' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}>Painel</button>
-          <button onClick={() => setCurrentView('search')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'search' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}>NADA CONSTA</button>
+        <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <button onClick={() => setCurrentView('dashboard')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'dashboard' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><LayoutGrid size={14} /> Painel</button>
+          <button onClick={() => setCurrentView('search')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'search' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Key size={14} /> NADA CONSTA</button>
+          <button onClick={() => setCurrentView('reports')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'reports' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileText size={14} /> Relatórios</button>
           {isAdmin && (
-            <button onClick={() => setCurrentView('import')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${currentView === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100 border border-slate-100'}`}>Importar</button>
+            <>
+              <button onClick={() => setCurrentView('management')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'management' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100 border border-slate-100'}`}><Settings size={14} /> Gerenciar</button>
+              <button onClick={() => setCurrentView('import')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100 border border-slate-100'}`}>Importar</button>
+            </>
           )}
         </div>
       </div>
@@ -392,6 +436,14 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
             onUpdateObservation={handleUpdateObservation}
             onChangeLocker={handleChangeLocker}
           />
+        )}
+
+        {currentView === 'reports' && (
+          <ReportsTab lockers={lockers} />
+        )}
+
+        {currentView === 'management' && isAdmin && (
+          <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
         )}
 
         {currentView === 'import' && isAdmin && (

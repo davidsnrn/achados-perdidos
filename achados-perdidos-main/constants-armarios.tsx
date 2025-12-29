@@ -1,7 +1,7 @@
 
 import { LockerStatus, Locker, LoanData, MaintenanceData } from './types-armarios';
 
-export const TOTAL_LOCKERS = 400;
+export const TOTAL_LOCKERS = 440;
 
 export const IFRN_COLORS = {
   primary: '#2f9e41', // Verde IFRN

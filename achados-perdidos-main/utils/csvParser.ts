@@ -105,16 +105,6 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
     }
   }
 
-  const finalLockers: Locker[] = [];
-  for (let n = 1; n <= 400; n++) {
-    if (lockersMap[n]) finalLockers.push(lockersMap[n]);
-    else finalLockers.push({
-      number: n,
-      status: LockerStatus.AVAILABLE,
-      location: n <= 200 ? 'Bloco Principal' : 'Bloco Anexo',
-      loanHistory: [],
-      maintenanceHistory: [],
-    });
-  }
+  const finalLockers: Locker[] = Object.values(lockersMap);
   return finalLockers.sort((a, b) => a.number - b.number);
 };

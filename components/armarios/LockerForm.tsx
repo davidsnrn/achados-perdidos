@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Locker, Student, LoanData } from '../../types-armarios';
-import { analyzeLoanObservation } from '../../services/armarios/geminiService';
+
 
 interface LockerFormProps {
   selectedLocker: Locker | null;
@@ -26,8 +26,7 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSub
     observation: '',
   });
 
-  const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [aiSummary, setAiSummary] = useState<{ keywords: string[], summary: string } | null>(null);
+
 
   // Fecha o dropdown se clicar fora
   useEffect(() => {
@@ -66,13 +65,7 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSub
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAiAnalyze = async () => {
-    if (!formData.observation) return;
-    setAiAnalyzing(true);
-    const result = await analyzeLoanObservation(formData.observation);
-    if (result) setAiSummary(result);
-    setAiAnalyzing(false);
-  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,16 +161,12 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSub
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Início</label>
             <div className="relative">
               <input type="date" name="loanDate" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-slate-800 font-bold outline-none" value={formData.loanDate} onChange={handleInputChange} />
             </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-red-500 uppercase tracking-widest ml-1">Previsão Devolução</label>
-            <input required type="date" name="returnDate" className="w-full bg-white border-2 border-red-50 rounded-2xl p-4 text-red-600 font-black outline-none focus:border-red-500 shadow-sm" value={formData.returnDate} onChange={handleInputChange} />
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">ID Registro</label>
@@ -188,25 +177,11 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSub
         <div className="space-y-2">
           <div className="flex justify-between items-center mb-1">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Observações</label>
-            <button type="button" onClick={handleAiAnalyze} disabled={aiAnalyzing || !formData.observation} className="text-[10px] font-black text-green-700 flex items-center gap-2 hover:bg-green-50 px-3 py-1 rounded-lg transition-all disabled:opacity-30">
-              <svg className={`w - 3.5 h - 3.5 ${aiAnalyzing ? 'animate-spin' : ''} `} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-              RESUMIR COM IA
-            </button>
           </div>
           <textarea name="observation" rows={3} placeholder="Condição da chave, autorizações especiais..." className="w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-slate-800 font-medium focus:border-green-500 outline-none transition-all resize-none shadow-sm" value={formData.observation} onChange={handleInputChange} />
         </div>
 
-        {aiSummary && (
-          <div className="p-5 bg-green-50 border-2 border-green-100 rounded-3xl animate-fade-in flex items-start gap-4">
-            <div className="bg-green-600 text-white p-2 rounded-xl">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1a1 1 0 10-2 0v1a1 1 0 102 0zM13 16v-1a1 1 0 10-2 0v1a1 1 0 102 0zM14.586 11H12.414l.829-2.316a1 1 0 00-1.886-.668l-1 2.8a1 1 0 00.943 1.336h2.172l-.829 2.316a1 1 0 001.886.668l1-2.8a1 1 0 00-.943-1.336z" /></svg>
-            </div>
-            <div>
-              <p className="text-[10px] font-black text-green-800 uppercase mb-1 tracking-widest">Sugestão da IA</p>
-              <p className="text-sm text-green-900 font-bold leading-relaxed">"{aiSummary.summary}"</p>
-            </div>
-          </div>
-        )}
+
 
         <div className="flex flex-col sm:flex-row gap-4 pt-6">
           <button type="submit" className="flex-[2] bg-green-600 hover:bg-green-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-green-100 transition-all transform active:scale-95 text-lg uppercase tracking-widest">Gravar Empréstimo</button>

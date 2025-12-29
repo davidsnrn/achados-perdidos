@@ -307,9 +307,9 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
     setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const renderLockerGrid = (sectionId: string, start: number, end: number) => {
+  const renderLockerGrid = (sectionId: string, sectionLockers: Locker[]) => {
     if (collapsedSections[sectionId]) return null;
-    const subset = lockers.filter(l => l.number >= start && l.number <= end).filter(l => {
+    const subset = sectionLockers.filter(l => {
       if (statusFilter === 'todos') return true;
       if (statusFilter === 'disponivel') return l.status === LockerStatus.AVAILABLE;
       if (statusFilter === 'ocupado') return l.status === LockerStatus.OCCUPIED;
@@ -319,7 +319,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
 
     return (
       <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 animate-fade-in pb-4">
-        {subset.map(locker => (
+        {subset.sort((a, b) => a.number - b.number).map(locker => (
           <button
             key={locker.number}
             onClick={() => handleLockerClick(locker)}
@@ -332,23 +332,41 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
     );
   };
 
-  const blocks = [
-    {
-      name: 'Bloco Principal',
-      sections: [
-        { id: 'p1', title: 'Parte 1', range: [1, 40] },
-        { id: 'p2', title: 'Parte 2', range: [41, 100] },
-        { id: 'p3', title: 'Parte 3', range: [101, 140] },
-        { id: 'p4', title: 'Parte 4', range: [141, 200] },
-      ]
-    },
-    {
-      name: 'Bloco Anexo',
-      sections: [
-        { id: 'anexo', title: 'Anexo Geral', range: [201, 400] },
-      ]
-    }
-  ];
+  const dynamicBlocks = useMemo(() => {
+    const grouped: Record<string, Record<string, Locker[]>> = {};
+
+    lockers.forEach(locker => {
+      let blockName = 'Sem Bloco';
+      let groupName = 'Geral';
+
+      if (locker.location && locker.location.includes(' - ')) {
+        const [b, g] = locker.location.split(' - ');
+        blockName = b.trim();
+        groupName = g.trim();
+      } else if (locker.location) {
+        blockName = locker.location.trim();
+      }
+
+      if (!grouped[blockName]) grouped[blockName] = {};
+      if (!grouped[blockName][groupName]) grouped[blockName][groupName] = [];
+      grouped[blockName][groupName].push(locker);
+    });
+
+    return Object.entries(grouped).map(([blockName, groups]) => ({
+      name: blockName,
+      sections: Object.entries(groups).map(([groupName, groupLockers]) => {
+        const numbers = groupLockers.map(l => l.number);
+        const min = Math.min(...numbers);
+        const max = Math.max(...numbers);
+        return {
+          id: `${blockName}-${groupName}`,
+          title: groupName,
+          range: [min, max],
+          lockers: groupLockers
+        };
+      })
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [lockers]);
 
   return (
     <div className="bg-slate-50 text-slate-900 pb-20 font-sans rounded-3xl overflow-hidden shadow-inner">
@@ -395,7 +413,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
               </div>
 
               <div className="space-y-12">
-                {blocks.map(block => (
+                {dynamicBlocks.map(block => (
                   <div key={block.name} className="space-y-6">
                     <div className="flex items-center gap-4">
                       <div className="h-0.5 flex-1 bg-slate-100"></div>
@@ -417,7 +435,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
                               <svg className="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
                             </div>
                           </button>
-                          {renderLockerGrid(sec.id, sec.range[0], sec.range[1])}
+                          {renderLockerGrid(sec.id, sec.lockers)}
                         </div>
                       ))}
                     </div>

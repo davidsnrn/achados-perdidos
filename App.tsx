@@ -94,8 +94,20 @@ const App: React.FC = () => {
 
   const loadSystemConfig = useCallback(async () => {
     const config = await StorageService.getConfig();
-    setSystemSector(config.sector);
-    setSystemCampus(config.campus);
+
+    // Migração automática se vier com o padrão antigo
+    if (config.sector.includes('COADES') || config.sector.includes('COAPAC') || config.campus === 'NOVA CRUZ') {
+      // Se for o antigo, forçamos o novo visual, mas não salvamos automaticamente para não ser invasivo no DB sem ação do usuário
+      // Ou podemos salvar? O usuário pediu para corrigir. Vamos forçar o estado local para o novo.
+      setSystemSector('SIADES');
+      setSystemCampus('Sistema de Administração Escolar');
+
+      // Opcional: Atualizar no banco silenciosamente para persistir a correção
+      StorageService.saveConfig('SIADES', 'Sistema de Administração Escolar');
+    } else {
+      setSystemSector(config.sector);
+      setSystemCampus(config.campus);
+    }
   }, []);
 
   const handleLogout = useCallback(() => {

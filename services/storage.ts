@@ -27,7 +27,7 @@ export const StorageService = {
   // System Config
   getConfig: async () => {
     const { data, error } = await supabase.from('config').select('*').limit(1).single();
-    if (error || !data) return { sector: 'COADES', campus: 'NOVA CRUZ' };
+    if (error || !data) return { sector: 'SIADES', campus: 'Sistema de Administração Escolar' };
     return { sector: data.sector, campus: data.campus };
   },
 

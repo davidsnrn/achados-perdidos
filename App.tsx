@@ -343,7 +343,7 @@ const App: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
           <div className="bg-gray-50 p-8 flex flex-col items-center border-b border-gray-100">
-            <IfrnLogo className="mb-2" sector={systemSector} campus={systemCampus} />
+            <IfrnLogo className="mb-2" sector="SIADES" campus="Sistema de Administração Escolar" boldSubtext />
           </div>
           <div className="p-8">
             <h2 className="text-xl font-bold text-gray-800 text-center mb-6">Acesso ao Sistema</h2>

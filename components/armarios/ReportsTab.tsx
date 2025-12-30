@@ -100,25 +100,36 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
             if (studentFilter) {
                 const searchGroups = studentFilter
                     .split(',')
-                    .map(segment => segment
-                        .normalize('NFD')
-                        .replace(/[\u0300-\u036f]/g, '')
-                        .toLowerCase()
-                        .trim()
-                        .split(' ')
-                        .filter(t => t.length > 0)
-                    )
-                    .filter(group => group.length > 0);
+                    .map(segment => ({
+                        segment: segment.toLowerCase(),
+                        words: segment
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '')
+                            .toLowerCase()
+                            .trim()
+                            .split(' ')
+                            .filter(t => t.length > 0)
+                    }))
+                    .filter(group => group.words.length > 0);
 
                 if (searchGroups.length > 0) {
-                    // Incluímos o número do armário na string de busca para permitir busca por #número
-                    const entryStr = `${entry.registration} ${entry.studentName} ${entry.studentClass} #${entry.lockerNumber}`
+                    const normalizedEntryStr = `${entry.registration} ${entry.studentName} ${entry.studentClass}`
                         .normalize('NFD')
                         .replace(/[\u0300-\u036f]/g, '')
                         .toLowerCase();
 
                     const matches = searchGroups.some(group =>
-                        group.every(word => entryStr.includes(word))
+                        group.words.every(word => {
+                            if (word.startsWith('#')) {
+                                const lockerNum = word.substring(1);
+                                const isExact = group.segment.includes(`${word} `);
+                                if (isExact) {
+                                    return entry.lockerNumber.toString() === lockerNum;
+                                }
+                                return entry.lockerNumber.toString().includes(lockerNum);
+                            }
+                            return normalizedEntryStr.includes(word);
+                        })
                     );
                     if (!matches) return false;
                 }

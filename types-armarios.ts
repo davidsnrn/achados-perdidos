@@ -44,4 +44,4 @@ export interface Locker {
   location: string;
 }
 
-export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search' | 'reports' | 'management' | 'export';
+export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search' | 'reports' | 'management' | 'export' | 'config';

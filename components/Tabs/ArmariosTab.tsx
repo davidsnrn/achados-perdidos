@@ -391,11 +391,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
           <button onClick={() => setCurrentView('search')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'search' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Key size={14} /> NADA CONSTA</button>
           <button onClick={() => setCurrentView('reports')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'reports' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileText size={14} /> Relatórios</button>
           {isAdmin && (
-            <>
-              <button onClick={() => setCurrentView('management')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'management' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Plus size={14} /> Cadastro</button>
-              <button onClick={() => setCurrentView('import')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'import' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-100 border border-slate-100'}`}><Download size={14} /> Importar CSV</button>
-              <button onClick={() => setCurrentView('export')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'export' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileSpreadsheet size={14} /> Exportar</button>
-            </>
+            <button onClick={() => setCurrentView('config')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'config' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Settings size={14} /> Configuração</button>
           )}
         </div>
       </div>
@@ -476,16 +472,15 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
           <ReportsTab lockers={lockers} />
         )}
 
-        {currentView === 'export' && isAdmin && (
-          <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
-        )}
 
-        {currentView === 'management' && isAdmin && (
-          <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
-        )}
-
-        {currentView === 'import' && isAdmin && (
-          <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
+        {currentView === 'config' && isAdmin && (
+          <div className="space-y-12">
+            <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
+              <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
+            </div>
+          </div>
         )}
 
         {currentView === 'loan-form' && selectedLocker && (

@@ -222,7 +222,8 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!user) return;
 
-    if (user.password !== currentPassword) {
+    const hashedCurrent = await StorageService.hashPassword(currentPassword);
+    if (user.password !== hashedCurrent) {
       alert("A senha atual está incorreta.");
       return;
     }

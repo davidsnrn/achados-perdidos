@@ -9,14 +9,6 @@ const SUPABASE_KEY = 'sb_publishable_jjl3YMTXv7Ly-LwahfI3Yw_5GZD4fpv';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const hashPassword = async (pass: string): Promise<string> => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(pass);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-};
-
 // Session constants
 const SESSION_USER_KEY = 'coades_session_user';
 const LAST_ACTIVE_KEY = 'coades_last_active';
@@ -24,9 +16,17 @@ const TIMEOUT_MINUTES = 5;
 const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 
 export const StorageService = {
+  // Helpers
+  hashPassword: async (pass: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(pass);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
   // System Config
   getConfig: async () => {
-    // Tenta carregar do cache local primeiro para evitar o "blink" ou SIADES padrão
     const cached = localStorage.getItem('sga_system_config');
     const defaultVal = { sector: '', campus: '' };
 
@@ -45,10 +45,7 @@ export const StorageService = {
   },
 
   saveConfig: async (sector: string, campus: string) => {
-    // Salva no cache
     localStorage.setItem('sga_system_config', JSON.stringify({ sector, campus }));
-
-    // Tenta atualizar o primeiro registro, se não existir, cria
     const { data } = await supabase.from('config').select('id').limit(1);
 
     if (data && data.length > 0) {
@@ -69,31 +66,26 @@ export const StorageService = {
   },
 
   saveUser: async (user: User, actorName: string) => {
-    // Check duplication (exceto o próprio usuário)
     const { data: existing } = await supabase
       .from('users')
       .select('id, name')
       .eq('matricula', user.matricula)
-      .neq('id', user.id); // Garante que não é ele mesmo
+      .neq('id', user.id);
 
     if (existing && existing.length > 0) {
       throw new Error(`Erro: A matrícula '${user.matricula}' já está cadastrada para o usuário '${existing[0].name}'.`);
     }
 
     const dateStr = new Date().toLocaleString('pt-BR');
-
-    // Check if updating or creating
     const { data: currentUser } = await supabase.from('users').select('*').eq('id', user.id).single();
 
     if (currentUser) {
-      // Update
       const logMessage = `Editado por ${actorName} em ${dateStr}.`;
       const updatedLogs = [...(currentUser.logs || []), logMessage];
 
       let finalPassword = currentUser.password;
-      // If password passed and different from DB, it's a new password (e.g. reset) -> Hash it
       if (user.password && user.password !== currentUser.password) {
-        finalPassword = await hashPassword(user.password);
+        finalPassword = await StorageService.hashPassword(user.password);
       }
 
       const { error } = await supabase.from('users').update({
@@ -106,9 +98,8 @@ export const StorageService = {
 
       if (error) throw error;
     } else {
-      // Create
       const password = user.password || 'ifrn123';
-      const hashedPassword = await hashPassword(password);
+      const hashedPassword = await StorageService.hashPassword(password);
       const logMessage = `Criado por ${actorName} em ${dateStr} com senha padrão.`;
 
       const { error } = await supabase.from('users').insert({
@@ -140,7 +131,7 @@ export const StorageService = {
       const log = `Senha alterada pelo próprio usuário em ${dateStr}.`;
       const updatedLogs = [...(user.logs || []), log];
 
-      const hashedPassword = await hashPassword(newPass);
+      const hashedPassword = await StorageService.hashPassword(newPass);
 
       const { data, error } = await supabase
         .from('users')
@@ -162,7 +153,6 @@ export const StorageService = {
   },
 
   savePerson: async (person: Person) => {
-    // Check duplicate matricula
     const { data: existing } = await supabase
       .from('people')
       .select('id')
@@ -188,11 +178,10 @@ export const StorageService = {
   },
 
   deleteAllPeople: async () => {
-    await supabase.from('people').delete().neq('id', '0'); // Delete all (hacky neq check) or allow delete without where
+    await supabase.from('people').delete().neq('id', '0');
   },
 
   importPeople: async (people: Person[]) => {
-    // Buscar matrículas existentes para não tentar inserir
     const { data: existing } = await supabase.from('people').select('matricula');
     const existingMats = new Set(existing?.map(p => p.matricula));
 
@@ -212,12 +201,10 @@ export const StorageService = {
   // Items
   getItems: async (): Promise<FoundItem[]> => {
     const { data, error } = await supabase.from('items').select('*').order('id', { ascending: false });
-
     if (error) {
       console.error("Erro ao buscar itens:", error);
       return [];
     }
-
     return data.map((d: any) => ({
       id: d.id,
       description: d.description,
@@ -234,53 +221,42 @@ export const StorageService = {
   },
 
   saveItem: async (item: FoundItem, actionDescription?: string, actorName: string = 'Sistema') => {
-    try {
-      const isNew = item.id === 0;
+    const isNew = item.id === 0;
+    const newHistoryEntry = {
+      date: new Date().toISOString(),
+      action: actionDescription || (isNew ? 'Item registrado.' : 'Item atualizado.'),
+      user: actorName
+    };
 
-      const newHistoryEntry = {
-        date: new Date().toISOString(),
-        action: actionDescription || (isNew ? 'Item registrado.' : 'Item atualizado.'),
-        user: actorName
-      };
-
-      let history = [];
-      if (!isNew) {
-        const { data } = await supabase.from('items').select('history').eq('id', item.id).single();
-        history = data?.history || [];
-      }
-
-      history.push(newHistoryEntry);
-
-      const payload = {
-        description: item.description,
-        detailed_description: item.detailedDescription,
-        location_found: item.locationFound,
-        location_stored: item.locationStored,
-        date_found: item.dateFound,
-        date_registered: item.dateRegistered,
-        status: item.status,
-        returned_to: item.returnedTo,
-        returned_date: item.returnedDate,
-        history: history
-      };
-
-      let error = null;
-
-      if (isNew) {
-        const res = await supabase.from('items').insert(payload);
-        error = res.error;
-      } else {
-        const res = await supabase.from('items').update(payload).eq('id', item.id);
-        error = res.error;
-      }
-
-      if (error) {
-        throw error;
-      }
-    } catch (e: any) {
-      console.error("Erro completo ao salvar item:", e);
-      throw new Error(e.message || "Erro desconhecido ao salvar item.");
+    let history = [];
+    if (!isNew) {
+      const { data } = await supabase.from('items').select('history').eq('id', item.id).single();
+      history = data?.history || [];
     }
+    history.push(newHistoryEntry);
+
+    const payload = {
+      description: item.description,
+      detailed_description: item.detailedDescription,
+      location_found: item.locationFound,
+      location_stored: item.locationStored,
+      date_found: item.dateFound,
+      date_registered: item.dateRegistered,
+      status: item.status,
+      returned_to: item.returnedTo,
+      returned_date: item.returnedDate,
+      history: history
+    };
+
+    let error = null;
+    if (isNew) {
+      const res = await supabase.from('items').insert(payload);
+      error = res.error;
+    } else {
+      const res = await supabase.from('items').update(payload).eq('id', item.id);
+      error = res.error;
+    }
+    if (error) throw error;
   },
 
   deleteItem: async (id: number) => {
@@ -289,9 +265,7 @@ export const StorageService = {
 
   deleteAllItems: async () => {
     const { error } = await supabase.rpc('admin_clear_items_only');
-
     if (error) {
-      console.warn("RPC admin_clear_items_only não disponível. Usando fallback DELETE normal.");
       await supabase.from('items').delete().gt('id', -1);
     }
   },
@@ -300,7 +274,6 @@ export const StorageService = {
   getReports: async (): Promise<LostReport[]> => {
     const { data, error } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
     if (error) return [];
-
     return data.map((d: any) => ({
       id: d.id,
       itemDescription: d.item_description,
@@ -326,7 +299,6 @@ export const StorageService = {
       created_at: report.createdAt,
       history: report.history
     };
-
     const { error } = await supabase.from('reports').upsert(payload);
     if (error) throw error;
   },
@@ -365,7 +337,6 @@ export const StorageService = {
       location: l.location
     }));
 
-    // Process in batches of 50 to avoid payload size/timeout limits
     const BATCH_SIZE = 50;
     for (let i = 0; i < payload.length; i += BATCH_SIZE) {
       const batch = payload.slice(i, i + BATCH_SIZE);
@@ -403,7 +374,6 @@ export const StorageService = {
   },
 
   login: async (matricula: string, pass: string): Promise<User | null> => {
-    // Buscar usuário pela matrícula
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -412,15 +382,13 @@ export const StorageService = {
 
     if (error || !user) return null;
 
-    // Verificar senha (Hash ou Plain Text para migração)
-    const hashedFn = await hashPassword(pass);
+    const hashedFn = await StorageService.hashPassword(pass);
 
     if (user.password === hashedFn) {
       return user as User;
     } else if (user.password === pass) {
-      // Migração automática de senha plana para hash
       await supabase.from('users').update({ password: hashedFn }).eq('id', user.id);
-      user.password = hashedFn; // Atualiza objeto local
+      user.password = hashedFn;
       return user as User;
     }
 
@@ -458,14 +426,11 @@ export const StorageService = {
 
   factoryReset: async (currentAdminId: string) => {
     const { error } = await supabase.rpc('admin_reset_db');
-
     if (error) {
-      console.warn("RPC admin_reset_db não disponível.");
       await StorageService.deleteAllItems();
       await StorageService.deleteAllReports();
       await StorageService.deleteAllPeople();
     }
-
     await StorageService.deleteAllUsers(currentAdminId);
     localStorage.clear();
   },

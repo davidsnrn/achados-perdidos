@@ -476,10 +476,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
         {currentView === 'config' && isAdmin && (
           <div className="space-y-12">
             <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
-              <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
-            </div>
+            <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
+            <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
           </div>
         )}
 

@@ -177,54 +177,7 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                 </div>
             </div>
 
-            <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-lg overflow-hidden">
-                <div className="p-8 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
-                    <h3 className="text-lg font-black text-slate-700 uppercase tracking-widest flex items-center gap-3">
-                        <FileSpreadsheet className="text-slate-400" size={20} /> Preview dos Dados
-                    </h3>
-                    <span className="text-[10px] font-black text-slate-400 bg-white px-3 py-1 rounded-full border border-slate-100 uppercase">
-                        Mostrando últimos 100 registros
-                    </span>
-                </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-slate-50/50">
-                            <tr>
-                                <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Armário</th>
-                                <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Matrícula</th>
-                                <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Aluno</th>
-                                <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Ação</th>
-                                <th className="py-4 px-6 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Data</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {exportData.slice(0, 100).map((entry, idx) => (
-                                <tr key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
-                                    <td className="py-4 px-6 font-black text-slate-800">#{entry.lockerNumber}</td>
-                                    <td className="py-4 px-6 text-sm font-medium text-slate-500">{entry.registration}</td>
-                                    <td className="py-4 px-6">
-                                        <p className="text-sm font-black text-slate-700 uppercase">{entry.studentName}</p>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase">{entry.studentClass}</p>
-                                    </td>
-                                    <td className="py-4 px-6 text-center">
-                                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${entry.actionType === 'Empréstimo' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>
-                                            {entry.actionType}
-                                        </span>
-                                    </td>
-                                    <td className="py-4 px-6 text-sm font-bold text-slate-500 text-right">{entry.actionDate}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {exportData.length > 100 && (
-                    <div className="p-6 text-center bg-slate-50/30 border-t border-slate-50">
-                        <p className="text-xs font-bold text-slate-400 italic">E mais {exportData.length - 100} registros disponíveis no arquivo completo.</p>
-                    </div>
-                )}
-            </div>
         </div>
     );
 };

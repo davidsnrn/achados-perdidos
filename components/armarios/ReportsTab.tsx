@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { Locker } from '../../types-armarios';
-import { Search, Calendar, FileText, ArrowRight } from 'lucide-react';
+import { Search, Calendar, FileText } from 'lucide-react';
 
 interface ReportsTabProps {
     lockers: Locker[];
@@ -21,6 +22,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
     const [endDate, setEndDate] = useState('');
     const [studentFilter, setStudentFilter] = useState('');
     const [actionTypeFilter, setActionTypeFilter] = useState<'all' | 'Empréstimo' | 'Devolução'>('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 20;
 
     const reportData = useMemo(() => {
         const entries: ReportEntry[] = [];
@@ -70,7 +73,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
             });
         });
 
-        return entries.filter(entry => {
+        const filtered = entries.filter(entry => {
             const entryDate = getLocalDate(entry.actionDate);
             const isInvalidDate = isNaN(entryDate.getTime());
 
@@ -135,16 +138,27 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                 }
             }
             return true;
-        }).sort((a, b) => {
+        });
+
+        return filtered.sort((a, b) => {
             const dateA = getLocalDate(a.actionDate).getTime();
             const dateB = getLocalDate(b.actionDate).getTime();
-
             if (isNaN(dateA)) return 1;
             if (isNaN(dateB)) return -1;
-
             return dateB - dateA;
         });
     }, [lockers, dateFilterType, startDate, endDate, studentFilter, actionTypeFilter]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [dateFilterType, startDate, endDate, studentFilter, actionTypeFilter]);
+
+    const paginatedData = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return reportData.slice(start, start + PAGE_SIZE);
+    }, [reportData, currentPage]);
+
+    const totalPages = Math.ceil(reportData.length / PAGE_SIZE);
 
     return (
         <div className="space-y-6 animate-fade-in">
@@ -257,8 +271,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                             </tr>
                         </thead>
                         <tbody>
-                            {reportData.length > 0 ? (
-                                reportData.map((entry, idx) => (
+                            {paginatedData.length > 0 ? (
+                                paginatedData.map((entry, idx) => (
                                     <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                                         <td className="py-4 px-2 font-black text-slate-800">#{entry.lockerNumber}</td>
                                         <td className="py-4 px-4 text-sm font-medium text-slate-600">{entry.registration}</td>
@@ -285,6 +299,33 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                         </tbody>
                     </table>
                 </div>
+
+                {reportData.length > PAGE_SIZE && (
+                    <div className="flex items-center justify-between border-t border-slate-50 pt-6 mt-4">
+                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Mostrando {Math.min(reportData.length, (currentPage - 1) * PAGE_SIZE + 1)}-{Math.min(reportData.length, currentPage * PAGE_SIZE)} de {reportData.length} registros
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-4 py-2 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-[10px] font-black text-slate-600 uppercase transition-all"
+                            >
+                                Anterior
+                            </button>
+                            <div className="flex items-center px-4 text-[10px] font-black text-slate-400 uppercase">
+                                Página {currentPage} de {totalPages}
+                            </div>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-4 py-2 bg-slate-50 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-[10px] font-black text-slate-600 uppercase transition-all"
+                            >
+                                Próxima
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

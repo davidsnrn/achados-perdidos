@@ -77,8 +77,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
       await StorageService.saveLockers(newData);
       setLockers(newData);
       setCurrentView('dashboard');
-    } catch (e) {
-      alert("Erro ao importar dados.");
+    } catch (e: any) {
+      alert("Erro ao importar dados:\n" + (e.message || "Erro desconhecido"));
     } finally {
       setLoading(false);
     }

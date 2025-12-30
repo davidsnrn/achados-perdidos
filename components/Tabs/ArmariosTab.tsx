@@ -86,8 +86,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people }) => {
       // Atualiza o estado local mesclando ou recarregando
       await refreshLockers();
       setCurrentView('dashboard');
-    } catch (e) {
-      alert("Erro ao importar dados.");
+    } catch (e: any) {
+      alert("Erro ao importar dados:\n" + (e.message || "Erro desconhecido"));
     } finally {
       setLoading(false);
     }

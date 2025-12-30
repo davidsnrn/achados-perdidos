@@ -358,14 +358,20 @@ export const StorageService = {
     const payload = lockers.map(l => ({
       number: l.number,
       status: l.status,
-      current_loan: l.currentLoan,
-      maintenance_record: l.maintenanceRecord,
-      loan_history: l.loanHistory,
-      maintenance_history: l.maintenanceHistory,
+      current_loan: l.currentLoan || null,
+      maintenance_record: l.maintenanceRecord || null,
+      loan_history: l.loanHistory || [],
+      maintenance_history: l.maintenanceHistory || [],
       location: l.location
     }));
-    const { error } = await supabase.from('lockers').upsert(payload);
-    if (error) throw error;
+
+    // Process in batches of 50 to avoid payload size/timeout limits
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < payload.length; i += BATCH_SIZE) {
+      const batch = payload.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase.from('lockers').upsert(batch);
+      if (error) throw error;
+    }
   },
 
   updateSingleLocker: async (locker: Locker) => {

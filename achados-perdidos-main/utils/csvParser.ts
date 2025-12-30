@@ -57,15 +57,25 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
   const formatRegistration = (reg: string) => {
     if (!reg) return "";
     reg = reg.trim();
-    // Se for notação científica (ex: 2,019...E+13)
-    if (reg.toUpperCase().includes('E+') && (reg.includes(',') || reg.includes('.'))) {
+
+    // Se for notação científica (ex: 2,019...E+13 ou 2.019...E13)
+    if (reg.toUpperCase().includes('E+') || (reg.toUpperCase().includes('E') && reg.match(/\d+E\d+/))) {
       try {
-        // Substitui vírgula por ponto para o JS entender como float
-        const normalized = reg.replace(',', '.');
-        const num = parseFloat(normalized);
-        if (!isNaN(num)) {
-          // Converte para string sem notação científica
-          return BigInt(Math.round(num)).toString();
+        // Normaliza para o formato 2.019E13
+        const normalized = reg.replace(',', '.').toUpperCase();
+        const [base, exp] = normalized.split('E');
+        const exponent = parseInt(exp.replace('+', ''), 10);
+
+        if (isNaN(exponent)) return reg;
+
+        const parts = base.split('.');
+        let integerPart = parts[0];
+        let fractionalPart = parts[1] || "";
+
+        if (exponent >= fractionalPart.length) {
+          return integerPart + fractionalPart.padEnd(exponent, '0');
+        } else {
+          return integerPart + fractionalPart.substring(0, exponent);
         }
       } catch (e) {
         return reg;
@@ -75,7 +85,7 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
   };
 
   // Função para dar split respeitando aspas (campo "texto com ; aqui")
-  const splitCSVLine = (text: string, delim: string) => {
+  const splitCSVLine = (text: string, delimiter: string) => {
     const result = [];
     let cur = "";
     let inQuotes = false;
@@ -83,7 +93,7 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
       const char = text[i];
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === delim && !inQuotes) {
+      } else if (char === delimiter && !inQuotes) {
         result.push(cur);
         cur = "";
       } else {

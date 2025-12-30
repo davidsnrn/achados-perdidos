@@ -22,14 +22,21 @@ const CSVImport: React.FC<CSVImportProps> = ({ onImportLockers, onCancel }) => {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
         const data = parseIFRNCSV(text);
-        onImportLockers(data);
-        setSuccess(`${data.length} armários importados com sucesso!`);
-      } catch (err) {
-        setError("Erro ao processar o arquivo. Verifique o formato e o tipo selecionado.");
+
+        if (data.length === 0) {
+          setError("Nenhum dado válido encontrado no CSV. Verifique as colunas.");
+          return;
+        }
+
+        // Aguarda a importação (que envolve salvar no Supabase)
+        await onImportLockers(data);
+        setSuccess(`${data.length} armários processados e sincronizados!`);
+      } catch (err: any) {
+        setError("Erro ao processar o arquivo. " + (err.message || "Verifique o formato."));
       }
     };
     reader.readAsText(file, 'ISO-8859-1');
@@ -54,9 +61,9 @@ const CSVImport: React.FC<CSVImportProps> = ({ onImportLockers, onCancel }) => {
             if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
           }}
           className={`
-border - 4 border - dashed rounded - [2rem] p - 12 text - center transition - all cursor - pointer
+            border-4 border-dashed rounded-[2rem] p-12 text-center transition-all cursor-pointer
             ${isDragging ? 'border-green-500 bg-green-50' : 'border-slate-100 bg-slate-50 hover:bg-white'}
-`}
+          `}
           onClick={() => document.getElementById('fileInput')?.click()}
         >
           <input id="fileInput" type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />

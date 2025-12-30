@@ -41,23 +41,79 @@ export const parseStudentCSV = (csvText: string): Student[] => {
 };
 
 export const parseIFRNCSV = (csvText: string): Locker[] => {
-  const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  const lines = csvText.split(/\r?\n/).filter(l => l.trim().length > 0);
+  if (lines.length < 2) return [];
+
+  // Tenta detectar o separador (vírgula ou ponto-e-vírgula)
+  const firstLine = lines[0];
+  const semicolonCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = semicolonCount >= commaCount ? ';' : ',';
+
   const lockersMap: Record<number, Locker> = {};
   let lastSeenLockerNumber: number | null = null;
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    const parts = line.split(';');
+  // Função auxiliar para converter notação científica (2,01911E+13) para string
+  const formatRegistration = (reg: string) => {
+    if (!reg) return "";
+    reg = reg.trim();
+    // Se for notação científica (ex: 2,019...E+13)
+    if (reg.toUpperCase().includes('E+') && (reg.includes(',') || reg.includes('.'))) {
+      try {
+        // Substitui vírgula por ponto para o JS entender como float
+        const normalized = reg.replace(',', '.');
+        const num = parseFloat(normalized);
+        if (!isNaN(num)) {
+          // Converte para string sem notação científica
+          return BigInt(Math.round(num)).toString();
+        }
+      } catch (e) {
+        return reg;
+      }
+    }
+    return reg;
+  };
 
-    let rawNumber = parts[0]?.trim();
+  // Função para dar split respeitando aspas (campo "texto com ; aqui")
+  const splitCSVLine = (text: string, delim: string) => {
+    const result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === delim && !inQuotes) {
+        result.push(cur);
+        cur = "";
+      } else {
+        cur += char;
+      }
+    }
+    result.push(cur);
+    return result;
+  };
+
+  // Pula o cabeçalho se ele contiver palavras típicas de header
+  let startIdx = 0;
+  if (lines[0].toLowerCase().includes('armário') || lines[0].toLowerCase().includes('localização') || lines[0].toLowerCase().includes('matrícula')) {
+    startIdx = 1;
+  }
+
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i];
+    const parts = splitCSVLine(line, delimiter);
+
+    let rawNumber = parts[0]?.trim() || '';
     let location = parts[1]?.trim() || '';
-    let regNumber = parts[2]?.trim() || '';
+    let regNumber = formatRegistration(parts[2]?.trim() || '');
     let name = parts[3]?.trim() || '';
     let studentClass = parts[4]?.trim() || '';
     let observation = parts[5]?.trim() || '';
     let loanDateStr = parts[6]?.trim() || '';
     let returnDateStr = parts[7]?.trim() || '';
 
+    // Tratamento para quando o número do armário está vazio mas a localização tem o número
     if (rawNumber === "" && !isNaN(parseInt(location))) {
       rawNumber = location;
       location = "";
@@ -96,6 +152,7 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
       };
 
       const isCurrent = !returnDateStr || returnDateStr.trim() === "" || returnDateStr.toLowerCase().includes('aberto');
+
       if (isCurrent && !lockersMap[lockerNum].currentLoan) {
         lockersMap[lockerNum].currentLoan = loan;
         lockersMap[lockerNum].status = LockerStatus.OCCUPIED;

@@ -61,9 +61,9 @@ const CSVImport: React.FC<CSVImportProps> = ({ onImportLockers, onCancel }) => {
             if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
           }}
           className={`
-border - 4 border - dashed rounded - [2rem] p - 12 text - center transition - all cursor - pointer
+            border-4 border-dashed rounded-[2rem] p-12 text-center transition-all cursor-pointer
             ${isDragging ? 'border-green-500 bg-green-50' : 'border-slate-100 bg-slate-50 hover:bg-white'}
-`}
+          `}
           onClick={() => document.getElementById('fileInput')?.click()}
         >
           <input id="fileInput" type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />

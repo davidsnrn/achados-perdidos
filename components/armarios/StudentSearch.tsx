@@ -58,15 +58,7 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
     if (searchGroups.length === 0) return [];
 
     return students.filter(s => {
-      const { activeLoans, pastHistory } = getStudentHistory(s.registration);
-
-      // Prepara lista de números de armários associados ao aluno com o prefixo '#'
-      const lockerNumbers = [
-        ...activeLoans.map(l => `#${l.lockerNumber}`),
-        ...pastHistory.map(l => `#${l.lockerNumber}`)
-      ];
-
-      const studentStr = `${s.registration} ${s.name} ${s.course} ${lockerNumbers.join(' ')}`
+      const studentStr = `${s.registration} ${s.name} ${s.course}`
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase();
@@ -111,11 +103,11 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100">
         <h2 className="text-3xl font-black text-slate-800 mb-6 tracking-tight">Consulta de Aluno</h2>
-        <p className="text-slate-500 mb-8 font-medium">Pesquise por partes do nome, matrícula, curso ou número da chave (ex: #5).</p>
+        <p className="text-slate-500 mb-8 font-medium">Pesquise por partes do nome, matrícula ou curso.</p>
         <div className="relative">
           <input
             type="text"
-            placeholder="Ex: João Silva Administração ou #26..."
+            placeholder="Ex: João Silva Administração..."
             className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

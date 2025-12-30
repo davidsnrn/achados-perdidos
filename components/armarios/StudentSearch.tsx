@@ -1,6 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
 import { Locker, Student, LoanData, LockerStatus } from '../../types-armarios';
+import { ExternalLink } from 'lucide-react';
 
 interface StudentSearchProps {
   students: Student[];
@@ -139,9 +139,18 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
               <div className={`p-8 flex flex-col md:flex-row justify-between items-center gap-6 border-b ${hasPendency ? 'bg-red-50/50 border-red-100' : 'bg-green-50/30 border-green-100'}`}>
                 <div className="text-center md:text-left">
                   <h3 className="text-2xl font-black text-slate-800 uppercase leading-tight">{student.name}</h3>
-                  <div className="flex flex-wrap justify-center md:justify-start gap-x-6 mt-2">
+                  <div className="flex flex-wrap justify-center md:justify-start items-center gap-x-6 gap-y-2 mt-2">
                     <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Matrícula: <span className="text-slate-600">{student.registration}</span></span>
                     <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Curso: <span className="text-slate-600">{student.course}</span></span>
+                    <a
+                      href={`https://suap.ifrn.edu.br/edu/aluno/${student.registration}/?tab=nada_consta`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all border border-blue-100 shadow-sm"
+                    >
+                      <ExternalLink size={12} />
+                      Verificar SUAP
+                    </a>
                   </div>
                 </div>
 

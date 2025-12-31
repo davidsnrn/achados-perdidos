@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Locker, Student, LoanData, LockerStatus } from '../../types-armarios';
 import { ExternalLink } from 'lucide-react';
 
@@ -22,6 +22,14 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
   const [newObs, setNewObs] = useState('');
   const [selectedNewLocker, setSelectedNewLocker] = useState<number | null>(null);
   const [isPickingLocker, setIsPickingLocker] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [searchTerm]);
 
   // Helper para buscar chaves do aluno
   const getStudentHistory = (registration: string) => {
@@ -105,16 +113,14 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
         <h2 className="text-3xl font-black text-slate-800 mb-6 tracking-tight">Consulta de Aluno</h2>
         <p className="text-slate-500 mb-8 font-medium">Pesquise por partes do nome, matrícula ou curso.</p>
         <div className="relative">
-          <input
-            type="text"
+          <textarea
+            ref={textareaRef}
             placeholder="Ex: João Silva Administração..."
-            className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300"
+            className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300 min-h-[100px] overflow-hidden"
+            rows={1}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <div className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          </div>
         </div>
       </div>
 

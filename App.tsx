@@ -464,25 +464,7 @@ const App: React.FC = () => {
       setLoading(false);
     }
   };
-  const handleDownloadBackup = async () => {
-    setLoading(true);
-    try {
-      const backupData = await StorageService.getBackupData();
-      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `backup_sistema_coades_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      alert("Erro ao gerar backup.");
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
 
   const getActionName = () => {
@@ -921,20 +903,7 @@ const App: React.FC = () => {
               <div className="flex justify-end pt-2"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"><Save size={16} /> Salvar Alterações</button></div>
             </form>
 
-            <div className="bg-green-50/50 p-4 rounded-lg border border-green-100">
-              <h4 className="font-bold text-gray-800 flex items-center gap-2 pb-2 border-b border-green-100"><Download size={18} className="text-green-600" /> Cópia de Segurança</h4>
-              <div className="py-4">
-                <p className="text-sm text-gray-600 mb-4">Exporte todos os dados salvos no Supabase (configurações, itens, relatos, pessoas e usuários) para um arquivo JSON seguro.</p>
-                <button
-                  onClick={handleDownloadBackup}
-                  disabled={loading}
-                  className="w-full md:w-auto px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                  Baixar Backup Completo (.JSON)
-                </button>
-              </div>
-            </div>
+
             {user.level === UserLevel.ADMIN && (
               <div className="border-t border-gray-100 pt-4 mt-4">
                 <button type="button" onClick={() => setDesktopDeleteOpen(!desktopDeleteOpen)} className="w-full flex items-center justify-between p-3 bg-red-50 text-red-800 rounded-lg hover:bg-red-100 transition-colors">
@@ -1213,20 +1182,7 @@ const App: React.FC = () => {
             <div className="flex justify-end pt-2"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2"><Save size={16} /> Salvar Alterações</button></div>
           </form>
 
-          <div className="bg-green-50/50 p-4 rounded-lg border border-green-100">
-            <h4 className="font-bold text-gray-800 flex items-center gap-2 pb-2 border-b border-green-100"><Download size={18} className="text-green-600" /> Cópia de Segurança</h4>
-            <div className="py-4">
-              <p className="text-sm text-gray-600 mb-4">Exporte todos os dados salvos no Supabase (configurações, itens, relatos, pessoas e usuários) para um arquivo JSON seguro.</p>
-              <button
-                onClick={handleDownloadBackup}
-                disabled={loading}
-                className="w-full md:w-auto px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-bold flex items-center justify-center gap-2 transition-all transform active:scale-95"
-              >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                Baixar Backup Completo (.JSON)
-              </button>
-            </div>
-          </div>
+
           {user.level === UserLevel.ADMIN && (
             <div className="border-t border-gray-100 pt-4 mt-4">
               <button type="button" onClick={() => setDesktopDeleteOpen(!desktopDeleteOpen)} className="w-full flex items-center justify-between p-3 bg-red-50 text-red-800 rounded-lg hover:bg-red-100 transition-colors">

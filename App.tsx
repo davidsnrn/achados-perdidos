@@ -645,13 +645,15 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 p-6">
         <div className="max-w-7xl w-full">
-          <div className="text-center mb-16 animate-fade-in-down">
-            <IfrnLogo className="mx-auto mb-8 scale-125 drop-shadow-sm" sector={systemSector} campus={systemCampus} />
-            <div className="space-y-4">
-              <h2 className="text-4xl font-black text-gray-800 tracking-tight leading-tight">
+          <div className="mb-16 animate-fade-in-down">
+            <div className="px-4 mb-8">
+              <IfrnLogo className="scale-110 sm:scale-125 drop-shadow-sm origin-left" sector={systemSector} campus={systemCampus} />
+            </div>
+            <div className="text-center px-4 space-y-2">
+              <h2 className="text-3xl sm:text-4xl font-black text-gray-800 tracking-tight leading-tight">
                 Olá, <span className="text-ifrn-green">{user.name.split(' ')[0]}</span>.
               </h2>
-              <p className="text-lg text-gray-500 max-w-2xl mx-auto font-medium">
+              <p className="text-base sm:text-lg text-gray-500 max-w-2xl mx-auto font-medium">
                 Selecione o sistema que deseja gerenciar.
               </p>
             </div>

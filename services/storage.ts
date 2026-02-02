@@ -5,8 +5,8 @@ import { Material, MaterialLoan } from "../types-materiais";
 
 // Configuração do Supabase
 // NOTA DE SEGURANÇA: Utilize apenas a chave pública (anon key) aqui. Nunca a service_role.
-const SUPABASE_URL = 'https://vfcnptykhuljtoykpbmv.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_jjl3YMTXv7Ly-LwahfI3Yw_5GZD4fpv';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 

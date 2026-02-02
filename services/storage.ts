@@ -13,7 +13,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // Session constants
 const SESSION_USER_KEY = 'coades_session_user';
 const LAST_ACTIVE_KEY = 'coades_last_active';
-const TIMEOUT_MINUTES = 5;
+const TIMEOUT_MINUTES = 60;
 const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 
 export const StorageService = {

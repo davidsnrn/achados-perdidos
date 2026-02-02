@@ -458,12 +458,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <h3 className="text-xl font-black text-gray-800">Histórico de Movimentações</h3>
                                 <p className="text-sm text-gray-500">Consulte logins, empréstimos e devoluções.</p>
                             </div>
-                            <button
-                                onClick={(e) => { e.preventDefault(); onUpdate(); }}
-                                className="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-100 transition-all flex items-center gap-2 text-sm shadow-sm"
-                            >
-                                <span className="text-xl">↻</span> Atualizar Planilha
-                            </button>
+
                         </div>
 
                         {/* Filters Row */}

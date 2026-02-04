@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2 } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -18,7 +18,7 @@ type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'date
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Sort State
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'desc' });
 
@@ -26,27 +26,78 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // Return Modal State
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [itemToReturn, setItemToReturn] = useState<FoundItem | null>(null);
   const [returnType, setReturnType] = useState<'PERSON' | 'REPORT'>('PERSON');
-  
+
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [selectedReport, setSelectedReport] = useState<LostReport | null>(null);
-  
+
   const [editingItem, setEditingItem] = useState<FoundItem | null>(null);
   const [viewingItem, setViewingItem] = useState<FoundItem | null>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
-  
+
   // Date Filtering State
   const [dateFilter, setDateFilter] = useState<DateFilterType>('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [itemImage, setItemImage] = useState<string | null>(null);
+
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 800;
+          const MAX_HEIGHT = 800;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file);
+        setItemImage(compressed);
+      } catch (err) {
+        console.error("Erro ao processar imagem:", err);
+        alert("Erro ao processar imagem.");
+      }
+    }
+  };
 
   const userString = `${user.name} (${user.matricula})`;
-  
+
   const availableTabs = useMemo(() => {
     const statuses = Object.values(ItemStatus);
     if (user.level === UserLevel.STANDARD) {
@@ -65,17 +116,17 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const filteredItems = useMemo(() => {
     return items.filter(item => {
       const matchesStatus = item.status === activeSubTab;
-      
+
       const rawSearch = searchTerm.trim();
       let matchesSearch = true;
 
       if (rawSearch.startsWith('#')) {
-         const searchId = parseInt(rawSearch.replace('#', ''));
-         if (!isNaN(searchId)) {
-            matchesSearch = item.id === searchId;
-         } else {
-            matchesSearch = false;
-         }
+        const searchId = parseInt(rawSearch.replace('#', ''));
+        if (!isNaN(searchId)) {
+          matchesSearch = item.id === searchId;
+        } else {
+          matchesSearch = false;
+        }
       } else {
         const searchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
         if (searchTerms.length > 0) {
@@ -92,22 +143,22 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
       let matchesDate = true;
       if (dateFilter !== 'ALL') {
-        const itemDate = new Date(item.dateFound + 'T12:00:00'); 
+        const itemDate = new Date(item.dateFound + 'T12:00:00');
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         if (dateFilter === 'TODAY') {
           const iDate = new Date(item.dateFound + 'T00:00:00');
-          iDate.setHours(0,0,0,0);
+          iDate.setHours(0, 0, 0, 0);
           matchesDate = iDate.getTime() === today.getTime();
         } else if (dateFilter === 'WEEK') {
           const firstDay = new Date(today);
-          firstDay.setDate(today.getDate() - today.getDay()); 
+          firstDay.setDate(today.getDate() - today.getDay());
           const lastDay = new Date(today);
-          lastDay.setDate(today.getDate() + (6 - today.getDay())); 
-          
+          lastDay.setDate(today.getDate() + (6 - today.getDay()));
+
           const iDate = new Date(item.dateFound + 'T00:00:00');
-          iDate.setHours(0,0,0,0);
+          iDate.setHours(0, 0, 0, 0);
           matchesDate = iDate >= firstDay && iDate <= lastDay;
 
         } else if (dateFilter === 'THIS_MONTH') {
@@ -132,7 +183,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       let bValue: any = b[sortConfig.key];
 
       // Handle specific types if necessary (dates are strings in format YYYY-MM-DD so string sort works)
-      
+
       if (aValue < bValue) {
         return sortConfig.direction === 'asc' ? -1 : 1;
       }
@@ -161,13 +212,13 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   const filteredPeople = useMemo(() => {
     if (!personSearch.trim()) return [];
-    
+
     const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
 
     return people.filter(p => {
       const personText = normalizeText(`${p.name} ${p.matricula}`);
       return searchTerms.every(term => personText.includes(term));
-    }).slice(0, 5); 
+    }).slice(0, 5);
   }, [people, personSearch]);
 
   const openReports = useMemo(() => {
@@ -177,12 +228,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const getDaysInStock = (dateString: string) => {
     const foundDate = new Date(dateString + 'T12:00:00');
     const today = new Date();
-    foundDate.setHours(0,0,0,0);
-    today.setHours(0,0,0,0);
-    
+    foundDate.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+
     const diffTime = Math.abs(today.getTime() - foundDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
     if (diffDays === 0) return <span className="text-red-600 font-bold">Hoje</span>;
     if (diffDays === 1) return <span className="text-gray-700">Ontem</span>;
     return <span className="text-gray-700">Há {diffDays} dias</span>;
@@ -221,6 +272,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       dateFound: dateFoundInput,
       dateRegistered: editingItem ? editingItem.dateRegistered : new Date().toISOString(),
       status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
+      imageUrl: itemImage || undefined
     };
 
     try {
@@ -280,7 +332,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       }
       receiverName = selectedReport.personName;
       logMessage = `Item vinculado ao Relato de Perda de ${selectedReport.personName}. Status do relato atualizado.`;
-      
+
       const updatedReport: LostReport = {
         ...selectedReport,
         status: ReportStatus.RESOLVED,
@@ -295,9 +347,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       returnedTo: receiverName,
       returnedDate: new Date().toISOString()
     };
-    
+
     await StorageService.saveItem(updatedItem, logMessage, userString);
-    
+
     onUpdate();
     setShowReturnModal(false);
     setItemToReturn(null);
@@ -307,7 +359,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const handleCancelReturn = async (e: React.MouseEvent, item: FoundItem) => {
     e.stopPropagation();
     const action = item.status === ItemStatus.DISCARDED ? "cancelar o descarte" : "cancelar a devolução";
-    
+
     if (confirm(`Deseja ${action} e marcar o item como Disponível novamente?`)) {
       const updated = {
         ...item,
@@ -322,8 +374,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   const handleBatchDonate = async () => {
     if (user.level === UserLevel.STANDARD) {
-        alert("Ação não permitida para nível Padrão.");
-        return;
+      alert("Ação não permitida para nível Padrão.");
+      return;
     }
 
     if (confirm(`Marcar ${selectedItems.length} itens como Doado/Descartado?`)) {
@@ -332,15 +384,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       const promises = selectedItems.map(async (id) => {
         const item = items.find(i => i.id === id);
         if (item) {
-          return StorageService.saveItem({ 
-            ...item, 
+          return StorageService.saveItem({
+            ...item,
             status: ItemStatus.DISCARDED,
-            returnedDate: new Date().toISOString() 
+            returnedDate: new Date().toISOString()
           }, 'Item marcado como Doado/Descartado em lote.', userString);
         }
       });
       await Promise.all(promises);
-      
+
       setSelectedItems([]);
       onUpdate();
       setIsLoading(false);
@@ -354,6 +406,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const openDetails = (item: FoundItem) => {
     setViewingItem(item);
     setShowDetailModal(true);
+  };
+
+  const openEditModal = (item: FoundItem | null) => {
+    setEditingItem(item);
+    setItemImage(item?.imageUrl || null);
+    setShowEditModal(true);
   };
 
   const formatDate = (isoString: string) => {
@@ -372,20 +430,19 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             <button
               key={status}
               onClick={() => { setActiveSubTab(status); setSelectedItems([]); }}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                activeSubTab === status 
-                ? 'bg-white text-ifrn-darkGreen shadow-sm' 
+              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeSubTab === status
+                ? 'bg-white text-ifrn-darkGreen shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               {status}
             </button>
           ))}
         </div>
-        
+
         <div className="flex gap-2 w-full md:w-auto">
           {selectedItems.length > 0 && activeSubTab === ItemStatus.AVAILABLE && user.level !== UserLevel.STANDARD && (
-            <button 
+            <button
               onClick={handleBatchDonate}
               disabled={isLoading}
               className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
@@ -393,8 +450,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               <Gift size={16} /> Doar ({selectedItems.length})
             </button>
           )}
-          <button 
-            onClick={() => { setEditingItem(null); setShowEditModal(true); }}
+          <button
+            onClick={() => openEditModal(null)}
             className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen transition-colors text-sm w-full md:w-auto justify-center"
           >
             <Plus size={18} /> Novo Item
@@ -417,8 +474,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
         <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
           <Calendar size={16} className="text-gray-500 ml-2" />
-          <select 
-            value={dateFilter} 
+          <select
+            value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value as DateFilterType)}
             className="bg-transparent border-none text-sm text-gray-700 focus:ring-0 cursor-pointer py-1.5"
           >
@@ -429,18 +486,18 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             <option value="THIS_YEAR">Este Ano</option>
             <option value="CUSTOM">Data Personalizada</option>
           </select>
-          
+
           {dateFilter === 'CUSTOM' && (
             <div className="flex items-center gap-1 pl-2 border-l border-gray-300 animate-fadeIn">
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
                 className="text-xs border rounded px-2 py-1 bg-white"
               />
               <span className="text-gray-400">-</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={endDate}
                 onChange={e => setEndDate(e.target.value)}
                 className="text-xs border rounded px-2 py-1 bg-white"
@@ -460,8 +517,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 {activeSubTab === ItemStatus.AVAILABLE && (
                   <>
                     <th className="p-4 w-4">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         onChange={(e) => {
                           if (e.target.checked) setSelectedItems(filteredItems.map(i => i.id));
                           else setSelectedItems([]);
@@ -514,77 +571,77 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 </tr>
               ) : (
                 sortedItems.map(item => (
-                  <tr 
-                    key={item.id} 
+                  <tr
+                    key={item.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
                     onClick={() => openDetails(item)}
                   >
-                     {/* BODY FOR AVAILABLE */}
-                     {activeSubTab === ItemStatus.AVAILABLE && (
-                        <>
-                          <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                            <input 
-                              type="checkbox" 
-                              checked={selectedItems.includes(item.id)}
-                              onChange={() => toggleSelection(item.id)}
-                              disabled={user.level === UserLevel.STANDARD}
-                            />
-                          </td>
-                          <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
-                          <td className="p-4">
-                            <div className="font-medium text-gray-900 group flex items-center gap-2">
-                              {item.description}
-                              <Info size={14} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                            {item.detailedDescription && (
-                              <div className="text-xs text-gray-400 mt-1 truncate max-w-xs">{item.detailedDescription}</div>
-                            )}
-                          </td>
-                          <td className="p-4 text-gray-700">{item.locationFound}</td>
-                          <td className="p-4 font-medium text-gray-800">{item.locationStored}</td>
-                          <td className="p-4 text-gray-600">{formatDate(item.dateFound)}</td>
-                          <td className="p-4 font-medium">{getDaysInStock(item.dateFound)}</td>
-                          <td className="p-4">
-                            <div className="flex justify-center gap-2">
-                                <button onClick={(e) => handleOpenReturnModal(e, item)} title="Devolver / Dar Saída" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><CornerUpRight size={18} /></button>
-                                <button onClick={(e) => { e.stopPropagation(); setEditingItem(item); setShowEditModal(true); }} title="Editar" className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"><Pencil size={18} /></button>
-                                {user.level !== UserLevel.STANDARD && (
-                                  <button onClick={(e) => handleDelete(e, item.id)} title="Excluir" className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={18} /></button>
-                                )}
-                            </div>
-                          </td>
-                        </>
-                     )}
-
-                     {/* BODY FOR RETURNED / DISCARDED */}
-                     {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
-                        <>
-                           <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
-                           <td className="p-4">
-                            <div className="font-medium text-gray-900 group flex items-center gap-2">
-                              {item.description}
-                            </div>
-                            {activeSubTab === ItemStatus.RETURNED && item.returnedTo && (
-                                <div className="text-xs text-gray-500 mt-1">Para: {item.returnedTo}</div>
-                            )}
-                          </td>
-                          <td className="p-4 text-gray-600">
-                             {item.returnedDate ? formatDate(item.returnedDate) : '-'}
-                             {item.returnedDate && <span className="text-xs text-gray-400 ml-1">({new Date(item.returnedDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})})</span>}
-                          </td>
-                          <td className="p-4 text-center">
+                    {/* BODY FOR AVAILABLE */}
+                    {activeSubTab === ItemStatus.AVAILABLE && (
+                      <>
+                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.includes(item.id)}
+                            onChange={() => toggleSelection(item.id)}
+                            disabled={user.level === UserLevel.STANDARD}
+                          />
+                        </td>
+                        <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
+                        <td className="p-4">
+                          <div className="font-medium text-gray-900 group flex items-center gap-2">
+                            {item.description}
+                            <Info size={14} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                          {item.detailedDescription && (
+                            <div className="text-xs text-gray-400 mt-1 truncate max-w-xs">{item.detailedDescription}</div>
+                          )}
+                        </td>
+                        <td className="p-4 text-gray-700">{item.locationFound}</td>
+                        <td className="p-4 font-medium text-gray-800">{item.locationStored}</td>
+                        <td className="p-4 text-gray-600">{formatDate(item.dateFound)}</td>
+                        <td className="p-4 font-medium">{getDaysInStock(item.dateFound)}</td>
+                        <td className="p-4">
+                          <div className="flex justify-center gap-2">
+                            <button onClick={(e) => handleOpenReturnModal(e, item)} title="Devolver / Dar Saída" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><CornerUpRight size={18} /></button>
+                            <button onClick={(e) => { e.stopPropagation(); openEditModal(item); }} title="Editar" className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"><Pencil size={18} /></button>
                             {user.level !== UserLevel.STANDARD && (
-                              <button 
-                                onClick={(e) => handleCancelReturn(e, item)}
-                                title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
-                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
-                              >
-                                <RotateCcw size={14} /> Estornar
-                              </button>
+                              <button onClick={(e) => handleDelete(e, item.id)} title="Excluir" className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={18} /></button>
                             )}
-                          </td>
-                        </>
-                     )}
+                          </div>
+                        </td>
+                      </>
+                    )}
+
+                    {/* BODY FOR RETURNED / DISCARDED */}
+                    {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
+                      <>
+                        <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
+                        <td className="p-4">
+                          <div className="font-medium text-gray-900 group flex items-center gap-2">
+                            {item.description}
+                          </div>
+                          {activeSubTab === ItemStatus.RETURNED && item.returnedTo && (
+                            <div className="text-xs text-gray-500 mt-1">Para: {item.returnedTo}</div>
+                          )}
+                        </td>
+                        <td className="p-4 text-gray-600">
+                          {item.returnedDate ? formatDate(item.returnedDate) : '-'}
+                          {item.returnedDate && <span className="text-xs text-gray-400 ml-1">({new Date(item.returnedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>}
+                        </td>
+                        <td className="p-4 text-center">
+                          {user.level !== UserLevel.STANDARD && (
+                            <button
+                              onClick={(e) => handleCancelReturn(e, item)}
+                              title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
+                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
+                            >
+                              <RotateCcw size={14} /> Estornar
+                            </button>
+                          )}
+                        </td>
+                      </>
+                    )}
 
                   </tr>
                 ))
@@ -595,8 +652,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       </div>
 
       {/* MODAL: Edit/Create */}
-      <Modal 
-        isOpen={showEditModal} 
+      <Modal
+        isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         title={editingItem ? `Editar Item #${editingItem.id}` : 'Cadastrar Novo Item'}
       >
@@ -607,13 +664,13 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           </div>
           <div className="col-span-2 md:col-span-1">
             <label className="block text-sm font-medium text-gray-700 mb-1">Data que foi achado *</label>
-            <input 
-              type="date" 
-              name="dateFound" 
-              required 
+            <input
+              type="date"
+              name="dateFound"
+              required
               max={new Date().toISOString().split('T')[0]}
-              defaultValue={editingItem?.dateFound || new Date().toISOString().split('T')[0]} 
-              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" 
+              defaultValue={editingItem?.dateFound || new Date().toISOString().split('T')[0]}
+              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
             />
           </div>
           <div className="col-span-2">
@@ -628,6 +685,39 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             <label className="block text-sm font-medium text-gray-700 mb-1">Local de Armazenamento *</label>
             <input name="locationStored" required defaultValue={editingItem?.locationStored} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Ex: Armário 1" />
           </div>
+          <div className="col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Foto do Produto (Modal)</label>
+            <div className="mt-1 flex items-center gap-4">
+              <div className="flex-1 relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  id="image-upload"
+                />
+                <label
+                  htmlFor="image-upload"
+                  className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-ifrn-green hover:bg-green-50 transition-all text-sm text-gray-500"
+                >
+                  <ImageIcon size={20} />
+                  {itemImage ? 'Alterar Foto' : 'Selecionar Foto'}
+                </label>
+              </div>
+              {itemImage && (
+                <div className="relative w-20 h-20 rounded-lg overflow-hidden border">
+                  <img src={itemImage} alt="Preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setItemImage(null)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 shadow-sm"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="col-span-2 pt-4 flex justify-end gap-3">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
             <button type="submit" disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">{isLoading ? 'Salvando...' : 'Salvar'}</button>
@@ -641,15 +731,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         onClose={() => setShowReturnModal(false)}
         title="Realizar Devolução do Item"
       >
-         {/* Conteúdo do Modal de Devolução (mantém-se estruturalmente igual, apenas botões usam handleConfirmReturn que é async) */}
-         <div className="space-y-6">
+        {/* Conteúdo do Modal de Devolução (mantém-se estruturalmente igual, apenas botões usam handleConfirmReturn que é async) */}
+        <div className="space-y-6">
           <p className="text-sm text-gray-600">
             Você está devolvendo o item: <strong>{itemToReturn?.description}</strong>
           </p>
 
           <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">
-             <button onClick={() => setReturnType('PERSON')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'PERSON' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><UserIcon size={16} /> Selecionar Pessoa</button>
-             <button onClick={() => setReturnType('REPORT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'REPORT' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><FileText size={16} /> Vincular a Relato</button>
+            <button onClick={() => setReturnType('PERSON')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'PERSON' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><UserIcon size={16} /> Selecionar Pessoa</button>
+            <button onClick={() => setReturnType('REPORT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'REPORT' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><FileText size={16} /> Vincular a Relato</button>
           </div>
 
           {returnType === 'PERSON' && (
@@ -699,7 +789,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       </Modal>
 
       {/* MODAL: View Details */}
-      <Modal 
+      <Modal
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
         title="Detalhes do Objeto"
@@ -708,29 +798,36 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           <div className="space-y-6">
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 grid grid-cols-2 gap-4 text-sm">
               <div className="col-span-2">
-                 <span className="text-xs font-bold text-gray-400 uppercase">Descrição</span>
-                 <p className="text-lg font-bold text-gray-800">{viewingItem.description}</p>
-                 <p className="text-gray-600 mt-1">{viewingItem.detailedDescription || "Sem detalhes adicionais."}</p>
+                <span className="text-xs font-bold text-gray-400 uppercase">Descrição</span>
+                <p className="text-lg font-bold text-gray-800">{viewingItem.description}</p>
+                <p className="text-gray-600 mt-1">{viewingItem.detailedDescription || "Sem detalhes adicionais."}</p>
+              </div>
+              {viewingItem.imageUrl && (
+                <div className="col-span-2">
+                  <div className="relative rounded-xl overflow-hidden shadow-md border border-gray-200 aspect-video md:aspect-auto md:h-64 bg-gray-100">
+                    <img src={viewingItem.imageUrl} alt={viewingItem.description} className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              )}
+              <div>
+                <span className="text-xs font-bold text-gray-400 uppercase">ID</span>
+                <p className="font-mono text-ifrn-darkGreen font-bold">#{viewingItem.id}</p>
               </div>
               <div>
-                 <span className="text-xs font-bold text-gray-400 uppercase">ID</span>
-                 <p className="font-mono text-ifrn-darkGreen font-bold">#{viewingItem.id}</p>
+                <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
+                <p>
+                  <span className={`border px-2 py-0.5 rounded text-xs font-bold ${getStatusColorClass(viewingItem.status)}`}>
+                    {viewingItem.status}
+                  </span>
+                </p>
               </div>
               <div>
-                 <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
-                 <p>
-                   <span className={`border px-2 py-0.5 rounded text-xs font-bold ${getStatusColorClass(viewingItem.status)}`}>
-                     {viewingItem.status}
-                   </span>
-                 </p>
+                <span className="text-xs font-bold text-gray-400 uppercase">Local Achado</span>
+                <p>{viewingItem.locationFound}</p>
               </div>
               <div>
-                 <span className="text-xs font-bold text-gray-400 uppercase">Local Achado</span>
-                 <p>{viewingItem.locationFound}</p>
-              </div>
-              <div>
-                 <span className="text-xs font-bold text-gray-400 uppercase">Guardado Em</span>
-                 <p>{viewingItem.locationStored}</p>
+                <span className="text-xs font-bold text-gray-400 uppercase">Guardado Em</span>
+                <p>{viewingItem.locationStored}</p>
               </div>
               {viewingItem.returnedTo && viewingItem.status === ItemStatus.RETURNED && (
                 <div className="col-span-2 bg-green-50 p-2 rounded border border-green-100">
@@ -739,7 +836,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                   <p className="text-xs text-green-700">{new Date(viewingItem.returnedDate!).toLocaleString()}</p>
                 </div>
               )}
-               {viewingItem.status === ItemStatus.DISCARDED && viewingItem.returnedDate && (
+              {viewingItem.status === ItemStatus.DISCARDED && viewingItem.returnedDate && (
                 <div className="col-span-2 bg-gray-200 p-2 rounded border border-gray-300">
                   <span className="text-xs font-bold text-gray-700 uppercase">Descartado/Doado em</span>
                   <p className="text-gray-900 font-medium">{new Date(viewingItem.returnedDate).toLocaleString()}</p>
@@ -756,8 +853,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                   viewingItem.history.slice().reverse().map((log, index) => (
                     <div key={index} className="flex gap-3 text-sm">
                       <div className="flex flex-col items-center">
-                         <div className="w-2 h-2 rounded-full bg-gray-300 mt-1.5"></div>
-                         {index !== viewingItem.history!.length - 1 && <div className="w-px h-full bg-gray-200 my-1"></div>}
+                        <div className="w-2 h-2 rounded-full bg-gray-300 mt-1.5"></div>
+                        {index !== viewingItem.history!.length - 1 && <div className="w-px h-full bg-gray-200 my-1"></div>}
                       </div>
                       <div>
                         <p className="text-gray-800">{log.action}</p>
@@ -774,7 +871,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             </div>
 
             <div className="flex justify-end pt-2">
-              <button 
+              <button
                 onClick={() => setShowDetailModal(false)}
                 className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"
               >

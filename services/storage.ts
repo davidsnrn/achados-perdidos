@@ -282,7 +282,8 @@ export const StorageService = {
       status: d.status as ItemStatus,
       returnedTo: d.returned_to,
       returnedDate: d.returned_date,
-      history: d.history
+      history: d.history,
+      imageUrl: d.image_url
     }));
   },
 
@@ -311,7 +312,8 @@ export const StorageService = {
       status: item.status,
       returned_to: item.returnedTo,
       returned_date: item.returnedDate,
-      history: history
+      history: history,
+      image_url: item.imageUrl
     };
 
     let error = null;

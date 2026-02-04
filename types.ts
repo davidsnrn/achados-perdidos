@@ -66,6 +66,7 @@ export interface FoundItem {
   returnedTo?: string; // Person ID or Name
   returnedDate?: string; // Data de devolução OU descarte
   history?: ItemHistory[]; // Log de auditoria do objeto
+  imageUrl?: string; // Base64 or URL
 }
 
 export interface LostReport {

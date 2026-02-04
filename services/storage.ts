@@ -195,6 +195,7 @@ export const StorageService = {
 
       const hashedPassword = await StorageService.hashPassword(newPass);
 
+      // 1. Atualizar senha no banco de dados local
       const { data, error } = await supabase
         .from('users')
         .update({ password: hashedPassword, logs: updatedLogs })
@@ -202,7 +203,30 @@ export const StorageService = {
         .select()
         .single();
 
-      if (!error) return data as User;
+      if (error) {
+        console.error('[CHANGE PASSWORD] Erro ao atualizar senha no DB local:', error);
+        return null;
+      }
+
+      // 2. Atualizar senha no Supabase Auth
+      try {
+        const { error: authError } = await supabase.auth.updateUser({
+          password: newPass
+        });
+
+        if (authError) {
+          console.warn('[CHANGE PASSWORD] Aviso ao atualizar senha no Auth:', authError.message);
+          // Não retorna null aqui - a senha local já foi alterada com sucesso
+          // O Auth pode falhar se o usuário não estiver autenticado via Auth ainda
+        } else {
+          console.log('[CHANGE PASSWORD] Senha atualizada com sucesso no Supabase Auth');
+        }
+      } catch (authEx) {
+        console.error('[CHANGE PASSWORD] Exceção ao atualizar Auth:', authEx);
+        // Mesmo se falhar no Auth, mantenha a alteração local
+      }
+
+      return data as User;
     }
     return null;
   },
@@ -632,9 +656,10 @@ export const StorageService = {
         });
 
         if (!signUpError && signUpData.user) {
-          console.log("[LOGIN] Migração (SignUp) realizada com sucesso.");
+          console.log(`✅ [LOGIN] Migração automática realizada com sucesso para: ${cleanMatricula}`);
+          console.log(`[LOGIN] Usuário legado foi migrado para Supabase Auth.`);
         } else {
-          console.warn("[LOGIN] SignUp retornou:", signUpError?.message);
+          console.warn(`⚠️ [LOGIN] SignUp retornou:`, signUpError?.message);
           // Se o erro for "User already registered", a senha lá pode estar antiga.
           // Não podemos fazer muito via Client SDK exceto pedir para resetar ou usar a senha velha.
           // Mas como validamos LOCALMENTE, deixamos o usuário entrar!
@@ -649,6 +674,7 @@ export const StorageService = {
           password: inputHash // Padroniza o hash no banco para garantir
         }).eq('id', legacyUser.id);
 
+        console.log(`✅ [LOGIN] Login bem-sucedido via validação local para: ${cleanMatricula}`);
         return { ...legacyUser, access_logs: updatedAccessLogs } as User;
 
       } catch (err) {

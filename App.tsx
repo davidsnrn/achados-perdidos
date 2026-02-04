@@ -639,6 +639,31 @@ const App: React.FC = () => {
                 Selecione o sistema que deseja gerenciar.
               </p>
             </div>
+
+            {/* Aviso de Transição - Somente para Administradores */}
+            {canConfigure && (
+              <div className="mt-8 px-4 max-w-3xl mx-auto animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                      <ShieldAlert size={24} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-black text-gray-900 mb-2 flex items-center gap-2">
+                        🔄 Período de Transição - Supabase Auth
+                      </h3>
+                      <p className="text-sm text-gray-700 leading-relaxed mb-3">
+                        O sistema está em <strong>processo de migração</strong> para autenticação via Supabase Auth. Usuários cadastrados antes desta atualização serão <strong>migrados automaticamente</strong> no primeiro login.
+                      </p>
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-white/60 px-3 py-2 rounded-lg border border-amber-200">
+                        <AlertCircle size={14} />
+                        Este aviso será removido após a conclusão da migração de todos os usuários
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-4">
@@ -823,73 +848,122 @@ const App: React.FC = () => {
         </div>
 
         {/* MODALS IN MODULE SELECTOR */}
-        <Modal isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setShowCurrentPass(false); setShowNewPass(false); setShowConfirmPass(false); }} title="Alterar Minha Senha">
-          <form onSubmit={handleChangePassword} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Senha Atual</label>
-              <div className="relative group">
-                <input
-                  type={showCurrentPass ? "text" : "password"}
-                  required
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full border rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                />
+        <Modal isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setShowCurrentPass(false); setShowNewPass(false); setShowConfirmPass(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }} title="">
+          <div className="space-y-6">
+            {/* Header Moderno */}
+            <div className="text-center pb-6 border-b border-gray-100">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-ifrn-green to-emerald-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-200">
+                <KeyRound size={32} className="text-white" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Alterar Senha</h3>
+              <p className="text-sm text-gray-500">Mantenha sua conta segura com uma senha forte</p>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-5">
+              {/* Senha Atual */}
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200">
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <Lock size={16} className="text-gray-500" />
+                  Senha Atual
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showCurrentPass ? "text" : "password"}
+                    required
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                    placeholder="Digite sua senha atual"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPass(!showCurrentPass)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
+                    tabIndex={-1}
+                  >
+                    {showCurrentPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Nova Senha */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <Key size={16} className="text-ifrn-green" />
+                  Nova Senha
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showNewPass ? "text" : "password"}
+                    required
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                    placeholder="Digite a nova senha"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPass(!showNewPass)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
+                    tabIndex={-1}
+                  >
+                    {showNewPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
+                  <AlertCircle size={12} />
+                  Mínimo de 3 caracteres
+                </p>
+              </div>
+
+              {/* Confirmar Senha */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                  Confirmar Nova Senha
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showConfirmPass ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                    placeholder="Confirme a nova senha"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPass(!showConfirmPass)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="pt-6 flex gap-3 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={() => setShowCurrentPass(!showCurrentPass)}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-                  tabIndex={-1}
+                  onClick={() => { setShowPasswordModal(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+                  className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
                 >
-                  {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  Cancelar
                 </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
-              <div className="relative group">
-                <input
-                  type={showNewPass ? "text" : "password"}
-                  required
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  className="w-full border rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                />
                 <button
-                  type="button"
-                  onClick={() => setShowNewPass(!showNewPass)}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-                  tabIndex={-1}
+                  type="submit"
+                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-ifrn-green to-emerald-600 text-white rounded-xl hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 active:translate-y-0 font-bold transition-all text-sm flex items-center justify-center gap-2"
                 >
-                  {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                  <KeyRound size={18} />
+                  Salvar Nova Senha
                 </button>
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Nova Senha</label>
-              <div className="relative group">
-                <input
-                  type={showConfirmPass ? "text" : "password"}
-                  required
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full border rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPass(!showConfirmPass)}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-                  tabIndex={-1}
-                >
-                  {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-            <div className="pt-4 flex justify-end gap-3 border-t">
-              <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-              <button type="submit" className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium flex items-center gap-2"><KeyRound size={18} /> Salvar Nova Senha</button>
-            </div>
-          </form>
+            </form>
+          </div>
         </Modal>
 
         <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configurações do Sistema">
@@ -1102,73 +1176,122 @@ const App: React.FC = () => {
         </div>
       </footer>
 
-      <Modal isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setShowCurrentPass(false); setShowNewPass(false); setShowConfirmPass(false); }} title="Alterar Minha Senha">
-        <form onSubmit={handleChangePassword} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Senha Atual</label>
-            <div className="relative group">
-              <input
-                type={showCurrentPass ? "text" : "password"}
-                required
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                className="w-full border rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-              />
+      <Modal isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setShowCurrentPass(false); setShowNewPass(false); setShowConfirmPass(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }} title="">
+        <div className="space-y-6">
+          {/* Header Moderno */}
+          <div className="text-center pb-6 border-b border-gray-100">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-ifrn-green to-emerald-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-200">
+              <KeyRound size={32} className="text-white" />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-2">Alterar Senha</h3>
+            <p className="text-sm text-gray-500">Mantenha sua conta segura com uma senha forte</p>
+          </div>
+
+          <form onSubmit={handleChangePassword} className="space-y-5">
+            {/* Senha Atual */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200">
+              <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <Lock size={16} className="text-gray-500" />
+                Senha Atual
+              </label>
+              <div className="relative group">
+                <input
+                  type={showCurrentPass ? "text" : "password"}
+                  required
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                  placeholder="Digite sua senha atual"
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPass(!showCurrentPass)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
+                  tabIndex={-1}
+                >
+                  {showCurrentPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Nova Senha */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
+              <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <Key size={16} className="text-ifrn-green" />
+                Nova Senha
+              </label>
+              <div className="relative group">
+                <input
+                  type={showNewPass ? "text" : "password"}
+                  required
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                  placeholder="Digite a nova senha"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPass(!showNewPass)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
+                  tabIndex={-1}
+                >
+                  {showNewPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
+                <AlertCircle size={12} />
+                Mínimo de 3 caracteres
+              </p>
+            </div>
+
+            {/* Confirmar Senha */}
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
+              <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                <CheckCircle2 size={16} className="text-emerald-600" />
+                Confirmar Nova Senha
+              </label>
+              <div className="relative group">
+                <input
+                  type={showConfirmPass ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                  placeholder="Confirme a nova senha"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPass(!showConfirmPass)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
+                  tabIndex={-1}
+                >
+                  {showConfirmPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Botões de Ação */}
+            <div className="pt-6 flex gap-3 border-t border-gray-200">
               <button
                 type="button"
-                onClick={() => setShowCurrentPass(!showCurrentPass)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-                tabIndex={-1}
+                onClick={() => { setShowPasswordModal(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
+                className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
               >
-                {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                Cancelar
               </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nova Senha</label>
-            <div className="relative group">
-              <input
-                type={showNewPass ? "text" : "password"}
-                required
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                className="w-full border rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-              />
               <button
-                type="button"
-                onClick={() => setShowNewPass(!showNewPass)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-                tabIndex={-1}
+                type="submit"
+                className="flex-1 px-6 py-3.5 bg-gradient-to-r from-ifrn-green to-emerald-600 text-white rounded-xl hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 active:translate-y-0 font-bold transition-all text-sm flex items-center justify-center gap-2"
               >
-                {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                <KeyRound size={18} />
+                Salvar Nova Senha
               </button>
             </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Nova Senha</label>
-            <div className="relative group">
-              <input
-                type={showConfirmPass ? "text" : "password"}
-                required
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                className="w-full border rounded-lg p-2.5 pr-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPass(!showConfirmPass)}
-                className="absolute right-3 top-2.5 text-gray-400 hover:text-ifrn-green opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200"
-                tabIndex={-1}
-              >
-                {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-          <div className="pt-4 flex justify-end gap-3 border-t">
-            <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-            <button type="submit" className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium flex items-center gap-2"><KeyRound size={18} /> Salvar Nova Senha</button>
-          </div>
-        </form>
+          </form>
+        </div>
       </Modal>
 
       <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configurações do Sistema">

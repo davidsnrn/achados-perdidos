@@ -208,8 +208,8 @@ const App: React.FC = () => {
     setSystemCampus(config.campus);
   }, []);
 
-  const handleLogout = useCallback(() => {
-    StorageService.clearSession();
+  const handleLogout = useCallback(async () => {
+    await StorageService.clearSession();
     setUser(null);
     setLoginMat('');
     setLoginPass('');
@@ -229,10 +229,10 @@ const App: React.FC = () => {
     loadSystemConfig();
 
     const initSession = async () => {
-      const sessionUser = StorageService.getSessionUser();
+      const sessionUser = await StorageService.getSessionUser();
       if (sessionUser) {
-        if (StorageService.isSessionExpired()) {
-          StorageService.clearSession();
+        if (await StorageService.isSessionExpired()) {
+          await StorageService.clearSession();
           setUser(null);
         } else {
           setUser(sessionUser);
@@ -322,8 +322,8 @@ const App: React.FC = () => {
     window.addEventListener('scroll', handleActivity);
     window.addEventListener('touchstart', handleActivity);
 
-    const intervalId = setInterval(() => {
-      if (StorageService.isSessionExpired()) {
+    const intervalId = setInterval(async () => {
+      if (await StorageService.isSessionExpired()) {
         handleLogout();
         alert("Sua sessão expirou por inatividade.");
       }

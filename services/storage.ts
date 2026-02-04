@@ -516,55 +516,112 @@ export const StorageService = {
   },
 
   login: async (matricula: string, pass: string): Promise<User | null> => {
-    const { data: user, error } = await supabase
+    const email = `${matricula}@sistema.local`;
+
+    // 1. Tentar login nativo do Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password: pass
+    });
+
+    if (!authError && authData.user) {
+      // Login nativo funcionou! Buscar dados complementares na nossa tabela
+      const { data: userData } = await supabase
+        .from('users')
+        .select('*')
+        .eq('matricula', matricula)
+        .single();
+
+      if (userData) {
+        // Registrar acesso
+        const dateStr = new Date().toLocaleString('pt-BR');
+        const updatedAccessLogs = [dateStr, ...(userData.access_logs || [])].slice(0, 10);
+
+        await supabase.from('users').update({
+          access_logs: updatedAccessLogs
+        }).eq('id', userData.id);
+
+        return { ...userData, access_logs: updatedAccessLogs } as User;
+      }
+    }
+
+    // 2. Fallback: Tentativa de Migração Silenciosa (Lazy Migration)
+    const { data: legacyUser, error: legacyError } = await supabase
       .from('users')
       .select('*')
       .eq('matricula', matricula)
       .single();
 
-    if (error || !user) return null;
+    if (!legacyUser || legacyError) return null;
 
     const hashedFn = await StorageService.hashPassword(pass);
 
-    if (user.password === hashedFn) {
-      // Registrar acesso
-      const dateStr = new Date().toLocaleString('pt-BR');
-      const accessLog = `Acesso em ${dateStr}.`;
-      const updatedLogs = [...(user.logs || []), accessLog];
+    // Verificar se a senha confere com o hash SHA-256 legado
+    if (legacyUser.password === hashedFn || legacyUser.password === pass) {
+      try {
+        // Criar conta no Supabase Auth automaticamente
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password: pass,
+          options: {
+            data: { matricula, name: legacyUser.name }
+          }
+        });
 
-      await supabase.from('users').update({ logs: updatedLogs }).eq('id', user.id);
-      user.logs = updatedLogs;
+        if (!signUpError && signUpData.user) {
+          // Registrar acesso e vincular ID do Auth
+          const dateStr = new Date().toLocaleString('pt-BR');
+          const updatedAccessLogs = [dateStr, ...(legacyUser.access_logs || [])].slice(0, 10);
 
-      return user as User;
-    } else if (user.password === pass) {
-      await supabase.from('users').update({ password: hashedFn }).eq('id', user.id);
-      user.password = hashedFn;
+          await supabase.from('users').update({
+            access_logs: updatedAccessLogs,
+            password: hashedFn
+          }).eq('id', legacyUser.id);
 
-      // Registrar acesso (também no caso de migração de senha)
-      const dateStr = new Date().toLocaleString('pt-BR');
-      const accessLog = `Acesso em ${dateStr}.`;
-      const updatedLogs = [...(user.logs || []), accessLog];
+          return { ...legacyUser, access_logs: updatedAccessLogs } as User;
+        }
+      } catch (err) {
+        console.error("Erro na migração silenciosa:", err);
+      }
 
-      await supabase.from('users').update({ logs: updatedLogs }).eq('id', user.id);
-      user.logs = updatedLogs;
-
-      return user as User;
+      // Se o SignUp falhar (ex: e-mail já existe), mas a senha legado estava correta,
+      // retornamos o usuário legado para não bloquear o acesso, permitindo tentar de novo depois.
+      return legacyUser as User;
     }
 
     return null;
   },
 
   setSessionUser: (user: User) => {
+    // Agora o Supabase Auth cuida da persistência, 
+    // mas mantemos o cache local para velocidade na UI se necessário.
     localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
-    StorageService.updateLastActive();
   },
 
-  getSessionUser: (): User | null => {
-    const user = localStorage.getItem(SESSION_USER_KEY);
-    return user ? JSON.parse(user) : null;
+  getSessionUser: async (): Promise<User | null> => {
+    // 1. Tentar pegar a sessão nativa do Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session?.user) {
+      // Extrair matrícula do e-mail sintético
+      const matricula = session.user.email?.split('@')[0];
+      if (matricula) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('matricula', matricula)
+          .single();
+        return userData as User;
+      }
+    }
+
+    // 2. Fallback para o localStorage antigo (para transição)
+    const cached = localStorage.getItem(SESSION_USER_KEY);
+    return cached ? JSON.parse(cached) : null;
   },
 
-  clearSession: () => {
+  clearSession: async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem(SESSION_USER_KEY);
     localStorage.removeItem(LAST_ACTIVE_KEY);
   },
@@ -573,14 +630,9 @@ export const StorageService = {
     localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
   },
 
-  isSessionExpired: (): boolean => {
-    const lastActive = localStorage.getItem(LAST_ACTIVE_KEY);
-    if (!lastActive) return true;
-
-    const now = Date.now();
-    const last = parseInt(lastActive, 10);
-
-    return (now - last) > TIMEOUT_MS;
+  isSessionExpired: async (): Promise<boolean> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return !session;
   },
 
   factoryReset: async (currentAdminId: string) => {

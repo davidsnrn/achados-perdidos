@@ -38,6 +38,7 @@ export interface User {
     materiais?: boolean;
   };
   logs?: string[];
+  access_logs?: string[];
   moduleOrder?: string[];
 }
 

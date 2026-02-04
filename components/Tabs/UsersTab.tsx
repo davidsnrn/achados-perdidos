@@ -518,9 +518,8 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
             <div>
               <h4 className="flex items-center gap-2 font-bold text-gray-700 mb-3 border-b pb-2"><FileText size={18} /> Log de Auditoria</h4>
               <div className="space-y-2 max-h-48 overflow-y-auto bg-white border rounded-lg p-3">
-                {selectedUser.logs && selectedUser.logs.filter(l => !l.startsWith('Acesso em')).length > 0 ? (
+                {selectedUser.logs && selectedUser.logs.length > 0 ? (
                   selectedUser.logs
-                    .filter(l => !l.startsWith('Acesso em'))
                     .slice()
                     .reverse()
                     .map((log, index) => (
@@ -540,17 +539,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                   <History size={18} /> Últimos 10 Acessos
                 </h4>
                 <div className="space-y-2 max-h-48 overflow-y-auto bg-white border rounded-lg p-3">
-                  {selectedUser.logs && selectedUser.logs.filter(l => l.startsWith('Acesso em')).length > 0 ? (
-                    selectedUser.logs
-                      .filter(l => l.startsWith('Acesso em'))
-                      .slice() // Copy array
-                      .reverse() // Newest first
-                      .slice(0, 10) // Take last 10
-                      .map((log, index) => (
-                        <div key={index} className="text-xs text-gray-600 border-b border-gray-100 pb-1 mb-1 last:border-0">
-                          • {log.replace('Acesso em ', '')}
-                        </div>
-                      ))
+                  {selectedUser.access_logs && selectedUser.access_logs.length > 0 ? (
+                    selectedUser.access_logs.map((log, index) => (
+                      <div key={index} className="text-xs text-gray-600 border-b border-gray-100 pb-1 mb-1 last:border-0">
+                        • {log}
+                      </div>
+                    ))
                   ) : (
                     <p className="text-xs text-gray-400 italic">Nenhum registro de acesso recente.</p>
                   )}

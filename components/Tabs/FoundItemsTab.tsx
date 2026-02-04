@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -45,6 +45,35 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [itemImage, setItemImage] = useState<string | null>(null);
+  const [showZoomModal, setShowZoomModal] = useState(false);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
+
+  const handleShareImage = async (base64Data: string, fileName: string) => {
+    try {
+      const response = await fetch(base64Data);
+      const blob = await response.blob();
+      const file = new File([blob], `${fileName}.jpg`, { type: 'image/jpeg' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Imagem do Item',
+        });
+      } else {
+        // Fallback: Download the image
+        const link = document.createElement('a');
+        link.href = base64Data;
+        link.download = `${fileName}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        alert("O compartilhamento direto não é suportado pelo seu navegador. A imagem foi baixada para que você possa enviá-la manualmente.");
+      }
+    } catch (err) {
+      console.error("Erro ao compartilhar imagem:", err);
+      alert("Erro ao compartilhar imagem.");
+    }
+  };
 
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -804,8 +833,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               </div>
               {viewingItem.imageUrl && (
                 <div className="col-span-2">
-                  <div className="relative rounded-xl overflow-hidden shadow-md border border-gray-200 aspect-video md:aspect-auto md:h-64 bg-gray-100">
+                  <div
+                    onClick={() => { setZoomImage(viewingItem.imageUrl!); setShowZoomModal(true); }}
+                    className="relative rounded-xl overflow-hidden shadow-md border border-gray-200 aspect-video md:aspect-auto md:h-64 bg-gray-100 cursor-zoom-in group/img"
+                  >
                     <img src={viewingItem.imageUrl} alt={viewingItem.description} className="w-full h-full object-contain" />
+                    <div className="absolute inset-0 bg-black/5 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="bg-white/90 px-3 py-1.5 rounded-full text-xs font-bold text-gray-700 shadow-sm">Clique para ampliar</span>
+                    </div>
                   </div>
                 </div>
               )}
@@ -880,6 +915,37 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* MODAL: Zoom Image */}
+      <Modal
+        isOpen={showZoomModal}
+        onClose={() => setShowZoomModal(false)}
+        title="Visualização da Imagem"
+        maxWidth="max-w-4xl"
+      >
+        <div className="space-y-4">
+          <div className="relative bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center min-h-[300px] max-h-[70vh]">
+            <img src={zoomImage || ''} alt="Zoom" className="max-w-full max-h-full object-contain" />
+          </div>
+          <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+            <p className="text-xs text-gray-500 font-medium italic">Clique em "Enviar Imagem" para compartilhar diretamente.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowZoomModal(false)}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={() => handleShareImage(zoomImage!, `item-${viewingItem?.id || 'foto'}`)}
+                className="flex items-center gap-2 px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold text-sm shadow-md transition-all active:scale-95"
+              >
+                <Share size={18} /> Enviar Imagem
+              </button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -111,6 +111,7 @@ export const StorageService = {
         permissions: user.permissions,
         password: finalPassword,
         logs: updatedLogs,
+        access_logs: user.access_logs || [],
         moduleOrder: user.moduleOrder || []
       }).eq('id', user.id);
 
@@ -128,7 +129,8 @@ export const StorageService = {
         level: user.level,
         permissions: user.permissions,
         moduleOrder: user.moduleOrder || [],
-        logs: [logMessage]
+        logs: [logMessage],
+        access_logs: user.access_logs || []
       });
 
       if (error) throw error;
@@ -771,8 +773,13 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  deleteMaterial: async (id: string) => {
+    await StorageService.deleteMaterialsBulk([id]);
+  },
+
   deleteMaterialsBulk: async (ids: string[]) => {
-    // 1. Marcar empréstimos como DELETED
+    // 1. Marcar empréstimos como DELETED apenas se estiverem ACTIVE (PENDENTES)
+    // Se já foi DEVOLVIDO, não deve ser alterado.
     const { data: updatedLoans, error: loanError } = await supabase
       .from('material_loans')
       .update({
@@ -780,6 +787,7 @@ export const StorageService = {
         returnDate: new Date().toISOString()
       })
       .in('materialId', ids)
+      .eq('status', 'ACTIVE')
       .select();
 
     if (loanError) {

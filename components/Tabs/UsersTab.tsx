@@ -109,6 +109,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       level: formData.get('level') as UserLevel,
       permissions: permissions,
       logs: selectedUser ? selectedUser.logs : [],
+      access_logs: selectedUser ? selectedUser.access_logs : [],
     };
 
     try {

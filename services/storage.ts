@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import CryptoJS from 'crypto-js';
 import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel } from "../types";
 import { Locker, LockerStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
@@ -19,11 +20,15 @@ const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 export const StorageService = {
   // Helpers
   hashPassword: async (pass: string): Promise<string> => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(pass);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    if (!pass) return '';
+    try {
+      // Use crypto-js for consistent SHA-256 hashing in all environments (HTTP/HTTPS)
+      // This avoids issues where crypto.subtle is undefined in non-secure contexts
+      return CryptoJS.SHA256(pass).toString(CryptoJS.enc.Hex).toLowerCase();
+    } catch (e) {
+      console.error("Erro ao gerar hash (crypto-js):", e);
+      return '';
+    }
   },
 
   // System Config
@@ -121,6 +126,7 @@ export const StorageService = {
       const hashedPassword = await StorageService.hashPassword(password);
       const logMessage = `Criado por ${actorName} em ${dateStr} com senha padrão.`;
 
+      // 1. Criar usuário na tabela local
       const { error } = await supabase.from('users').insert({
         id: user.id,
         matricula: user.matricula,
@@ -134,6 +140,32 @@ export const StorageService = {
       });
 
       if (error) throw error;
+
+      // 2. Criar usuário no Supabase Auth para permitir login imediato
+      try {
+        const email = `${user.matricula}@sistema.local`;
+        const { error: authError } = await supabase.auth.signUp({
+          email,
+          password, // Usa a senha plain text (ifrn123 ou outra)
+          options: {
+            data: {
+              matricula: user.matricula,
+              name: user.name
+            },
+            emailRedirectTo: undefined // Desabilita email de confirmação
+          }
+        });
+
+        if (authError) {
+          console.warn(`[SAVE USER] Aviso ao criar no Auth: ${authError.message}`);
+          // Não falha se o Auth der erro - o usuário ainda pode logar pelo fallback local
+        } else {
+          console.log(`[SAVE USER] Usuário ${user.matricula} criado com sucesso no Auth.`);
+        }
+      } catch (authEx) {
+        console.error(`[SAVE USER] Exceção ao criar no Auth:`, authEx);
+        // Continua mesmo se der erro no Auth
+      }
     }
   },
 
@@ -518,76 +550,112 @@ export const StorageService = {
   },
 
   login: async (matricula: string, pass: string): Promise<User | null> => {
-    const email = `${matricula}@sistema.local`;
+    // 1. Limpeza de input (Trim) para evitar erros comuns de copiar/colar
+    const cleanMatricula = matricula ? matricula.trim() : '';
+    const cleanPass = pass ? pass.trim() : '';
+    const email = `${cleanMatricula}@sistema.local`;
 
-    // 1. Tentar login nativo do Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password: pass
-    });
+    console.log(`[LOGIN] Tentando login para: ${cleanMatricula}`);
 
-    if (!authError && authData.user) {
-      // Login nativo funcionou! Buscar dados complementares na nossa tabela
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*')
-        .eq('matricula', matricula)
-        .single();
+    // 2. Tentar login nativo do Supabase Auth
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: cleanPass
+      });
 
-      if (userData) {
-        // Registrar acesso
-        const dateStr = new Date().toLocaleString('pt-BR');
-        const updatedAccessLogs = [dateStr, ...(userData.access_logs || [])].slice(0, 10);
+      if (!authError && authData.user) {
+        console.log("[LOGIN] Sucesso via Supabase Auth.");
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('matricula', cleanMatricula)
+          .single();
 
-        await supabase.from('users').update({
-          access_logs: updatedAccessLogs
-        }).eq('id', userData.id);
+        if (userData) {
+          const dateStr = new Date().toLocaleString('pt-BR');
+          const updatedAccessLogs = [dateStr, ...(userData.access_logs || [])].slice(0, 10);
 
-        return { ...userData, access_logs: updatedAccessLogs } as User;
+          await supabase.from('users').update({
+            access_logs: updatedAccessLogs
+          }).eq('id', userData.id);
+
+          return { ...userData, access_logs: updatedAccessLogs } as User;
+        }
+      } else {
+        console.warn("[LOGIN] Falha no Supabase Auth:", authError?.message);
       }
+    } catch (authEx) {
+      console.error("[LOGIN] Erro exceção Auth:", authEx);
     }
 
-    // 2. Fallback: Tentativa de Migração Silenciosa (Lazy Migration)
+    // 3. Fallback: Verificação "Legada" (Banco de Dados Local)
+    console.log("[LOGIN] Tentando verificação local...");
     const { data: legacyUser, error: legacyError } = await supabase
       .from('users')
       .select('*')
-      .eq('matricula', matricula)
+      .eq('matricula', cleanMatricula)
       .single();
 
-    if (!legacyUser || legacyError) return null;
+    if (!legacyUser || legacyError) {
+      console.error("[LOGIN] Usuário não encontrado no DB local ou erro:", legacyError?.message);
+      return null;
+    }
 
-    const hashedFn = await StorageService.hashPassword(pass);
+    // Gera o hash da senha digitada
+    const inputHash = await StorageService.hashPassword(cleanPass);
+    // Recupera hash do banco (normalizando para minúsculo para evitar mismatch de hex)
+    const storedHash = legacyUser.password ? legacyUser.password.toLowerCase() : '';
 
-    // Verificar se a senha confere com o hash SHA-256 legado
-    if (legacyUser.password === hashedFn || legacyUser.password === pass) {
+    // VERIFICAÇÃO PRINCIPAL:
+    // 1. Hash Hex (SHA-256) bate?
+    // 2. Senha Plain Text bate? (para casos antigos não migrados ou fallback inseguro)
+    const passwordMatch = (storedHash === inputHash) || (legacyUser.password === cleanPass);
+
+    console.log(`[LOGIN] Verificação de senha: ${passwordMatch ? 'SUCESSO' : 'FALHA'}`);
+
+    if (passwordMatch) {
+      // 4. Se a senha está correta, tentamos "Consertar" o Auth do Supabase (Lazy Migration)
       try {
-        // Criar conta no Supabase Auth automaticamente
+        console.log("[LOGIN] Tentando migração silenciosa para Auth...");
+        // Tenta criar o usuário no Auth (SignUp)
+        // Se o usuário já existir (erro), significa que a senha no Auth está diferente da senha local
+        // Infelizmente, sem ser Admin, não podemos forçar update de senha de outro usuário.
+        // Mas podemos tentar logar. Se não deu certo lá em cima, e deu certo aqui, é desincronia.
+
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
-          password: pass,
+          password: cleanPass,
           options: {
-            data: { matricula, name: legacyUser.name }
+            data: { matricula: cleanMatricula, name: legacyUser.name }
           }
         });
 
         if (!signUpError && signUpData.user) {
-          // Registrar acesso e vincular ID do Auth
-          const dateStr = new Date().toLocaleString('pt-BR');
-          const updatedAccessLogs = [dateStr, ...(legacyUser.access_logs || [])].slice(0, 10);
-
-          await supabase.from('users').update({
-            access_logs: updatedAccessLogs,
-            password: hashedFn
-          }).eq('id', legacyUser.id);
-
-          return { ...legacyUser, access_logs: updatedAccessLogs } as User;
+          console.log("[LOGIN] Migração (SignUp) realizada com sucesso.");
+        } else {
+          console.warn("[LOGIN] SignUp retornou:", signUpError?.message);
+          // Se o erro for "User already registered", a senha lá pode estar antiga.
+          // Não podemos fazer muito via Client SDK exceto pedir para resetar ou usar a senha velha.
+          // Mas como validamos LOCALMENTE, deixamos o usuário entrar!
         }
+
+        // Atualiza logs de acesso e garante que a senha no DB local esteja no formato de hash padrão
+        const dateStr = new Date().toLocaleString('pt-BR');
+        const updatedAccessLogs = [dateStr, ...(legacyUser.access_logs || [])].slice(0, 10);
+
+        await supabase.from('users').update({
+          access_logs: updatedAccessLogs,
+          password: inputHash // Padroniza o hash no banco para garantir
+        }).eq('id', legacyUser.id);
+
+        return { ...legacyUser, access_logs: updatedAccessLogs } as User;
+
       } catch (err) {
-        console.error("Erro na migração silenciosa:", err);
+        console.error("[LOGIN] Erro no processo de migração:", err);
       }
 
-      // Se o SignUp falhar (ex: e-mail já existe), mas a senha legado estava correta,
-      // retornamos o usuário legado para não bloquear o acesso, permitindo tentar de novo depois.
+      // Mesmo se a migração falhar, o login local foi validado. Permitimos acesso.
       return legacyUser as User;
     }
 

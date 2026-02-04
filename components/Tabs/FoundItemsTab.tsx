@@ -307,7 +307,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
       // Se tivermos um novo blob (nova imagem selecionada), fazemos o upload
       if (imageBlob) {
+        // Se já existia uma imagem antes, apagamos a antiga do storage
+        if (editingItem?.imageUrl) {
+          await StorageService.deleteItemImage(editingItem.imageUrl);
+        }
         finalImageUrl = await StorageService.uploadItemImage(imageBlob);
+      } else if (!itemImage && editingItem?.imageUrl) {
+        // Se a imagem foi removida (itemImage é null) e existia uma antes
+        await StorageService.deleteItemImage(editingItem.imageUrl);
+        finalImageUrl = null;
       }
 
       const newItem: FoundItem = {
@@ -341,6 +349,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       return;
     }
     if (confirm('Tem certeza que deseja excluir este item?')) {
+      const itemToDelete = items.find(i => i.id === id);
+      if (itemToDelete?.imageUrl) {
+        await StorageService.deleteItemImage(itemToDelete.imageUrl);
+      }
       await StorageService.deleteItem(id);
       onUpdate();
     }

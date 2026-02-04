@@ -348,6 +348,25 @@ export const StorageService = {
     return data.publicUrl;
   },
 
+  deleteItemImage: async (imageUrl: string) => {
+    try {
+      // Extrair o nome do arquivo da URL pública
+      // A URL é algo como: https://[project].supabase.co/storage/v1/object/public/found-items/filename.jpg
+      const urlParts = imageUrl.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+
+      if (fileName) {
+        const { error } = await supabase.storage
+          .from('found-items')
+          .remove([fileName]);
+
+        if (error) console.warn("Erro ao deletar imagem do storage:", error);
+      }
+    } catch (e) {
+      console.error("Erro ao processar exclusão de imagem:", e);
+    }
+  },
+
   deleteItem: async (id: number) => {
     await supabase.from('items').delete().eq('id', id);
   },

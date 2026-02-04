@@ -574,14 +574,14 @@ export const StorageService = {
   },
 
   login: async (matricula: string, pass: string): Promise<User | null> => {
-    // 1. Limpeza de input (Trim) para evitar erros comuns de copiar/colar
+    // 1. Limpeza de input (Trim)
     const cleanMatricula = matricula ? matricula.trim() : '';
     const cleanPass = pass ? pass.trim() : '';
     const email = `${cleanMatricula}@sistema.local`;
 
-    console.log(`[LOGIN] Tentando login para: ${cleanMatricula}`);
+    console.log(`[LOGIN] Tentando login oficial para: ${cleanMatricula}`);
 
-    // 2. Tentar login nativo do Supabase Auth
+    // 2. Login nativo do Supabase Auth
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -607,82 +607,10 @@ export const StorageService = {
           return { ...userData, access_logs: updatedAccessLogs } as User;
         }
       } else {
-        console.warn("[LOGIN] Falha no Supabase Auth:", authError?.message);
+        console.warn("[LOGIN] Credenciais inválidas ou erro no Auth:", authError?.message);
       }
     } catch (authEx) {
-      console.error("[LOGIN] Erro exceção Auth:", authEx);
-    }
-
-    // 3. Fallback: Verificação "Legada" (Banco de Dados Local)
-    console.log("[LOGIN] Tentando verificação local...");
-    const { data: legacyUser, error: legacyError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('matricula', cleanMatricula)
-      .single();
-
-    if (!legacyUser || legacyError) {
-      console.error("[LOGIN] Usuário não encontrado no DB local ou erro:", legacyError?.message);
-      return null;
-    }
-
-    // Gera o hash da senha digitada
-    const inputHash = await StorageService.hashPassword(cleanPass);
-    // Recupera hash do banco (normalizando para minúsculo para evitar mismatch de hex)
-    const storedHash = legacyUser.password ? legacyUser.password.toLowerCase() : '';
-
-    // VERIFICAÇÃO PRINCIPAL:
-    // 1. Hash Hex (SHA-256) bate?
-    // 2. Senha Plain Text bate? (para casos antigos não migrados ou fallback inseguro)
-    const passwordMatch = (storedHash === inputHash) || (legacyUser.password === cleanPass);
-
-    console.log(`[LOGIN] Verificação de senha: ${passwordMatch ? 'SUCESSO' : 'FALHA'}`);
-
-    if (passwordMatch) {
-      // 4. Se a senha está correta, tentamos "Consertar" o Auth do Supabase (Lazy Migration)
-      try {
-        console.log("[LOGIN] Tentando migração silenciosa para Auth...");
-        // Tenta criar o usuário no Auth (SignUp)
-        // Se o usuário já existir (erro), significa que a senha no Auth está diferente da senha local
-        // Infelizmente, sem ser Admin, não podemos forçar update de senha de outro usuário.
-        // Mas podemos tentar logar. Se não deu certo lá em cima, e deu certo aqui, é desincronia.
-
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password: cleanPass,
-          options: {
-            data: { matricula: cleanMatricula, name: legacyUser.name }
-          }
-        });
-
-        if (!signUpError && signUpData.user) {
-          console.log(`✅ [LOGIN] Migração automática realizada com sucesso para: ${cleanMatricula}`);
-          console.log(`[LOGIN] Usuário legado foi migrado para Supabase Auth.`);
-        } else {
-          console.warn(`⚠️ [LOGIN] SignUp retornou:`, signUpError?.message);
-          // Se o erro for "User already registered", a senha lá pode estar antiga.
-          // Não podemos fazer muito via Client SDK exceto pedir para resetar ou usar a senha velha.
-          // Mas como validamos LOCALMENTE, deixamos o usuário entrar!
-        }
-
-        // Atualiza logs de acesso e garante que a senha no DB local esteja no formato de hash padrão
-        const dateStr = new Date().toLocaleString('pt-BR');
-        const updatedAccessLogs = [dateStr, ...(legacyUser.access_logs || [])].slice(0, 10);
-
-        await supabase.from('users').update({
-          access_logs: updatedAccessLogs,
-          password: inputHash // Padroniza o hash no banco para garantir
-        }).eq('id', legacyUser.id);
-
-        console.log(`✅ [LOGIN] Login bem-sucedido via validação local para: ${cleanMatricula}`);
-        return { ...legacyUser, access_logs: updatedAccessLogs } as User;
-
-      } catch (err) {
-        console.error("[LOGIN] Erro no processo de migração:", err);
-      }
-
-      // Mesmo se a migração falhar, o login local foi validado. Permitimos acesso.
-      return legacyUser as User;
+      console.error("[LOGIN] Exceção crítica no Auth:", authEx);
     }
 
     return null;

@@ -631,6 +631,7 @@ const App: React.FC = () => {
             <div className="px-4 mb-8">
               <IfrnLogo className="scale-110 sm:scale-125 drop-shadow-sm origin-left" sector={systemSector} campus={systemCampus} />
             </div>
+            {/* Cabeçalho do Seletor de Módulos */}
             <div className="text-center px-4 space-y-2">
               <h2 className="text-3xl sm:text-4xl font-black text-gray-800 tracking-tight leading-tight">
                 Olá, <span className="text-ifrn-green">{user.name.split(' ')[0]}</span>.
@@ -639,31 +640,6 @@ const App: React.FC = () => {
                 Selecione o sistema que deseja gerenciar.
               </p>
             </div>
-
-            {/* Aviso de Transição - Somente para ADMINISTRADORES */}
-            {user.level === UserLevel.ADMIN && (
-              <div className="mt-8 px-4 max-w-3xl mx-auto animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
-                      <ShieldAlert size={24} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-gray-900 mb-2 flex items-center gap-2">
-                        🔄 Período de Transição - Supabase Auth
-                      </h3>
-                      <p className="text-sm text-gray-700 leading-relaxed mb-3">
-                        O sistema está em <strong>processo de migração</strong> para autenticação via Supabase Auth. Usuários cadastrados antes desta atualização serão <strong>migrados automaticamente</strong> no primeiro login.
-                      </p>
-                      <div className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-white/60 px-3 py-2 rounded-lg border border-amber-200">
-                        <AlertCircle size={14} />
-                        Este aviso será removido após a conclusão da migração de todos os usuários
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-4">

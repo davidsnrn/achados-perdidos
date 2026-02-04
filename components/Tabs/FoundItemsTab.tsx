@@ -45,6 +45,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [itemImage, setItemImage] = useState<string | null>(null);
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
 
@@ -75,7 +76,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
   };
 
-  const compressImage = (file: File): Promise<string> => {
+  const compressImage = (file: File): Promise<{ blob: Blob, dataUrl: string }> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -104,7 +105,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
+
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve({ blob, dataUrl });
+            } else {
+              reject(new Error("Erro ao criar blob da imagem."));
+            }
+          }, 'image/jpeg', 0.7);
         };
         img.onerror = reject;
       };
@@ -116,8 +125,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImage(file);
-        setItemImage(compressed);
+        const { blob, dataUrl } = await compressImage(file);
+        setItemImage(dataUrl);
+        setImageBlob(blob);
       } catch (err) {
         console.error("Erro ao processar imagem:", err);
         alert("Erro ao processar imagem.");
@@ -292,23 +302,31 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       return;
     }
 
-    const newItem: FoundItem = {
-      id: editingItem ? editingItem.id : 0,
-      description: formData.get('description') as string,
-      detailedDescription: formData.get('detailedDescription') as string,
-      locationFound: formData.get('locationFound') as string,
-      locationStored: formData.get('locationStored') as string,
-      dateFound: dateFoundInput,
-      dateRegistered: editingItem ? editingItem.dateRegistered : new Date().toISOString(),
-      status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
-      imageUrl: itemImage || undefined
-    };
-
     try {
+      let finalImageUrl = itemImage;
+
+      // Se tivermos um novo blob (nova imagem selecionada), fazemos o upload
+      if (imageBlob) {
+        finalImageUrl = await StorageService.uploadItemImage(imageBlob);
+      }
+
+      const newItem: FoundItem = {
+        id: editingItem ? editingItem.id : 0,
+        description: formData.get('description') as string,
+        detailedDescription: formData.get('detailedDescription') as string,
+        locationFound: formData.get('locationFound') as string,
+        locationStored: formData.get('locationStored') as string,
+        dateFound: dateFoundInput,
+        dateRegistered: editingItem ? editingItem.dateRegistered : new Date().toISOString(),
+        status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
+        imageUrl: finalImageUrl || undefined
+      };
+
       await StorageService.saveItem(newItem, isNew ? 'Novo item cadastrado.' : 'Detalhes do item editados.', userString);
       onUpdate();
       setShowEditModal(false);
       setEditingItem(null);
+      setImageBlob(null);
     } catch (e: any) {
       alert(`Erro ao salvar item: ${e.message}`);
     } finally {
@@ -440,6 +458,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const openEditModal = (item: FoundItem | null) => {
     setEditingItem(item);
     setItemImage(item?.imageUrl || null);
+    setImageBlob(null); // Resetar o blob ao abrir
     setShowEditModal(true);
   };
 

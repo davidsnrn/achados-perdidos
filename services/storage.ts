@@ -327,6 +327,27 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  uploadItemImage: async (file: Blob): Promise<string> => {
+    const fileExt = 'jpg';
+    const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('found-items')
+      .upload(filePath, file, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('found-items')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  },
+
   deleteItem: async (id: number) => {
     await supabase.from('items').delete().eq('id', id);
   },

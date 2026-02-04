@@ -640,8 +640,8 @@ const App: React.FC = () => {
               </p>
             </div>
 
-            {/* Aviso de Transição - Somente para Administradores */}
-            {canConfigure && (
+            {/* Aviso de Transição - Somente para ADMINISTRADORES */}
+            {user.level === UserLevel.ADMIN && (
               <div className="mt-8 px-4 max-w-3xl mx-auto animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6 shadow-lg">
                   <div className="flex items-start gap-4">

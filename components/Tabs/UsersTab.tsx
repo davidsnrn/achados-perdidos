@@ -69,6 +69,17 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
     return false;
   };
 
+  const canResetPassword = (targetUser: User) => {
+    if (currentUser.id === targetUser.id) return false; // Não reseta a própria senha aqui
+    if (currentUser.level === UserLevel.ADMIN) {
+      return targetUser.level !== UserLevel.ADMIN;
+    }
+    if (currentUser.level === UserLevel.ADVANCED) {
+      return targetUser.level === UserLevel.STANDARD;
+    }
+    return false;
+  };
+
   const visibleUsers = useMemo(() => {
     let filtered = users.filter(u => {
       if (currentUser.level === UserLevel.ADMIN) return true;
@@ -493,7 +504,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               </div>
             </div>
 
-            {selectedUser && canManageUser(selectedUser) && (
+            {selectedUser && canResetPassword(selectedUser) && (
               <div className="pt-2 border-t mt-2">
                 <label className="block text-xs font-semibold text-gray-500 mb-2">Segurança</label>
                 <button type="button" onClick={handleResetPassword} className="w-full py-2 border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm flex items-center justify-center gap-2"><Lock size={14} /> Resetar Senha para 'ifrn123'</button>

@@ -928,8 +928,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           <div className="relative bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center min-h-[300px] max-h-[70vh]">
             <img src={zoomImage || ''} alt="Zoom" className="max-w-full max-h-full object-contain" />
           </div>
-          <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
-            <p className="text-xs text-gray-500 font-medium italic">Clique em "Enviar Imagem" para compartilhar diretamente.</p>
+          <div className="flex justify-center items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
+            {/* <p className="text-xs text-gray-500 font-medium italic">Clique em "Enviar Imagem" para compartilhar diretamente.</p> */}
             <div className="flex gap-3">
               <button
                 onClick={() => setShowZoomModal(false)}

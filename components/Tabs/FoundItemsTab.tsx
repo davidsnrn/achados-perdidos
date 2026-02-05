@@ -76,48 +76,52 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
   };
 
-  const compressImage = (file: File): Promise<{ blob: Blob, dataUrl: string }> => {
+  const compressImage = (file: File): Promise<{ blob: Blob, previewUrl: string }> => {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
-          let width = img.width;
-          let height = img.height;
+      const tempUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.src = tempUrl;
 
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
+      img.onload = () => {
+        // Liberar a URL temporária do arquivo original assim que carregar na imagem
+        URL.revokeObjectURL(tempUrl);
+
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
           }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
 
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          canvas.toBlob((blob) => {
-            if (blob) {
-              resolve({ blob, dataUrl });
-            } else {
-              reject(new Error("Erro ao criar blob da imagem."));
-            }
-          }, 'image/jpeg', 0.7);
-        };
-        img.onerror = reject;
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const previewUrl = URL.createObjectURL(blob);
+            resolve({ blob, previewUrl });
+          } else {
+            reject(new Error("Erro ao criar blob da imagem."));
+          }
+        }, 'image/jpeg', 0.8);
       };
-      reader.onerror = reject;
+
+      img.onerror = (err) => {
+        URL.revokeObjectURL(tempUrl);
+        reject(err);
+      };
     });
   };
 
@@ -125,8 +129,13 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const { blob, dataUrl } = await compressImage(file);
-        setItemImage(dataUrl);
+        // Se já houver um previewUrl (blob:), revogamos para evitar memory leaks
+        if (itemImage?.startsWith('blob:')) {
+          URL.revokeObjectURL(itemImage);
+        }
+
+        const { blob, previewUrl } = await compressImage(file);
+        setItemImage(previewUrl);
         setImageBlob(blob);
       } catch (err) {
         console.error("Erro ao processar imagem:", err);
@@ -144,6 +153,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
     return statuses;
   }, [user.level]);
+
+  // Limpeza de URLs de Blob para evitar vazamento de memória
+  React.useEffect(() => {
+    return () => {
+      if (itemImage?.startsWith('blob:')) {
+        URL.revokeObjectURL(itemImage);
+      }
+    };
+  }, [itemImage]);
 
   const normalizeText = (text: string) => {
     return text
@@ -746,7 +764,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             <input name="locationStored" required defaultValue={editingItem?.locationStored} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Ex: Armário 1" />
           </div>
           <div className="col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Foto do Produto (Modal)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Foto do Produto</label>
             <div className="mt-1 flex items-center gap-4">
               <div className="flex-1 relative">
                 <input

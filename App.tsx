@@ -123,42 +123,78 @@ const App: React.FC = () => {
 
   // Refresh Data Helper (Async) with Timeout
   const refreshData = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Tempo limite excedido")), 10000)
-      );
+      // Lazy Loading: Só carrega dados do sistema atual
+      // Isso reduz drasticamente o uso de memória no Android
 
-      const dataPromise = Promise.all([
-        StorageService.getItems(),
-        StorageService.getReports(),
-        StorageService.getPeople(),
-        StorageService.getUsers(),
-        StorageService.getBooks(),
-        StorageService.getBookLoans(),
-        StorageService.getLockers(),
-        StorageService.getMaterials(),
-        StorageService.getMaterialLoans()
-      ]);
-
-      const result = await Promise.race([dataPromise, timeout]);
-      const [fetchedItems, fetchedReports, fetchedPeople, fetchedUsers, fetchedBooks, fetchedLoans, fetchedLockers, fetchedMaterials, fetchedMaterialLoans] = result as [FoundItem[], LostReport[], Person[], User[], Book[], BookLoan[], Locker[], Material[], MaterialLoan[]];
-
-      setItems(fetchedItems);
-      setReports(fetchedReports);
-      setPeople(fetchedPeople);
-      setUsers(fetchedUsers);
-      setBooks(fetchedBooks);
-      setBookLoans(fetchedLoans);
-      setLockers(fetchedLockers);
-      setMaterials(fetchedMaterials);
-      setMaterialLoans(fetchedMaterialLoans);
+      if (currentSystem === 'achados' || activeTab.startsWith('achados') || activeTab.startsWith('lost')) {
+        const [fetchedItems, fetchedReports] = await Promise.all([
+          StorageService.getItems(),
+          StorageService.getReports()
+        ]);
+        setItems(fetchedItems);
+        setReports(fetchedReports);
+        // Limpar outros dados pesados
+        setBooks([]);
+        setBookLoans([]);
+        setLockers([]);
+        setMaterials([]);
+        setMaterialLoans([]);
+      } else if (currentSystem === 'armarios' || activeTab === 'armarios') {
+        setLockers(await StorageService.getLockers());
+        setItems([]);
+        setReports([]);
+        setBooks([]);
+        setBookLoans([]);
+        setMaterials([]);
+        setMaterialLoans([]);
+      } else if (currentSystem === 'livros' || activeTab.startsWith('livros')) {
+        const [fetchedBooks, fetchedLoans] = await Promise.all([
+          StorageService.getBooks(),
+          StorageService.getBookLoans()
+        ]);
+        setBooks(fetchedBooks);
+        setBookLoans(fetchedLoans);
+        setItems([]);
+        setReports([]);
+        setLockers([]);
+        setMaterials([]);
+        setMaterialLoans([]);
+      } else if (currentSystem === 'materiais' || activeTab === 'materiais') {
+        const [fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
+          StorageService.getMaterials(),
+          StorageService.getMaterialLoans()
+        ]);
+        setMaterials(fetchedMaterials);
+        setMaterialLoans(fetchedMaterialLoans);
+        setItems([]);
+        setReports([]);
+        setLockers([]);
+        setBooks([]);
+        setBookLoans([]);
+      } else if (activeTab === 'pessoas') {
+        setPeople(await StorageService.getPeople());
+      } else if (activeTab === 'usuarios') {
+        setUsers(await StorageService.getUsers());
+      } else if (activeTab === 'nadaconsta') {
+        // Carrega o mínimo necessário para o Nada Consta
+        const [fetchedItems, fetchedBooks, fetchedMaterials] = await Promise.all([
+          StorageService.getItems(),
+          StorageService.getBookLoans(), // Para verificar multas/pendências
+          StorageService.getMaterialLoans()
+        ]);
+        setItems(fetchedItems);
+        setBookLoans(fetchedBooks);
+        setMaterialLoans(fetchedMaterials);
+      }
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user, currentSystem, activeTab]);
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});

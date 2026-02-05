@@ -307,29 +307,24 @@ export const StorageService = {
 
   // Items
   getItems: async (): Promise<FoundItem[]> => {
-    let allData: any[] = [];
-    let from = 0;
-    const limit = 1000;
+    // Limite de segurança para mobile: carregar apenas os 500 itens mais recentes
+    // Isso evita que a memória do navegador esgote em bancos de dados muito grandes
+    const limit = 500;
 
-    while (true) {
-      const { data, error } = await supabase
-        .from('items')
-        .select('*')
-        .order('id', { ascending: false })
-        .range(from, from + limit - 1);
+    const { data, error } = await supabase
+      .from('items')
+      .select('*')
+      .order('id', { ascending: false })
+      .range(0, limit - 1);
 
-      if (error) {
-        console.error("Erro ao buscar itens:", error);
-        break;
-      }
-
-      if (!data || data.length === 0) break;
-      allData = [...allData, ...data];
-      if (data.length < limit) break;
-      from += limit;
+    if (error) {
+      console.error("Erro ao buscar itens:", error);
+      return [];
     }
 
-    return allData.map((d: any) => ({
+    if (!data) return [];
+
+    return data.map((d: any) => ({
       id: d.id,
       description: d.description,
       detailedDescription: d.detailed_description,

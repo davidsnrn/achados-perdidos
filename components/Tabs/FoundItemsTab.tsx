@@ -213,6 +213,21 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     return sorted;
   }, [filteredItems, sortConfig]);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  // Reset pagination when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, dateFilter, activeSubTab]);
+
+  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return sortedItems.slice(start, start + itemsPerPage);
+  }, [sortedItems, currentPage]);
+
   const requestSort = (key: SortKey) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -624,12 +639,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {sortedItems.length === 0 ? (
+              {paginatedItems.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-400">Nenhum item encontrado com os filtros atuais.</td>
                 </tr>
               ) : (
-                sortedItems.map(item => (
+                paginatedItems.map(item => (
                   <tr
                     key={item.id}
                     className="hover:bg-gray-50 transition-colors cursor-pointer"
@@ -708,6 +723,55 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             </tbody>
           </table>
         </div>
+
+        {/* Pagination UI */}
+        {totalPages > 1 && (
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+            <div className="text-xs text-gray-500 font-medium">
+              Mostrando <span className="text-gray-900">{paginatedItems.length}</span> de <span className="text-gray-900">{sortedItems.length}</span> itens
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+              >
+                Anterior
+              </button>
+              {[...Array(totalPages)].map((_, i) => {
+                const pageNum = i + 1;
+                // Mostrar apenas as primeiras 3 páginas, as últimas 3, e a página atual
+                if (
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-600'}`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+                // Mostrar "..." se necessário
+                if (pageNum === 2 || pageNum === totalPages - 1) {
+                  return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
+                }
+                return null;
+              })}
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+              >
+                Próximo
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* MODAL: Edit/Create */}

@@ -447,10 +447,30 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   };
 
   const openEditModal = (item: FoundItem | null) => {
+    // Limpeza agressiva de memória antes de abrir o modal
+    // Especialmente importante para Android com pouca RAM
+    if (itemImage?.startsWith('blob:')) {
+      URL.revokeObjectURL(itemImage);
+    }
+    if (zoomImage?.startsWith('blob:')) {
+      URL.revokeObjectURL(zoomImage);
+    }
+
     setEditingItem(item);
-    setItemImage(item?.imageUrl || null);
-    setImageBlob(null); // Resetar o blob ao abrir
+    setItemImage(null);
+    setImageBlob(null);
+    setZoomImage(null);
     setShowEditModal(true);
+
+    // Forçar coleta de lixo (garbage collection) se disponível
+    // Isso pode ajudar a liberar memória no Android
+    if (typeof (window as any).gc === 'function') {
+      try {
+        (window as any).gc();
+      } catch (e) {
+        // Ignorar se gc não estiver disponível
+      }
+    }
   };
 
   const formatDate = (isoString: string) => {

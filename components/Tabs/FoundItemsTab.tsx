@@ -79,28 +79,51 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tamanho máximo (10MB)
-      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-      if (file.size > MAX_FILE_SIZE) {
-        alert("Foto muito grande! O tamanho máximo é 10MB. Por favor, tire uma foto em resolução menor.");
-        return;
-      }
-
       try {
-        // Revogar URL anterior se existir
-        if (itemImage?.startsWith('blob:')) {
-          URL.revokeObjectURL(itemImage);
-        }
+        setIsLoading(true);
 
-        // Criar preview sem decodificar (zero processamento)
-        const previewUrl = URL.createObjectURL(file);
-        setItemImage(previewUrl);
+        // Criar um ImageBitmap com redimensionamento nativo (Hardware Accelerated)
+        // Isso evita decodificar a imagem de 50MP na thread principal
+        const maxWidth = 1024;
+        const bitmap = await createImageBitmap(file, {
+          resizeWidth: maxWidth,
+          resizeQuality: 'medium'
+        });
 
-        // Armazenar arquivo original para upload direto
-        setImageBlob(file);
+        // Desenhar em um canvas para converter de volta para Blob
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error("Não foi possível obter contexto do canvas");
+
+        // Ajustar dimensões mantendo proporção
+        const ratio = bitmap.width / bitmap.height;
+        canvas.width = maxWidth;
+        canvas.height = maxWidth / ratio;
+
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+        // Liberar o bitmap da memória imediatamente
+        bitmap.close();
+
+        // Converter para Blob (JPEG com qualidade 0.7 para ser bem leve)
+        canvas.toBlob((blob) => {
+          if (blob) {
+            // Revogar URL anterior se existir
+            if (itemImage?.startsWith('blob:')) {
+              URL.revokeObjectURL(itemImage);
+            }
+
+            const previewUrl = URL.createObjectURL(blob);
+            setItemImage(previewUrl);
+            setImageBlob(blob);
+          }
+          setIsLoading(false);
+        }, 'image/jpeg', 0.7);
+
       } catch (err) {
-        console.error("Erro ao preparar imagem:", err);
-        alert("Erro ao preparar a foto. Tente novamente.");
+        console.error("Erro ao processar imagem:", err);
+        alert("Ocorreu um erro ao processar a foto. Se o problema persistir, tente tirar a foto fora do app e depois selecioná-la da galeria.");
+        setIsLoading(false);
       }
     }
   };
@@ -825,6 +848,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 <input
                   type="file"
                   accept="image/*"
+                  capture="environment"
                   onChange={handleImageChange}
                   className="hidden"
                   id="image-upload"

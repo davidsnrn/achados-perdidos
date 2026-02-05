@@ -39,6 +39,7 @@ const App: React.FC = () => {
   const [showModuleSelector, setShowModuleSelector] = useState(false);
   const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isBackdropSleep, setIsBackdropSleep] = useState(false);
 
   // Settings / Admin Config State
   const [configMenuOpen, setConfigMenuOpen] = useState(false);
@@ -123,7 +124,7 @@ const App: React.FC = () => {
 
   // Refresh Data Helper (Async) with Timeout
   const refreshData = useCallback(async () => {
-    if (!user) return;
+    if (!user || isBackdropSleep) return;
     setLoading(true);
     try {
       // Lazy Loading: Só carrega dados do sistema atual
@@ -338,11 +339,29 @@ const App: React.FC = () => {
   };
 
   // 2. Data Fetching Effect
+  // Backdrop Sleep: Purge everything when system is in "Photo Mode"
   useEffect(() => {
-    if (user) {
+    if (isBackdropSleep) {
+      setItems([]);
+      setReports([]);
+      setPeople([]);
+      setBooks([]);
+      setBookLoans([]);
+      setLockers([]);
+      setMaterials([]);
+      setMaterialLoans([]);
+      setUsers([]);
+    } else {
       refreshData();
     }
-  }, [user, refreshData]);
+  }, [isBackdropSleep, user, refreshData]); // Added user and refreshData to dependencies
+
+  // View switch: Refresh data when system or tab changes
+  useEffect(() => {
+    if (!isBackdropSleep && user) { // Only refresh if not in backdrop sleep and user is logged in
+      refreshData();
+    }
+  }, [currentSystem, activeTab, refreshData, isBackdropSleep, user]);
 
   // 3. Inactivity Timer Effect
   useEffect(() => {
@@ -1168,7 +1187,7 @@ const App: React.FC = () => {
             <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
           ) : (
             <>
-              {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} />}
+              {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} />}
               {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} />}
               {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} />}
               {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} />}

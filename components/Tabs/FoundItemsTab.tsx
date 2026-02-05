@@ -10,12 +10,13 @@ interface Props {
   reports: LostReport[];
   onUpdate: () => void;
   user: User;
+  onToggleSleep?: (sleep: boolean) => void;
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
 type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound';
 
-export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user }) => {
+export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -482,6 +483,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const openDetails = (item: FoundItem) => {
     setViewingItem(item);
     setShowDetailModal(true);
+    if (onToggleSleep) onToggleSleep(true);
   };
 
   const openEditModal = (item: FoundItem | null) => {
@@ -499,6 +501,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     setImageBlob(null);
     setZoomImage(null);
     setShowEditModal(true);
+    if (onToggleSleep) onToggleSleep(true);
 
     // Forçar coleta de lixo (garbage collection) se disponível
     // Isso pode ajudar a liberar memória no Android
@@ -807,10 +810,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         </div>
       )}
 
-      {/* MODAL: Edit/Create */}
       <Modal
         isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
+        onClose={() => { setShowEditModal(false); if (onToggleSleep) onToggleSleep(false); }}
         title={editingItem ? `Editar Item #${editingItem.id}` : 'Cadastrar Novo Item'}
       >
         <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -882,10 +884,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         </form>
       </Modal>
 
-      {/* MODAL: Return Item */}
       <Modal
         isOpen={showReturnModal}
-        onClose={() => setShowReturnModal(false)}
+        onClose={() => { setShowReturnModal(false); if (onToggleSleep) onToggleSleep(false); }}
         title="Realizar Devolução do Item"
       >
         {/* Conteúdo do Modal de Devolução (mantém-se estruturalmente igual, apenas botões usam handleConfirmReturn que é async) */}
@@ -945,10 +946,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         </div>
       </Modal>
 
-      {/* MODAL: View Details */}
       <Modal
         isOpen={showDetailModal}
-        onClose={() => setShowDetailModal(false)}
+        onClose={() => { setShowDetailModal(false); if (onToggleSleep) onToggleSleep(false); }}
         title="Detalhes do Objeto"
       >
         {viewingItem && (
@@ -1048,7 +1048,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       {/* MODAL: Zoom Image */}
       <Modal
         isOpen={showZoomModal}
-        onClose={() => setShowZoomModal(false)}
+        onClose={() => { setShowZoomModal(false); if (onToggleSleep) onToggleSleep(false); }}
         title="Visualização da Imagem"
         maxWidth="max-w-4xl"
       >
@@ -1060,7 +1060,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             {/* <p className="text-xs text-gray-500 font-medium italic">Clique em "Enviar Imagem" para compartilhar diretamente.</p> */}
             <div className="flex gap-3">
               <button
-                onClick={() => setShowZoomModal(false)}
+                onClick={() => { setShowZoomModal(false); if (onToggleSleep) onToggleSleep(false); }}
                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
               >
                 Voltar

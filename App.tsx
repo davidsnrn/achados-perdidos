@@ -131,12 +131,14 @@ const App: React.FC = () => {
       // Isso reduz drasticamente o uso de memória no Android
 
       if (currentSystem === 'achados' || activeTab.startsWith('achados') || activeTab.startsWith('lost')) {
-        const [fetchedItems, fetchedReports] = await Promise.all([
+        const [fetchedItems, fetchedReports, fetchedPeople] = await Promise.all([
           StorageService.getItems(),
-          StorageService.getReports()
+          StorageService.getReports(),
+          StorageService.getPeople() // Necessário para devoluções
         ]);
         setItems(fetchedItems);
         setReports(fetchedReports);
+        setPeople(fetchedPeople);
         // Limpar outros dados pesados
         setBooks([]);
         setBookLoans([]);
@@ -144,7 +146,12 @@ const App: React.FC = () => {
         setMaterials([]);
         setMaterialLoans([]);
       } else if (currentSystem === 'armarios' || activeTab === 'armarios') {
-        setLockers(await StorageService.getLockers());
+        const [fetchedLockers, fetchedPeople] = await Promise.all([
+          StorageService.getLockers(),
+          StorageService.getPeople() // Necessário para empréstimos
+        ]);
+        setLockers(fetchedLockers);
+        setPeople(fetchedPeople);
         setItems([]);
         setReports([]);
         setBooks([]);
@@ -152,24 +159,28 @@ const App: React.FC = () => {
         setMaterials([]);
         setMaterialLoans([]);
       } else if (currentSystem === 'livros' || activeTab.startsWith('livros')) {
-        const [fetchedBooks, fetchedLoans] = await Promise.all([
+        const [fetchedBooks, fetchedLoans, fetchedPeople] = await Promise.all([
           StorageService.getBooks(),
-          StorageService.getBookLoans()
+          StorageService.getBookLoans(),
+          StorageService.getPeople() // Necessário para empréstimos
         ]);
         setBooks(fetchedBooks);
         setBookLoans(fetchedLoans);
+        setPeople(fetchedPeople);
         setItems([]);
         setReports([]);
         setLockers([]);
         setMaterials([]);
         setMaterialLoans([]);
       } else if (currentSystem === 'materiais' || activeTab === 'materiais') {
-        const [fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
+        const [fetchedMaterials, fetchedMaterialLoans, fetchedPeople] = await Promise.all([
           StorageService.getMaterials(),
-          StorageService.getMaterialLoans()
+          StorageService.getMaterialLoans(),
+          StorageService.getPeople() // Necessário para empréstimos
         ]);
         setMaterials(fetchedMaterials);
         setMaterialLoans(fetchedMaterialLoans);
+        setPeople(fetchedPeople);
         setItems([]);
         setReports([]);
         setLockers([]);
@@ -180,15 +191,19 @@ const App: React.FC = () => {
       } else if (activeTab === 'usuarios') {
         setUsers(await StorageService.getUsers());
       } else if (activeTab === 'nadaconsta') {
-        // Carrega o mínimo necessário para o Nada Consta
-        const [fetchedItems, fetchedBooks, fetchedMaterials] = await Promise.all([
+        // Carrega o necessário para o Nada Consta
+        const [fetchedItems, fetchedBooks, fetchedMaterials, fetchedLockers, fetchedPeople] = await Promise.all([
           StorageService.getItems(),
-          StorageService.getBookLoans(), // Para verificar multas/pendências
-          StorageService.getMaterialLoans()
+          StorageService.getBookLoans(),
+          StorageService.getMaterialLoans(),
+          StorageService.getLockers(), // Necessário para pendências de armários
+          StorageService.getPeople() // Necessário para busca de alunos
         ]);
         setItems(fetchedItems);
         setBookLoans(fetchedBooks);
         setMaterialLoans(fetchedMaterials);
+        setLockers(fetchedLockers);
+        setPeople(fetchedPeople);
       }
     } catch (e) {
       console.error("Erro ao carregar dados:", e);

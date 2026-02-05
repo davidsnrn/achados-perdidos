@@ -77,43 +77,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   };
 
   const compressImage = async (file: File): Promise<{ blob: Blob, previewUrl: string }> => {
-    const MAX_SIZE = 800;
+    const MAX_SIZE = 600; // Reduzido para 600px para Android
 
-    // Tenta usar createImageBitmap para decodificação e redimensionamento nativo (mais leve em memória)
+    // Tenta usar createImageBitmap DIRETO sem carregar dimensões primeiro (otimização máxima)
     if ('createImageBitmap' in window) {
       try {
-        // 1. Carregar dimensões originais sem decodificar tudo se possível
-        // No entanto, para calcular o aspect ratio, precisamos das dimensões.
-        // Carregar temporariamente para pegar W/H
-        const imgForDim = new Image();
-        const tempUrl = URL.createObjectURL(file);
-        imgForDim.src = tempUrl;
-        await new Promise((resolve) => {
-          imgForDim.onload = resolve;
-          imgForDim.onerror = resolve;
-        });
-        URL.revokeObjectURL(tempUrl);
-
-        let width = imgForDim.width;
-        let height = imgForDim.height;
-
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
-        }
-
-        // 2. Usar createImageBitmap com as dimensões finais (decodifica já no tamanho certo)
+        // Criar bitmap com tamanho máximo fixo - o browser mantém aspect ratio automaticamente
         const bitmap = await window.createImageBitmap(file, {
-          resizeWidth: Math.round(width),
-          resizeHeight: Math.round(height),
-          resizeQuality: 'medium'
+          resizeWidth: MAX_SIZE,
+          resizeHeight: MAX_SIZE,
+          resizeQuality: 'low' // Qualidade baixa para economizar memória
         });
 
         const canvas = document.createElement('canvas');
@@ -137,7 +110,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             } else {
               reject(new Error("Erro ao criar blob."));
             }
-          }, 'image/jpeg', 0.8);
+          }, 'image/jpeg', 0.6); // Qualidade reduzida para 60%
         });
       } catch (err) {
         console.error("createImageBitmap failed, falling back...", err);
@@ -200,12 +173,19 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           URL.revokeObjectURL(itemImage);
         }
 
-        const { blob, previewUrl } = await compressImage(file);
-        setItemImage(previewUrl);
-        setImageBlob(blob);
+        // Se o arquivo já for pequeno (< 500KB), usa direto sem compressão
+        if (file.size < 500000) {
+          const previewUrl = URL.createObjectURL(file);
+          setItemImage(previewUrl);
+          setImageBlob(file);
+        } else {
+          const { blob, previewUrl } = await compressImage(file);
+          setItemImage(previewUrl);
+          setImageBlob(blob);
+        }
       } catch (err) {
         console.error("Erro ao processar imagem:", err);
-        alert("Erro ao processar imagem. Tente uma foto menor ou outro navegador.");
+        alert("Erro de memória ao processar a foto. Por favor:\n• Tire a foto em resolução menor (até 5MP)\n• Ou selecione uma foto já existente da galeria\n• Ou use o Chrome Android");
       } finally {
         setIsLoading(false);
       }

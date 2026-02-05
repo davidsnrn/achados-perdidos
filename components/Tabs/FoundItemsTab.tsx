@@ -14,7 +14,7 @@ interface Props {
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
-type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound';
+type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound' | 'returnedDate';
 
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
@@ -662,7 +662,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                         <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
                           <div className="flex items-center">Descrição {getSortIcon('description')}</div>
                         </th>
-                        <th className="p-4">Data de {activeSubTab === ItemStatus.RETURNED ? 'Devolução' : 'Saída'}</th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('returnedDate')}>
+                          <div className="flex items-center">Data de {activeSubTab === ItemStatus.RETURNED ? 'Devolução' : 'Saída'} {getSortIcon('returnedDate')}</div>
+                        </th>
                         <th className="p-4 text-center">Ações</th>
                       </>
                     )}

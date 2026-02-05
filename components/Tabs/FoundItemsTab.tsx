@@ -85,7 +85,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
         // Criar um ImageBitmap com redimensionamento nativo (Hardware Accelerated)
         // Isso evita decodificar a imagem de 50MP na thread principal
-        const maxWidth = 1024;
+        // Máximo de 800px para economizar espaço no Supabase
+        const maxWidth = 800;
         const bitmap = await createImageBitmap(file, {
           resizeWidth: maxWidth,
           resizeQuality: 'medium'
@@ -106,7 +107,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         // Liberar o bitmap da memória imediatamente
         bitmap.close();
 
-        // Converter para Blob (JPEG com qualidade 0.7 para ser bem leve)
+        // Converter para Blob (JPEG com qualidade 0.5 para ser ainda mais leve no banco)
         canvas.toBlob((blob) => {
           if (blob) {
             // Revogar URL anterior se existir
@@ -850,7 +851,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   onChange={handleImageChange}
                   className="hidden"
                   id="image-upload"

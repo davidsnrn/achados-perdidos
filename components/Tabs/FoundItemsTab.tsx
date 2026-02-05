@@ -76,118 +76,31 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
   };
 
-  const compressImage = async (file: File): Promise<{ blob: Blob, previewUrl: string }> => {
-    const MAX_SIZE = 600; // Reduzido para 600px para Android
-
-    // Tenta usar createImageBitmap DIRETO sem carregar dimensões primeiro (otimização máxima)
-    if ('createImageBitmap' in window) {
-      try {
-        // Criar bitmap com tamanho máximo fixo - o browser mantém aspect ratio automaticamente
-        const bitmap = await window.createImageBitmap(file, {
-          resizeWidth: MAX_SIZE,
-          resizeHeight: MAX_SIZE,
-          resizeQuality: 'low' // Qualidade baixa para economizar memória
-        });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = bitmap.width;
-        canvas.height = bitmap.height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(bitmap, 0, 0);
-
-        // Liberar o bitmap imediatamente
-        bitmap.close();
-
-        return new Promise((resolve, reject) => {
-          canvas.toBlob((blob) => {
-            // Limpeza agressiva do canvas
-            canvas.width = 0;
-            canvas.height = 0;
-
-            if (blob) {
-              const previewUrl = URL.createObjectURL(blob);
-              resolve({ blob, previewUrl });
-            } else {
-              reject(new Error("Erro ao criar blob."));
-            }
-          }, 'image/jpeg', 0.6); // Qualidade reduzida para 60%
-        });
-      } catch (err) {
-        console.error("createImageBitmap failed, falling back...", err);
-      }
-    }
-
-    // Fallback: Método tradicional (menos eficiente em memória mas compatível)
-    return new Promise((resolve, reject) => {
-      const tempUrl = URL.createObjectURL(file);
-      const img = new Image();
-      img.src = tempUrl;
-
-      img.onload = () => {
-        URL.revokeObjectURL(tempUrl);
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height *= MAX_SIZE / width;
-            width = MAX_SIZE;
-          }
-        } else {
-          if (height > MAX_SIZE) {
-            width *= MAX_SIZE / height;
-            height = MAX_SIZE;
-          }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob((blob) => {
-          canvas.width = 0;
-          canvas.height = 0;
-          if (blob) {
-            const previewUrl = URL.createObjectURL(blob);
-            resolve({ blob, previewUrl });
-          } else {
-            reject(new Error("Erro ao criar blob."));
-          }
-        }, 'image/jpeg', 0.8);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(tempUrl);
-        reject(new Error("Erro ao carregar imagem."));
-      };
-    });
-  };
-
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setIsLoading(true);
+      // Validar tamanho máximo (10MB)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (file.size > MAX_FILE_SIZE) {
+        alert("Foto muito grande! O tamanho máximo é 10MB. Por favor, tire uma foto em resolução menor.");
+        return;
+      }
+
       try {
-        // Se já houver um previewUrl (blob:), revogamos para evitar memory leaks
+        // Revogar URL anterior se existir
         if (itemImage?.startsWith('blob:')) {
           URL.revokeObjectURL(itemImage);
         }
 
-        // Se o arquivo já for pequeno (< 500KB), usa direto sem compressão
-        if (file.size < 500000) {
-          const previewUrl = URL.createObjectURL(file);
-          setItemImage(previewUrl);
-          setImageBlob(file);
-        } else {
-          const { blob, previewUrl } = await compressImage(file);
-          setItemImage(previewUrl);
-          setImageBlob(blob);
-        }
+        // Criar preview sem decodificar (zero processamento)
+        const previewUrl = URL.createObjectURL(file);
+        setItemImage(previewUrl);
+
+        // Armazenar arquivo original para upload direto
+        setImageBlob(file);
       } catch (err) {
-        console.error("Erro ao processar imagem:", err);
-        alert("Erro de memória ao processar a foto. Por favor:\n• Tire a foto em resolução menor (até 5MP)\n• Ou selecione uma foto já existente da galeria\n• Ou use o Chrome Android");
-      } finally {
-        setIsLoading(false);
+        console.error("Erro ao preparar imagem:", err);
+        alert("Erro ao preparar a foto. Tente novamente.");
       }
     }
   };

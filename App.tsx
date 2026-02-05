@@ -356,20 +356,10 @@ const App: React.FC = () => {
   // 2. Data Fetching Effect
   // Backdrop Sleep: Purge everything when system is in "Photo Mode"
   useEffect(() => {
-    if (isBackdropSleep) {
-      setItems([]);
-      setReports([]);
-      setPeople([]);
-      setBooks([]);
-      setBookLoans([]);
-      setLockers([]);
-      setMaterials([]);
-      setMaterialLoans([]);
-      setUsers([]);
-    } else {
+    if (!isBackdropSleep) {
       refreshData();
     }
-  }, [isBackdropSleep, user, refreshData]); // Added user and refreshData to dependencies
+  }, [isBackdropSleep, user, refreshData]); // Removed data purging logic to preserve state
 
   // View switch: Refresh data when system or tab changes
   useEffect(() => {

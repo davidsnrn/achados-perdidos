@@ -497,282 +497,292 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
   return (
     <div className="space-y-6">
-      {/* Sub-tabs & Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex p-1 bg-gray-200 rounded-lg">
-          {availableTabs.map((status) => (
-            <button
-              key={status}
-              onClick={() => { setActiveSubTab(status); setSelectedItems([]); }}
-              className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeSubTab === status
-                ? 'bg-white text-ifrn-darkGreen shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-                }`}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex gap-2 w-full md:w-auto">
-          {selectedItems.length > 0 && activeSubTab === ItemStatus.AVAILABLE && user.level !== UserLevel.STANDARD && (
-            <button
-              onClick={handleBatchDonate}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
-            >
-              <Gift size={16} /> Doar ({selectedItems.length})
-            </button>
-          )}
-          <button
-            onClick={() => openEditModal(null)}
-            className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen transition-colors text-sm w-full md:w-auto justify-center"
-          >
-            <Plus size={18} /> Novo Item
-          </button>
-        </div>
-      </div>
-
-      {/* Filters Area */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Buscar por ID, descrição ou palavras-chave..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ifrn-green focus:border-transparent outline-none text-sm"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
-          <Calendar size={16} className="text-gray-500 ml-2" />
-          <select
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as DateFilterType)}
-            className="bg-transparent border-none text-sm text-gray-700 focus:ring-0 cursor-pointer py-1.5"
-          >
-            <option value="ALL">Todo o período</option>
-            <option value="TODAY">Hoje</option>
-            <option value="WEEK">Esta Semana</option>
-            <option value="THIS_MONTH">Este Mês</option>
-            <option value="THIS_YEAR">Este Ano</option>
-            <option value="CUSTOM">Data Personalizada</option>
-          </select>
-
-          {dateFilter === 'CUSTOM' && (
-            <div className="flex items-center gap-1 pl-2 border-l border-gray-300 animate-fadeIn">
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                className="text-xs border rounded px-2 py-1 bg-white"
-              />
-              <span className="text-gray-400">-</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={e => setEndDate(e.target.value)}
-                className="text-xs border rounded px-2 py-1 bg-white"
-              />
+      {/* Zero-DOM Strategy: Unmount background UI when any modal is open to save RAM on Android */}
+      {!showEditModal && !showDetailModal && !showReturnModal && !showZoomModal ? (
+        <>
+          {/* Sub-tabs & Actions */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex p-1 bg-gray-200 rounded-lg">
+              {availableTabs.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => { setActiveSubTab(status); setSelectedItems([]); }}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeSubTab === status
+                    ? 'bg-white text-ifrn-darkGreen shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                >
+                  {status}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-gray-600">
-            <thead className="bg-gray-50/50 text-gray-500 font-bold uppercase text-[11px] tracking-wider">
-              <tr>
-                {/* HEADERS FOR AVAILABLE */}
-                {activeSubTab === ItemStatus.AVAILABLE && (
-                  <>
-                    <th className="p-4 w-4">
-                      <input
-                        type="checkbox"
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedItems(filteredItems.map(i => i.id));
-                          else setSelectedItems([]);
-                        }}
-                        checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
-                        disabled={user.level === UserLevel.STANDARD}
-                      />
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('id')}>
-                      <div className="flex items-center">ID {getSortIcon('id')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
-                      <div className="flex items-center">Descrição {getSortIcon('description')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('locationFound')}>
-                      <div className="flex items-center">Local Encontrado {getSortIcon('locationFound')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('locationStored')}>
-                      <div className="flex items-center">Guardado Em {getSortIcon('locationStored')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
-                      <div className="flex items-center">Data {getSortIcon('dateFound')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
-                      <div className="flex items-center">Tempo no Estoque {getSortIcon('dateFound')}</div>
-                    </th>
-                    <th className="p-4 text-center">Ações</th>
-                  </>
-                )}
-
-                {/* HEADERS FOR RETURNED / DISCARDED */}
-                {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
-                  <>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('id')}>
-                      <div className="flex items-center">ID {getSortIcon('id')}</div>
-                    </th>
-                    <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
-                      <div className="flex items-center">Descrição {getSortIcon('description')}</div>
-                    </th>
-                    <th className="p-4">Data de {activeSubTab === ItemStatus.RETURNED ? 'Devolução' : 'Saída'}</th>
-                    <th className="p-4 text-center">Ações</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paginatedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-400">Nenhum item encontrado com os filtros atuais.</td>
-                </tr>
-              ) : (
-                paginatedItems.map(item => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => openDetails(item)}
-                  >
-                    {/* BODY FOR AVAILABLE */}
-                    {activeSubTab === ItemStatus.AVAILABLE && (
-                      <>
-                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.includes(item.id)}
-                            onChange={() => toggleSelection(item.id)}
-                            disabled={user.level === UserLevel.STANDARD}
-                          />
-                        </td>
-                        <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
-                        <td className="p-4">
-                          <div className="font-medium text-gray-900 group flex items-center gap-2">
-                            {item.description}
-                            <Info size={14} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                          {item.detailedDescription && (
-                            <div className="text-xs text-gray-400 mt-1 truncate max-w-xs">{item.detailedDescription}</div>
-                          )}
-                        </td>
-                        <td className="p-4 text-gray-700">{item.locationFound}</td>
-                        <td className="p-4 font-medium text-gray-800">{item.locationStored}</td>
-                        <td className="p-4 text-gray-600">{formatDate(item.dateFound)}</td>
-                        <td className="p-4 font-medium">{getDaysInStock(item.dateFound)}</td>
-                        <td className="p-4">
-                          <div className="flex justify-center gap-2">
-                            <button onClick={(e) => handleOpenReturnModal(e, item)} title="Devolver / Dar Saída" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><CornerUpRight size={18} /></button>
-                            <button onClick={(e) => { e.stopPropagation(); openEditModal(item); }} title="Editar" className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"><Pencil size={18} /></button>
-                            {user.level !== UserLevel.STANDARD && (
-                              <button onClick={(e) => handleDelete(e, item.id)} title="Excluir" className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={18} /></button>
-                            )}
-                          </div>
-                        </td>
-                      </>
-                    )}
-
-                    {/* BODY FOR RETURNED / DISCARDED */}
-                    {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
-                      <>
-                        <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
-                        <td className="p-4">
-                          <div className="font-medium text-gray-900 group flex items-center gap-2">
-                            {item.description}
-                          </div>
-                          {activeSubTab === ItemStatus.RETURNED && item.returnedTo && (
-                            <div className="text-xs text-gray-500 mt-1">Para: {item.returnedTo}</div>
-                          )}
-                        </td>
-                        <td className="p-4 text-gray-600">
-                          {item.returnedDate ? formatDate(item.returnedDate) : '-'}
-                          {item.returnedDate && <span className="text-xs text-gray-400 ml-1">({new Date(item.returnedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>}
-                        </td>
-                        <td className="p-4 text-center">
-                          {user.level !== UserLevel.STANDARD && (
-                            <button
-                              onClick={(e) => handleCancelReturn(e, item)}
-                              title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
-                              className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
-                            >
-                              <RotateCcw size={14} /> Estornar
-                            </button>
-                          )}
-                        </td>
-                      </>
-                    )}
-
-                  </tr>
-                ))
+            <div className="flex gap-2 w-full md:w-auto">
+              {selectedItems.length > 0 && activeSubTab === ItemStatus.AVAILABLE && user.level !== UserLevel.STANDARD && (
+                <button
+                  onClick={handleBatchDonate}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
+                >
+                  <Gift size={16} /> Doar ({selectedItems.length})
+                </button>
               )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination UI */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-            <div className="text-xs text-gray-500 font-medium">
-              Mostrando <span className="text-gray-900">{paginatedItems.length}</span> de <span className="text-gray-900">{sortedItems.length}</span> itens
-            </div>
-            <div className="flex items-center gap-1">
               <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+                onClick={() => openEditModal(null)}
+                className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen transition-colors text-sm w-full md:w-auto justify-center"
               >
-                Anterior
-              </button>
-              {[...Array(totalPages)].map((_, i) => {
-                const pageNum = i + 1;
-                // Mostrar apenas as primeiras 3 páginas, as últimas 3, e a página atual
-                if (
-                  pageNum === 1 ||
-                  pageNum === totalPages ||
-                  (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
-                ) {
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-600'}`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                }
-                // Mostrar "..." se necessário
-                if (pageNum === 2 || pageNum === totalPages - 1) {
-                  return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
-                }
-                return null;
-              })}
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
-              >
-                Próximo
+                <Plus size={18} /> Novo Item
               </button>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Filters Area */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Buscar por ID, descrição ou palavras-chave..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ifrn-green focus:border-transparent outline-none text-sm"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
+              <Calendar size={16} className="text-gray-500 ml-2" />
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value as DateFilterType)}
+                className="bg-transparent border-none text-sm text-gray-700 focus:ring-0 cursor-pointer py-1.5"
+              >
+                <option value="ALL">Todo o período</option>
+                <option value="TODAY">Hoje</option>
+                <option value="WEEK">Esta Semana</option>
+                <option value="THIS_MONTH">Este Mês</option>
+                <option value="THIS_YEAR">Este Ano</option>
+                <option value="CUSTOM">Data Personalizada</option>
+              </select>
+
+              {dateFilter === 'CUSTOM' && (
+                <div className="flex items-center gap-1 pl-2 border-l border-gray-300 animate-fadeIn">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={e => setStartDate(e.target.value)}
+                    className="text-xs border rounded px-2 py-1 bg-white"
+                  />
+                  <span className="text-gray-400">-</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e => setEndDate(e.target.value)}
+                    className="text-xs border rounded px-2 py-1 bg-white"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left text-gray-600">
+                <thead className="bg-gray-50/50 text-gray-500 font-bold uppercase text-[11px] tracking-wider">
+                  <tr>
+                    {/* HEADERS FOR AVAILABLE */}
+                    {activeSubTab === ItemStatus.AVAILABLE && (
+                      <>
+                        <th className="p-4 w-4">
+                          <input
+                            type="checkbox"
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedItems(filteredItems.map(i => i.id));
+                              else setSelectedItems([]);
+                            }}
+                            checked={filteredItems.length > 0 && selectedItems.length === filteredItems.length}
+                            disabled={user.level === UserLevel.STANDARD}
+                          />
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('id')}>
+                          <div className="flex items-center">ID {getSortIcon('id')}</div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
+                          <div className="flex items-center">Descrição {getSortIcon('description')}</div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('locationFound')}>
+                          <div className="flex items-center">Local Encontrado {getSortIcon('locationFound')}</div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('locationStored')}>
+                          <div className="flex items-center">Guardado Em {getSortIcon('locationStored')}</div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
+                          <div className="flex items-center">Data {getSortIcon('dateFound')}</div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
+                          <div className="flex items-center">Tempo no Estoque {getSortIcon('dateFound')}</div>
+                        </th>
+                        <th className="p-4 text-center">Ações</th>
+                      </>
+                    )}
+
+                    {/* HEADERS FOR RETURNED / DISCARDED */}
+                    {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
+                      <>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('id')}>
+                          <div className="flex items-center">ID {getSortIcon('id')}</div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('description')}>
+                          <div className="flex items-center">Descrição {getSortIcon('description')}</div>
+                        </th>
+                        <th className="p-4">Data de {activeSubTab === ItemStatus.RETURNED ? 'Devolução' : 'Saída'}</th>
+                        <th className="p-4 text-center">Ações</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {paginatedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-8 text-center text-gray-400">Nenhum item encontrado com os filtros atuais.</td>
+                    </tr>
+                  ) : (
+                    paginatedItems.map(item => (
+                      <tr
+                        key={item.id}
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={() => openDetails(item)}
+                      >
+                        {/* BODY FOR AVAILABLE */}
+                        {activeSubTab === ItemStatus.AVAILABLE && (
+                          <>
+                            <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.includes(item.id)}
+                                onChange={() => toggleSelection(item.id)}
+                                disabled={user.level === UserLevel.STANDARD}
+                              />
+                            </td>
+                            <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
+                            <td className="p-4">
+                              <div className="font-medium text-gray-900 group flex items-center gap-2">
+                                {item.description}
+                                <Info size={14} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                              {item.detailedDescription && (
+                                <div className="text-xs text-gray-400 mt-1 truncate max-w-xs">{item.detailedDescription}</div>
+                              )}
+                            </td>
+                            <td className="p-4 text-gray-700">{item.locationFound}</td>
+                            <td className="p-4 font-medium text-gray-800">{item.locationStored}</td>
+                            <td className="p-4 text-gray-600">{formatDate(item.dateFound)}</td>
+                            <td className="p-4 font-medium">{getDaysInStock(item.dateFound)}</td>
+                            <td className="p-4">
+                              <div className="flex justify-center gap-2">
+                                <button onClick={(e) => handleOpenReturnModal(e, item)} title="Devolver / Dar Saída" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><CornerUpRight size={18} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); openEditModal(item); }} title="Editar" className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"><Pencil size={18} /></button>
+                                {user.level !== UserLevel.STANDARD && (
+                                  <button onClick={(e) => handleDelete(e, item.id)} title="Excluir" className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={18} /></button>
+                                )}
+                              </div>
+                            </td>
+                          </>
+                        )}
+
+                        {/* BODY FOR RETURNED / DISCARDED */}
+                        {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
+                          <>
+                            <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
+                            <td className="p-4">
+                              <div className="font-medium text-gray-900 group flex items-center gap-2">
+                                {item.description}
+                              </div>
+                              {activeSubTab === ItemStatus.RETURNED && item.returnedTo && (
+                                <div className="text-xs text-gray-500 mt-1">Para: {item.returnedTo}</div>
+                              )}
+                            </td>
+                            <td className="p-4 text-gray-600">
+                              {item.returnedDate ? formatDate(item.returnedDate) : '-'}
+                              {item.returnedDate && <span className="text-xs text-gray-400 ml-1">({new Date(item.returnedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>}
+                            </td>
+                            <td className="p-4 text-center">
+                              {user.level !== UserLevel.STANDARD && (
+                                <button
+                                  onClick={(e) => handleCancelReturn(e, item)}
+                                  title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
+                                  className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
+                                >
+                                  <RotateCcw size={14} /> Estornar
+                                </button>
+                              )}
+                            </td>
+                          </>
+                        )}
+
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination UI */}
+            {totalPages > 1 && (
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <div className="text-xs text-gray-500 font-medium">
+                  Mostrando <span className="text-gray-900">{paginatedItems.length}</span> de <span className="text-gray-900">{sortedItems.length}</span> itens
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+                  >
+                    Anterior
+                  </button>
+                  {[...Array(totalPages)].map((_, i) => {
+                    const pageNum = i + 1;
+                    // Mostrar apenas as primeiras 3 páginas, as últimas 3, e a página atual
+                    if (
+                      pageNum === 1 ||
+                      pageNum === totalPages ||
+                      (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                    ) {
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-600'}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                    // Mostrar "..." se necessário
+                    if (pageNum === 2 || pageNum === totalPages - 1) {
+                      return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
+                    }
+                    return null;
+                  })}
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+                  >
+                    Próximo
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-20 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl animate-pulse">
+          <p className="text-sm font-medium text-gray-400">Otimizando memória para operação...</p>
+        </div>
+      )}
 
       {/* MODAL: Edit/Create */}
       <Modal

@@ -233,23 +233,20 @@ export const StorageService = {
 
   // People
   getPeople: async (): Promise<Person[]> => {
-    let allData: Person[] = [];
-    let from = 0;
+    // Limite de segurança para mobile: carregar no máximo 1000 pessoas
     const limit = 1000;
 
-    while (true) {
-      const { data, error } = await supabase
-        .from('people')
-        .select('*')
-        .range(from, from + limit - 1);
+    const { data, error } = await supabase
+      .from('people')
+      .select('*')
+      .range(0, limit - 1);
 
-      if (error) break;
-      if (!data || data.length === 0) break;
-      allData = [...allData, ...data];
-      if (data.length < limit) break;
-      from += limit;
+    if (error) {
+      console.error("Erro ao buscar pessoas:", error);
+      return [];
     }
-    return allData;
+
+    return data || [];
   },
 
   savePerson: async (person: Person) => {

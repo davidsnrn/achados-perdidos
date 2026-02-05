@@ -76,31 +76,95 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
   };
 
-  const compressImage = (file: File): Promise<{ blob: Blob, previewUrl: string }> => {
+  const compressImage = async (file: File): Promise<{ blob: Blob, previewUrl: string }> => {
+    const MAX_SIZE = 800;
+
+    // Tenta usar createImageBitmap para decodificação e redimensionamento nativo (mais leve em memória)
+    if ('createImageBitmap' in window) {
+      try {
+        // 1. Carregar dimensões originais sem decodificar tudo se possível
+        // No entanto, para calcular o aspect ratio, precisamos das dimensões.
+        // Carregar temporariamente para pegar W/H
+        const imgForDim = new Image();
+        const tempUrl = URL.createObjectURL(file);
+        imgForDim.src = tempUrl;
+        await new Promise((resolve) => {
+          imgForDim.onload = resolve;
+          imgForDim.onerror = resolve;
+        });
+        URL.revokeObjectURL(tempUrl);
+
+        let width = imgForDim.width;
+        let height = imgForDim.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        // 2. Usar createImageBitmap com as dimensões finais (decodifica já no tamanho certo)
+        const bitmap = await window.createImageBitmap(file, {
+          resizeWidth: Math.round(width),
+          resizeHeight: Math.round(height),
+          resizeQuality: 'medium'
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(bitmap, 0, 0);
+
+        // Liberar o bitmap imediatamente
+        bitmap.close();
+
+        return new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            // Limpeza agressiva do canvas
+            canvas.width = 0;
+            canvas.height = 0;
+
+            if (blob) {
+              const previewUrl = URL.createObjectURL(blob);
+              resolve({ blob, previewUrl });
+            } else {
+              reject(new Error("Erro ao criar blob."));
+            }
+          }, 'image/jpeg', 0.8);
+        });
+      } catch (err) {
+        console.error("createImageBitmap failed, falling back...", err);
+      }
+    }
+
+    // Fallback: Método tradicional (menos eficiente em memória mas compatível)
     return new Promise((resolve, reject) => {
       const tempUrl = URL.createObjectURL(file);
       const img = new Image();
       img.src = tempUrl;
 
       img.onload = () => {
-        // Liberar a URL temporária do arquivo original assim que carregar na imagem
         URL.revokeObjectURL(tempUrl);
-
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
         let width = img.width;
         let height = img.height;
 
         if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
           }
         } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
           }
         }
         canvas.width = width;
@@ -109,18 +173,19 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         ctx?.drawImage(img, 0, 0, width, height);
 
         canvas.toBlob((blob) => {
+          canvas.width = 0;
+          canvas.height = 0;
           if (blob) {
             const previewUrl = URL.createObjectURL(blob);
             resolve({ blob, previewUrl });
           } else {
-            reject(new Error("Erro ao criar blob da imagem."));
+            reject(new Error("Erro ao criar blob."));
           }
         }, 'image/jpeg', 0.8);
       };
-
-      img.onerror = (err) => {
+      img.onerror = () => {
         URL.revokeObjectURL(tempUrl);
-        reject(err);
+        reject(new Error("Erro ao carregar imagem."));
       };
     });
   };
@@ -128,6 +193,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsLoading(true);
       try {
         // Se já houver um previewUrl (blob:), revogamos para evitar memory leaks
         if (itemImage?.startsWith('blob:')) {
@@ -139,7 +205,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         setImageBlob(blob);
       } catch (err) {
         console.error("Erro ao processar imagem:", err);
-        alert("Erro ao processar imagem.");
+        alert("Erro ao processar imagem. Tente uma foto menor ou outro navegador.");
+      } finally {
+        setIsLoading(false);
       }
     }
   };

@@ -9,22 +9,37 @@ interface ModalProps {
   maxWidth?: string;
 }
 
+// Global stack to track open modals and handle Esc in correct order
+const modalStack: string[] = [];
+
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidth = 'max-w-2xl' }) => {
+  const modalId = React.useId();
+
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        // Only close if this is the topmost modal in the stack
+        if (modalStack[modalStack.length - 1] === modalId) {
+          onClose();
+        }
       }
     };
 
     if (isOpen) {
+      modalStack.push(modalId);
       window.addEventListener('keydown', handleEsc);
     }
 
     return () => {
+      if (isOpen) {
+        const index = modalStack.indexOf(modalId);
+        if (index > -1) {
+          modalStack.splice(index, 1);
+        }
+      }
       window.removeEventListener('keydown', handleEsc);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, modalId]);
 
   if (!isOpen) return null;
 

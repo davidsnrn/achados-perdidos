@@ -12,23 +12,25 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+    const [lastTouchDistance, setLastTouchDistance] = useState<number | null>(null);
+
     const containerRef = useRef<HTMLDivElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
 
     const reset = useCallback(() => {
         setScale(1);
         setPosition({ x: 0, y: 0 });
+        setLastTouchDistance(null);
     }, []);
 
     const handleZoomIn = () => setScale(prev => Math.min(prev + 0.25, 5));
     const handleZoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
 
     const handleWheel = (e: React.WheelEvent) => {
-        if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
-            setScale(prev => Math.min(Math.max(prev + delta, 0.5), 5));
-        }
+        // Zoom directly with wheel (no Ctrl needed as per user request)
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        setScale(prev => Math.min(Math.max(prev + delta, 0.5), 5));
     };
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -49,9 +51,19 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
         setIsDragging(false);
     };
 
+    const getDistance = (touches: React.TouchList) => {
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+
     const handleTouchStart = (e: React.TouchEvent) => {
-        if (scale <= 1) return;
-        if (e.touches.length === 1) {
+        if (e.touches.length === 2) {
+            // Start Pinch
+            setIsDragging(false);
+            setLastTouchDistance(getDistance(e.touches));
+        } else if (e.touches.length === 1 && scale > 1) {
+            // Start Pan
             const touch = e.touches[0];
             setIsDragging(true);
             setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
@@ -59,29 +71,49 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
     };
 
     const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isDragging || e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        setPosition({
-            x: touch.clientX - dragStart.x,
-            y: touch.clientY - dragStart.y
-        });
+        if (e.touches.length === 2 && lastTouchDistance !== null) {
+            // Handling Pinch-to-zoom
+            const newDistance = getDistance(e.touches);
+            const ratio = newDistance / lastTouchDistance;
+
+            setScale(prev => {
+                const newScale = Math.min(Math.max(prev * ratio, 0.5), 5);
+                return newScale;
+            });
+            setLastTouchDistance(newDistance);
+        } else if (e.touches.length === 1 && isDragging) {
+            // Handling Pan
+            const touch = e.touches[0];
+            setPosition({
+                x: touch.clientX - dragStart.x,
+                y: touch.clientY - dragStart.y
+            });
+        }
     };
 
     const handleTouchEnd = () => {
         setIsDragging(false);
+        setLastTouchDistance(null);
     };
 
-    // Prevent scroll when dragging on mobile
+    // Prevent scroll when dragging or zooming on mobile
     useEffect(() => {
         const handleTouchMoveGlobal = (e: TouchEvent) => {
-            if (isDragging) {
+            if (isDragging || (e.touches && e.touches.length === 2)) {
                 e.preventDefault();
             }
         };
 
-        document.addEventListener('touchmove', handleTouchMoveGlobal, { passive: false });
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('touchmove', handleTouchMoveGlobal, { passive: false });
+            container.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+        }
+
         return () => {
-            document.removeEventListener('touchmove', handleTouchMoveGlobal);
+            if (container) {
+                container.removeEventListener('touchmove', handleTouchMoveGlobal);
+            }
         };
     }, [isDragging]);
 
@@ -102,7 +134,7 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
                 <div
                     style={{
                         transform: `translate(${position.x}px, ${position.y}px) scale(${scale})`,
-                        transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.165, 0.84, 0.44, 1)'
+                        transition: (isDragging || lastTouchDistance !== null) ? 'none' : 'transform 0.2s cubic-bezier(0.165, 0.84, 0.44, 1)'
                     }}
                     className="w-full h-full flex items-center justify-center pointer-events-none"
                 >
@@ -152,7 +184,7 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
                 </div>
 
                 {/* Tooltip for Panning */}
-                {scale > 1 && !isDragging && (
+                {scale > 1 && !isDragging && lastTouchDistance === null && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-ifrn-green/90 backdrop-blur-md px-4 py-2 rounded-full border border-ifrn-green/20 text-white text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 animate-bounce">
                         <Move size={12} /> Arraste para explorar detalhes
                     </div>
@@ -161,7 +193,7 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
 
             <div className="text-center">
                 <p className="text-gray-400 text-[10px] uppercase font-bold tracking-[0.2em]">
-                    Dica: {window.innerWidth > 768 ? 'Use a roda do mouse segurando Ctrl para Zoom' : 'Toque e arraste para navegar'}
+                    Dica: {window.innerWidth > 768 ? 'Use a roda do mouse para Zoom' : 'Use dois dedos para zoom (pinça)'}
                 </p>
             </div>
         </div>

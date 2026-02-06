@@ -3,6 +3,7 @@ import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLeve
 import { StorageService } from '../../services/storage';
 import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { ImageViewer } from '../ui/ImageViewer';
 
 interface Props {
   items: FoundItem[];
@@ -1038,29 +1039,29 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         )}
       </Modal>
 
-      {/* MODAL: Zoom Image */}
       <Modal
         isOpen={showZoomModal}
         onClose={() => { setShowZoomModal(false); if (onToggleSleep) onToggleSleep(false); }}
         title="Visualização da Imagem"
-        maxWidth="max-w-4xl"
+        maxWidth="max-w-5xl"
       >
         <div className="space-y-4">
-          <div className="relative bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center min-h-[300px] max-h-[70vh]">
-            <img src={zoomImage || ''} alt="Zoom" className="max-w-full max-h-full object-contain" />
-          </div>
-          <div className="flex justify-center items-center bg-gray-50 p-3 rounded-xl border border-gray-100">
-            {/* <p className="text-xs text-gray-500 font-medium italic">Clique em "Enviar Imagem" para compartilhar diretamente.</p> */}
+          <ImageViewer
+            src={zoomImage || ''}
+            alt={viewingItem?.description || 'Imagem'}
+          />
+
+          <div className="flex justify-center items-center bg-gray-50 p-2 rounded-xl border border-gray-100">
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowZoomModal(false); if (onToggleSleep) onToggleSleep(false); }}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
+                className="px-6 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-bold uppercase tracking-wider transition-all"
               >
                 Voltar
               </button>
               <button
                 onClick={() => handleShareImage(zoomImage!, `item-${viewingItem?.id || 'foto'}`)}
-                className="flex items-center gap-2 px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold text-sm shadow-md transition-all active:scale-95"
+                className="flex items-center gap-2 px-8 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold text-sm shadow-lg transition-all active:scale-95 uppercase tracking-wider"
               >
                 <Share size={18} /> Enviar Imagem
               </button>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserLevel, Person } from '../../types';
 import { StorageService } from '../../services/storage';
+import { DEFAULT_PASSWORD } from '../../constants';
 import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
@@ -128,7 +129,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       onUpdate();
       setShowEditModal(false);
       setSelectedUser(null);
-      if (!selectedUser) alert("Usuário criado com senha padrão 'ifrn123'.");
+      if (!selectedUser) alert(`Usuário criado com senha padrão '${DEFAULT_PASSWORD}'.`);
     } catch (error) {
       alert((error as Error).message);
     } finally {
@@ -138,12 +139,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
 
   const handleResetPassword = async () => {
     if (!selectedUser) return;
-    if (confirm(`Deseja resetar a senha do usuário ${selectedUser.name} para 'ifrn123'?`)) {
+    if (confirm(`Deseja resetar a senha do usuário ${selectedUser.name} para '${DEFAULT_PASSWORD}'?`)) {
       setIsLoading(true);
-      const updatedUser = { ...selectedUser, password: 'ifrn123' };
+      const updatedUser = { ...selectedUser, password: DEFAULT_PASSWORD };
       await StorageService.saveUser(updatedUser, `${userString} (Reset de Senha)`);
       onUpdate();
-      alert('Senha resetada com sucesso para: ifrn123');
+      alert(`Senha resetada com sucesso para: ${DEFAULT_PASSWORD}`);
       setShowEditModal(false);
       setSelectedUser(null);
       setIsLoading(false);
@@ -439,7 +440,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               />
             </div>
 
-            {!selectedUser && (<p className="text-xs text-gray-500 bg-gray-50 p-2 rounded"><span className="font-bold">Nota:</span> A senha inicial será definida automaticamente como <strong>ifrn123</strong>.</p>)}
+            {!selectedUser && (<p className="text-xs text-gray-500 bg-gray-50 p-2 rounded"><span className="font-bold">Nota:</span> A senha inicial será definida automaticamente como <strong>{DEFAULT_PASSWORD}</strong>.</p>)}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nível de Acesso</label>
@@ -507,7 +508,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
             {selectedUser && canResetPassword(selectedUser) && (
               <div className="pt-2 border-t mt-2">
                 <label className="block text-xs font-semibold text-gray-500 mb-2">Segurança</label>
-                <button type="button" onClick={handleResetPassword} className="w-full py-2 border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm flex items-center justify-center gap-2"><Lock size={14} /> Resetar Senha para 'ifrn123'</button>
+                <button type="button" onClick={handleResetPassword} className="w-full py-2 border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-sm flex items-center justify-center gap-2"><Lock size={14} /> Resetar Senha para '{DEFAULT_PASSWORD}'</button>
               </div>
             )}
 

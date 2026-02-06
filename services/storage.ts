@@ -11,11 +11,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Session constants
-const SESSION_USER_KEY = 'coades_session_user';
-const LAST_ACTIVE_KEY = 'coades_last_active';
-const TIMEOUT_MINUTES = 60;
-const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
+import { DEFAULT_PASSWORD, SESSION_USER_KEY, LAST_ACTIVE_KEY, SYSTEM_CONFIG_KEY, TIMEOUT_MS } from "../constants";
 
 export const StorageService = {
   // Helpers
@@ -33,14 +29,14 @@ export const StorageService = {
 
   // System Config
   getConfig: async () => {
-    const cached = localStorage.getItem('sga_system_config');
+    const cached = localStorage.getItem(SYSTEM_CONFIG_KEY);
     const defaultVal = { sector: '', campus: '' };
 
     try {
       const { data, error } = await supabase.from('config').select('*').limit(1).single();
       if (!error && data) {
         const config = { sector: data.sector, campus: data.campus };
-        localStorage.setItem('sga_system_config', JSON.stringify(config));
+        localStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify(config));
         return config;
       }
     } catch (e) {
@@ -51,7 +47,7 @@ export const StorageService = {
   },
 
   saveConfig: async (sector: string, campus: string) => {
-    localStorage.setItem('sga_system_config', JSON.stringify({ sector, campus }));
+    localStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify({ sector, campus }));
     const { data } = await supabase.from('config').select('id').limit(1);
 
     if (data && data.length > 0) {
@@ -122,7 +118,7 @@ export const StorageService = {
 
       if (error) throw error;
     } else {
-      const password = user.password || 'ifrn123';
+      const password = user.password || DEFAULT_PASSWORD;
       const hashedPassword = await StorageService.hashPassword(password);
       const logMessage = `Criado por ${actorName} em ${dateStr} com senha padrão.`;
 

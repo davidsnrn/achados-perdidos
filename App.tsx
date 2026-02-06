@@ -4,15 +4,17 @@ import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan } from '
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
-import { FoundItemsTab } from './components/Tabs/FoundItemsTab';
-import { LostReportsTab } from './components/Tabs/LostReportsTab';
-import { PeopleTab } from './components/Tabs/PeopleTab';
-import { UsersTab } from './components/Tabs/UsersTab';
-import { ArmariosTab } from './components/Tabs/ArmariosTab';
-import { BooksTab } from './components/Tabs/BooksTab';
-import { BookLoansTab } from './components/Tabs/BookLoansTab';
-import { NadaConstaTab } from './components/Tabs/NadaConstaTab';
-import { MaterialManagementTab } from './components/Tabs/MaterialManagementTab';
+// Lazy load tabs to improve initial load performance
+const FoundItemsTab = React.lazy(() => import('./components/Tabs/FoundItemsTab').then(module => ({ default: module.FoundItemsTab })));
+const LostReportsTab = React.lazy(() => import('./components/Tabs/LostReportsTab').then(module => ({ default: module.LostReportsTab })));
+const PeopleTab = React.lazy(() => import('./components/Tabs/PeopleTab').then(module => ({ default: module.PeopleTab })));
+const UsersTab = React.lazy(() => import('./components/Tabs/UsersTab').then(module => ({ default: module.UsersTab })));
+const ArmariosTab = React.lazy(() => import('./components/Tabs/ArmariosTab').then(module => ({ default: module.ArmariosTab })));
+const BooksTab = React.lazy(() => import('./components/Tabs/BooksTab').then(module => ({ default: module.BooksTab })));
+const BookLoansTab = React.lazy(() => import('./components/Tabs/BookLoansTab').then(module => ({ default: module.BookLoansTab })));
+const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
+const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
+
 import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 
@@ -1191,7 +1193,7 @@ const App: React.FC = () => {
           {loading && activeTab !== 'none' ? (
             <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
           ) : (
-            <>
+            <React.Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>}>
               {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} />}
               {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} />}
               {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} />}
@@ -1201,7 +1203,7 @@ const App: React.FC = () => {
               {activeTab === 'nadaconsta' && <NadaConstaTab people={people} lockers={lockers} bookLoans={bookLoans} materialLoans={materialLoans} />}
               {activeTab === 'materiais' && <MaterialManagementTab materials={materials} loans={materialLoans} people={people} user={user} onUpdate={refreshData} />}
               {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} />}
-            </>
+            </React.Suspense>
           )}
         </div>
       </main>

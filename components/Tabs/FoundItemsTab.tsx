@@ -78,56 +78,74 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
   };
 
+  const processImageFile = async (file: File) => {
+    try {
+      setIsLoading(true);
+
+      // Criar um ImageBitmap com redimensionamento nativo (Hardware Accelerated)
+      // Isso evita decodificar a imagem de 50MP na thread principal
+      // Máximo de 800px para economizar espaço no Supabase
+      const maxWidth = 800;
+      const bitmap = await createImageBitmap(file, {
+        resizeWidth: maxWidth,
+        resizeQuality: 'medium'
+      });
+
+      // Desenhar em um canvas para converter de volta para Blob
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error("Não foi possível obter contexto do canvas");
+
+      // Ajustar dimensões mantendo proporção
+      const ratio = bitmap.width / bitmap.height;
+      canvas.width = maxWidth;
+      canvas.height = maxWidth / ratio;
+
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+      // Liberar o bitmap da memória imediatamente
+      bitmap.close();
+
+      // Converter para Blob (JPEG com qualidade 0.7 para ser ainda mais leve no banco)
+      canvas.toBlob((blob) => {
+        if (blob) {
+          // Revogar URL anterior se existir
+          if (itemImage?.startsWith('blob:')) {
+            URL.revokeObjectURL(itemImage);
+          }
+
+          const previewUrl = URL.createObjectURL(blob);
+          setItemImage(previewUrl);
+          setImageBlob(blob);
+        }
+        setIsLoading(false);
+      }, 'image/jpeg', 0.7);
+
+    } catch (err) {
+      console.error("Erro ao processar imagem:", err);
+      alert("Ocorreu um erro ao processar a foto. Se o problema persistir, tente tirar a foto fora do app e depois selecioná-la da galeria.");
+      setIsLoading(false);
+    }
+  };
+
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      try {
-        setIsLoading(true);
+      await processImageFile(file);
+    }
+  };
 
-        // Criar um ImageBitmap com redimensionamento nativo (Hardware Accelerated)
-        // Isso evita decodificar a imagem de 50MP na thread principal
-        // Máximo de 800px para economizar espaço no Supabase
-        const maxWidth = 800;
-        const bitmap = await createImageBitmap(file, {
-          resizeWidth: maxWidth,
-          resizeQuality: 'medium'
-        });
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
 
-        // Desenhar em um canvas para converter de volta para Blob
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error("Não foi possível obter contexto do canvas");
-
-        // Ajustar dimensões mantendo proporção
-        const ratio = bitmap.width / bitmap.height;
-        canvas.width = maxWidth;
-        canvas.height = maxWidth / ratio;
-
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-        // Liberar o bitmap da memória imediatamente
-        bitmap.close();
-
-        // Converter para Blob (JPEG com qualidade 0.5 para ser ainda mais leve no banco)
-        canvas.toBlob((blob) => {
-          if (blob) {
-            // Revogar URL anterior se existir
-            if (itemImage?.startsWith('blob:')) {
-              URL.revokeObjectURL(itemImage);
-            }
-
-            const previewUrl = URL.createObjectURL(blob);
-            setItemImage(previewUrl);
-            setImageBlob(blob);
-          }
-          setIsLoading(false);
-        }, 'image/jpeg', 0.7);
-
-      } catch (err) {
-        console.error("Erro ao processar imagem:", err);
-        alert("Ocorreu um erro ao processar a foto. Se o problema persistir, tente tirar a foto fora do app e depois selecioná-la da galeria.");
-        setIsLoading(false);
-      }
+  const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      await processImageFile(file);
     }
   };
 
@@ -851,10 +869,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 />
                 <label
                   htmlFor="image-upload"
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
                   className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-lg p-4 cursor-pointer hover:border-ifrn-green hover:bg-green-50 transition-all text-sm text-gray-500"
                 >
                   <ImageIcon size={20} />
-                  {itemImage ? 'Alterar Foto' : 'Selecionar Foto'}
+                  {itemImage ? 'Alterar Foto' : 'Selecionar ou Arraste Foto'}
                 </label>
               </div>
               {itemImage && (

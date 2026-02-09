@@ -665,7 +665,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                       <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('dateFound')}>
                         <div className="flex items-center">Tempo no Estoque {getSortIcon('dateFound')}</div>
                       </th>
-                      <th className="p-4 text-center">Ações</th>
                     </>
                   )}
 
@@ -681,7 +680,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                       <th className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('returnedDate')}>
                         <div className="flex items-center">Data de {activeSubTab === ItemStatus.RETURNED ? 'Devolução' : 'Saída'} {getSortIcon('returnedDate')}</div>
                       </th>
-                      <th className="p-4 text-center">Ações</th>
                     </>
                   )}
                 </tr>
@@ -723,15 +721,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                           <td className="p-4 font-medium text-gray-800">{item.locationStored}</td>
                           <td className="p-4 text-gray-600">{formatDate(item.dateFound)}</td>
                           <td className="p-4 font-medium">{getDaysInStock(item.dateFound)}</td>
-                          <td className="p-4">
-                            <div className="flex justify-center gap-2">
-                              <button onClick={(e) => handleOpenReturnModal(e, item)} title="Devolver / Dar Saída" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><CornerUpRight size={18} /></button>
-                              <button onClick={(e) => { e.stopPropagation(); openEditModal(item); }} title="Editar" className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-md transition-colors"><Pencil size={18} /></button>
-                              {user.level !== UserLevel.STANDARD && (
-                                <button onClick={(e) => handleDelete(e, item.id)} title="Excluir" className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors"><Trash2 size={18} /></button>
-                              )}
-                            </div>
-                          </td>
                         </>
                       )}
 
@@ -750,17 +739,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                           <td className="p-4 text-gray-600">
                             {item.returnedDate ? formatDate(item.returnedDate) : '-'}
                             {item.returnedDate && <span className="text-xs text-gray-400 ml-1">({new Date(item.returnedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>}
-                          </td>
-                          <td className="p-4 text-center">
-                            {user.level !== UserLevel.STANDARD && (
-                              <button
-                                onClick={(e) => handleCancelReturn(e, item)}
-                                title={activeSubTab === ItemStatus.RETURNED ? "Cancelar Devolução (Estornar)" : "Cancelar Descarte (Estornar)"}
-                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors inline-flex items-center gap-1 text-xs font-medium px-2 border border-amber-200"
-                              >
-                                <RotateCcw size={14} /> Estornar
-                              </button>
-                            )}
                           </td>
                         </>
                       )}
@@ -1047,10 +1025,50 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-col md:flex-row justify-between pt-4 border-t border-gray-100 mt-4 gap-4">
+              <div className="flex gap-2 flex-wrap">
+                {viewingItem.status === ItemStatus.AVAILABLE && (
+                  <>
+                    <button
+                      onClick={(e) => { setShowDetailModal(false); handleOpenReturnModal(e, viewingItem); }}
+                      className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                      title="Devolver ou dar baixa neste item"
+                    >
+                      <CornerUpRight size={16} /> Devolver
+                    </button>
+
+                    <button
+                      onClick={() => { setShowDetailModal(false); openEditModal(viewingItem); }}
+                      className="px-3 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-md text-sm font-medium flex items-center gap-2 border border-gray-200 transition-colors"
+                      title="Editar detalhes do item"
+                    >
+                      <Pencil size={16} /> Editar
+                    </button>
+
+                    {user.level !== UserLevel.STANDARD && (
+                      <button
+                        onClick={(e) => { setShowDetailModal(false); handleDelete(e, viewingItem.id); }}
+                        className="px-3 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                        title="Excluir item permanentemente"
+                      >
+                        <Trash2 size={16} /> Excluir
+                      </button>
+                    )}
+                  </>
+                )}
+                {(viewingItem.status === ItemStatus.RETURNED || viewingItem.status === ItemStatus.DISCARDED) && user.level !== UserLevel.STANDARD && (
+                  <button
+                    onClick={(e) => { setShowDetailModal(false); handleCancelReturn(e, viewingItem); }}
+                    className="px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-md text-sm font-medium flex items-center gap-2 border border-amber-200 transition-colors"
+                  >
+                    <RotateCcw size={16} /> Estornar
+                  </button>
+                )}
+              </div>
+
               <button
                 onClick={() => setShowDetailModal(false)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium"
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
               >
                 Fechar
               </button>

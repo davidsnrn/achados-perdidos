@@ -279,16 +279,25 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                                   </a>
                                 </div>
                                 <p className="text-slate-400 font-bold">{item.registrationNumber} • {item.studentClass}</p>
+                                <div className="mt-1 flex flex-col gap-0.5">
+                                  {item.loanBy && (
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+                                      <span className="text-slate-300">Empréstimo:</span> {item.loanBy}
+                                    </p>
+                                  )}
+                                  {item.returnedBy && (
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+                                      <span className="text-slate-300">Devolução:</span> {item.returnedBy}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-slate-500 font-black mb-0.5 whitespace-nowrap text-[11px]">
+                              <div className="text-right flex flex-col items-end gap-1">
+                                <p className="text-slate-500 font-black whitespace-nowrap text-[11px]">
                                   {formatDisplayDate(item.loanDate)} {item.loanTime ? `às ${item.loanTime}` : ''}
                                   {item.returnDate ? ` — ${formatDisplayDate(item.returnDate)}${item.returnTime ? ` às ${item.returnTime}` : ''}` : ' — ...'}
                                 </p>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase mb-1">
-                                  {item.loanBy ? `Op: ${item.loanBy}` : ''} {item.returnedBy ? `• Ret por: ${item.returnedBy}` : ''}
-                                </p>
-                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${item.returnDate ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : 'Ativo'}</span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase inline-block ${item.returnDate ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : 'Ativo'}</span>
                               </div>
                             </div>
                             {item.observation && (

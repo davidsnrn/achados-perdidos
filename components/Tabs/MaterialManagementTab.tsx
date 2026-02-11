@@ -241,6 +241,29 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }
     };
 
+    const handleReturnBulk = async () => {
+        const loanedItems = filteredInventory.filter(item => selectedIds.includes(item.id) && item.status === 'LOANED' && item.activeLoan);
+
+        if (loanedItems.length === 0) return;
+
+        const confirmMsg = loanedItems.length === 1
+            ? 'Tem certeza que deseja registrar a devolução deste material?'
+            : `Tem certeza que deseja registrar a devolução dos ${loanedItems.length} materiais selecionados?`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            const loanIds = loanedItems.map(item => item.activeLoan!.id);
+            await StorageService.returnMaterialLoansBulk(loanIds, `${user.name} (${user.matricula})`);
+            await onUpdate();
+            setSelectedIds([]);
+            alert(`${loanedItems.length} material(is) devolvido(s) com sucesso!`);
+        } catch (error) {
+            console.error(error);
+            alert('Erro ao processar devolução em lote.');
+        }
+    };
+
     const toggleSelectAll = () => {
         if (selectedIds.length === filteredInventory.length) {
             setSelectedIds([]);
@@ -357,6 +380,15 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 >
                                     {isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
                                     Excluir ({selectedIds.length})
+                                </button>
+                            )}
+                            {selectedIds.length > 0 && filteredInventory.some(i => selectedIds.includes(i.id) && i.status === 'LOANED') && (
+                                <button
+                                    onClick={handleReturnBulk}
+                                    className="flex-1 sm:flex-none px-4 py-2 bg-amber-600 text-white font-bold rounded-lg shadow-sm hover:bg-amber-700 transition-all flex items-center justify-center gap-2 text-sm"
+                                >
+                                    <CornerUpRight size={18} />
+                                    Devolver em Lote ({filteredInventory.filter(i => selectedIds.includes(i.id) && i.status === 'LOANED').length})
                                 </button>
                             )}
                             <button

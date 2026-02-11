@@ -923,6 +923,19 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  returnMaterialLoansBulk: async (loanIds: string[], operatorName: string) => {
+    const { error } = await supabase
+      .from('material_loans')
+      .update({
+        status: 'RETURNED',
+        returnDate: new Date().toISOString(),
+        returnedBy: operatorName
+      })
+      .in('id', loanIds);
+
+    if (error) throw error;
+  },
+
   getBackupData: async () => {
     const [config, users, people, items, reports, lockers, books, loans] = await Promise.all([
       supabase.from('config').select('*'),

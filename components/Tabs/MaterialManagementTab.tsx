@@ -417,16 +417,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
                                     <tr>
-                                        {isAdminOrAdvanced && (
-                                            <th className="p-4 w-10">
-                                                <input
-                                                    type="checkbox"
-                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                    checked={filteredInventory.length > 0 && selectedIds.length === filteredInventory.length}
-                                                    onChange={toggleSelectAll}
-                                                />
-                                            </th>
-                                        )}
+                                        <th className="p-4 w-10">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                checked={filteredInventory.length > 0 && selectedIds.length === filteredInventory.length}
+                                                onChange={toggleSelectAll}
+                                            />
+                                        </th>
                                         <th className="p-4 text-left">Código</th>
                                         <th className="p-4 text-left">Material</th>
                                         <th className="p-4 text-left">Status</th>
@@ -441,16 +439,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                             className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.includes(item.id) ? 'bg-indigo-50/50' : ''}`}
                                             onClick={() => setViewingItem(item)}
                                         >
-                                            {isAdminOrAdvanced && (
-                                                <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                                                    <input
-                                                        type="checkbox"
-                                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                        checked={selectedIds.includes(item.id)}
-                                                        onChange={() => toggleSelectOne(item.id)}
-                                                    />
-                                                </td>
-                                            )}
+                                            <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    checked={selectedIds.includes(item.id)}
+                                                    onChange={() => toggleSelectOne(item.id)}
+                                                />
+                                            </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <Hash size={14} className="text-indigo-500" />

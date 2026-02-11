@@ -17,6 +17,7 @@ const MaterialManagementTab = React.lazy(() => import('./components/Tabs/Materia
 
 import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
+import ErrorBoundary from './components/ui/ErrorBoundary';
 
 type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'FACTORY_RESET' | null;
 
@@ -1234,21 +1235,23 @@ const App: React.FC = () => {
 
         </div>
         <div className="min-h-[400px]">
-          {loading && activeTab !== 'none' ? (
-            <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
-          ) : (
-            <React.Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>}>
-              {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} />}
-              {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} />}
-              {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} />}
-              {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} />}
-              {activeTab === 'livros-catalogo' && <BooksTab books={books} bookLoans={bookLoans} onUpdate={refreshData} user={user} />}
-              {activeTab === 'livros-emprestimos' && <BookLoansTab loans={bookLoans} books={books} people={people} onUpdate={refreshData} user={user} />}
-              {activeTab === 'nadaconsta' && <NadaConstaTab people={people} lockers={lockers} bookLoans={bookLoans} materialLoans={materialLoans} />}
-              {activeTab === 'materiais' && <MaterialManagementTab materials={materials} loans={materialLoans} people={people} user={user} onUpdate={refreshData} />}
-              {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} />}
-            </React.Suspense>
-          )}
+          <ErrorBoundary>
+            {loading && activeTab !== 'none' ? (
+              <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
+            ) : (
+              <React.Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>}>
+                {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} />}
+                {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} />}
+                {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} />}
+                {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} />}
+                {activeTab === 'livros-catalogo' && <BooksTab books={books} bookLoans={bookLoans} onUpdate={refreshData} user={user} />}
+                {activeTab === 'livros-emprestimos' && <BookLoansTab loans={bookLoans} books={books} people={people} onUpdate={refreshData} user={user} />}
+                {activeTab === 'nadaconsta' && <NadaConstaTab people={people} lockers={lockers} bookLoans={bookLoans} materialLoans={materialLoans} />}
+                {activeTab === 'materiais' && <MaterialManagementTab materials={materials} loans={materialLoans} people={people} user={user} onUpdate={refreshData} />}
+                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} />}
+              </React.Suspense>
+            )}
+          </ErrorBoundary>
         </div>
       </main>
 

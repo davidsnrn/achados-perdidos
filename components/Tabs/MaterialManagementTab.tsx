@@ -30,6 +30,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showLoanForm, setShowLoanForm] = useState(false);
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
     const [personSearch, setPersonSearch] = useState('');
+    const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+    const [isSearchingPeople, setIsSearchingPeople] = useState(false);
     const [selectedMaterials, setSelectedMaterials] = useState<Material[]>([]);
     const [materialSearch, setMaterialSearch] = useState('');
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
@@ -95,14 +97,22 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         });
     }, [inventory, searchTerm, filterStatus]);
 
-    const filteredPeople = useMemo(() => {
-        if (!personSearch.trim()) return [];
-        const normalizedSearchTerms = normalizeText(personSearch).split(/\s+/).filter((t: string) => t.length > 0);
-        return people.filter(p => {
-            const personText = normalizeText(`${p.name} ${p.matricula}`);
-            return normalizedSearchTerms.every((term: string) => personText.includes(term));
-        }).slice(0, 5);
-    }, [people, personSearch]);
+    const handlePersonSearch = async (val: string) => {
+        setPersonSearch(val);
+        if (val.trim().length >= 2) {
+            setIsSearchingPeople(true);
+            try {
+                const results = await StorageService.searchPeople(val);
+                setSearchResultsPeople(results);
+            } catch (err) {
+                console.error("Erro busca pessoas:", err);
+            } finally {
+                setIsSearchingPeople(false);
+            }
+        } else {
+            setSearchResultsPeople([]);
+        }
+    };
 
     const filteredMaterialsForLoan = useMemo(() => {
         const normalizedSearchTerms = normalizeText(materialSearch).split(/\s+/).filter((t: string) => t.length > 0);
@@ -639,16 +649,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500"
                                     placeholder="Buscar pessoa..."
                                     value={personSearch}
-                                    onChange={e => setPersonSearch(e.target.value)}
+                                    onChange={e => handlePersonSearch(e.target.value)}
                                 />
-                                {filteredPeople.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-2 bg-white border rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y">
-                                        {filteredPeople.map(p => (
-                                            <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); }} className="p-4 hover:bg-indigo-50 cursor-pointer">
+                                {isSearchingPeople && (
+                                    <div className="absolute right-3 top-3">
+                                        <Loader2 size={16} className="animate-spin text-indigo-500" />
+                                    </div>
+                                )}
+                                {searchResultsPeople.length > 0 && (
+                                    <div className="absolute z-[100] w-full mt-2 bg-white border rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y">
+                                        {searchResultsPeople.map(p => (
+                                            <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }} className="p-4 hover:bg-indigo-50 cursor-pointer">
                                                 <div className="font-bold text-gray-800">{p.name}</div>
                                                 <div className="text-xs text-gray-500">{p.matricula}</div>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                                {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && (
+                                    <div className="absolute z-[100] w-full mt-2 bg-white border rounded-xl p-4 text-center text-xs text-gray-400 italic shadow-lg">
+                                        Nenhuma pessoa encontrada
                                     </div>
                                 )}
                             </div>

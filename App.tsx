@@ -143,14 +143,14 @@ const App: React.FC = () => {
       // Isso reduz drasticamente o uso de memória no Android
 
       if (currentSystem === 'achados' || activeTab.startsWith('achados') || activeTab.startsWith('lost')) {
-        const [fetchedItems, fetchedReports, fetchedPeople] = await Promise.all([
+        const [fetchedItems, fetchedReports] = await Promise.all([
           StorageService.getItems(),
-          StorageService.getReports(),
-          StorageService.getPeople() // Necessário para devoluções
+          StorageService.getReports()
         ]);
         setItems(fetchedItems);
         setReports(fetchedReports);
-        setPeople(fetchedPeople);
+        // Note: People is fetched on-demand in the return modal
+        setPeople([]);
         // Limpar outros dados pesados
         setBooks([]);
         setBookLoans([]);
@@ -158,12 +158,12 @@ const App: React.FC = () => {
         setMaterials([]);
         setMaterialLoans([]);
       } else if (currentSystem === 'armarios' || activeTab === 'armarios') {
-        const [fetchedLockers, fetchedPeople] = await Promise.all([
-          StorageService.getLockers(),
-          StorageService.getPeople() // Necessário para empréstimos
+        const [fetchedLockers] = await Promise.all([
+          StorageService.getLockers()
         ]);
         setLockers(fetchedLockers);
-        setPeople(fetchedPeople);
+        // Note: People is searched on-demand for new loans
+        setPeople([]);
         setItems([]);
         setReports([]);
         setBooks([]);
@@ -171,51 +171,53 @@ const App: React.FC = () => {
         setMaterials([]);
         setMaterialLoans([]);
       } else if (currentSystem === 'livros' || activeTab.startsWith('livros')) {
-        const [fetchedBooks, fetchedLoans, fetchedPeople] = await Promise.all([
+        const [fetchedBooks, fetchedLoans] = await Promise.all([
           StorageService.getBooks(),
-          StorageService.getBookLoans(),
-          StorageService.getPeople() // Necessário para empréstimos
+          StorageService.getBookLoans()
         ]);
         setBooks(fetchedBooks);
         setBookLoans(fetchedLoans);
-        setPeople(fetchedPeople);
+        // Note: People is searched on-demand for new loans
+        setPeople([]);
         setItems([]);
         setReports([]);
         setLockers([]);
         setMaterials([]);
         setMaterialLoans([]);
       } else if (currentSystem === 'materiais' || activeTab === 'materiais') {
-        const [fetchedMaterials, fetchedMaterialLoans, fetchedPeople] = await Promise.all([
+        const [fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
           StorageService.getMaterials(),
-          StorageService.getMaterialLoans(),
-          StorageService.getPeople() // Necessário para empréstimos
+          StorageService.getMaterialLoans()
         ]);
         setMaterials(fetchedMaterials);
         setMaterialLoans(fetchedMaterialLoans);
-        setPeople(fetchedPeople);
+        // Note: People is searched on-demand for new loans
+        setPeople([]);
         setItems([]);
         setReports([]);
         setLockers([]);
         setBooks([]);
         setBookLoans([]);
       } else if (activeTab === 'pessoas') {
-        setPeople(await StorageService.getPeople());
+        // Here we might still want to fetch all or implement pagination for this tab specifically
+        setPeople(await StorageService.getAllPeople());
       } else if (activeTab === 'usuarios') {
         setUsers(await StorageService.getUsers());
       } else if (activeTab === 'nadaconsta') {
-        // Carrega o necessário para o Nada Consta
-        const [fetchedItems, fetchedBooks, fetchedMaterials, fetchedLockers, fetchedPeople] = await Promise.all([
+        // No Nada Consta, ainda precisamos de alguns dados, 
+        // mas a busca de alunos agora será via searchPeople (StorageService)
+        // então não carregamos 'people' aqui.
+        const [fetchedItems, fetchedBooks, fetchedMaterials, fetchedLockers] = await Promise.all([
           StorageService.getItems(),
           StorageService.getBookLoans(),
           StorageService.getMaterialLoans(),
-          StorageService.getLockers(), // Necessário para pendências de armários
-          StorageService.getPeople() // Necessário para busca de alunos
+          StorageService.getLockers()
         ]);
         setItems(fetchedItems);
         setBookLoans(fetchedBooks);
         setMaterialLoans(fetchedMaterials);
         setLockers(fetchedLockers);
-        setPeople(fetchedPeople);
+        setPeople([]); // Será buscado sob demanda no campo de busca do Nada Consta
       }
     } catch (e) {
       console.error("Erro ao carregar dados:", e);

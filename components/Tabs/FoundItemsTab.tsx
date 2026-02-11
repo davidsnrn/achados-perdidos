@@ -20,6 +20,8 @@ type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'date
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
   // Sort State
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'desc' });
@@ -287,16 +289,22 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />;
   };
 
-  const filteredPeople = useMemo(() => {
-    if (!personSearch.trim()) return [];
-
-    const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
-
-    return people.filter(p => {
-      const personText = normalizeText(`${p.name} ${p.matricula}`);
-      return searchTerms.every(term => personText.includes(term));
-    }).slice(0, 5);
-  }, [people, personSearch]);
+  const handlePersonSearch = async (val: string) => {
+    setPersonSearch(val);
+    if (val.trim().length >= 2) {
+      setIsSearchingPeople(true);
+      try {
+        const results = await StorageService.searchPeople(val);
+        setSearchResultsPeople(results);
+      } catch (err) {
+        console.error("Erro busca pessoas:", err);
+      } finally {
+        setIsSearchingPeople(false);
+      }
+    } else {
+      setSearchResultsPeople([]);
+    }
+  };
 
   const openReports = useMemo(() => {
     return reports.filter(r => r.status === ReportStatus.OPEN);
@@ -896,20 +904,62 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
             <div className="relative space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
               <div className="relative">
-                <input type="text" value={personSearch} onChange={(e) => { setPersonSearch(e.target.value); setSelectedPerson(null); }} placeholder="Digite o nome ou parte da matrícula..." className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" />
+                <input
+                  type="text"
+                  className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                  placeholder="Digite o nome ou parte da matrícula..."
+                  value={personSearch}
+                  onChange={e => handlePersonSearch(e.target.value)}
+                />
                 <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                {isSearchingPeople && (
+                  <div className="absolute right-3 top-2.5">
+                    <Loader2 size={16} className="animate-spin text-ifrn-green" />
+                  </div>
+                )}
               </div>
 
               {selectedPerson ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3"><div className="bg-green-100 p-2 rounded-full text-green-700"><UserIcon size={20} /></div><div><p className="font-bold text-green-900 text-sm">{selectedPerson.name}</p><p className="text-xs text-green-700">{selectedPerson.matricula} • {selectedPerson.type}</p></div><CheckCircle size={20} className="text-green-600 ml-auto" /></div>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                  <div className="bg-green-100 p-2 rounded-full text-green-700">
+                    <UserIcon size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-green-900 text-sm">{selectedPerson.name}</p>
+                    <p className="text-xs text-green-700">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                  </div>
+                  <CheckCircle size={20} className="text-green-600 ml-auto" />
+                  <button
+                    onClick={() => { setSelectedPerson(null); setPersonSearch(''); setSearchResultsPeople([]); }}
+                    className="text-xs text-red-500 font-bold ml-2 underline"
+                  >
+                    Alterar
+                  </button>
+                </div>
               ) : (
-                filteredPeople.length > 0 && (
-                  <div className="border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100 absolute w-full bg-white z-10 shadow-lg">
-                    {filteredPeople.map(p => (
-                      <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(p.name); }} className="p-3 hover:bg-gray-50 cursor-pointer"><p className="text-sm font-medium text-gray-800">{p.name}</p><p className="text-xs text-gray-500">{p.matricula}</p></div>
+                searchResultsPeople.length > 0 && (
+                  <div className="border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100 absolute w-full bg-white z-20 shadow-lg">
+                    {searchResultsPeople.map(p => (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedPerson(p);
+                          setPersonSearch(p.name);
+                          setSearchResultsPeople([]);
+                        }}
+                        className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <p className="text-sm font-medium text-gray-800">{p.name}</p>
+                        <p className="text-xs text-gray-500">{p.matricula}</p>
+                      </div>
                     ))}
                   </div>
                 )
+              )}
+              {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-lg">
+                  Nenhuma pessoa encontrada
+                </div>
               )}
             </div>
           )}

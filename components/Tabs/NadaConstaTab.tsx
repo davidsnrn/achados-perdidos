@@ -1,11 +1,12 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Locker, LoanData } from '../../types-armarios';
 import { Person, BookLoan, BookLoanStatus } from '../../types';
 import { MaterialLoan } from '../../types-materiais';
-import { Search, ExternalLink, CheckCircle, AlertTriangle, User, BookOpen, Key, Info, History, Hash } from 'lucide-react';
+import { Search, ExternalLink, CheckCircle, AlertTriangle, User, BookOpen, Key, Info, History, Hash, Loader2 } from 'lucide-react';
+import { StorageService } from '../../services/storage';
 
 interface NadaConstaTabProps {
-    people: Person[];
+    people: Person[]; // Still accepting as prop but using search service
     lockers: Locker[];
     bookLoans: BookLoan[];
     materialLoans: MaterialLoan[];
@@ -18,6 +19,8 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
     materialLoans,
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -27,51 +30,55 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         }
     }, [searchTerm]);
 
-    const students = useMemo(() => {
-        return people.map(p => ({
-            registration: p.matricula,
-            name: p.name,
-            course: '',
-            situation: 'Matriculado',
-            email: ''
-        }));
-    }, [people]);
+    useEffect(() => {
+        const performSearch = async () => {
+            const rawSearch = searchTerm.trim();
+            if (rawSearch.length < 2) {
+                setSearchResults([]);
+                return;
+            }
 
-    const searchResults = useMemo(() => {
-        const rawSearch = searchTerm.trim();
-        if (rawSearch.length < 2) return [];
+            setIsSearching(true);
+            try {
+                let results: Person[] = [];
+                // Suporte para busca em lote (OU) se contiver vírgula
+                if (rawSearch.includes(',')) {
+                    const searchChunks = rawSearch.split(',')
+                        .map(chunk => chunk.trim())
+                        .filter(chunk => chunk.length >= 2);
 
-        // Suporte para busca em lote (OU) se contiver vírgula
-        if (rawSearch.includes(',')) {
-            const searchChunks = rawSearch.split(',')
-                .map(chunk => chunk.trim())
-                .filter(chunk => chunk.length >= 2);
+                    if (searchChunks.length > 0) {
+                        // Fazemos buscas paralelas para cada chunk (máximo de 5 para não sobrecarregar)
+                        const searchPromises = searchChunks.slice(0, 5).map(chunk => StorageService.searchPeople(chunk, 10));
+                        const allResults = await Promise.all(searchPromises);
+                        results = allResults.flat();
+                        // Remover duplicados por ID
+                        results = Array.from(new Map(results.map(r => [r.id, r])).values());
+                    }
+                } else {
+                    results = await StorageService.searchPeople(rawSearch, 20);
+                }
 
-            if (searchChunks.length === 0) return [];
+                setSearchResults(results.map(p => ({
+                    registration: p.matricula,
+                    name: p.name,
+                    course: '',
+                    situation: 'Matriculado',
+                    email: '',
+                    id: p.id // Incluído para getStudentPendencies
+                })));
+            } catch (err) {
+                console.error("Erro na busca Nada Consta:", err);
+            } finally {
+                setIsSearching(false);
+            }
+        };
 
-            return students.filter(s => {
-                const studentReg = s.registration.toLowerCase();
-                const studentName = s.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-                const studentStr = `${studentReg} ${studentName}`;
+        const timer = setTimeout(performSearch, 400); // Debounce
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
-                return searchChunks.some(chunk => {
-                    const terms = chunk.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/\s+/).filter(t => t.length > 0);
-                    if (terms.length === 0) return false;
-                    // Todos os termos do chunk devem estar presentes no estudante (E lógico)
-                    return terms.every(term => studentStr.includes(term));
-                });
-            }).slice(0, 50);
-        }
-
-        // Busca normal (E) - espaços como separadores
-        const searchTerms = rawSearch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/\s+/).filter(t => t.length > 0);
-        return students.filter(s => {
-            const studentStr = `${s.registration} ${s.name}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-            return searchTerms.every(term => studentStr.includes(term));
-        }).slice(0, 20);
-    }, [searchTerm, students]);
-
-    const getStudentPendencies = (registration: string) => {
+    const getStudentPendencies = (registration: string, studentId?: string) => {
         const activeLockerLoans: LoanData[] = [];
         const activeBookLoans: BookLoan[] = [];
         const activeMaterialLoans: MaterialLoan[] = [];
@@ -84,11 +91,14 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         });
 
         // Check Books
-        const person = people.find(p => p.matricula === registration);
-        if (person) {
+        // Aqui usamos o ID se disponível, se não buscamos no people (embora people agora venha vazio)
+        // Por isso o searchResults agora inclui o id.
+        const personId = studentId;
+
+        if (personId) {
             bookLoans.forEach(loan => {
                 const hasActiveBooks = loan.books.some(b => b.status === 'Ativo' || !b.status);
-                if (loan.personId === person.id && (loan.status === BookLoanStatus.ACTIVE || hasActiveBooks)) {
+                if (loan.personId === personId && (loan.status === BookLoanStatus.ACTIVE || hasActiveBooks)) {
                     activeBookLoans.push(loan);
                 }
             });
@@ -126,6 +136,11 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {isSearching && (
+                        <div className="absolute right-6 top-6">
+                            <Loader2 size={32} className="animate-spin text-blue-500 opacity-50" />
+                        </div>
+                    )}
                     <div className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2 ml-4">
                         <Info size={12} /> Dica: Separe por vírgula para buscar vários alunos ao mesmo tempo.
                     </div>
@@ -134,7 +149,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
 
             <div className="space-y-6">
                 {searchResults.map(student => {
-                    const { activeLockerLoans, activeBookLoans, activeMaterialLoans } = getStudentPendencies(student.registration);
+                    const { activeLockerLoans, activeBookLoans, activeMaterialLoans } = getStudentPendencies(student.registration, student.id);
 
                     const realActiveBookLoans = activeBookLoans.filter(loan =>
                         loan.books.some(b => b.status === 'Ativo' || !b.status)

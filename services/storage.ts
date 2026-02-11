@@ -228,7 +228,7 @@ export const StorageService = {
   },
 
   // People
-  getPeople: async (): Promise<Person[]> => {
+  getAllPeople: async (): Promise<Person[]> => {
     let allData: Person[] = [];
     let from = 0;
     const limit = 1000;
@@ -251,6 +251,31 @@ export const StorageService = {
     }
 
     return allData;
+  },
+
+  searchPeople: async (query: string, limit: number = 20): Promise<Person[]> => {
+    if (!query || query.trim().length < 2) return [];
+
+    const searchTerm = `%${query.trim()}%`;
+    const { data, error } = await supabase
+      .from('people')
+      .select('*')
+      .or(`name.ilike.${searchTerm},matricula.ilike.${searchTerm}`)
+      .limit(limit);
+
+    if (error) {
+      console.error("Erro ao pesquisar pessoas:", error);
+      return [];
+    }
+
+    return data || [];
+  },
+
+  getPeople: async (): Promise<Person[]> => {
+    // Keep it for backward compatibility but return empty if not absolutely needed
+    // In most tabs, we should use searchPeople
+    console.warn("StorageService.getPeople() is deprecated for performance reasons. Use searchPeople() or getAllPeople() instead.");
+    return [];
   },
 
   savePerson: async (person: Person) => {

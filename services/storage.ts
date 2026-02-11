@@ -549,8 +549,8 @@ export const StorageService = {
   updateSingleLocker: async (locker: Locker) => {
     const payload = {
       status: locker.status,
-      current_loan: locker.currentLoan,
-      maintenance_record: locker.maintenanceRecord,
+      current_loan: locker.currentLoan || null,
+      maintenance_record: locker.maintenanceRecord || null,
       loan_history: locker.loanHistory,
       maintenance_history: locker.maintenanceHistory,
       location: locker.location

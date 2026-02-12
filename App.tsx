@@ -36,19 +36,19 @@ interface ModuleInfo {
 }
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'achados');
+  const [activeTab, setActiveTab] = useState(() => sessionStorage.getItem('activeTab') || 'achados');
   const [user, setUser] = useState<User | null>(null);
   const [isSessionLoading, setIsSessionLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Initialize from localStorage
+  // Initialize from sessionStorage
   const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | null>(() => {
-    return (localStorage.getItem('currentSystem') as any) || null;
+    return (sessionStorage.getItem('currentSystem') as any) || null;
   });
 
   const [showModuleSelector, setShowModuleSelector] = useState(() => {
-    // If we have a current system stored, don't show selector initially
-    return !localStorage.getItem('currentSystem');
+    // If we have a current system stored in session, don't show selector initially (for F5)
+    return !sessionStorage.getItem('currentSystem');
   });
 
   const [loading, setLoading] = useState(false);
@@ -111,7 +111,7 @@ const App: React.FC = () => {
   // Persist Tab
   useEffect(() => {
     if (user) {
-      localStorage.setItem('activeTab', activeTab);
+      sessionStorage.setItem('activeTab', activeTab);
     }
   }, [activeTab, user]);
 
@@ -282,8 +282,8 @@ const App: React.FC = () => {
     setLoginPass('');
     setShowLoginPassword(false);
     setActiveTab('achados');
-    localStorage.removeItem('activeTab');
-    localStorage.removeItem('currentSystem'); // Clear system persistence
+    sessionStorage.removeItem('activeTab');
+    sessionStorage.removeItem('currentSystem'); // Clear system persistence
     setMobileMenuOpen(false);
     setConfigMenuOpen(false);
     setMobileDeleteOpen(false);
@@ -308,8 +308,8 @@ const App: React.FC = () => {
           } else {
             setUser(sessionUser);
             StorageService.updateLastActive();
-            // Only show module selector if we don't have a persisted system
-            const persistedSystem = localStorage.getItem('currentSystem');
+            // Only show module selector if we don't have a persisted system in session (for F5)
+            const persistedSystem = sessionStorage.getItem('currentSystem');
             if (persistedSystem) {
               setShowModuleSelector(false);
               // currentSystem initialized from state, so it should match
@@ -758,7 +758,7 @@ const App: React.FC = () => {
                   permission: 'achados',
                   onSelect: () => {
                     setCurrentSystem('achados');
-                    localStorage.setItem('currentSystem', 'achados');
+                    sessionStorage.setItem('currentSystem', 'achados');
                     setActiveTab('achados');
                     setShowModuleSelector(false);
                   }
@@ -776,7 +776,7 @@ const App: React.FC = () => {
                   permission: 'armarios',
                   onSelect: () => {
                     setCurrentSystem('armarios');
-                    localStorage.setItem('currentSystem', 'armarios');
+                    sessionStorage.setItem('currentSystem', 'armarios');
                     setActiveTab('armarios');
                     setShowModuleSelector(false);
                   }
@@ -794,7 +794,7 @@ const App: React.FC = () => {
                   permission: 'livros',
                   onSelect: () => {
                     setCurrentSystem('livros');
-                    localStorage.setItem('currentSystem', 'livros');
+                    sessionStorage.setItem('currentSystem', 'livros');
                     setActiveTab('livros-catalogo');
                     setShowModuleSelector(false);
                   }
@@ -812,7 +812,7 @@ const App: React.FC = () => {
                   permission: 'nadaconsta',
                   onSelect: () => {
                     setCurrentSystem('nadaconsta');
-                    localStorage.setItem('currentSystem', 'nadaconsta');
+                    sessionStorage.setItem('currentSystem', 'nadaconsta');
                     setActiveTab('nadaconsta');
                     setShowModuleSelector(false);
                   }
@@ -830,7 +830,7 @@ const App: React.FC = () => {
                   permission: 'materiais',
                   onSelect: () => {
                     setCurrentSystem('materiais');
-                    localStorage.setItem('currentSystem', 'materiais');
+                    sessionStorage.setItem('currentSystem', 'materiais');
                     setActiveTab('materiais');
                     setShowModuleSelector(false);
                   }
@@ -848,7 +848,7 @@ const App: React.FC = () => {
                   permission: 'pessoas',
                   onSelect: () => {
                     setCurrentSystem(null);
-                    localStorage.removeItem('currentSystem');
+                    sessionStorage.removeItem('currentSystem');
                     setActiveTab('pessoas');
                     setShowModuleSelector(false);
                   }
@@ -866,7 +866,7 @@ const App: React.FC = () => {
                   permission: 'usuarios',
                   onSelect: () => {
                     setCurrentSystem(null);
-                    localStorage.removeItem('currentSystem');
+                    sessionStorage.removeItem('currentSystem');
                     setActiveTab('usuarios');
                     setShowModuleSelector(false);
                   }
@@ -1113,7 +1113,7 @@ const App: React.FC = () => {
               </div>
               <button onClick={() => { setShowPasswordModal(true); setMobileMenuOpen(false); }} className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 py-1.5 rounded-lg hover:bg-gray-50"><KeyRound size={14} /> Alterar Senha</button>
               <button
-                onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); localStorage.removeItem('currentSystem'); setMobileMenuOpen(false); }}
+                onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); sessionStorage.removeItem('currentSystem'); setMobileMenuOpen(false); }}
                 className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-bold text-ifrn-green bg-green-50 border border-green-100 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
               >
                 <LayoutGrid size={14} /> Tela Inicial
@@ -1194,7 +1194,7 @@ const App: React.FC = () => {
             </div>
 
             <button
-              onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); localStorage.removeItem('currentSystem'); }}
+              onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); sessionStorage.removeItem('currentSystem'); }}
               className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-gray-50 text-gray-600 hover:text-ifrn-green hover:bg-green-50 rounded-lg transition-all text-xs font-bold border border-gray-100"
               title="Tela Inicial"
             >

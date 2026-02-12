@@ -9,7 +9,14 @@ import { Material, MaterialLoan } from "../types-materiais";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    storage: window.sessionStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  }
+});
 
 import { DEFAULT_PASSWORD, SESSION_USER_KEY, LAST_ACTIVE_KEY, SYSTEM_CONFIG_KEY, TIMEOUT_MS } from "../constants";
 
@@ -29,14 +36,14 @@ export const StorageService = {
 
   // System Config
   getConfig: async () => {
-    const cached = localStorage.getItem(SYSTEM_CONFIG_KEY);
+    const cached = sessionStorage.getItem(SYSTEM_CONFIG_KEY) || localStorage.getItem(SYSTEM_CONFIG_KEY);
     const defaultVal = { sector: '', campus: '' };
 
     try {
       const { data, error } = await supabase.from('config').select('*').limit(1).single();
       if (!error && data) {
         const config = { sector: data.sector, campus: data.campus };
-        localStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify(config));
+        sessionStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify(config));
         return config;
       }
     } catch (e) {
@@ -47,6 +54,7 @@ export const StorageService = {
   },
 
   saveConfig: async (sector: string, campus: string) => {
+    sessionStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify({ sector, campus }));
     localStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify({ sector, campus }));
     const { data } = await supabase.from('config').select('id').limit(1);
 
@@ -645,7 +653,7 @@ export const StorageService = {
   setSessionUser: (user: User) => {
     // Agora o Supabase Auth cuida da persistência, 
     // mas mantemos o cache local para velocidade na UI se necessário.
-    localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
   },
 
   getSessionUser: async (): Promise<User | null> => {
@@ -665,19 +673,21 @@ export const StorageService = {
       }
     }
 
-    // 2. Fallback para o localStorage antigo (para transição)
-    const cached = localStorage.getItem(SESSION_USER_KEY);
+    // 2. Fallback para o sessionStorage (para transição)
+    const cached = sessionStorage.getItem(SESSION_USER_KEY);
     return cached ? JSON.parse(cached) : null;
   },
 
   clearSession: async () => {
     await supabase.auth.signOut();
-    localStorage.removeItem(SESSION_USER_KEY);
-    localStorage.removeItem(LAST_ACTIVE_KEY);
+    sessionStorage.removeItem(SESSION_USER_KEY);
+    sessionStorage.removeItem(LAST_ACTIVE_KEY);
+    sessionStorage.removeItem('currentSystem');
+    sessionStorage.removeItem('activeTab');
   },
 
   updateLastActive: () => {
-    localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+    sessionStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
   },
 
   isSessionExpired: async (): Promise<boolean> => {
@@ -694,6 +704,7 @@ export const StorageService = {
     }
     await StorageService.deleteAllUsers(currentAdminId);
     localStorage.clear();
+    sessionStorage.clear();
   },
 
   // Books

@@ -31,8 +31,8 @@ class ErrorBoundary extends React.Component<Props, State> {
     };
 
     private handleGoHome = () => {
-        localStorage.removeItem('currentSystem');
-        localStorage.removeItem('activeTab');
+        sessionStorage.removeItem('currentSystem');
+        sessionStorage.removeItem('activeTab');
         this.setState({ hasError: false, error: null });
         window.location.href = '/';
     };

@@ -1,5 +1,5 @@
 {
-  "name": "Sistema Integrado de Administração Escolar - IFRN",
+  "name": "SIGAE - Sistema de Gestão de Administração Escolar - IFRN",
   "description": "Sistema de gestão de achados e perdidos para o IFRN, focado em controle de inventário, relatos de perdas e gestão de usuários com design minimalista e responsivo.",
   "requestFramePermissions": []
 }

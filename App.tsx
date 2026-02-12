@@ -621,14 +621,14 @@ const App: React.FC = () => {
               <IfrnLogo theme="light" className="scale-110" />
             </div>
             <h1 className="mb-8 tracking-tighter leading-none flex flex-col">
-              <span className="text-7xl font-black text-white">SIAE</span>
+              <span className="text-7xl font-black text-white">SIGAE</span>
               <div className="flex flex-col mt-3">
                 <span className="text-3xl font-black text-green-200 uppercase tracking-tight">Instituto Federal</span>
                 <span className="text-3xl font-medium text-white">Rio Grande do Norte</span>
               </div>
             </h1>
             <p className="text-xl text-green-100 font-medium leading-relaxed max-w-md border-l-4 border-green-400 pl-6">
-              Sistema Integrado de Administração Escolar
+              Sistema de Gestão de Administração Escolar
             </p>
           </div>
         </div>

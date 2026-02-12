@@ -49,7 +49,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
     switch (status) {
       case LockerStatus.AVAILABLE: return 'text-green-600 bg-green-50 border-green-200';
       case LockerStatus.OCCUPIED: return 'text-red-600 bg-red-50 border-red-200';
-      case LockerStatus.MAINTENANCE: return 'text-slate-600 bg-slate-50 border-slate-200';
+      case LockerStatus.MAINTENANCE: return 'text-orange-600 bg-orange-50 border-orange-200';
       default: return 'text-slate-600 bg-slate-50 border-slate-200';
     }
   };
@@ -86,7 +86,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
 
         <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div className="flex items-center gap-6">
-            <div className={`w-28 h-28 rounded-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ${locker.status === LockerStatus.AVAILABLE ? 'bg-green-600 ring-green-100' : locker.status === LockerStatus.OCCUPIED ? 'bg-red-600 ring-red-100' : 'bg-slate-500 ring-slate-100'}`}>
+            <div className={`w-28 h-28 rounded-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ${locker.status === LockerStatus.AVAILABLE ? 'bg-green-600 ring-green-100' : locker.status === LockerStatus.OCCUPIED ? 'bg-red-600 ring-red-100' : 'bg-orange-600 ring-orange-100'}`}>
               {locker.number}
             </div>
             <div className="flex-1">
@@ -184,17 +184,17 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                 </div>
               ) : locker.status === LockerStatus.MAINTENANCE && locker.maintenanceRecord ? (
                 <div className="space-y-4">
-                  <div className="p-4 bg-slate-200/50 border border-slate-300 rounded-xl text-slate-800">
+                  <div className="p-4 bg-orange-100/50 border border-orange-200 rounded-xl text-slate-800">
                     <div className="flex justify-between items-start mb-2">
-                      <p className="text-[10px] font-black text-slate-500 uppercase">Diagnóstico / Motivo</p>
-                      <span className="text-[9px] font-bold text-slate-400">{formatDisplayDate(locker.maintenanceRecord.registeredAt)}</span>
+                      <p className="text-[10px] font-black text-orange-600 uppercase">Diagnóstico / Motivo</p>
+                      <span className="text-[9px] font-bold text-orange-400">{formatDisplayDate(locker.maintenanceRecord.registeredAt)}</span>
                     </div>
                     <p className="text-sm font-bold leading-relaxed">{locker.maintenanceRecord.problem}</p>
                     {locker.maintenanceRecord.registeredBy && (
-                      <p className="mt-2 text-[9px] font-bold text-slate-400 uppercase">Registrado por: {locker.maintenanceRecord.registeredBy}</p>
+                      <p className="mt-2 text-[9px] font-bold text-orange-400 uppercase">Registrado por: {locker.maintenanceRecord.registeredBy}</p>
                     )}
                   </div>
-                  <button onClick={() => onResolveMaintenance(locker.number)} className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">Concluir Manutenção e Liberar</button>
+                  <button onClick={() => onResolveMaintenance(locker.number)} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-4 rounded-xl shadow-lg transition-all uppercase text-xs tracking-widest">Concluir Manutenção e Liberar</button>
                 </div>
               ) : showMaintenanceForm ? (
                 <div className="space-y-4 animate-fade-in">

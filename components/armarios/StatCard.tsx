@@ -6,11 +6,16 @@ interface StatCardProps {
   value: number | string;
   icon: React.ReactNode;
   color: string;
+  onClick?: () => void;
+  isActive?: boolean;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon, color }) => {
+const StatCard: React.FC<StatCardProps> = ({ label, value, icon, color, onClick, isActive }) => {
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+    <div
+      onClick={onClick}
+      className={`bg-white p-6 rounded-2xl shadow-sm border ${isActive ? 'ring-2 ring-slate-400 border-transparent shadow-md scale-[1.02]' : 'border-slate-100'} flex items-center gap-4 hover:shadow-md transition-all ${onClick ? 'cursor-pointer active:scale-95' : ''}`}
+    >
       <div className={`p-4 rounded-xl ${color} text-white`}>
         {icon}
       </div>

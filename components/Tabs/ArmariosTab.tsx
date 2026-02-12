@@ -343,7 +343,12 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
           <button
             key={locker.number}
             onClick={() => handleLockerClick(locker)}
-            className={`aspect-square rounded-xl flex items-center justify-center transition-all transform hover:scale-110 border-2 text-sm font-black ${locker.status === LockerStatus.AVAILABLE ? 'bg-green-50 border-green-200 text-green-700' : locker.status === LockerStatus.OCCUPIED ? 'bg-red-50 border-red-200 text-red-600' : 'bg-slate-100 border-slate-200 text-slate-500'}`}
+            className={`aspect-square rounded-xl flex items-center justify-center transition-all transform hover:scale-110 border-2 text-sm font-black ${locker.status === LockerStatus.AVAILABLE
+                ? 'bg-green-50 border-green-200 text-green-700'
+                : locker.status === LockerStatus.OCCUPIED
+                  ? 'bg-red-50 border-red-200 text-red-600'
+                  : 'bg-orange-50 border-orange-200 text-orange-600'
+              }`}
           >
             {locker.number}
           </button>
@@ -411,10 +416,38 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
         {currentView === 'dashboard' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard label="Total Armários" value={stats.total} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" strokeWidth="2" /></svg>} color="bg-slate-800" />
-              <StatCard label="Vagos" value={stats.available} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" /></svg>} color="bg-green-500" />
-              <StatCard label="Emprestados" value={stats.occupied} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" strokeWidth="2" /></svg>} color="bg-blue-500" />
-              <StatCard label="Manutenção" value={stats.maintenance} icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth="2" /></svg>} color="bg-orange-500" />
+              <StatCard
+                label="Total Armários"
+                value={stats.total}
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" strokeWidth="2" /></svg>}
+                color="bg-slate-800"
+                onClick={() => setStatusFilter('todos')}
+                isActive={statusFilter === 'todos'}
+              />
+              <StatCard
+                label="Vagos"
+                value={stats.available}
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" /></svg>}
+                color="bg-green-500"
+                onClick={() => setStatusFilter('disponivel')}
+                isActive={statusFilter === 'disponivel'}
+              />
+              <StatCard
+                label="Emprestados"
+                value={stats.occupied}
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" strokeWidth="2" /></svg>}
+                color="bg-blue-500"
+                onClick={() => setStatusFilter('ocupado')}
+                isActive={statusFilter === 'ocupado'}
+              />
+              <StatCard
+                label="Manutenção"
+                value={stats.maintenance}
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth="2" /></svg>}
+                color="bg-orange-500"
+                onClick={() => setStatusFilter('manutencao')}
+                isActive={statusFilter === 'manutencao'}
+              />
             </div>
 
             <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100">
@@ -432,17 +465,6 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
                     />
                     <svg className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth="3" /></svg>
                   </div>
-
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="bg-slate-100 border-none rounded-xl px-4 py-2 text-sm font-bold outline-none cursor-pointer"
-                  >
-                    <option value="todos">Todos Status</option>
-                    <option value="disponivel">Disponíveis</option>
-                    <option value="ocupado">Ocupados</option>
-                    <option value="manutencao">Manutenção</option>
-                  </select>
                 </div>
               </div>
 

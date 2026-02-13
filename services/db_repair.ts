@@ -117,4 +117,20 @@ BEGIN
   TRUNCATE TABLE public.items RESTART IDENTITY CASCADE;
 END;
 $$;
+
+-- 10. BUSCA INSENSÍVEL A ACENTOS
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
+CREATE OR REPLACE FUNCTION search_people(search_term text, limit_count int DEFAULT 20)
+RETURNS SETOF public.people AS $$
+BEGIN
+    RETURN QUERY
+    SELECT *
+    FROM public.people
+    WHERE 
+        unaccent(name) ILIKE unaccent('%' || search_term || '%')
+        OR matricula ILIKE '%' || search_term || '%'
+    LIMIT limit_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 `;

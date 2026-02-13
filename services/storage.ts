@@ -264,16 +264,27 @@ export const StorageService = {
   searchPeople: async (query: string, limit: number = 20): Promise<Person[]> => {
     if (!query || query.trim().length < 2) return [];
 
-    const searchTerm = `%${query.trim()}%`;
+    const searchTerm = query.trim();
     const { data, error } = await supabase
-      .from('people')
-      .select('*')
-      .or(`name.ilike.${searchTerm},matricula.ilike.${searchTerm}`)
-      .limit(limit);
+      .rpc('search_people', {
+        search_term: searchTerm,
+        limit_count: limit
+      });
 
     if (error) {
-      console.error("Erro ao pesquisar pessoas:", error);
-      return [];
+      console.error("Erro ao pesquisar pessoas (RPC):", error);
+      // Fallback para busca simples se o RPC falhar (ex: extensão não habilitada ainda)
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('people')
+        .select('*')
+        .or(`name.ilike.%${searchTerm}%,matricula.ilike.%${searchTerm}%`)
+        .limit(limit);
+
+      if (fallbackError) {
+        console.error("Erro no fallback de pesquisa:", fallbackError);
+        return [];
+      }
+      return fallbackData || [];
     }
 
     return data || [];

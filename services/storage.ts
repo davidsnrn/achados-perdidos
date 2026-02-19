@@ -439,7 +439,8 @@ export const StorageService = {
       returnedTo: d.returned_to,
       returnedDate: d.returned_date,
       history: d.history,
-      imageUrl: d.image_url
+      imageUrl: d.image_url,
+      campus_id: d.campus_id
     }));
   },
 
@@ -571,7 +572,8 @@ export const StorageService = {
       email: d.email,
       status: d.status as ReportStatus,
       createdAt: d.created_at,
-      history: d.history
+      history: d.history,
+      campus_id: d.campus_id
     }));
   },
 
@@ -634,7 +636,8 @@ export const StorageService = {
       maintenanceRecord: d.maintenance_record,
       loanHistory: d.loan_history || [],
       maintenanceHistory: d.maintenance_history || [],
-      location: d.location
+      location: d.location,
+      campus_id: d.campus_id
     }));
   },
 
@@ -919,7 +922,8 @@ export const StorageService = {
       status: d.status as BookLoanStatus,
       returnDate: d.return_date,
       observation: d.observation,
-      history: d.history
+      history: d.history,
+      campus_id: d.campus_id
     }));
   },
 
@@ -1051,7 +1055,8 @@ export const StorageService = {
       observation: d.observation,
       status: d.status,
       loanedBy: d.loanedBy,
-      returnedBy: d.returnedBy
+      returnedBy: d.returnedBy,
+      campus_id: d.campus_id
     }));
   },
 

@@ -530,7 +530,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     setItemImage(null);
     setImageBlob(null);
     setZoomImage(null);
-    setSelectedCampusId(item?.campus_id || user.campus_id || '');
+    setSelectedCampusId(item?.campus_id || '');
     setShowEditModal(true);
 
     // Forçar coleta de lixo (garbage collection) se disponível
@@ -881,6 +881,28 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               )}
             </div>
           </div>
+
+          {user.level === UserLevel.ADMIN && (
+            <div className="col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200">
+              <label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
+                <Building2 size={16} /> Câmpus do Item *
+              </label>
+              <select
+                value={selectedCampusId}
+                onChange={e => setSelectedCampusId(e.target.value)}
+                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                required
+              >
+                <option value="">Selecione para qual campus este item pertence...</option>
+                {campuses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-amber-700 mt-2 font-medium">
+                Como administrador, você deve selecionar obrigatoriamente um câmpus.
+              </p>
+            </div>
+          )}
           <div className="col-span-2 pt-4 flex justify-end gap-3">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
             <button type="submit" disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">{isLoading ? 'Salvando...' : 'Salvar'}</button>
@@ -1081,22 +1103,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
 
             {user.level === UserLevel.ADMIN && (
               <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-                <label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
+                <label className="block text-sm font-bold text-amber-900 mb-1 flex items-center gap-2">
                   <Building2 size={16} /> Câmpus do Item
                 </label>
-                <select
-                  value={selectedCampusId}
-                  onChange={e => setSelectedCampusId(e.target.value)}
-                  className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                  required
-                >
-                  <option value="">Selecione um Câmpus...</option>
-                  {campuses.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-amber-700 mt-2 font-medium">
-                  Como administrador, você deve selecionar para qual campus este item pertence.
+                <p className="text-amber-900 font-bold text-lg">
+                  {campuses.find(c => c.id === viewingItem.campus_id)?.name || 'Câmpus não identificado'}
+                </p>
+                <p className="text-[10px] text-amber-700 mt-1 font-medium italic">
+                  Para alterar o câmpus, clique no botão "Editar" abaixo.
                 </p>
               </div>
             )}

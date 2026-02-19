@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { LostReport, ReportStatus, Person, PersonType, User, UserLevel, FoundItem, ItemStatus, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw, Loader2, Link as LinkIcon, Package, X, CornerUpRight, FileText, Plus } from 'lucide-react';
+import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw, Loader2, Link as LinkIcon, Package, X, CornerUpRight, FileText, Plus, Building2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -33,7 +33,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
   const [newWhatsapp, setNewWhatsapp] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>('');
 
   const userString = `${user.name} (${user.matricula})`;
 
@@ -352,7 +352,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
 
           {user.level === UserLevel.ADMIN && (
             <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <label className="block text-xs font-bold text-amber-900 mb-2">Câmpus do Relato</label>
+              <label className="block text-xs font-bold text-amber-900 mb-2">Câmpus do Relato *</label>
               <select
                 value={selectedCampusId}
                 onChange={e => setSelectedCampusId(e.target.value)}
@@ -399,6 +399,17 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
                   {viewingReport.email && <span className="text-gray-400 text-xs">{viewingReport.email}</span>}
                 </div>
               </div>
+
+              {user.level === UserLevel.ADMIN && (
+                <div className="col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200 mt-2">
+                  <span className="block text-amber-900 text-xs uppercase font-bold tracking-wider mb-1 flex items-center gap-2">
+                    <Building2 size={14} /> Câmpus do Relato
+                  </span>
+                  <p className="text-amber-900 font-bold">
+                    {campuses.find(c => c.id === viewingReport.campus_id)?.name || 'Câmpus não identificado'}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* NEW SECTION: Linked Item / Search Item */}

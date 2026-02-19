@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from './services/storage';
-import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan } from './types';
+import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus } from './types';
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
@@ -88,6 +88,10 @@ const App: React.FC = () => {
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialLoans, setMaterialLoans] = useState<MaterialLoan[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
+
+  // Global Admin Campus Switcher
+  const [adminGlobalCampusId, setAdminGlobalCampusId] = useState<string | null>(null);
 
   // Login State
   const [loginMat, setLoginMat] = useState('');
@@ -125,28 +129,74 @@ const App: React.FC = () => {
   };
 
   // Refresh Data Individual Helpers
-  const refreshItems = useCallback(async () => { try { setItems(await StorageService.getItems()); } catch (e) { console.error("Erro items:", e); } }, []);
-  const refreshReports = useCallback(async () => { try { setReports(await StorageService.getReports()); } catch (e) { console.error("Erro reports:", e); } }, []);
-  const refreshPeople = useCallback(async () => { try { setPeople(await StorageService.getPeople()); } catch (e) { console.error("Erro people:", e); } }, []);
-  const refreshUsers = useCallback(async () => { try { setUsers(await StorageService.getUsers()); } catch (e) { console.error("Erro users:", e); } }, []);
-  const refreshBooks = useCallback(async () => { try { setBooks(await StorageService.getBooks()); } catch (e) { console.error("Erro books:", e); } }, []);
-  const refreshBookLoans = useCallback(async () => { try { setBookLoans(await StorageService.getBookLoans()); } catch (e) { console.error("Erro book_loans:", e); } }, []);
-  const refreshLockers = useCallback(async () => { try { setLockers(await StorageService.getLockers()); } catch (e) { console.error("Erro lockers:", e); } }, []);
-  const refreshMaterials = useCallback(async () => { try { setMaterials(await StorageService.getMaterials()); } catch (e) { console.error("Erro materials:", e); } }, []);
-  const refreshMaterialLoans = useCallback(async () => { try { setMaterialLoans(await StorageService.getMaterialLoans()); } catch (e) { console.error("Erro mat_loans:", e); } }, []);
+  const refreshItems = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setItems(await StorageService.getItems(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshReports = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setReports(await StorageService.getReports(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshPeople = useCallback(async () => {
+    // In search-heavy components, we fetch on-demand
+  }, []);
+
+  const refreshUsers = useCallback(async () => {
+    if (!user || user.level !== UserLevel.ADMIN) return;
+    setUsers(await StorageService.getUsers());
+  }, [user]);
+
+  const refreshCampuses = useCallback(async () => {
+    setCampuses(await StorageService.getCampuses());
+  }, []);
+
+  const refreshBooks = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setBooks(await StorageService.getBooks(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshBookLoans = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setBookLoans(await StorageService.getBookLoans(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshLockers = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setLockers(await StorageService.getLockers(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshMaterials = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setMaterials(await StorageService.getMaterials(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshMaterialLoans = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setMaterialLoans(await StorageService.getMaterialLoans(campusId));
+  }, [user, adminGlobalCampusId]);
 
   // Refresh Data Helper (Async) with Timeout
   const refreshData = useCallback(async () => {
     if (!user || isBackdropSleep) return;
     setLoading(true);
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     try {
       // Lazy Loading: Só carrega dados do sistema atual
       // Isso reduz drasticamente o uso de memória no Android
 
-      if (currentSystem === 'achados' || activeTab.startsWith('achados') || activeTab.startsWith('lost')) {
+      if (currentSystem === 'achados' || activeTab === 'achados' || activeTab === 'relatos') {
         const [fetchedItems, fetchedReports] = await Promise.all([
-          StorageService.getItems(),
-          StorageService.getReports()
+          StorageService.getItems(campusId),
+          StorageService.getReports(campusId)
         ]);
         setItems(fetchedItems);
         setReports(fetchedReports);
@@ -160,7 +210,7 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'armarios' || activeTab === 'armarios') {
         const [fetchedLockers] = await Promise.all([
-          StorageService.getLockers()
+          StorageService.getLockers(campusId)
         ]);
         setLockers(fetchedLockers);
         // Note: People is searched on-demand for new loans
@@ -173,8 +223,8 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'livros' || activeTab.startsWith('livros')) {
         const [fetchedBooks, fetchedLoans] = await Promise.all([
-          StorageService.getBooks(),
-          StorageService.getBookLoans()
+          StorageService.getBooks(campusId),
+          StorageService.getBookLoans(campusId)
         ]);
         setBooks(fetchedBooks);
         setBookLoans(fetchedLoans);
@@ -187,8 +237,8 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'materiais' || activeTab === 'materiais') {
         const [fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
-          StorageService.getMaterials(),
-          StorageService.getMaterialLoans()
+          StorageService.getMaterials(campusId),
+          StorageService.getMaterialLoans(campusId)
         ]);
         setMaterials(fetchedMaterials);
         setMaterialLoans(fetchedMaterialLoans);
@@ -200,25 +250,18 @@ const App: React.FC = () => {
         setBooks([]);
         setBookLoans([]);
       } else if (activeTab === 'pessoas') {
-        // Here we might still want to fetch all or implement pagination for this tab specifically
-        setPeople(await StorageService.getAllPeople());
+        // Option: Filter people by campus too?
+        // Let's decide if people should be global or by campus.
+        // Usually students belong to one campus.
+        const allPeople = await StorageService.getAllPeople();
+        setPeople(campusId ? allPeople.filter(p => p.campus_id === campusId) : allPeople);
       } else if (activeTab === 'usuarios') {
-        setUsers(await StorageService.getUsers());
-      } else if (activeTab === 'nadaconsta') {
-        // No Nada Consta, ainda precisamos de alguns dados, 
-        // mas a busca de alunos agora será via searchPeople (StorageService)
-        // então não carregamos 'people' aqui.
-        const [fetchedItems, fetchedBooks, fetchedMaterials, fetchedLockers] = await Promise.all([
-          StorageService.getItems(),
-          StorageService.getBookLoans(),
-          StorageService.getMaterialLoans(),
-          StorageService.getLockers()
+        const [fetchedUsers, fetchedCampuses] = await Promise.all([
+          StorageService.getUsers(),
+          StorageService.getCampuses()
         ]);
-        setItems(fetchedItems);
-        setBookLoans(fetchedBooks);
-        setMaterialLoans(fetchedMaterials);
-        setLockers(fetchedLockers);
-        setPeople([]); // Será buscado sob demanda no campo de busca do Nada Consta
+        setUsers(fetchedUsers);
+        setCampuses(fetchedCampuses);
       }
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
@@ -325,7 +368,8 @@ const App: React.FC = () => {
       }
     };
     initSession();
-  }, [loadSystemConfig]);
+    refreshCampuses();
+  }, [loadSystemConfig, refreshCampuses]);
 
   // Handle module order
   useEffect(() => {
@@ -397,7 +441,7 @@ const App: React.FC = () => {
     if (!isBackdropSleep && user) { // Only refresh if not in backdrop sleep and user is logged in
       refreshData();
     }
-  }, [currentSystem, activeTab, refreshData, isBackdropSleep, user]);
+  }, [currentSystem, activeTab, refreshData, isBackdropSleep, user, adminGlobalCampusId]);
 
   // 3. Inactivity Timer Effect
   useEffect(() => {
@@ -1186,8 +1230,28 @@ const App: React.FC = () => {
             <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-gray-500 hover:text-ifrn-green p-1 transition-colors"><Menu size={24} /></button>
             <IfrnLogo sector={systemSector} campus={systemCampus} className="flex-shrink-0" />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-1 justify-center md:justify-start max-w-sm ml-4">
+            {user.level === UserLevel.ADMIN && (
+              <div className="relative group w-full hidden md:block">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
+                  <Building2 size={16} />
+                </div>
+                <select
+                  value={adminGlobalCampusId || ''}
+                  onChange={e => setAdminGlobalCampusId(e.target.value || null)}
+                  className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold rounded-lg pl-9 pr-3 py-1.5 focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all cursor-pointer hover:bg-white"
+                >
+                  <option value="">🌎 Todos os Câmpus</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             {loading && <Loader2 className="animate-spin text-ifrn-green" size={20} />}
+          </div>
+
+          <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
               <div className="text-sm font-bold text-gray-800 flex items-center justify-end gap-2">{user.name}<button onClick={() => setShowPasswordModal(true)} className="text-gray-400 hover:text-ifrn-green p-1 rounded-full transition-colors" title="Alterar Minha Senha"><KeyRound size={14} /></button></div>
               <div className="text-xs text-gray-500">{user.level} • {user.matricula}</div>
@@ -1240,15 +1304,15 @@ const App: React.FC = () => {
               <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
             ) : (
               <React.Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>}>
-                {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} />}
-                {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} />}
-                {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} />}
-                {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} />}
-                {activeTab === 'livros-catalogo' && <BooksTab books={books} bookLoans={bookLoans} onUpdate={refreshData} user={user} />}
-                {activeTab === 'livros-emprestimos' && <BookLoansTab loans={bookLoans} books={books} people={people} onUpdate={refreshData} user={user} />}
-                {activeTab === 'nadaconsta' && <NadaConstaTab people={people} lockers={lockers} bookLoans={bookLoans} materialLoans={materialLoans} />}
-                {activeTab === 'materiais' && <MaterialManagementTab materials={materials} loans={materialLoans} people={people} user={user} onUpdate={refreshData} />}
-                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} />}
+                {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} campuses={campuses} />}
+                {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} campuses={campuses} />}
+                {activeTab === 'livros-catalogo' && <BooksTab books={books} bookLoans={bookLoans} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'livros-emprestimos' && <BookLoansTab loans={bookLoans} books={books} people={people} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'nadaconsta' && <NadaConstaTab people={people} lockers={lockers} bookLoans={bookLoans} materialLoans={materialLoans} user={user} campuses={campuses} />}
+                {activeTab === 'materiais' && <MaterialManagementTab materials={materials} loans={materialLoans} people={people} user={user} onUpdate={refreshData} campuses={campuses} />}
+                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} campuses={campuses} />}
               </React.Suspense>
             )}
           </ErrorBoundary>
@@ -1418,7 +1482,7 @@ const App: React.FC = () => {
           <div className="pt-4 flex justify-end gap-3 border-t"><button type="button" onClick={() => { setConfirmAction(null); setConfirmationPassword(''); }} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button><button type="submit" disabled={loading} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold flex items-center gap-2">{loading ? '...' : <><AlertTriangle size={18} /> Confirmar Exclusão</>}</button></div>
         </form>
       </Modal>
-    </div>
+    </div >
   );
 };
 

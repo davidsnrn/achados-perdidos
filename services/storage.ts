@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel } from "../types";
-import { Locker, LockerStatus } from "../types-armarios";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus } from "../types";
+import { Locker, LockerStatus, LoanData } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
 // Configuração do Supabase
@@ -65,6 +65,27 @@ export const StorageService = {
     }
   },
 
+  // Campuses
+  getCampuses: async (): Promise<Campus[]> => {
+    const { data, error } = await supabase.from('campuses').select('*').order('name', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveCampus: async (campus: Partial<Campus>) => {
+    const { error } = await supabase.from('campuses').upsert({
+      id: campus.id || undefined,
+      name: campus.name,
+      slug: campus.slug
+    });
+    if (error) throw error;
+  },
+
+  deleteCampus: async (id: string) => {
+    const { error } = await supabase.from('campuses').delete().eq('id', id);
+    if (error) throw error;
+  },
+
   // Users
   getUsers: async (): Promise<User[]> => {
     let allData: User[] = [];
@@ -117,6 +138,7 @@ export const StorageService = {
         matricula: user.matricula,
         name: user.name,
         level: user.level,
+        campus_id: user.campus_id,
         permissions: user.permissions,
         password: finalPassword,
         logs: updatedLogs,
@@ -137,6 +159,7 @@ export const StorageService = {
         name: user.name,
         password: hashedPassword,
         level: user.level,
+        campus_id: user.campus_id,
         permissions: user.permissions,
         moduleOrder: user.moduleOrder || [],
         logs: [logMessage],
@@ -312,7 +335,8 @@ export const StorageService = {
       id: person.id,
       matricula: person.matricula,
       name: person.name,
-      type: person.type
+      type: person.type,
+      campus_id: person.campus_id
     });
 
     if (error) throw error;
@@ -351,17 +375,23 @@ export const StorageService = {
   },
 
   // Items
-  getItems: async (): Promise<FoundItem[]> => {
+  getItems: async (campusId?: string): Promise<FoundItem[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('items')
         .select('*')
         .order('id', { ascending: false })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Erro ao buscar itens:", error);
@@ -416,7 +446,8 @@ export const StorageService = {
       returned_to: item.returnedTo,
       returned_date: item.returnedDate,
       history: history,
-      image_url: item.imageUrl
+      image_url: item.imageUrl,
+      campus_id: item.campus_id
     };
 
     let error = null;
@@ -482,17 +513,23 @@ export const StorageService = {
   },
 
   // Reports
-  getReports: async (): Promise<LostReport[]> => {
+  getReports: async (campusId?: string): Promise<LostReport[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('reports')
         .select('*')
         .order('created_at', { ascending: false })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) break;
 
@@ -525,7 +562,8 @@ export const StorageService = {
       email: report.email,
       status: report.status,
       created_at: report.createdAt,
-      history: report.history
+      history: report.history,
+      campus_id: report.campus_id
     };
     const { error } = await supabase.from('reports').upsert(payload);
     if (error) throw error;
@@ -540,17 +578,23 @@ export const StorageService = {
   },
 
   // Lockers
-  getLockers: async (): Promise<Locker[]> => {
+  getLockers: async (campusId?: string): Promise<Locker[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('lockers')
         .select('*')
         .order('number', { ascending: true })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) break;
 
@@ -579,7 +623,8 @@ export const StorageService = {
       maintenance_record: l.maintenanceRecord || null,
       loan_history: l.loanHistory || [],
       maintenance_history: l.maintenanceHistory || [],
-      location: l.location
+      location: l.location,
+      campus_id: l.campus_id
     }));
 
     const BATCH_SIZE = 50;
@@ -597,7 +642,8 @@ export const StorageService = {
       maintenance_record: locker.maintenanceRecord || null,
       loan_history: locker.loanHistory,
       maintenance_history: locker.maintenanceHistory,
-      location: locker.location
+      location: locker.location,
+      campus_id: locker.campus_id
     };
     const { error } = await supabase.from('lockers').update(payload).eq('number', locker.number);
     if (error) throw error;
@@ -653,6 +699,54 @@ export const StorageService = {
         }
       } else {
         console.warn("[LOGIN] Credenciais inválidas ou erro no Auth:", authError?.message);
+
+        // 3. Fallback: Verificação direta na tabela 'users' (Legado/Migração)
+        console.log(`[LOGIN] Tentando fallback local para: ${cleanMatricula}`);
+        const { data: localUser, error: localError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('matricula', cleanMatricula)
+          .single();
+
+        if (!localError && localUser) {
+          const hashed = await StorageService.hashPassword(cleanPass);
+          if (hashed === localUser.password) {
+            console.log("[LOGIN] Sucesso via login local (legado). Migrando...");
+
+            // Tenta migrar para o Supabase Auth em segundo plano
+            try {
+              const { error: signUpError } = await supabase.auth.signUp({
+                email,
+                password: cleanPass,
+                options: {
+                  data: {
+                    matricula: localUser.matricula,
+                    name: localUser.name
+                  }
+                }
+              });
+
+              if (signUpError) {
+                console.warn("[LOGIN] Erro na migração Auth:", signUpError.message);
+              } else {
+                console.log("[LOGIN] Migração automática concluída.");
+              }
+            } catch (migreEx) {
+              console.warn("[LOGIN] Falha silenciosa na migração:", migreEx);
+            }
+
+            const dateStr = new Date().toLocaleString('pt-BR');
+            const updatedAccessLogs = [dateStr, ...(localUser.access_logs || [])].slice(0, 10);
+
+            await supabase.from('users').update({
+              access_logs: updatedAccessLogs
+            }).eq('id', localUser.id);
+
+            return { ...localUser, access_logs: updatedAccessLogs } as User;
+          } else {
+            console.warn("[LOGIN] Senha incorreta no fallback local.");
+          }
+        }
       }
     } catch (authEx) {
       console.error("[LOGIN] Exceção crítica no Auth:", authEx);
@@ -719,17 +813,23 @@ export const StorageService = {
   },
 
   // Books
-  getBooks: async (): Promise<Book[]> => {
+  getBooks: async (campusId?: string): Promise<Book[]> => {
     let allData: Book[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('books')
         .select('*')
         .order('title', { ascending: true })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) break;
       if (!data || data.length === 0) break;
@@ -749,7 +849,8 @@ export const StorageService = {
       title: book.title,
       series: book.series,
       publisher: book.publisher,
-      quantity: book.quantity
+      quantity: book.quantity,
+      campus_id: book.campus_id
     });
 
     if (error) throw error;
@@ -760,17 +861,23 @@ export const StorageService = {
   },
 
   // Book Loans
-  getBookLoans: async (): Promise<BookLoan[]> => {
+  getBookLoans: async (campusId?: string): Promise<BookLoan[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('book_loans')
         .select('*')
         .order('loan_date', { ascending: false })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) break;
       if (!data || data.length === 0) break;
@@ -804,24 +911,31 @@ export const StorageService = {
       status: loan.status,
       return_date: loan.returnDate,
       observation: loan.observation,
-      history: loan.history || []
+      history: loan.history || [],
+      campus_id: loan.campus_id
     };
     const { error } = await supabase.from('book_loans').upsert(payload);
     if (error) throw error;
   },
 
   // Materials
-  getMaterials: async (): Promise<Material[]> => {
+  getMaterials: async (campusId?: string): Promise<Material[]> => {
     let allData: Material[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('materials')
         .select('*')
         .order('name', { ascending: true })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) break;
       if (!data || data.length === 0) break;
@@ -837,7 +951,8 @@ export const StorageService = {
       id: material.id,
       code: material.code,
       name: material.name,
-      createdAt: material.createdAt
+      createdAt: material.createdAt,
+      campus_id: material.campus_id
     });
 
     if (error) throw error;
@@ -875,17 +990,23 @@ export const StorageService = {
   },
 
   // Material Loans
-  getMaterialLoans: async (): Promise<MaterialLoan[]> => {
+  getMaterialLoans: async (campusId?: string): Promise<MaterialLoan[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('material_loans')
         .select('*')
         .order('loanDate', { ascending: false })
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) break;
       if (!data || data.length === 0) break;
@@ -925,7 +1046,8 @@ export const StorageService = {
       observation: loan.observation,
       status: loan.status,
       loanedBy: loan.loanedBy,
-      returnedBy: loan.returnedBy
+      returnedBy: loan.returnedBy,
+      campus_id: loan.campus_id
     };
     const { error } = await supabase.from('material_loans').upsert(payload);
     if (error) throw error;

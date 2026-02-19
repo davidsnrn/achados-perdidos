@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
-import { Person, User } from '../../types';
+import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -11,9 +11,10 @@ interface Props {
     people: Person[];
     user: User;
     onUpdate: () => void;
+    campuses: Campus[];
 }
 
-export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], people = [], user, onUpdate }) => {
+export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], people = [], user, onUpdate, campuses }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
@@ -48,6 +49,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
 
     const stats = useMemo(() => {
         const active = loans.filter(l => l.status === 'ACTIVE').length;
@@ -146,7 +148,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             id: editingMaterial?.id || Math.random().toString(36).substr(2, 9),
             code: code,
             name: formMaterialName.trim(),
-            createdAt: editingMaterial?.createdAt || new Date().toISOString()
+            createdAt: editingMaterial?.createdAt || new Date().toISOString(),
+            campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
         };
 
         try {
@@ -185,7 +188,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             loanDate: new Date().toISOString(),
             observation: observation.trim() || undefined,
             status: 'ACTIVE' as const,
-            loanedBy: `${user.name} (${user.matricula})`
+            loanedBy: `${user.name} (${user.matricula})`,
+            campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id
         }));
 
         try {
@@ -625,6 +629,22 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             placeholder="Ex: Adaptador HDMI"
                         />
                     </div>
+                    {user.level === UserLevel.ADMIN && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                            <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Material</label>
+                            <select
+                                value={selectedCampusId}
+                                onChange={e => setSelectedCampusId(e.target.value)}
+                                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                required
+                            >
+                                <option value="">Selecione um Câmpus...</option>
+                                {campuses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                     <div className="flex gap-3 pt-4 border-t">
                         <button type="button" onClick={() => setShowMaterialForm(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl">Cancelar</button>
                         <button type="submit" className="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700">Cadastrar</button>
@@ -778,16 +798,22 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                         </div>
                     )}
 
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Observação Geral</label>
-                        <textarea
-                            value={observation}
-                            onChange={e => setObservation(e.target.value)}
-                            className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500"
-                            placeholder="Alguma observação importante sobre este empréstimo?"
-                            rows={3}
-                        />
-                    </div>
+                    {user.level === UserLevel.ADMIN && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Câmpus do Empréstimo</label>
+                            <select
+                                value={selectedCampusId}
+                                onChange={e => setSelectedCampusId(e.target.value)}
+                                className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 bg-white"
+                                required
+                            >
+                                <option value="">Selecione um Câmpus...</option>
+                                {campuses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     <div className="flex gap-3 pt-4 border-t">
                         <button type="button" onClick={() => {

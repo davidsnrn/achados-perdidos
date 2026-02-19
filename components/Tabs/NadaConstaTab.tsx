@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Locker, LoanData } from '../../types-armarios';
-import { Person, BookLoan, BookLoanStatus } from '../../types';
+import { Person, BookLoan, BookLoanStatus, User, Campus, UserLevel } from '../../types';
 import { MaterialLoan } from '../../types-materiais';
-import { Search, ExternalLink, CheckCircle, AlertTriangle, User, BookOpen, Key, Info, History, Hash, Loader2 } from 'lucide-react';
+import { Search, ExternalLink, CheckCircle, AlertTriangle, User as UserIcon, BookOpen, Key, Info, History, Hash, Loader2 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 
 interface NadaConstaTabProps {
@@ -10,6 +10,8 @@ interface NadaConstaTabProps {
     lockers: Locker[];
     bookLoans: BookLoan[];
     materialLoans: MaterialLoan[];
+    user: User;
+    campuses: Campus[];
 }
 
 export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
@@ -17,6 +19,8 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
     lockers,
     bookLoans,
     materialLoans,
+    user,
+    campuses
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -59,13 +63,19 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     results = await StorageService.searchPeople(rawSearch, 20);
                 }
 
+                // Se não for admin, filtrar pessoas pelo campus do usuário
+                if (user.level !== UserLevel.ADMIN) {
+                    results = results.filter(p => p.campus_id === user.campus_id);
+                }
+
                 setSearchResults(results.map(p => ({
                     registration: p.matricula,
                     name: p.name,
                     course: '',
                     situation: 'Matriculado',
                     email: '',
-                    id: p.id // Incluído para getStudentPendencies
+                    id: p.id,
+                    campus_id: p.campus_id
                 })));
             } catch (err) {
                 console.error("Erro na busca Nada Consta:", err);
@@ -78,7 +88,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
-    const getStudentPendencies = (registration: string, studentId?: string) => {
+    const getStudentPendencies = (registration: string, studentId?: string, studentCampusId?: string) => {
         const activeLockerLoans: LoanData[] = [];
         const activeBookLoans: BookLoan[] = [];
         const activeMaterialLoans: MaterialLoan[] = [];
@@ -149,7 +159,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
 
             <div className="space-y-6">
                 {searchResults.map(student => {
-                    const { activeLockerLoans, activeBookLoans, activeMaterialLoans } = getStudentPendencies(student.registration, student.id);
+                    const { activeLockerLoans, activeBookLoans, activeMaterialLoans } = getStudentPendencies(student.registration, student.id, student.campus_id);
 
                     const realActiveBookLoans = activeBookLoans.filter(loan =>
                         loan.books.some(b => b.status === 'Ativo' || !b.status)
@@ -167,6 +177,12 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                                             <Info size={14} className="text-slate-300" />
                                             Matrícula: <span className="text-slate-600">{student.registration}</span>
                                         </span>
+                                        {student.campus_id && (
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Info size={14} className="text-slate-300" />
+                                                Câmpus: <span className="text-slate-600">{campuses.find(c => c.id === student.campus_id)?.name || '---'}</span>
+                                            </span>
+                                        )}
                                         <a
                                             href={`https://suap.ifrn.edu.br/edu/aluno/${student.registration}/?tab=nada_consta`}
                                             target="_blank"
@@ -302,7 +318,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 {searchTerm.length >= 2 && searchResults.length === 0 && (
                     <div className="text-center py-20 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <User size={40} className="text-slate-200" />
+                            <UserIcon size={40} className="text-slate-200" />
                         </div>
                         <p className="text-slate-400 font-black uppercase tracking-[0.2em]">Nenhum aluno encontrado</p>
                         <p className="text-slate-300 text-xs font-bold mt-2">Verifique se a matrícula ou nome estão corretos.</p>

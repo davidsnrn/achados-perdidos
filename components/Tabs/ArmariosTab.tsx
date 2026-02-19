@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Locker, ViewType, LockerStatus, LoanData, MaintenanceData, Student } from '../../types-armarios';
-import { Person, PersonType, UserLevel } from '../../types';
+import { Person, PersonType, UserLevel, Campus } from '../../types';
 import { TOTAL_LOCKERS, generateInitialLockers } from '../../constants-armarios';
 import { StorageService } from '../../services/storage';
 import StatCard from '../armarios/StatCard';
@@ -18,9 +18,10 @@ interface ArmariosTabProps {
   people: Person[];
   lockers: Locker[];
   onUpdate: () => void;
+  campuses: Campus[];
 }
 
-export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers, onUpdate }) => {
+export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers, onUpdate, campuses }) => {
   const [loading, setLoading] = useState(false);
 
   const students = useMemo(() => {
@@ -40,6 +41,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [lockerSearch, setLockerSearch] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(user?.campus_id || '');
 
   const isAdmin = user?.level === UserLevel.ADMIN;
 
@@ -60,8 +62,12 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
     if (!isAdmin) return;
     setLoading(true);
     try {
-      // O upsert no StorageService já lida com a substituição de dados se o número for igual
-      await StorageService.saveLockers(newData);
+      // Adicionar campus_id a cada armário importado
+      const lockersWithCampus = newData.map(l => ({
+        ...l,
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+      }));
+      await StorageService.saveLockers(lockersWithCampus);
 
       // Atualiza o estado local mesclando ou recarregando
       onUpdate();
@@ -77,7 +83,11 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
     if (!isAdmin) return;
     setLoading(true);
     try {
-      await StorageService.saveLockers(newLockers);
+      const lockersWithCampus = newLockers.map(l => ({
+        ...l,
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+      }));
+      await StorageService.saveLockers(lockersWithCampus);
       onUpdate();
       setCurrentView('dashboard');
       alert(`${newLockers.length} armários processados com sucesso!`);
@@ -104,7 +114,12 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
     const updatedLocker = lockers.find(l => l.number === loan.lockerNumber);
     if (!updatedLocker) return;
 
-    const newLockerData = { ...updatedLocker, status: LockerStatus.OCCUPIED, currentLoan: loan };
+    const newLockerData = {
+      ...updatedLocker,
+      status: LockerStatus.OCCUPIED,
+      currentLoan: loan,
+      campus_id: updatedLocker.campus_id || (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id)
+    };
 
     setLoading(true);
     try {
@@ -344,10 +359,10 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
             key={locker.number}
             onClick={() => handleLockerClick(locker)}
             className={`aspect-square rounded-xl flex items-center justify-center transition-all transform hover:scale-110 border-2 text-sm font-black ${locker.status === LockerStatus.AVAILABLE
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : locker.status === LockerStatus.OCCUPIED
-                  ? 'bg-red-50 border-red-200 text-red-600'
-                  : 'bg-orange-50 border-orange-200 text-orange-600'
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : locker.status === LockerStatus.OCCUPIED
+                ? 'bg-red-50 border-red-200 text-red-600'
+                : 'bg-orange-50 border-orange-200 text-orange-600'
               }`}
           >
             {locker.number}
@@ -509,6 +524,22 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
 
         {currentView === 'config' && isAdmin && (
           <div className="space-y-12">
+            {isAdmin && (
+              <div className="bg-amber-50 p-6 rounded-[1.5rem] border border-amber-200">
+                <label className="block text-sm font-bold text-amber-900 mb-2 uppercase tracking-wider">Câmpus Alvo da Configuração</label>
+                <select
+                  value={selectedCampusId}
+                  onChange={e => setSelectedCampusId(e.target.value)}
+                  className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                  required
+                >
+                  <option value="">Selecione um Câmpus...</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
             <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
             <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />

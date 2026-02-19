@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, User, BookLoan, BookLoanStatus } from '../../types';
+import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Plus, Search, Book as BookIcon, Trash2, Pencil, Loader2, Download, Upload, FileText, CheckCircle, X, ArrowRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -9,9 +9,10 @@ interface Props {
     bookLoans: BookLoan[];
     onUpdate: () => void;
     user: User;
+    campuses: Campus[];
 }
 
-export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user }) => {
+export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses }) => {
     const [search, setSearch] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -25,6 +26,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user }) 
     const [series, setSeries] = useState('');
     const [publisher, setPublisher] = useState('');
     const [quantity, setQuantity] = useState('Indeterminado');
+    const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
 
     const getBorrowedCount = (bookId: string) => {
         return bookLoans.reduce((total, loan) => {
@@ -71,7 +73,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user }) 
                 title,
                 series,
                 publisher,
-                quantity
+                quantity,
+                campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
             });
             onUpdate();
             setShowModal(false);
@@ -293,8 +296,24 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user }) 
                             </div>
                         </div>
                     </div>
+                    {user.level === UserLevel.ADMIN && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4">
+                            <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Livro</label>
+                            <select
+                                value={selectedCampusId}
+                                onChange={e => setSelectedCampusId(e.target.value)}
+                                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                required
+                            >
+                                <option value="">Selecione um Câmpus...</option>
+                                {campuses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
-                    <div className="pt-4 flex justify-end gap-3 border-t">
+                    <div className="pt-4 flex justify-end gap-3 border-t mt-6">
                         <button
                             type="button"
                             onClick={() => setShowModal(false)}
@@ -315,3 +334,4 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user }) 
         </div>
     );
 };
+

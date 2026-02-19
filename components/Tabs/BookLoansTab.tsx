@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, BookLoan, BookLoanStatus, Person, User } from '../../types';
+import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -10,9 +10,10 @@ interface Props {
     people: Person[];
     onUpdate: () => void;
     user: User;
+    campuses: Campus[];
 }
 
-export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, user }) => {
+export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, user, campuses }) => {
     const [activeSubTab, setActiveSubTab] = useState<'current' | 'history'>('current');
     const [showLoanModal, setShowLoanModal] = useState(false);
     const [showPartialReturnModal, setShowPartialReturnModal] = useState(false);
@@ -28,6 +29,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [observation, setObservation] = useState('');
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
+    const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -101,6 +103,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                     loanDate: now,
                     status: BookLoanStatus.ACTIVE,
                     observation,
+                    campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id,
                     history: [{
                         action: `Empréstimo inicial: ${selectedBooks.map(b => `${b.title} (#${b.code || 'S/C'})`).join(', ')}`,
                         user: user.name,
@@ -424,6 +427,24 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                             onChange={e => setObservation(e.target.value)}
                         />
                     </div>
+
+                    {user.level === UserLevel.ADMIN && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4">
+                            <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Empréstimo</label>
+                            <select
+                                value={selectedCampusId}
+                                onChange={e => setSelectedCampusId(e.target.value)}
+                                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                required
+                            >
+                                <option value="">Selecione um Câmpus...</option>
+                                {campuses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                            <p className="text-[10px] text-amber-700 mt-1 italic">Administrador: Isto definirá em qual campus este empréstimo será contabilizado.</p>
+                        </div>
+                    )}
 
                     <div className="pt-6 flex justify-end gap-3 border-t">
                         <button

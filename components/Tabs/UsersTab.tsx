@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, UserLevel, Person } from '../../types';
+import { User, UserLevel, Person, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { DEFAULT_PASSWORD } from '../../constants';
 import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History } from 'lucide-react';
@@ -10,9 +10,10 @@ interface Props {
   currentUser: User;
   onUpdate: () => void;
   people: Person[];
+  campuses: Campus[];
 }
 
-export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people }) => {
+export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people, campuses }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +39,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
     usuarios: true,
     materiais: true,
   });
+  const [selectedCampusId, setSelectedCampusId] = useState<string>('');
 
   const userString = `${currentUser.name} (${currentUser.matricula})`;
 
@@ -119,6 +121,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       name: formName,
       password: password,
       level: formData.get('level') as UserLevel,
+      campus_id: selectedCampusId || undefined,
       permissions: permissions,
       logs: selectedUser ? selectedUser.logs : [],
       access_logs: selectedUser ? selectedUser.access_logs : [],
@@ -198,10 +201,13 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
         usuarios: user.permissions?.usuarios ?? (user.level !== UserLevel.STANDARD),
         materiais: user.permissions?.materiais ?? (user.level !== UserLevel.STANDARD),
       });
+      setSelectedCampusId(user.campus_id || '');
     } else {
       setFormName('');
       setFormMatricula('');
       setSelectedPerson(null);
+      // Pre-select current user's campus if they are ADVANCED
+      setSelectedCampusId(currentUser.level === UserLevel.ADVANCED ? (currentUser.campus_id || '') : '');
       setPermissions({
         achados: false,
         armarios: false,
@@ -276,6 +282,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               <tr>
                 <th className="p-4 whitespace-nowrap">Matrícula (Login)</th>
                 <th className="p-4 whitespace-nowrap">Nome</th>
+                <th className="p-4 whitespace-nowrap">Câmpus</th>
                 <th className="p-4 whitespace-nowrap">Nível de Acesso</th>
                 <th className="p-4 whitespace-nowrap text-center">Módulos Liberados</th>
                 <th className="p-4 text-center whitespace-nowrap">Ações</th>
@@ -293,6 +300,11 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                   <td className="p-4 font-medium flex items-center gap-2 whitespace-nowrap">
                     {u.id === currentUser.id && <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Você</span>}
                     {u.name}
+                  </td>
+                  <td className="p-4 whitespace-nowrap">
+                    <span className="text-xs text-gray-500 font-medium">
+                      {campuses.find(c => c.id === u.campus_id)?.name || 'Sem Câmpus'}
+                    </span>
                   </td>
                   <td className="p-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${u.level === UserLevel.ADMIN ? 'bg-red-100 text-red-800' :
@@ -443,6 +455,25 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
             {!selectedUser && (<p className="text-xs text-gray-500 bg-gray-50 p-2 rounded"><span className="font-bold">Nota:</span> A senha inicial será definida automaticamente como <strong>{DEFAULT_PASSWORD}</strong>.</p>)}
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus</label>
+              <select
+                value={selectedCampusId}
+                onChange={e => setSelectedCampusId(e.target.value)}
+                className={`w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none ${currentUser.level === UserLevel.ADVANCED ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+                required
+                disabled={currentUser.level === UserLevel.ADVANCED && !!currentUser.campus_id}
+              >
+                <option value="">Selecione um Câmpus...</option>
+                {campuses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {currentUser.level === UserLevel.ADVANCED && currentUser.campus_id && (
+                <p className="text-[10px] text-amber-600 mt-1 italic">Nota: Como usuário Avançado, você só pode gerenciar usuários do seu próprio câmpus.</p>
+              )}
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nível de Acesso</label>
               <select
                 name="level"
@@ -527,6 +558,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               <div><span className="block text-xs font-bold text-gray-400 uppercase">Nome</span><p className="font-bold text-gray-800">{selectedUser.name}</p></div>
               <div><span className="block text-xs font-bold text-gray-400 uppercase">Matrícula</span><p className="font-mono">{selectedUser.matricula}</p></div>
               <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Nível</span><span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${selectedUser.level === UserLevel.ADMIN ? 'bg-red-100 text-red-800' : selectedUser.level === UserLevel.ADVANCED ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>{selectedUser.level}</span></div>
+              <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Câmpus</span><p className="font-medium text-gray-700">{campuses.find(c => c.id === selectedUser.campus_id)?.name || 'Sem Câmpus'}</p></div>
             </div>
             <div>
               <h4 className="flex items-center gap-2 font-bold text-gray-700 mb-3 border-b pb-2"><FileText size={18} /> Log de Auditoria</h4>

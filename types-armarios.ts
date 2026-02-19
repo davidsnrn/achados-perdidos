@@ -27,6 +27,7 @@ export interface LoanData {
   returnTime?: string; // Hora da Devolução
   returnedBy?: string; // Quem realizou a devolução
   observation: string; // Observação
+  campus_id?: string;
 }
 
 export interface MaintenanceData {
@@ -46,6 +47,7 @@ export interface Locker {
   loanHistory: LoanData[];
   maintenanceHistory: MaintenanceData[];
   location: string;
+  campus_id?: string;
 }
 
 export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search' | 'reports' | 'management' | 'export' | 'config';

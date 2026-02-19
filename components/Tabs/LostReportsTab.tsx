@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { LostReport, ReportStatus, Person, PersonType, User, UserLevel, FoundItem, ItemStatus } from '../../types';
+import { LostReport, ReportStatus, Person, PersonType, User, UserLevel, FoundItem, ItemStatus, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw, Loader2, Link as LinkIcon, Package, X, CornerUpRight, FileText, Plus } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -10,9 +10,10 @@ interface Props {
   items: FoundItem[];
   onUpdate: () => void;
   user: User;
+  campuses: Campus[];
 }
 
-export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpdate, user }) => {
+export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpdate, user, campuses }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -32,6 +33,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
   const [newWhatsapp, setNewWhatsapp] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
 
   const userString = `${user.name} (${user.matricula})`;
 
@@ -83,6 +85,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
       email: newEmail,
       status: ReportStatus.OPEN,
       createdAt: new Date().toISOString(),
+      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
       history: [{ date: new Date().toISOString(), note: 'Relato de perda criado.', user: userString }]
     };
 
@@ -346,6 +349,23 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
               />
             </div>
           </div>
+
+          {user.level === UserLevel.ADMIN && (
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+              <label className="block text-xs font-bold text-amber-900 mb-2">Câmpus do Relato</label>
+              <select
+                value={selectedCampusId}
+                onChange={e => setSelectedCampusId(e.target.value)}
+                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                required
+              >
+                <option value="">Selecione um Câmpus...</option>
+                {campuses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-4 border-t">
             <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors uppercase text-xs tracking-widest">Cancelar</button>

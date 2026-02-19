@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Person, PersonType, User, UserLevel } from '../../types';
+import { Person, PersonType, User, UserLevel, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -8,9 +8,10 @@ interface Props {
   people: Person[];
   onUpdate: () => void;
   user: User;
+  campuses: Campus[];
 }
 
-export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
+export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses }) => {
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
   const [filterType, setFilterType] = useState<PersonType | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
@@ -33,6 +34,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
   // Edit State
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
 
   // Delete All State
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
@@ -104,7 +106,8 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
         id: Math.random().toString(36).substr(2, 9),
         name: toTitleCase(name),
         matricula,
-        type
+        type,
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
       });
       setName('');
       setMatricula('');
@@ -129,7 +132,8 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
       ...editingPerson,
       name: toTitleCase(rawName),
       matricula: formData.get('matricula') as string,
-      type: formData.get('type') as PersonType
+      type: formData.get('type') as PersonType,
+      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
     };
 
     try {
@@ -242,7 +246,8 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
             id: Math.random().toString(36).substr(2, 9),
             name: cleanName,
             matricula: cleanMatricula,
-            type: detectedType
+            type: detectedType,
+            campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
           });
 
           existingMatriculas.add(cleanMatricula);
@@ -431,6 +436,24 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user }) => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {user.level === UserLevel.ADMIN && (
+          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex flex-col md:flex-row items-center gap-4">
+            <label className="text-xs font-bold text-amber-800 uppercase whitespace-nowrap">Câmpus Alvo</label>
+            <select
+              value={selectedCampusId}
+              onChange={e => setSelectedCampusId(e.target.value)}
+              className="w-full border rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-amber-500 outline-none"
+              required
+            >
+              <option value="">Selecione um Câmpus...</option>
+              {campuses.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-amber-700 italic">Administrador: Esta seleção define o campus para cadastros manuais e importações CSV.</p>
           </div>
         )}
       </div>

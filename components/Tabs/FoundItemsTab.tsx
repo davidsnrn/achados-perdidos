@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel } from '../../types';
+import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share, Building2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { ImageViewer } from '../ui/ImageViewer';
 
@@ -12,12 +12,13 @@ interface Props {
   onUpdate: () => void;
   user: User;
   onToggleSleep?: (sleep: boolean) => void;
+  campuses: Campus[];
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
 type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound' | 'returnedDate';
 
-export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep }) => {
+export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep, campuses }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
@@ -52,6 +53,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+  const [selectedCampusId, setSelectedCampusId] = useState<string>('');
 
   const handleShareImage = async (base64Data: string, fileName: string) => {
     try {
@@ -373,7 +375,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         dateFound: dateFoundInput,
         dateRegistered: editingItem ? editingItem.dateRegistered : new Date().toISOString(),
         status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
-        imageUrl: finalImageUrl || undefined
+        imageUrl: finalImageUrl || undefined,
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
       };
 
       await StorageService.saveItem(newItem, isNew ? 'Novo item cadastrado.' : 'Detalhes do item editados.', userString);
@@ -527,6 +530,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     setItemImage(null);
     setImageBlob(null);
     setZoomImage(null);
+    setSelectedCampusId(item?.campus_id || user.campus_id || '');
     setShowEditModal(true);
 
     // Forçar coleta de lixo (garbage collection) se disponível
@@ -1074,6 +1078,28 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 )}
               </div>
             </div>
+
+            {user.level === UserLevel.ADMIN && (
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                <label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
+                  <Building2 size={16} /> Câmpus do Item
+                </label>
+                <select
+                  value={selectedCampusId}
+                  onChange={e => setSelectedCampusId(e.target.value)}
+                  className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  required
+                >
+                  <option value="">Selecione um Câmpus...</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-amber-700 mt-2 font-medium">
+                  Como administrador, você deve selecionar para qual campus este item pertence.
+                </p>
+              </div>
+            )}
 
             <div className="flex flex-col md:flex-row justify-between pt-4 border-t border-gray-100 mt-4 gap-4">
               <div className="flex gap-2 flex-wrap">

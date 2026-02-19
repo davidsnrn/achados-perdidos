@@ -22,12 +22,20 @@ export enum PersonType {
   EXTERNAL = 'Externo'
 }
 
+export interface Campus {
+  id: string;
+  name: string;
+  slug: string;
+  created_at?: string;
+}
+
 export interface User {
   id: string;
   matricula: string;
   name: string;
-  password?: string; // In a real app, never store plain text
+  password?: string;
   level: UserLevel;
+  campus_id?: string;
   permissions?: {
     achados?: boolean;
     armarios?: boolean;
@@ -47,6 +55,7 @@ export interface Person {
   matricula: string;
   name: string;
   type: PersonType;
+  campus_id?: string;
 }
 
 export interface ItemHistory {
@@ -68,6 +77,7 @@ export interface FoundItem {
   returnedDate?: string; // Data de devolução OU descarte
   history?: ItemHistory[]; // Log de auditoria do objeto
   imageUrl?: string; // Base64 or URL
+  campus_id?: string;
 }
 
 export interface LostReport {
@@ -80,6 +90,7 @@ export interface LostReport {
   status: ReportStatus;
   createdAt: string;
   history: { date: string; note: string; user?: string }[];
+  campus_id?: string;
 }
 
 export interface AuditLog {
@@ -104,6 +115,7 @@ export interface Book {
   series: string;
   publisher: string;
   quantity: string;
+  campus_id?: string;
 }
 
 export interface BookLoan {
@@ -130,4 +142,5 @@ export interface BookLoan {
     user: string;
     timestamp: string;
   }[];
+  campus_id?: string;
 }

@@ -86,17 +86,22 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  // Users
-  getUsers: async (): Promise<User[]> => {
+  getUsers: async (campusId?: string): Promise<User[]> => {
     let allData: User[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('users')
         .select('*')
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching users:', error);
@@ -259,16 +264,22 @@ export const StorageService = {
   },
 
   // People
-  getAllPeople: async (): Promise<Person[]> => {
+  getAllPeople: async (campusId?: string): Promise<Person[]> => {
     let allData: Person[] = [];
     let from = 0;
     const limit = 1000;
 
     while (true) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('people')
         .select('*')
         .range(from, from + limit - 1);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error("Erro ao buscar pessoas:", error);
@@ -284,24 +295,36 @@ export const StorageService = {
     return allData;
   },
 
-  searchPeople: async (query: string, limit: number = 20): Promise<Person[]> => {
+  searchPeople: async (query: string, limit: number = 20, campusId?: string): Promise<Person[]> => {
     if (!query || query.trim().length < 2) return [];
 
     const searchTerm = query.trim();
-    const { data, error } = await supabase
+    let rpcQuery = supabase
       .rpc('search_people', {
         search_term: searchTerm,
         limit_count: limit
       });
 
+    if (campusId) {
+      rpcQuery = rpcQuery.eq('campus_id', campusId);
+    }
+
+    const { data, error } = await rpcQuery;
+
     if (error) {
       console.error("Erro ao pesquisar pessoas (RPC):", error);
-      // Fallback para busca simples se o RPC falhar (ex: extensão não habilitada ainda)
-      const { data: fallbackData, error: fallbackError } = await supabase
+      // Fallback para busca simples se o RPC falhar
+      let fallbackQuery = supabase
         .from('people')
         .select('*')
         .or(`name.ilike.%${searchTerm}%,matricula.ilike.%${searchTerm}%`)
         .limit(limit);
+
+      if (campusId) {
+        fallbackQuery = fallbackQuery.eq('campus_id', campusId);
+      }
+
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
 
       if (fallbackError) {
         console.error("Erro no fallback de pesquisa:", fallbackError);

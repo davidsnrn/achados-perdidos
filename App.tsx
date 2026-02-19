@@ -147,8 +147,9 @@ const App: React.FC = () => {
 
   const refreshUsers = useCallback(async () => {
     if (!user || user.level !== UserLevel.ADMIN) return;
-    setUsers(await StorageService.getUsers());
-  }, [user]);
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setUsers(await StorageService.getUsers(campusId));
+  }, [user, adminGlobalCampusId]);
 
   const refreshCampuses = useCallback(async () => {
     setCampuses(await StorageService.getCampuses());
@@ -250,14 +251,10 @@ const App: React.FC = () => {
         setBooks([]);
         setBookLoans([]);
       } else if (activeTab === 'pessoas') {
-        // Option: Filter people by campus too?
-        // Let's decide if people should be global or by campus.
-        // Usually students belong to one campus.
-        const allPeople = await StorageService.getAllPeople();
-        setPeople(campusId ? allPeople.filter(p => p.campus_id === campusId) : allPeople);
+        setPeople(await StorageService.getAllPeople(campusId));
       } else if (activeTab === 'usuarios') {
         const [fetchedUsers, fetchedCampuses] = await Promise.all([
-          StorageService.getUsers(),
+          StorageService.getUsers(campusId),
           StorageService.getCampuses()
         ]);
         setUsers(fetchedUsers);
@@ -268,7 +265,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, currentSystem, activeTab]);
+  }, [user, currentSystem, activeTab, adminGlobalCampusId]);
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});

@@ -282,7 +282,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               <tr>
                 <th className="p-4 whitespace-nowrap">Matrícula (Login)</th>
                 <th className="p-4 whitespace-nowrap">Nome</th>
-                <th className="p-4 whitespace-nowrap">Câmpus</th>
+                {currentUser.level === UserLevel.ADMIN && <th className="p-4 whitespace-nowrap">Câmpus</th>}
                 <th className="p-4 whitespace-nowrap">Nível de Acesso</th>
                 <th className="p-4 whitespace-nowrap text-center">Módulos Liberados</th>
                 <th className="p-4 text-center whitespace-nowrap">Ações</th>
@@ -301,11 +301,13 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                     {u.id === currentUser.id && <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Você</span>}
                     {u.name}
                   </td>
-                  <td className="p-4 whitespace-nowrap">
-                    <span className="text-xs text-gray-500 font-medium">
-                      {campuses.find(c => c.id === u.campus_id)?.name || 'Sem Câmpus'}
-                    </span>
-                  </td>
+                  {currentUser.level === UserLevel.ADMIN && (
+                    <td className="p-4 whitespace-nowrap">
+                      <span className="text-xs text-gray-500 font-medium">
+                        {campuses.find(c => c.id === u.campus_id)?.name || 'Sem Câmpus'}
+                      </span>
+                    </td>
+                  )}
                   <td className="p-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded text-xs font-bold ${u.level === UserLevel.ADMIN ? 'bg-red-100 text-red-800' :
                       u.level === UserLevel.ADVANCED ? 'bg-purple-100 text-purple-800' :
@@ -454,24 +456,23 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
 
             {!selectedUser && (<p className="text-xs text-gray-500 bg-gray-50 p-2 rounded"><span className="font-bold">Nota:</span> A senha inicial será definida automaticamente como <strong>{DEFAULT_PASSWORD}</strong>.</p>)}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus</label>
-              <select
-                value={selectedCampusId}
-                onChange={e => setSelectedCampusId(e.target.value)}
-                className={`w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none ${currentUser.level === UserLevel.ADVANCED ? 'bg-gray-50 cursor-not-allowed' : ''}`}
-                required
-                disabled={currentUser.level === UserLevel.ADVANCED && !!currentUser.campus_id}
-              >
-                <option value="">Selecione um Câmpus...</option>
-                {campuses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {currentUser.level === UserLevel.ADVANCED && currentUser.campus_id && (
-                <p className="text-[10px] text-amber-600 mt-1 italic">Nota: Como usuário Avançado, você só pode gerenciar usuários do seu próprio câmpus.</p>
-              )}
-            </div>
+            {currentUser.level === UserLevel.ADMIN && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus <span className="text-red-500">*</span></label>
+                <select
+                  value={selectedCampusId}
+                  onChange={e => setSelectedCampusId(e.target.value)}
+                  className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
+                  required
+                >
+                  <option value="">Selecione um Câmpus...</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nível de Acesso</label>

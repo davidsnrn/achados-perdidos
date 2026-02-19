@@ -491,6 +491,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
                   <th className="p-3 whitespace-nowrap">Matrícula</th>
                   <th className="p-3 whitespace-nowrap">Nome</th>
                   <th className="p-3 whitespace-nowrap">Vínculo</th>
+                  {user.level === UserLevel.ADMIN && <th className="p-3 whitespace-nowrap">Câmpus</th>}
                   <th className="p-3 w-10 text-center whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
@@ -508,6 +509,11 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
                         {p.type}
                       </span>
                     </td>
+                    {user.level === UserLevel.ADMIN && (
+                      <td className="p-3 text-xs text-gray-500 whitespace-nowrap">
+                        {campuses.find(c => c.id === p.campus_id)?.name || '-'}
+                      </td>
+                    )}
                     <td className="p-3 text-center whitespace-nowrap">
                       <div className="flex justify-center gap-2">
                         <button className="text-gray-400 hover:text-gray-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1">
@@ -563,6 +569,22 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Matrícula</label><input name="matricula" required defaultValue={editingPerson?.matricula} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Vínculo</label><select name="type" defaultValue={editingPerson?.type} className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"><option value={PersonType.STUDENT}>Aluno</option><option value={PersonType.SERVER}>Servidor</option><option value={PersonType.EXTERNAL}>Externo</option></select></div>
           </div>
+          {user.level === UserLevel.ADMIN && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus</label>
+              <select
+                value={selectedCampusId}
+                onChange={e => setSelectedCampusId(e.target.value)}
+                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
+                required
+              >
+                <option value="">Selecione um Câmpus...</option>
+                {campuses.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="pt-4 flex justify-end gap-3 border-t mt-4">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
             <button type="submit" disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">{isLoading ? 'Salvando...' : 'Salvar Alterações'}</button>

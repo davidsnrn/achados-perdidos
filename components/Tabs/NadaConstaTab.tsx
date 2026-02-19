@@ -177,7 +177,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                                             <Info size={14} className="text-slate-300" />
                                             Matrícula: <span className="text-slate-600">{student.registration}</span>
                                         </span>
-                                        {student.campus_id && (
+                                        {user.level === UserLevel.ADMIN && student.campus_id && (
                                             <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                                 <Info size={14} className="text-slate-300" />
                                                 Câmpus: <span className="text-slate-600">{campuses.find(c => c.id === student.campus_id)?.name || '---'}</span>

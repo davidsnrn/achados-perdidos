@@ -34,36 +34,6 @@ export const StorageService = {
     }
   },
 
-  // System Config
-  getConfig: async () => {
-    const cached = sessionStorage.getItem(SYSTEM_CONFIG_KEY) || localStorage.getItem(SYSTEM_CONFIG_KEY);
-    const defaultVal = { sector: '', campus: '' };
-
-    try {
-      const { data, error } = await supabase.from('config').select('*').limit(1).single();
-      if (!error && data) {
-        const config = { sector: data.sector, campus: data.campus };
-        sessionStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify(config));
-        return config;
-      }
-    } catch (e) {
-      console.warn("DB Config error, using cache/default");
-    }
-
-    return cached ? JSON.parse(cached) : defaultVal;
-  },
-
-  saveConfig: async (sector: string, campus: string) => {
-    sessionStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify({ sector, campus }));
-    localStorage.setItem(SYSTEM_CONFIG_KEY, JSON.stringify({ sector, campus }));
-    const { data } = await supabase.from('config').select('id').limit(1);
-
-    if (data && data.length > 0) {
-      await supabase.from('config').update({ sector, campus }).eq('id', data[0].id);
-    } else {
-      await supabase.from('config').insert({ sector, campus });
-    }
-  },
 
   // Campuses
   getCampuses: async (): Promise<Campus[]> => {

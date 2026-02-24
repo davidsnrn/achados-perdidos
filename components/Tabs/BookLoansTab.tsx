@@ -30,6 +30,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
     const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+    const [selectedSeries, setSelectedSeries] = useState<string>('');
+    const [isBookInputFocused, setIsBookInputFocused] = useState(false);
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -201,11 +203,18 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     }).slice(0, 5);
 
     const filteredBooks = books.filter(b => {
-        if (!bookSearch.trim()) return true;
+        // Filter by series if selected
+        if (selectedSeries && b.series !== selectedSeries) return false;
+
+        // Show all books (up to limit) if search is empty but input is focused
+        if (!bookSearch.trim()) return isBookInputFocused;
+
         const searchTerms = normalizeText(bookSearch).split(/\s+/).filter(t => t.length > 0);
         const bookText = normalizeText(`${b.title} ${b.code}`);
         return searchTerms.every(term => bookText.includes(term));
     }).slice(0, 5);
+
+    const uniqueSeries = Array.from(new Set(books.map(b => b.series).filter(Boolean))).sort();
 
     return (
         <div className="space-y-6">
@@ -376,17 +385,33 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                     {/* Book Selection */}
                     <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">2. Adicionar Livros</label>
-                        <div className="relative">
-                            <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                            <input
-                                type="text"
-                                placeholder="Buscar livro pelo título ou código..."
-                                className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                                value={bookSearch}
-                                onChange={e => setBookSearch(e.target.value)}
-                            />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="md:col-span-2 relative">
+                                <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar livro pelo título ou código..."
+                                    className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                                    value={bookSearch}
+                                    onChange={e => setBookSearch(e.target.value)}
+                                    onFocus={() => setIsBookInputFocused(true)}
+                                    onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
+                                />
+                            </div>
+                            <div className="relative">
+                                <select
+                                    value={selectedSeries}
+                                    onChange={e => setSelectedSeries(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none appearance-none bg-white font-medium text-gray-700"
+                                >
+                                    <option value="">Todas as Séries</option>
+                                    {uniqueSeries.map(series => (
+                                        <option key={series} value={series}>{series}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
-                        {bookSearch && (
+                        {(bookSearch || isBookInputFocused) && (
                             <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100">
                                 {filteredBooks.map(b => (
                                     <button

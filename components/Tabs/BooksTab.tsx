@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Book as BookIcon, Trash2, Pencil, Loader2, Download, Upload, FileText, CheckCircle, X, ArrowRight } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -96,8 +96,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
     const normalizeText = (text: string) => {
         return text
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
             .toLowerCase();
     };
 
@@ -107,6 +107,139 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
         return searchTerms.every(term => bookText.includes(term));
     });
+
+    const availableBooksForReport = filteredBooks.filter(book => {
+        if (book.quantity === 'Indeterminado') return true;
+        const available = parseInt(book.quantity) - getBorrowedCount(book.id);
+        return available > 0;
+    });
+
+    const campusName = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id))?.name || 'Câmpus Principal';
+
+    const handlePrint = () => {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('pt-BR');
+        const timeStr = now.toLocaleTimeString('pt-BR');
+
+        const rows = availableBooksForReport.map(book => {
+            const available = book.quantity === 'Indeterminado'
+                ? '∞'
+                : String(parseInt(book.quantity) - getBorrowedCount(book.id));
+            return `
+                <tr>
+                    <td>${book.edition || ''}</td>
+                    <td class="mono">${book.code || ''}</td>
+                    <td class="bold">${book.title || ''}</td>
+                    <td>${book.series || ''}</td>
+                    <td>${book.publisher || ''}</td>
+                    <td class="center bold">${available}</td>
+                </tr>`;
+        }).join('');
+
+        const logoSvg = `<svg viewBox="0 0 110 150" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="16" fill="#CB161D"/>
+            <rect x="38" y="0" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="76" y="0" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="0" y="38" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="38" y="38" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="0" y="76" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="38" y="76" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="76" y="76" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="0" y="114" width="32" height="32" rx="6" fill="#78BE20"/>
+            <rect x="38" y="114" width="32" height="32" rx="6" fill="#78BE20"/>
+        </svg>`;
+
+        const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Inventário - IFRN</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 10px; color: #111; padding: 12mm; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2.5px solid #309B41; padding-bottom: 16px; margin-bottom: 20px; }
+    .logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo-text { display: flex; flex-direction: column; }
+    .logo-text .name { font-size: 18px; font-weight: 900; color: #1a1a1a; }
+    .logo-text .sub { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #555; }
+    .title-area { text-align: right; }
+    .title-area h1 { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.03em; color: #1a1a1a; }
+    .title-area p { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: #777; margin-top: 3px; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .meta-box { background: #f8f8f8; border: 1px solid #eee; border-radius: 8px; padding: 10px 14px; }
+    .meta-box .label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #aaa; margin-bottom: 3px; }
+    .meta-box .value { font-size: 10px; font-weight: 900; color: #333; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    thead tr { border-bottom: 2px solid #111; }
+    thead th { padding: 8px 6px; font-weight: 900; text-transform: uppercase; font-size: 8px; letter-spacing: 0.05em; text-align: left; }
+    tbody tr { border-bottom: 1px solid #e5e5e5; }
+    tbody td { padding: 7px 6px; color: #333; font-style: italic; }
+    td.bold { font-weight: 900; font-style: normal; color: #111; }
+    td.mono { font-family: monospace; font-size: 8px; font-style: normal; }
+    td.center { text-align: center; font-style: normal; }
+    .footer { margin-top: 50px; padding-top: 20px; border-top: 1px dashed #ccc; text-align: center; }
+    .signature-line { display: inline-block; width: 220px; border-top: 1px solid #777; padding-top: 6px; margin-top: 50px; }
+    .signature-line p { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #555; }
+    .footer-note { font-size: 8px; color: #aaa; margin-top: 20px; font-style: italic; }
+</style>
+</head>
+<body>
+<div class="header">
+    <div class="logo-area">
+        ${logoSvg}
+        <div class="logo-text">
+            <span class="name">IFRN</span>
+            <span class="sub">PNLD - ${campusName}</span>
+        </div>
+    </div>
+    <div class="title-area">
+        <h1>Relatório de Inventário</h1>
+        <p>Acervo de Livros Disponíveis</p>
+    </div>
+</div>
+<div class="meta">
+    <div class="meta-box">
+        <div class="label">Emitido em</div>
+        <div class="value">${dateStr} às ${timeStr}</div>
+    </div>
+    <div class="meta-box">
+        <div class="label">Operador</div>
+        <div class="value">${user.name}</div>
+    </div>
+</div>
+<table>
+    <thead>
+        <tr>
+            <th>Edição</th>
+            <th>Código</th>
+            <th>Título</th>
+            <th>Série</th>
+            <th>Editora</th>
+            <th style="text-align:center">Disponível</th>
+        </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+</table>
+<div class="footer">
+    <div class="signature-line"><p>Assinatura Responsável</p></div>
+    <p class="footer-note">Este documento foi gerado eletronicamente pelo SIGAE - IFRN em ${dateStr}</p>
+</div>
+</body>
+</html>`;
+
+        const popup = window.open('', '_blank', 'width=900,height=700');
+        if (!popup) {
+            alert('Permita popups para gerar o relatório.');
+            return;
+        }
+        popup.document.write(html);
+        popup.document.close();
+        popup.onload = () => {
+            popup.focus();
+            popup.print();
+            popup.close();
+        };
+    };
 
     return (
         <div className="space-y-6">
@@ -124,6 +257,12 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
+                    <button
+                        onClick={handlePrint}
+                        className="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-2 transition-colors font-medium text-sm shadow-sm"
+                    >
+                        <Printer size={18} /> Gerar Relatório
+                    </button>
                     <button
                         onClick={() => { resetForm(); setShowModal(true); }}
                         className="px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen flex items-center gap-2 transition-colors font-medium text-sm"
@@ -152,7 +291,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         <tbody className="divide-y divide-gray-100">
                             {filteredBooks.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="p-8 text-center text-gray-400">Nenhum livro cadastrado.</td>
+                                    <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro cadastrado.</td>
                                 </tr>
                             ) : (
                                 filteredBooks.map(book => (
@@ -296,6 +435,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             </div>
                         </div>
                     </div>
+
                     {user.level === UserLevel.ADMIN && (
                         <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4">
                             <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Livro</label>
@@ -334,4 +474,3 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         </div>
     );
 };
-

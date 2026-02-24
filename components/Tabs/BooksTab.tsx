@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, Camera } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { BarcodeScanner } from '../ui/BarcodeScanner';
 
 interface Props {
     books: Book[];
@@ -17,6 +18,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
+    const [showScanner, setShowScanner] = useState(false);
 
     // Form State
     const [edition, setEdition] = useState('');
@@ -136,6 +138,17 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 </tr>`;
         }).join('');
 
+        const totalInStock = books.reduce((acc, book) => {
+            if (book.quantity === 'Indeterminado') return acc;
+            return acc + (parseInt(book.quantity) || 0);
+        }, 0);
+
+        const totalBorrowed = books.reduce((acc, book) => {
+            return acc + getBorrowedCount(book.id);
+        }, 0);
+
+        const totalAvailable = totalInStock - totalBorrowed;
+
         const logoSvg = `<svg viewBox="0 0 110 150" width="48" height="48" xmlns="http://www.w3.org/2000/svg">
             <circle cx="16" cy="16" r="16" fill="#CB161D"/>
             <rect x="38" y="0" width="32" height="32" rx="6" fill="#78BE20"/>
@@ -169,6 +182,10 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     .meta-box { background: #f8f8f8; border: 1px solid #eee; border-radius: 8px; padding: 10px 14px; }
     .meta-box .label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #aaa; margin-bottom: 3px; }
     .meta-box .value { font-size: 10px; font-weight: 900; color: #333; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+    .summary-item { background: #fff; border: 1px solid #111; padding: 12px; text-align: center; border-radius: 4px; }
+    .summary-item .label { font-size: 8px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; color: #555; }
+    .summary-item .value { font-size: 14px; font-weight: 900; color: #111; }
     table { width: 100%; border-collapse: collapse; font-size: 9px; }
     thead tr { border-bottom: 2px solid #111; }
     thead th { padding: 8px 6px; font-weight: 900; text-transform: uppercase; font-size: 8px; letter-spacing: 0.05em; text-align: left; }
@@ -205,6 +222,20 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     <div class="meta-box">
         <div class="label">Operador</div>
         <div class="value">${user.name}</div>
+    </div>
+</div>
+<div class="summary-grid">
+    <div class="summary-item">
+        <div class="label">Total em Estoque</div>
+        <div class="value">${totalInStock}</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">Total Emprestado</div>
+        <div class="value">${totalBorrowed}</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">Disponível p/ Empréstimo</div>
+        <div class="value" style="color: #309B41">${totalAvailable}</div>
     </div>
 </div>
 <table>
@@ -365,13 +396,23 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Código</label>
-                            <input
-                                required
-                                value={code}
-                                onChange={e => setCode(e.target.value)}
-                                className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green"
-                                placeholder="Código único..."
-                            />
+                            <div className="relative">
+                                <input
+                                    required
+                                    value={code}
+                                    onChange={e => setCode(e.target.value)}
+                                    className="w-full border rounded-lg p-2.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green"
+                                    placeholder="Código único..."
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowScanner(true)}
+                                    className="absolute right-2 top-1.5 p-1 text-gray-400 hover:text-ifrn-green hover:bg-ifrn-green/10 rounded transition-colors"
+                                    title="Escanear código de barras"
+                                >
+                                    <Camera size={20} />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -475,6 +516,16 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     </div>
                 </form>
             </Modal>
+
+            {showScanner && (
+                <BarcodeScanner
+                    onScan={(decodedText) => {
+                        setCode(decodedText);
+                        setShowScanner(false);
+                    }}
+                    onClose={() => setShowScanner(false)}
+                />
+            )}
         </div>
     );
 };

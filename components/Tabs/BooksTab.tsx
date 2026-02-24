@@ -227,17 +227,21 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 </body>
 </html>`;
 
-        const popup = window.open('', '_blank', 'width=900,height=700');
-        if (!popup) {
-            alert('Permita popups para gerar o relatório.');
-            return;
-        }
-        popup.document.write(html);
-        popup.document.close();
-        popup.onload = () => {
-            popup.focus();
-            popup.print();
-            popup.close();
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+        document.body.appendChild(iframe);
+
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!doc) { document.body.removeChild(iframe); return; }
+
+        doc.open();
+        doc.write(html);
+        doc.close();
+
+        iframe.onload = () => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            setTimeout(() => document.body.removeChild(iframe), 1000);
         };
     };
 

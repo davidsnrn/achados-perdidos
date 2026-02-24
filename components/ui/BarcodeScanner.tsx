@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { X, Camera, RotateCw } from 'lucide-react';
+import Quagga from '@ericblade/quagga2';
+import { X, Camera, RotateCw, Lightbulb, Zap } from 'lucide-react';
 
 interface Props {
     onScan: (decodedText: string) => void;
@@ -10,168 +10,235 @@ interface Props {
 export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose }) => {
     const [error, setError] = useState<string | null>(null);
     const [isReady, setIsReady] = useState(false);
-    const [lastScanned, setLastScanned] = useState<string | null>(null);
-    const html5QrCode = useRef<Html5Qrcode | null>(null);
+    const [torch, setTorch] = useState(false);
+    const scannerRef = useRef<HTMLDivElement>(null);
     const onScanRef = useRef(onScan);
     onScanRef.current = onScan;
 
-    useEffect(() => {
-        html5QrCode.current = new Html5Qrcode("reader", {
-            verbose: false,
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.QR_CODE,
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.CODE_39,
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.UPC_A,
-                Html5QrcodeSupportedFormats.UPC_E,
-                Html5QrcodeSupportedFormats.ITF,
-                Html5QrcodeSupportedFormats.CODABAR
-            ]
-        });
+    const stopScanner = useCallback(async () => {
+        try {
+            await Quagga.stop();
+        } catch (e) {
+            console.error("Error stopping Quagga:", e);
+        }
+    }, []);
 
-        const startScanner = async () => {
+    useEffect(() => {
+        if (!scannerRef.current) return;
+
+        const initScanner = async () => {
             try {
-                await html5QrCode.current?.start(
-                    {
-                        facingMode: "environment"
+                // Determine resolution - PNLD codes need more detail
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+                await Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: scannerRef.current,
+                        constraints: {
+                            width: { min: 1280 },
+                            height: { min: 720 },
+                            facingMode: "environment",
+                            aspectRatio: { min: 1, max: 2 }
+                        },
                     },
-                    {
-                        fps: 30,
-                        // NO qrbox - scan the ENTIRE camera frame
-                        // This is critical for dense/long 1D barcodes like PNLD Code 128
-                        disableFlip: false,
+                    locator: {
+                        patchSize: "medium",
+                        halfSample: false // Don't downsample - we need the high density!
                     },
-                    (decodedText) => {
-                        onScanRef.current(decodedText);
+                    numOfWorkers: navigator.hardwareConcurrency || 4,
+                    decoder: {
+                        readers: [
+                            "code_128_reader",
+                            "ean_reader",
+                            "ean_8_reader",
+                            "code_39_reader",
+                            "upc_reader",
+                            "upc_e_reader"
+                        ],
+                        multiple: false
                     },
-                    () => {
-                        // silent scan failure per frame
+                    locate: true,
+                    frequency: 20 // Higher frequency for faster scanning
+                }, (err) => {
+                    if (err) {
+                        setError("Erro ao iniciar o leitor: " + err.message);
+                        return;
                     }
-                );
-                setIsReady(true);
+                    Quagga.start();
+                    setIsReady(true);
+                });
+
+                Quagga.onDetected((data) => {
+                    if (data.codeResult && data.codeResult.code) {
+                        // Sophisticated validation: PNLD codes usually have a certain pattern
+                        // but we'll accept any valid Code 128 for now.
+                        onScanRef.current(data.codeResult.code);
+                    }
+                });
+
             } catch (err) {
-                setError("Não foi possível acessar a câmera. Verifique as permissões do navegador.");
+                setError("Não foi possível acessar a câmera. Verifique as permissões.");
                 console.error(err);
             }
         };
 
-        const timer = setTimeout(startScanner, 300);
+        const timer = setTimeout(initScanner, 300);
 
         return () => {
             clearTimeout(timer);
-            if (html5QrCode.current && html5QrCode.current.isScanning) {
-                html5QrCode.current.stop().catch(e => console.error("Error stopping scanner", e));
-            }
+            // Quagga.stop is called via the useCallback or directly
+            Quagga.offDetected();
+            Quagga.stop().catch(() => { });
         };
     }, []);
 
-    const handleStop = useCallback(async () => {
-        if (html5QrCode.current && html5QrCode.current.isScanning) {
-            await html5QrCode.current.stop();
+    const toggleTorch = async () => {
+        const track = Quagga.CameraAccess.getActiveTrack();
+        if (track && typeof track.getCapabilities === 'function') {
+            const capabilities = track.getCapabilities();
+            if (capabilities.torch) {
+                try {
+                    await track.applyConstraints({
+                        advanced: [{ torch: !torch } as any]
+                    });
+                    setTorch(!torch);
+                } catch (e) {
+                    console.warn("Torch toggle failed:", e);
+                }
+            }
         }
+    };
+
+    const handleClose = async () => {
+        await stopScanner();
         onClose();
-    }, [onClose]);
+    };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-            <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
-                {/* Header */}
-                <div className="p-5 border-b flex justify-between items-center bg-white">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-ifrn-green/10 rounded-xl text-ifrn-green">
-                            <Camera size={24} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-500">
+            <div className="relative w-full max-w-xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/20">
+                {/* Modern Header */}
+                <div className="p-6 border-b flex justify-between items-center bg-white/80 backdrop-blur-sm sticky top-0 z-20">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-ifrn-green/10 rounded-2xl text-ifrn-green shadow-inner">
+                            <Zap size={24} className="animate-pulse" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-gray-800">Escanear Código</h3>
-                            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Aponte para o código de barras</p>
+                            <h3 className="font-black text-gray-900 text-lg tracking-tight">Leitor Ultra-Sensível</h3>
+                            <p className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em]">Tecnologia Scanner 1D Ativa</p>
                         </div>
                     </div>
-                    <button
-                        onClick={handleStop}
-                        className="p-2 hover:bg-gray-100 rounded-full transition-colors group"
-                        type="button"
-                    >
-                        <X size={24} className="text-gray-400 group-hover:text-gray-600" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={toggleTorch}
+                            className={`p-3 rounded-full transition-all ${torch ? 'bg-amber-100 text-amber-600 shadow-lg' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                            title="Ligar Lanterna"
+                        >
+                            <Lightbulb size={24} fill={torch ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            onClick={handleClose}
+                            className="p-3 bg-gray-100 hover:bg-red-50 hover:text-red-500 text-gray-400 rounded-full transition-all group"
+                        >
+                            <X size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+                        </button>
+                    </div>
                 </div>
 
-                {/* Camera View */}
-                <div className="relative bg-gray-900 overflow-hidden" style={{ height: '50vh', maxHeight: '400px' }}>
+                {/* Main Scanning Viewport */}
+                <div className="relative bg-black overflow-hidden group" style={{ height: '60vh', maxHeight: '500px' }}>
                     {!isReady && !error && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-white gap-3 z-10">
-                            <RotateCw className="animate-spin text-ifrn-green" size={32} />
-                            <span className="text-sm font-medium">Iniciando câmera...</span>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-white gap-4 z-10 bg-black/40">
+                            <div className="relative">
+                                <div className="w-16 h-16 border-4 border-ifrn-green/20 rounded-full"></div>
+                                <div className="w-16 h-16 border-4 border-ifrn-green rounded-full border-t-transparent animate-spin absolute top-0 left-0"></div>
+                            </div>
+                            <span className="text-sm font-bold tracking-widest uppercase opacity-80">Calibrando Sensores...</span>
                         </div>
                     )}
 
                     {error && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 bg-red-50 text-red-600 gap-3 z-10">
-                            <p className="font-bold text-sm leading-tight">{error}</p>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-white z-10 gap-6">
+                            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center">
+                                <X size={40} strokeWidth={3} />
+                            </div>
+                            <div className="space-y-2">
+                                <p className="font-black text-gray-900 text-xl">Ops! Algo deu errado.</p>
+                                <p className="text-gray-500 text-sm font-medium px-4">{error}</p>
+                            </div>
                             <button
                                 onClick={() => window.location.reload()}
-                                className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold text-xs"
-                                type="button"
+                                className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95"
                             >
-                                Tentar Novamente
+                                Recarregar Página
                             </button>
                         </div>
                     )}
 
-                    <div id="reader" className="w-full h-full" style={{ minHeight: '300px' }}></div>
+                    <div
+                        ref={scannerRef}
+                        id="reader"
+                        className="w-full h-full [&>video]:object-cover [&>canvas]:hidden [&>video]:absolute [&>video]:inset-0 [&>video]:w-full [&>video]:h-full"
+                    ></div>
 
-                    {/* Scan guide overlay - visual only, does NOT restrict scan area */}
+                    {/* HUD / Scanning UI Overlay */}
                     {isReady && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                            {/* Horizontal guide line */}
-                            <div className="w-[85%] relative">
-                                <div className="h-[100px] border-2 border-ifrn-green/70 rounded-lg relative">
-                                    <div className="absolute top-1/2 left-2 right-2 h-0.5 bg-red-500/60 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-scan-line"></div>
+                            {/* Smart Viewfinder */}
+                            <div className="w-[90%] h-[180px] border-2 border-white/30 rounded-3xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]">
+                                {/* Success Pulse Area */}
+                                <div className="absolute inset-0 bg-ifrn-green/10 opacity-0 group-active:opacity-100 transition-opacity rounded-3xl"></div>
 
-                                    <div className="absolute -top-1 -left-1 w-5 h-5 border-t-[3px] border-l-[3px] border-ifrn-green"></div>
-                                    <div className="absolute -top-1 -right-1 w-5 h-5 border-t-[3px] border-r-[3px] border-ifrn-green"></div>
-                                    <div className="absolute -bottom-1 -left-1 w-5 h-5 border-b-[3px] border-l-[3px] border-ifrn-green"></div>
-                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 border-b-[3px] border-r-[3px] border-ifrn-green"></div>
+                                {/* Dynamic Scanning Hub */}
+                                <div className="absolute top-1/2 left-2 right-2 h-[2px] bg-sky-400 shadow-[0_0_15px_#38bdf8] animate-scanner-beam"></div>
+                                <div className="absolute top-1/2 left-2 right-2 h-1 bg-white/20 blur-sm"></div>
+
+                                {/* Modern Corner Accents */}
+                                <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-ifrn-green rounded-tl-3xl"></div>
+                                <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-ifrn-green rounded-tr-3xl"></div>
+                                <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-ifrn-green rounded-bl-3xl"></div>
+                                <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-ifrn-green rounded-br-3xl"></div>
+
+                                {/* Scanning Text */}
+                                <div className="absolute -bottom-10 left-0 right-0 text-center">
+                                    <span className="text-[9px] font-black text-white/50 uppercase tracking-[0.3em] bg-black/20 px-4 py-1 rounded-full backdrop-blur-md">
+                                        Analisando Padrões Code 128
+                                    </span>
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Instruction */}
-                <div className="p-5 bg-gray-50 text-center space-y-2">
-                    <p className="text-xs text-gray-600 leading-relaxed font-semibold">
-                        📌 Posicione o código de barras na área central da câmera.
-                    </p>
-                    <p className="text-[10px] text-gray-400 leading-relaxed">
-                        Dica: Mantenha o celular parado e a uma distância de 10-15cm do código.
-                    </p>
+                {/* Footer Pro-Tips */}
+                <div className="p-8 bg-gray-50 flex items-start gap-4">
+                    <div className="w-10 h-10 bg-white shadow-sm border border-gray-100 rounded-2xl flex-shrink-0 flex items-center justify-center text-ifrn-green">
+                        <Camera size={20} />
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-xs font-black text-gray-900 uppercase tracking-tight">Otimizado para Livros IFRN/PNLD</p>
+                        <p className="text-[11px] text-gray-500 font-medium leading-relaxed">
+                            Mantenha o código <span className="text-black font-bold">horizontal e plano</span>. Se estiver escuro, use o botão de lanterna acima. O leitor agora usa resolução HD para processar detalhes minúsculos.
+                        </p>
+                    </div>
                 </div>
             </div>
 
             <style>{`
-                @keyframes scan-line {
-                    0% { top: 10% }
-                    50% { top: 85% }
-                    100% { top: 10% }
+                @keyframes scanner-beam {
+                    0% { transform: translateY(-80px); opacity: 0; }
+                    10% { opacity: 1; }
+                    90% { opacity: 1; }
+                    100% { transform: translateY(80px); opacity: 0; }
                 }
-                .animate-scan-line {
-                    animation: scan-line 2.5s ease-in-out infinite;
+                .animate-scanner-beam {
+                    animation: scanner-beam 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
                 }
                 #reader video {
-                    object-fit: cover !important;
-                    width: 100% !important;
-                    height: 100% !important;
-                }
-                #reader {
-                    border: none !important;
-                }
-                #reader img[alt="Info icon"] {
-                    display: none !important;
-                }
-                #qr-shaded-region {
-                    display: none !important;
+                    image-rendering: -webkit-optimize-contrast;
+                    image-rendering: crisp-edges;
                 }
             `}</style>
         </div>

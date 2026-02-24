@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ericblade/quagga2": "^1.12.1",
     "@supabase/supabase-js": "^2.39.3",
     "@types/crypto-js": "^4.2.2",
     "crypto-js": "^4.2.0",

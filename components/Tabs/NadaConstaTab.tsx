@@ -315,7 +315,17 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     );
                 })}
 
-                {searchTerm.length >= 2 && searchResults.length === 0 && (
+                {searchTerm.length >= 2 && isSearching && (
+                    <div className="text-center py-20 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
+                        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Loader2 size={36} className="text-blue-400 animate-spin" />
+                        </div>
+                        <p className="text-slate-400 font-black uppercase tracking-[0.2em]">Buscando aluno...</p>
+                        <p className="text-slate-300 text-xs font-bold mt-2">Aguarde um momento.</p>
+                    </div>
+                )}
+
+                {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && (
                     <div className="text-center py-20 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                             <UserIcon size={40} className="text-slate-200" />

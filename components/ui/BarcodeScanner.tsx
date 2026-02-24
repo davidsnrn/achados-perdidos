@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { X, Camera, RotateCw } from 'lucide-react';
 
 interface Props {
@@ -13,18 +13,37 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose }) => {
     const html5QrCode = useRef<Html5Qrcode | null>(null);
 
     useEffect(() => {
-        html5QrCode.current = new Html5Qrcode("reader");
+        html5QrCode.current = new Html5Qrcode("reader", {
+            verbose: false,
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.ITF
+            ]
+        });
 
         const startScanner = async () => {
             try {
                 // Determine the config based on screen size
                 const isMobile = window.innerWidth < 640;
-                const qrBoxSize = isMobile ? { width: 250, height: 150 } : { width: 300, height: 180 };
+
+                // For 1D barcodes, a wider and shorter box is much better
+                const qrBoxSize = (viewfinderWidth: number, viewfinderHeight: number) => {
+                    const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                    const width = isMobile ? viewfinderWidth * 0.8 : viewfinderWidth * 0.6;
+                    const height = isMobile ? 120 : 150;
+                    return { width, height };
+                };
 
                 await html5QrCode.current?.start(
                     { facingMode: "environment" },
                     {
-                        fps: 15,
+                        fps: 20, // Increased FPS for faster detection
                         qrbox: qrBoxSize,
                         aspectRatio: isMobile ? 1 : 1.777778,
                     },
@@ -106,7 +125,7 @@ export const BarcodeScanner: React.FC<Props> = ({ onScan, onClose }) => {
 
                     {isReady && (
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-[250px] sm:w-[300px] h-[150px] sm:h-[180px] border-2 border-ifrn-green rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative">
+                            <div className="w-[80%] sm:w-[60%] h-[120px] sm:h-[150px] border-2 border-ifrn-green rounded-lg shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] relative">
                                 <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-scan-line"></div>
 
                                 <div className="absolute -top-1 -left-1 w-4 h-4 border-t-4 border-l-4 border-ifrn-green"></div>

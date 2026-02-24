@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText } from 'lucide-react';
+import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText, Camera } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import { BarcodeScanner } from '../ui/BarcodeScanner';
 
 interface Props {
     loans: BookLoan[];
@@ -32,6 +33,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
     const [selectedSeries, setSelectedSeries] = useState<string>('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -387,16 +389,26 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                         <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">2. Adicionar Livros</label>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="md:col-span-2 relative">
-                                <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                                <input
-                                    type="text"
-                                    placeholder="Buscar livro pelo título ou código..."
-                                    className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                                    value={bookSearch}
-                                    onChange={e => setBookSearch(e.target.value)}
-                                    onFocus={() => setIsBookInputFocused(true)}
-                                    onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
-                                />
+                                <div className="relative">
+                                    <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar livro pelo título ou código..."
+                                        className="w-full pl-10 pr-12 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                                        value={bookSearch}
+                                        onChange={e => setBookSearch(e.target.value)}
+                                        onFocus={() => setIsBookInputFocused(true)}
+                                        onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowScanner(true)}
+                                        className="absolute right-2 top-1.5 p-1 text-gray-400 hover:text-ifrn-green hover:bg-ifrn-green/10 rounded transition-colors"
+                                        title="Escanear código de barras"
+                                    >
+                                        <Camera size={20} />
+                                    </button>
+                                </div>
                             </div>
                             <div className="relative">
                                 <select
@@ -684,6 +696,22 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                     </div>
                 )}
             </Modal>
+
+            {showScanner && (
+                <BarcodeScanner
+                    onScan={(decodedText) => {
+                        const book = books.find(b => b.code === decodedText);
+                        if (book) {
+                            handleAddBook(book);
+                            alert(`Livro encontrado: ${book.title}`);
+                        } else {
+                            alert(`Nenhum livro encontrado com o código: ${decodedText}`);
+                        }
+                        setShowScanner(false);
+                    }}
+                    onClose={() => setShowScanner(false)}
+                />
+            )}
         </div>
     );
 };

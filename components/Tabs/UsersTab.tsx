@@ -28,6 +28,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
   const [personSearch, setPersonSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [formLevel, setFormLevel] = useState<UserLevel>(UserLevel.STANDARD);
 
   // Permission States
   const [permissions, setPermissions] = useState({
@@ -120,8 +121,8 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       matricula: formMatricula,
       name: formName,
       password: password,
-      level: formData.get('level') as UserLevel,
-      campus_id: selectedCampusId || undefined,
+      level: formLevel,
+      campus_id: formLevel === UserLevel.ADMIN ? undefined : (selectedCampusId || undefined),
       permissions: permissions,
       logs: selectedUser ? selectedUser.logs : [],
       access_logs: selectedUser ? selectedUser.access_logs : [],
@@ -201,12 +202,14 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
         usuarios: user.permissions?.usuarios ?? (user.level !== UserLevel.STANDARD),
         materiais: user.permissions?.materiais ?? (user.level !== UserLevel.STANDARD),
       });
+      setFormLevel(user.level);
       setSelectedCampusId(user.campus_id || '');
     } else {
       setFormName('');
       setFormMatricula('');
       setSelectedPerson(null);
       // Pre-select current user's campus if they are ADVANCED
+      setFormLevel(UserLevel.STANDARD);
       setSelectedCampusId(currentUser.level === UserLevel.ADVANCED ? (currentUser.campus_id || '') : '');
       setPermissions({
         achados: false,
@@ -304,7 +307,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                   {currentUser.level === UserLevel.ADMIN && (
                     <td className="p-4 whitespace-nowrap">
                       <span className="text-xs text-gray-500 font-medium">
-                        {campuses.find(c => c.id === u.campus_id)?.name || 'Sem Câmpus'}
+                        {u.level === UserLevel.ADMIN ? 'Todos' : (campuses.find(c => c.id === u.campus_id)?.name || 'Sem Câmpus')}
                       </span>
                     </td>
                   )}
@@ -456,7 +459,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
 
             {!selectedUser && (<p className="text-xs text-gray-500 bg-gray-50 p-2 rounded"><span className="font-bold">Nota:</span> A senha inicial será definida automaticamente como <strong>{DEFAULT_PASSWORD}</strong>.</p>)}
 
-            {currentUser.level === UserLevel.ADMIN && (
+            {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus <span className="text-red-500">*</span></label>
                 <select
@@ -478,13 +481,17 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               <label className="block text-sm font-medium text-gray-700 mb-1">Nível de Acesso</label>
               <select
                 name="level"
-                defaultValue={selectedUser?.level || UserLevel.STANDARD}
+                value={formLevel}
                 disabled={(selectedUser?.id === currentUser.id && currentUser.level !== UserLevel.ADMIN) || selectedUser?.id === currentUser.id}
                 className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none disabled:bg-gray-100 disabled:text-gray-500 cursor-not-allowed"
                 onChange={(e) => {
                   const val = e.target.value as UserLevel;
+                  setFormLevel(val);
                   if (val !== UserLevel.STANDARD) {
                     setPermissions({ achados: true, armarios: true, livros: true, nadaconsta: true, pessoas: true, usuarios: true, materiais: true });
+                  }
+                  if (val === UserLevel.ADMIN) {
+                    setSelectedCampusId('');
                   }
                 }}
               >
@@ -559,7 +566,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
               <div><span className="block text-xs font-bold text-gray-400 uppercase">Nome</span><p className="font-bold text-gray-800">{selectedUser.name}</p></div>
               <div><span className="block text-xs font-bold text-gray-400 uppercase">Matrícula</span><p className="font-mono">{selectedUser.matricula}</p></div>
               <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Nível</span><span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${selectedUser.level === UserLevel.ADMIN ? 'bg-red-100 text-red-800' : selectedUser.level === UserLevel.ADVANCED ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>{selectedUser.level}</span></div>
-              <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Câmpus</span><p className="font-medium text-gray-700">{campuses.find(c => c.id === selectedUser.campus_id)?.name || 'Sem Câmpus'}</p></div>
+              <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Câmpus</span><p className="font-medium text-gray-700">{selectedUser.level === UserLevel.ADMIN ? 'Todos' : (campuses.find(c => c.id === selectedUser.campus_id)?.name || 'Sem Câmpus')}</p></div>
             </div>
             <div>
               <h4 className="flex items-center gap-2 font-bold text-gray-700 mb-3 border-b pb-2"><FileText size={18} /> Log de Auditoria</h4>

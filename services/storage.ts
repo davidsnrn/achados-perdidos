@@ -213,8 +213,12 @@ export const StorageService = {
     await supabase.from('users').delete().eq('id', id);
   },
 
-  deleteAllUsers: async (currentAdminId: string) => {
-    await supabase.from('users').delete().neq('id', currentAdminId);
+  deleteAllUsers: async (currentAdminId: string, campusId?: string) => {
+    let query = supabase.from('users').delete().neq('id', currentAdminId);
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    await query;
   },
 
   changePassword: async (userId: string, newPass: string, actorName: string): Promise<User | null> => {
@@ -369,8 +373,12 @@ export const StorageService = {
     await supabase.from('people').delete().eq('id', id);
   },
 
-  deleteAllPeople: async () => {
-    await supabase.from('people').delete().neq('id', '0');
+  deleteAllPeople: async (campusId?: string) => {
+    let query = supabase.from('people').delete().neq('id', '0');
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    await query;
   },
 
   importPeople: async (people: Person[]) => {
@@ -529,11 +537,12 @@ export const StorageService = {
     await supabase.from('items').delete().eq('id', id);
   },
 
-  deleteAllItems: async () => {
-    const { error } = await supabase.rpc('admin_clear_items_only');
-    if (error) {
-      await supabase.from('items').delete().gt('id', -1);
+  deleteAllItems: async (campusId?: string) => {
+    let query = supabase.from('items').delete().gt('id', -1);
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
     }
+    await query;
   },
 
   // Reports
@@ -598,8 +607,12 @@ export const StorageService = {
     await supabase.from('reports').delete().eq('id', id);
   },
 
-  deleteAllReports: async () => {
-    await supabase.from('reports').delete().neq('id', '0');
+  deleteAllReports: async (campusId?: string) => {
+    let query = supabase.from('reports').delete().neq('id', '0');
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    await query;
   },
 
   // Lockers
@@ -675,9 +688,15 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  clearAllLockerLoans: async () => {
-    const { data: lockers, error: fetchError } = await supabase.from('lockers').select('*');
+  clearAllLockerLoans: async (campusId?: string) => {
+    let query = supabase.from('lockers').select('*');
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    const { data: lockers, error: fetchError } = await query;
     if (fetchError || !lockers) throw new Error("Erro ao buscar armários para limpeza.");
+
+    if (lockers.length === 0) return;
 
     const updated = lockers.map(l => ({
       ...l,
@@ -886,6 +905,14 @@ export const StorageService = {
     await supabase.from('books').delete().eq('id', id);
   },
 
+  deleteAllBooks: async (campusId?: string) => {
+    let query = supabase.from('books').delete().neq('id', '0');
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    await query;
+  },
+
   // Book Loans
   getBookLoans: async (campusId?: string): Promise<BookLoan[]> => {
     let allData: any[] = [];
@@ -1014,6 +1041,14 @@ export const StorageService = {
     // 2. Deletar os materiais
     const { error } = await supabase.from('materials').delete().in('id', ids);
     if (error) throw error;
+  },
+
+  deleteAllMaterials: async (campusId?: string) => {
+    let query = supabase.from('materials').delete().neq('id', '0');
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    await query;
   },
 
   // Material Loans

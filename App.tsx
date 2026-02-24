@@ -15,11 +15,11 @@ const BookLoansTab = React.lazy(() => import('./components/Tabs/BookLoansTab').t
 const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
 const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
 
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
-type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'FACTORY_RESET' | null;
+type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'DELETE_LOCKER_LOANS' | 'DELETE_BOOKS' | 'DELETE_MATERIALS' | 'FACTORY_RESET' | null;
 
 interface ModuleInfo {
   id: string;
@@ -79,6 +79,7 @@ const App: React.FC = () => {
 
   // Global Admin Campus Switcher
   const [adminGlobalCampusId, setAdminGlobalCampusId] = useState<string | null>(null);
+  const [selectedDeleteCampusId, setSelectedDeleteCampusId] = useState<string | null>(null);
 
   // Login State
   const [loginMat, setLoginMat] = useState('');
@@ -536,6 +537,7 @@ const App: React.FC = () => {
   const initiateConfigAction = (action: ConfirmActionType) => {
     setConfirmAction(action);
     setConfirmationPassword('');
+    setSelectedDeleteCampusId(null);
     setMobileMenuOpen(false);
     setShowConfigModal(false);
   };
@@ -550,18 +552,28 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
+      const campusId = selectedDeleteCampusId || undefined;
       if (confirmAction === 'DELETE_ITEMS') {
-        await StorageService.deleteAllItems();
-        alert("Todos os itens foram apagados.");
+        await StorageService.deleteAllItems(campusId);
+        alert("Ação concluída com sucesso.");
       } else if (confirmAction === 'DELETE_REPORTS') {
-        await StorageService.deleteAllReports();
-        alert("Todos os relatos de perdidos foram apagados.");
+        await StorageService.deleteAllReports(campusId);
+        alert("Ação concluída com sucesso.");
       } else if (confirmAction === 'DELETE_PEOPLE') {
-        await StorageService.deleteAllPeople();
-        alert("Todas as pessoas cadastradas foram apagadas.");
+        await StorageService.deleteAllPeople(campusId);
+        alert("Ação concluída com sucesso.");
       } else if (confirmAction === 'DELETE_USERS') {
-        await StorageService.deleteAllUsers(user.id);
-        alert("Todos os usuários (exceto você) foram apagados.");
+        await StorageService.deleteAllUsers(user.id, campusId);
+        alert("Ação concluída com sucesso.");
+      } else if (confirmAction === 'DELETE_LOCKER_LOANS') {
+        await StorageService.clearAllLockerLoans(campusId);
+        alert("Ação concluída com sucesso.");
+      } else if (confirmAction === 'DELETE_BOOKS') {
+        await StorageService.deleteAllBooks(campusId);
+        alert("Ação concluída com sucesso.");
+      } else if (confirmAction === 'DELETE_MATERIALS') {
+        await StorageService.deleteAllMaterials(campusId);
+        alert("Ação concluída com sucesso.");
       } else if (confirmAction === 'FACTORY_RESET') {
         await StorageService.factoryReset(user.id);
         window.location.reload();
@@ -569,6 +581,7 @@ const App: React.FC = () => {
       }
       setConfirmAction(null);
       setConfirmationPassword('');
+      setSelectedDeleteCampusId(null);
       await refreshData();
     } catch (error) {
       alert("Erro ao executar ação.");
@@ -581,10 +594,13 @@ const App: React.FC = () => {
 
   const getActionName = () => {
     switch (confirmAction) {
-      case 'DELETE_ITEMS': return 'Apagar Todos os Itens';
-      case 'DELETE_REPORTS': return 'Apagar Relatos de Perdidos';
-      case 'DELETE_PEOPLE': return 'Apagar Pessoas Cadastradas';
-      case 'DELETE_USERS': return 'Apagar Usuários do Sistema';
+      case 'DELETE_ITEMS': return 'Limpar Acervo de Itens';
+      case 'DELETE_REPORTS': return 'Limpar Relatos de Perdidos';
+      case 'DELETE_PEOPLE': return 'Limpar Base de Pessoas';
+      case 'DELETE_USERS': return 'Limpar Usuários do Sistema';
+      case 'DELETE_LOCKER_LOANS': return 'Limpar Empréstimos de Armários';
+      case 'DELETE_BOOKS': return 'Limpar Catálogo de Livros';
+      case 'DELETE_MATERIALS': return 'Limpar Base de Materiais';
       case 'FACTORY_RESET': return 'Reset Geral (Fábrica)';
       default: return '';
     }
@@ -1079,14 +1095,14 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <button onClick={() => initiateConfigAction('DELETE_ITEMS')} className="flex items-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all group gap-4 shadow-sm">
                       <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-white text-gray-400 group-hover:text-red-500 transition-colors">
                         <Package size={24} />
                       </div>
                       <div className="text-left">
                         <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Achados</p>
-                        <p className="text-[10px] text-gray-400">Limpar acervo de itens</p>
+                        <p className="text-[10px] text-gray-400">Limpar acervo</p>
                       </div>
                     </button>
 
@@ -1096,7 +1112,37 @@ const App: React.FC = () => {
                       </div>
                       <div className="text-left">
                         <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Relatos</p>
-                        <p className="text-[10px] text-gray-400">Limpar pedidos de perdidos</p>
+                        <p className="text-[10px] text-gray-400">Limpar pedidos</p>
+                      </div>
+                    </button>
+
+                    <button onClick={() => initiateConfigAction('DELETE_LOCKER_LOANS')} className="flex items-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all group gap-4 shadow-sm">
+                      <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-white text-gray-400 group-hover:text-red-500 transition-colors">
+                        <Key size={24} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Armários</p>
+                        <p className="text-[10px] text-gray-400">Limpar locatários</p>
+                      </div>
+                    </button>
+
+                    <button onClick={() => initiateConfigAction('DELETE_BOOKS')} className="flex items-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all group gap-4 shadow-sm">
+                      <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-white text-gray-400 group-hover:text-red-500 transition-colors">
+                        <BookOpen size={24} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Livros</p>
+                        <p className="text-[10px] text-gray-400">Limpar acervo</p>
+                      </div>
+                    </button>
+
+                    <button onClick={() => initiateConfigAction('DELETE_MATERIALS')} className="flex items-center p-4 bg-white border border-gray-200 rounded-xl hover:bg-red-50 hover:border-red-200 transition-all group gap-4 shadow-sm">
+                      <div className="p-3 bg-gray-50 rounded-xl group-hover:bg-white text-gray-400 group-hover:text-red-500 transition-colors">
+                        <FileText size={24} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Materiais</p>
+                        <p className="text-[10px] text-gray-400">Limpar estoque</p>
                       </div>
                     </button>
 
@@ -1106,7 +1152,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="text-left">
                         <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Pessoas</p>
-                        <p className="text-[10px] text-gray-400">Limpar base de pessoas</p>
+                        <p className="text-[10px] text-gray-400">Limpar base</p>
                       </div>
                     </button>
 
@@ -1116,7 +1162,7 @@ const App: React.FC = () => {
                       </div>
                       <div className="text-left">
                         <p className="font-bold text-gray-700 text-sm group-hover:text-red-700">Usuários</p>
-                        <p className="text-[10px] text-gray-400">Remover todos acessos</p>
+                        <p className="text-[10px] text-gray-400">Exceto você</p>
                       </div>
                     </button>
                   </div>
@@ -1142,11 +1188,50 @@ const App: React.FC = () => {
           </div>
         </Modal>
 
-        <Modal isOpen={!!confirmAction} onClose={() => { setConfirmAction(null); setConfirmationPassword(''); }} title="Confirmação de Segurança">
+        <Modal isOpen={!!confirmAction} onClose={() => { setConfirmAction(null); setConfirmationPassword(''); setSelectedDeleteCampusId(null); }} title="Confirmação de Segurança">
           <form onSubmit={executeConfigAction} className="space-y-4">
-            <div className="bg-red-50 text-red-800 p-4 rounded-lg text-sm mb-4 border border-red-200"><p className="font-bold">Esta ação é irreversível.</p><p>Por favor, confirme sua senha de administrador para continuar.</p><p className="mt-2 text-xs font-mono bg-white/50 p-1 rounded inline-block">Ação: {getActionName()}</p></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Sua Senha</label><input type="password" required value={confirmationPassword} onChange={e => setConfirmationPassword(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="Confirme sua senha..." autoFocus /></div>
-            <div className="pt-4 flex justify-end gap-3 border-t"><button type="button" onClick={() => { setConfirmAction(null); setConfirmationPassword(''); }} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button><button type="submit" disabled={loading} className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold flex items-center gap-2">{loading ? '...' : <><AlertTriangle size={18} /> Confirmar Exclusão</>}</button></div>
+            <div className="bg-red-50 text-red-800 p-4 rounded-lg text-sm mb-4 border border-red-200">
+              <p className="font-bold">Esta ação é irreversível.</p>
+              <p>Por favor, confirme sua senha de administrador para continuar.</p>
+              <div className="mt-3 py-2 px-3 bg-white/50 rounded border border-red-100">
+                <p className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">Ação Selecionada</p>
+                <p className="text-sm font-black uppercase">{getActionName()}</p>
+              </div>
+            </div>
+
+            {confirmAction !== 'FACTORY_RESET' && (
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 flex items-center gap-2">
+                  <Building2 size={14} /> Selecione o Câmpus para Limpeza
+                </label>
+                <select
+                  value={selectedDeleteCampusId || ''}
+                  onChange={e => setSelectedDeleteCampusId(e.target.value || null)}
+                  className="w-full bg-white border border-gray-200 rounded-lg p-2.5 text-sm font-medium focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                  required
+                >
+                  <option value="">🌎 Todos os Câmpus</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-gray-400 mt-2 italic px-1">
+                  * Se nenhum for selecionado, os dados de TODOS os câmpus serão apagados.
+                </p>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Sua Senha de Admin</label>
+              <input type="password" required value={confirmationPassword} onChange={e => setConfirmationPassword(e.target.value)} className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all" placeholder="Digite sua senha..." autoFocus />
+            </div>
+
+            <div className="pt-4 flex justify-end gap-3 border-t">
+              <button type="button" onClick={() => { setConfirmAction(null); setConfirmationPassword(''); setSelectedDeleteCampusId(null); }} className="px-5 py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl font-bold transition-all">Cancelar</button>
+              <button type="submit" disabled={loading} className="px-6 py-2.5 bg-red-600 text-white rounded-xl hover:bg-red-700 hover:shadow-lg hover:shadow-red-200 font-black transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50">
+                {loading ? <Loader2 className="animate-spin" size={20} /> : <><Trash2 size={18} /> CONFIRMAR EXCLUSÃO</>}
+              </button>
+            </div>
           </form>
         </Modal>
       </div>
@@ -1215,10 +1300,15 @@ const App: React.FC = () => {
                         <div className="space-y-3">
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">Ações Críticas</p>
                           <div className="grid grid-cols-1 gap-2">
-                            <button onClick={() => initiateConfigAction('DELETE_ITEMS')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><Trash size={16} /> Limpar Itens</button>
-                            <button onClick={() => initiateConfigAction('DELETE_REPORTS')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><FileX size={16} /> Limpar Relatos</button>
-                            <button onClick={() => initiateConfigAction('DELETE_PEOPLE')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><UserX size={16} /> Limpar Pessoas</button>
-                            <button onClick={() => initiateConfigAction('DELETE_USERS')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><ShieldCheck size={16} /> Limpar Usuários</button>
+                            <button onClick={() => initiateConfigAction('DELETE_ITEMS')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><Package size={16} /> Achados</button>
+                            <button onClick={() => initiateConfigAction('DELETE_REPORTS')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><FileX size={16} /> Relatos</button>
+                            <button onClick={() => initiateConfigAction('DELETE_PEOPLE')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><UserX size={16} /> Pessoas</button>
+                            <button onClick={() => initiateConfigAction('DELETE_USERS')} className="flex items-center gap-3 px-4 py-3 bg-white border border-red-100 rounded-lg text-xs font-bold text-red-600 hover:bg-red-50 transition-colors shadow-sm"><ShieldCheck size={16} /> Usuários</button>
+                            <div className="grid grid-cols-2 gap-2 mt-1">
+                              <button onClick={() => initiateConfigAction('DELETE_LOCKER_LOANS')} className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-red-100 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 transition-colors"><Key size={14} /> Armários</button>
+                              <button onClick={() => initiateConfigAction('DELETE_BOOKS')} className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-red-100 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 transition-colors"><BookOpen size={14} /> Livros</button>
+                              <button onClick={() => initiateConfigAction('DELETE_MATERIALS')} className="flex items-center justify-center gap-2 px-3 py-2 bg-white border border-red-100 rounded-lg text-[10px] font-bold text-red-500 hover:bg-red-50 transition-colors"><FileText size={14} /> Materiais</button>
+                            </div>
                             <button onClick={() => initiateConfigAction('FACTORY_RESET')} className="flex items-center gap-3 px-4 py-4 bg-red-600 rounded-lg text-xs font-black text-white hover:bg-red-700 transition-colors shadow-md mt-2"><RefreshCcw size={16} /> RESET DE FÁBRICA</button>
                           </div>
                         </div>

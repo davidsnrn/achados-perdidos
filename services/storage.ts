@@ -246,7 +246,7 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('people')
-        .select('*')
+        .select('id, name, matricula, campus_id')
         .range(from, from + limit - 1);
 
       if (campusId) {

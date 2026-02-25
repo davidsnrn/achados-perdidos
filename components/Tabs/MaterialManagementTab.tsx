@@ -12,9 +12,11 @@ interface Props {
     user: User;
     onUpdate: () => void;
     campuses: Campus[];
+    isPeopleLoading?: boolean;
+    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
-export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], people = [], user, onUpdate, campuses }) => {
+export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], people = [], user, onUpdate, campuses, isPeopleLoading, peopleSearchIndex = [] }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
@@ -99,18 +101,21 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         });
     }, [inventory, searchTerm, filterStatus]);
 
-    const handlePersonSearch = async (val: string) => {
+    const handlePersonSearch = (val: string) => {
         setPersonSearch(val);
         if (val.trim().length >= 2) {
-            setIsSearchingPeople(true);
-            try {
-                const results = await StorageService.searchPeople(val);
-                setSearchResultsPeople(results);
-            } catch (err) {
-                console.error("Erro busca pessoas:", err);
-            } finally {
-                setIsSearchingPeople(false);
-            }
+            const searchTerms = normalizeText(val).split(/\s+/).filter(t => t.length > 0);
+
+            // BUSCA OTIMIZADA EM MATERIAIS
+            const matchingIds = new Set(
+                peopleSearchIndex
+                    .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
+                    .slice(0, 10)
+                    .map(idx => idx.id)
+            );
+
+            const results = people.filter(p => matchingIds.has(p.id));
+            setSearchResultsPeople(results);
         } else {
             setSearchResultsPeople([]);
         }
@@ -681,7 +686,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             }} title="Novo Empréstimo">
                 <form onSubmit={handleLoanSubmit} className="space-y-6">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Pessoa</label>
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="block text-xs font-bold text-gray-500 uppercase">Pessoa</label>
+                            {isPeopleLoading && (
+                                <div className="flex items-center gap-1 text-[10px] text-indigo-500 font-bold animate-pulse">
+                                    <Loader2 size={10} className="animate-spin" /> Atualizando...
+                                </div>
+                            )}
+                        </div>
                         {selectedPerson ? (
                             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-4">
                                 <div className="flex-1">

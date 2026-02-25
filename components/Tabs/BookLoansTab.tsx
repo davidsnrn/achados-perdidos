@@ -12,9 +12,11 @@ interface Props {
     onUpdate: () => void;
     user: User;
     campuses: Campus[];
+    isPeopleLoading?: boolean;
+    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
-export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, user, campuses }) => {
+export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, user, campuses, isPeopleLoading, peopleSearchIndex = [] }) => {
     const [activeSubTab, setActiveSubTab] = useState<'current' | 'history'>('current');
     const [showLoanModal, setShowLoanModal] = useState(false);
     const [showPartialReturnModal, setShowPartialReturnModal] = useState(false);
@@ -197,12 +199,19 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
 
     const activeLoans = filteredLoans.filter(l => l.status === BookLoanStatus.ACTIVE);
     const historicalLoans = filteredLoans.filter(l => l.status === BookLoanStatus.RETURNED);
-    const filteredPeople = people.filter(p => {
-        if (!personSearch.trim()) return true;
-        const searchTerms = normalizeText(personSearch).split(/\s+/).filter((t: string) => t.length > 0);
-        const personText = normalizeText(`${p.name} ${p.matricula}`);
-        return searchTerms.every((term: string) => personText.includes(term));
-    }).slice(0, 5);
+    const filteredPeople = React.useMemo(() => {
+        if (!personSearch.trim() || personSearch.length < 2) return [];
+        const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
+
+        const matchingIds = new Set(
+            peopleSearchIndex
+                .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
+                .slice(0, 10)
+                .map(idx => idx.id)
+        );
+
+        return people.filter(p => matchingIds.has(p.id));
+    }, [personSearch, peopleSearchIndex, people]);
 
     const filteredBooks = books.filter(b => {
         // Filter by series if selected
@@ -343,7 +352,14 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                 <div className="space-y-6">
                     {/* Person Selection */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">1. Selecionar Aluno/Pessoa</label>
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase">1. Selecionar Aluno/Pessoa</label>
+                            {isPeopleLoading && (
+                                <div className="flex items-center gap-1.5 text-[10px] text-ifrn-green font-bold animate-pulse">
+                                    <Loader2 size={12} className="animate-spin" /> Atualizando base...
+                                </div>
+                            )}
+                        </div>
                         {selectedPerson ? (
                             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-4">
                                 <div className="flex-1">

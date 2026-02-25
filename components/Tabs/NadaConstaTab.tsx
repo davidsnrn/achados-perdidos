@@ -12,6 +12,8 @@ interface NadaConstaTabProps {
     materialLoans: MaterialLoan[];
     user: User;
     campuses: Campus[];
+    isPeopleLoading?: boolean;
+    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
 export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
@@ -20,7 +22,9 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
     bookLoans,
     materialLoans,
     user,
-    campuses
+    campuses,
+    isPeopleLoading,
+    peopleSearchIndex = []
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -34,59 +38,58 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         }
     }, [searchTerm]);
 
+    const normalizeText = (text: string) => {
+        return text
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase();
+    };
+
     useEffect(() => {
-        const performSearch = async () => {
-            const rawSearch = searchTerm.trim();
-            if (rawSearch.length < 2) {
-                setSearchResults([]);
-                return;
-            }
+        const rawSearch = searchTerm.trim();
+        if (rawSearch.length < 2) {
+            setSearchResults([]);
+            return;
+        }
 
-            setIsSearching(true);
-            try {
-                let results: Person[] = [];
-                // Suporte para busca em lote (OU) se contiver vírgula
-                if (rawSearch.includes(',')) {
-                    const searchChunks = rawSearch.split(',')
-                        .map(chunk => chunk.trim())
-                        .filter(chunk => chunk.length >= 2);
+        // Suporte para busca única ou em lote (vírgula)
+        const searchGroups = rawSearch.includes(',')
+            ? rawSearch.split(',').map(s => s.trim()).filter(s => s.length >= 2)
+            : [rawSearch];
 
-                    if (searchChunks.length > 0) {
-                        // Fazemos buscas paralelas para cada chunk (máximo de 5 para não sobrecarregar)
-                        const searchPromises = searchChunks.slice(0, 5).map(chunk => StorageService.searchPeople(chunk, 10));
-                        const allResults = await Promise.all(searchPromises);
-                        results = allResults.flat();
-                        // Remover duplicados por ID
-                        results = Array.from(new Map(results.map(r => [r.id, r])).values());
-                    }
-                } else {
-                    results = await StorageService.searchPeople(rawSearch, 20);
-                }
+        let results: Person[] = [];
 
-                // Se não for admin, filtrar pessoas pelo campus do usuário
-                if (user.level !== UserLevel.ADMIN) {
-                    results = results.filter(p => p.campus_id === user.campus_id);
-                }
+        searchGroups.forEach(group => {
+            const searchTerms = normalizeText(group).split(/\s+/).filter(t => t.length > 0);
 
-                setSearchResults(results.map(p => ({
-                    registration: p.matricula,
-                    name: p.name,
-                    course: '',
-                    situation: 'Matriculado',
-                    email: '',
-                    id: p.id,
-                    campus_id: p.campus_id
-                })));
-            } catch (err) {
-                console.error("Erro na busca Nada Consta:", err);
-            } finally {
-                setIsSearching(false);
-            }
-        };
+            // BUSCA OTIMIZADA NO NADA CONSTA
+            const matchingIds = new Set(
+                peopleSearchIndex
+                    .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
+                    .map(idx => idx.id)
+            );
 
-        const timer = setTimeout(performSearch, 400); // Debounce
-        return () => clearTimeout(timer);
-    }, [searchTerm]);
+            const groupResults = people.filter(p => {
+                // Filtro por campus se não for admin
+                if (user.level !== UserLevel.ADMIN && p.campus_id !== user.campus_id) return false;
+                return matchingIds.has(p.id);
+            });
+            results = [...results, ...groupResults];
+        });
+
+        // Remover duplicados por ID
+        const uniqueResults = Array.from(new Map(results.map(r => [r.id, r])).values());
+
+        setSearchResults(uniqueResults.map(p => ({
+            registration: p.matricula,
+            name: p.name,
+            course: '',
+            situation: 'Matriculado',
+            email: '',
+            id: p.id,
+            campus_id: p.campus_id
+        })));
+    }, [searchTerm, people, user.campus_id, user.level]);
 
     const getStudentPendencies = (registration: string, studentId?: string, studentCampusId?: string) => {
         const activeLockerLoans: LoanData[] = [];
@@ -131,9 +134,16 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg shadow-blue-100">
                         <Search size={24} />
                     </div>
-                    <div>
+                    <div className="flex-1">
                         <h2 className="text-3xl font-black text-slate-800 tracking-tight">Sistema de Nada Consta</h2>
-                        <p className="text-slate-500 font-medium italic">Verificação unificada de armários e livros PNLD</p>
+                        <div className="flex items-center gap-3">
+                            <p className="text-slate-500 font-medium italic">Verificação unificada de armários e livros PNLD</p>
+                            {isPeopleLoading && (
+                                <div className="flex items-center gap-1.5 text-[10px] text-blue-500 font-black uppercase tracking-widest animate-pulse bg-blue-50 px-2 py-0.5 rounded-full">
+                                    <Loader2 size={10} className="animate-spin" /> Atualizando base...
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

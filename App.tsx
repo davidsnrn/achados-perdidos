@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [mobileDeleteOpen, setMobileDeleteOpen] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [desktopDeleteOpen, setDesktopDeleteOpen] = useState(false);
+  const [isPeopleLoading, setIsPeopleLoading] = useState(false);
 
 
   // Confirmation Modal
@@ -69,6 +70,11 @@ const App: React.FC = () => {
   const [items, setItems] = useState<FoundItem[]>([]);
   const [reports, setReports] = useState<LostReport[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+
+  // Otimização para 50k+ alunos: Índice de busca pré-normalizado
+  // Manter em Ref evita overhead de renderização e permite busca ultra-rápida
+  const peopleSearchIndexRef = useRef<{ id: string, searchStr: string }[]>([]);
+
   const [users, setUsers] = useState<User[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [bookLoans, setBookLoans] = useState<BookLoan[]>([]);
@@ -189,8 +195,6 @@ const App: React.FC = () => {
         ]);
         setItems(fetchedItems);
         setReports(fetchedReports);
-        // Note: People is fetched on-demand in the return modal
-        setPeople([]);
         // Limpar outros dados pesados
         setBooks([]);
         setBookLoans([]);
@@ -202,8 +206,6 @@ const App: React.FC = () => {
           StorageService.getLockers(campusId)
         ]);
         setLockers(fetchedLockers);
-        // Note: People is searched on-demand for new loans
-        setPeople([]);
         setItems([]);
         setReports([]);
         setBooks([]);
@@ -217,8 +219,6 @@ const App: React.FC = () => {
         ]);
         setBooks(fetchedBooks);
         setBookLoans(fetchedLoans);
-        // Note: People is searched on-demand for new loans
-        setPeople([]);
         setItems([]);
         setReports([]);
         setLockers([]);
@@ -231,15 +231,11 @@ const App: React.FC = () => {
         ]);
         setMaterials(fetchedMaterials);
         setMaterialLoans(fetchedMaterialLoans);
-        // Note: People is searched on-demand for new loans
-        setPeople([]);
         setItems([]);
         setReports([]);
         setLockers([]);
         setBooks([]);
         setBookLoans([]);
-      } else if (activeTab === 'pessoas') {
-        setPeople(await StorageService.getAllPeople(campusId));
       } else if (activeTab === 'usuarios') {
         const [fetchedUsers, fetchedCampuses] = await Promise.all([
           StorageService.getUsers(campusId),
@@ -254,6 +250,37 @@ const App: React.FC = () => {
       setLoading(false);
     }
   }, [user, currentSystem, activeTab, adminGlobalCampusId]);
+
+  const normalizeText = (text: string) => {
+    return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
+
+  // Carrega as pessoas do campus APENAS quando o campus ou usuário muda
+  useEffect(() => {
+    const fetchCampusPeople = async () => {
+      if (!user) return;
+      setIsPeopleLoading(true);
+      try {
+        const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+        const allPeople = await StorageService.getAllPeople(campusId);
+
+        // CONSTRUÇÃO DO ÍNDICE DE BUSCA (Roda uma única vez após o fetch)
+        // Isso economiza milhares de normalizações durante a digitação
+        peopleSearchIndexRef.current = allPeople.map(p => ({
+          id: p.id,
+          searchStr: normalizeText(`${p.name} ${p.matricula}`)
+        }));
+
+        setPeople(allPeople);
+      } catch (err) {
+        console.error("Erro ao carregar pessoas do campus:", err);
+      } finally {
+        setIsPeopleLoading(false);
+      }
+    };
+
+    fetchCampusPeople();
+  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level]);
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});
@@ -1410,9 +1437,42 @@ const App: React.FC = () => {
                 {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} campuses={campuses} />}
                 {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} campuses={campuses} />}
                 {activeTab === 'livros-catalogo' && <BooksTab books={books} bookLoans={bookLoans} onUpdate={refreshData} user={user} campuses={campuses} />}
-                {activeTab === 'livros-emprestimos' && <BookLoansTab loans={bookLoans} books={books} people={people} onUpdate={refreshData} user={user} campuses={campuses} />}
-                {activeTab === 'nadaconsta' && <NadaConstaTab people={people} lockers={lockers} bookLoans={bookLoans} materialLoans={materialLoans} user={user} campuses={campuses} />}
-                {activeTab === 'materiais' && <MaterialManagementTab materials={materials} loans={materialLoans} people={people} user={user} onUpdate={refreshData} campuses={campuses} />}
+                {activeTab === 'livros-emprestimos' && (
+                  <BookLoansTab
+                    loans={bookLoans}
+                    books={books}
+                    people={people}
+                    onUpdate={refreshBookLoans}
+                    user={user}
+                    campuses={campuses}
+                    isPeopleLoading={isPeopleLoading}
+                    peopleSearchIndex={peopleSearchIndexRef.current}
+                  />
+                )}
+                {activeTab === 'nadaconsta' && (
+                  <NadaConstaTab
+                    people={people}
+                    lockers={lockers}
+                    bookLoans={bookLoans}
+                    materialLoans={materialLoans}
+                    user={user}
+                    campuses={campuses}
+                    isPeopleLoading={isPeopleLoading}
+                    peopleSearchIndex={peopleSearchIndexRef.current}
+                  />
+                )}
+                {activeTab === 'materiais' && (
+                  <MaterialManagementTab
+                    materials={materials}
+                    loans={materialLoans}
+                    people={people}
+                    user={user}
+                    onUpdate={refreshData}
+                    campuses={campuses}
+                    isPeopleLoading={isPeopleLoading}
+                    peopleSearchIndex={peopleSearchIndexRef.current}
+                  />
+                )}
                 {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} campuses={campuses} />}
               </React.Suspense>
             )}

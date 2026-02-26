@@ -224,6 +224,21 @@ const App: React.FC = () => {
         setLockers([]);
         setMaterials([]);
         setMaterialLoans([]);
+      } else if (currentSystem === 'nadaconsta' || activeTab === 'nadaconsta') {
+        const [fetchedLockers, fetchedBooks, fetchedBookLoans, fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
+          StorageService.getLockers(campusId),
+          StorageService.getBooks(campusId),
+          StorageService.getBookLoans(campusId),
+          StorageService.getMaterials(campusId),
+          StorageService.getMaterialLoans(campusId)
+        ]);
+        setLockers(fetchedLockers);
+        setBooks(fetchedBooks);
+        setBookLoans(fetchedBookLoans);
+        setMaterials(fetchedMaterials);
+        setMaterialLoans(fetchedMaterialLoans);
+        setItems([]);
+        setReports([]);
       } else if (currentSystem === 'materiais' || activeTab === 'materiais') {
         const [fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
           StorageService.getMaterials(campusId),
@@ -1436,7 +1451,18 @@ const App: React.FC = () => {
                 {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} campuses={campuses} />}
                 {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} campuses={campuses} />}
                 {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} campuses={campuses} />}
-                {activeTab === 'livros-catalogo' && <BooksTab books={books} bookLoans={bookLoans} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'livros-catalogo' && (
+                  <BooksTab
+                    books={books}
+                    bookLoans={bookLoans}
+                    onUpdate={refreshData}
+                    user={user}
+                    campuses={campuses}
+                    people={people}
+                    isPeopleLoading={isPeopleLoading}
+                    peopleSearchIndex={peopleSearchIndexRef.current}
+                  />
+                )}
                 {activeTab === 'livros-emprestimos' && (
                   <BookLoansTab
                     loans={bookLoans}

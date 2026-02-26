@@ -49,47 +49,54 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         const rawSearch = searchTerm.trim();
         if (rawSearch.length < 2) {
             setSearchResults([]);
+            setIsSearching(false);
             return;
         }
 
-        // Suporte para busca única ou em lote (vírgula)
-        const searchGroups = rawSearch.includes(',')
-            ? rawSearch.split(',').map(s => s.trim()).filter(s => s.length >= 2)
-            : [rawSearch];
+        setIsSearching(true);
+        const debounceTimer = setTimeout(() => {
+            // Suporte para busca única ou em lote (vírgula)
+            const searchGroups = rawSearch.includes(',')
+                ? rawSearch.split(',').map(s => s.trim()).filter(s => s.length >= 2)
+                : [rawSearch];
 
-        let results: Person[] = [];
+            let results: Person[] = [];
 
-        searchGroups.forEach(group => {
-            const searchTerms = normalizeText(group).split(/\s+/).filter(t => t.length > 0);
+            searchGroups.forEach(group => {
+                const searchTerms = normalizeText(group).split(/\s+/).filter(t => t.length > 0);
 
-            // BUSCA OTIMIZADA NO NADA CONSTA
-            const matchingIds = new Set(
-                peopleSearchIndex
-                    .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
-                    .map(idx => idx.id)
-            );
+                // BUSCA OTIMIZADA NO NADA CONSTA
+                const matchingIds = new Set(
+                    peopleSearchIndex
+                        .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
+                        .map(idx => idx.id)
+                );
 
-            const groupResults = people.filter(p => {
-                // Filtro por campus se não for admin
-                if (user.level !== UserLevel.ADMIN && p.campus_id !== user.campus_id) return false;
-                return matchingIds.has(p.id);
+                const groupResults = people.filter(p => {
+                    // Filtro por campus se não for admin
+                    if (user.level !== UserLevel.ADMIN && p.campus_id !== user.campus_id) return false;
+                    return matchingIds.has(p.id);
+                });
+                results = [...results, ...groupResults];
             });
-            results = [...results, ...groupResults];
-        });
 
-        // Remover duplicados por ID
-        const uniqueResults = Array.from(new Map(results.map(r => [r.id, r])).values());
+            // Remover duplicados por ID
+            const uniqueResults = Array.from(new Map(results.map(r => [r.id, r])).values());
 
-        setSearchResults(uniqueResults.map(p => ({
-            registration: p.matricula,
-            name: p.name,
-            course: '',
-            situation: 'Matriculado',
-            email: '',
-            id: p.id,
-            campus_id: p.campus_id
-        })));
-    }, [searchTerm, people, user.campus_id, user.level]);
+            setSearchResults(uniqueResults.map(p => ({
+                registration: p.matricula,
+                name: p.name,
+                course: '',
+                situation: 'Matriculado',
+                email: '',
+                id: p.id,
+                campus_id: p.campus_id
+            })));
+            setIsSearching(false);
+        }, 300); // 300ms debounce
+
+        return () => clearTimeout(debounceTimer);
+    }, [searchTerm, people, user.campus_id, user.level, peopleSearchIndex]);
 
     const getStudentPendencies = (registration: string, studentId?: string, studentCampusId?: string) => {
         const activeLockerLoans: LoanData[] = [];

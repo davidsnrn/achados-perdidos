@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel } from '../../types';
+import React, { useState, useMemo } from 'react';
+import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel, Person } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, Camera } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, ArrowRight, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
-import { BarcodeScanner } from '../ui/BarcodeScanner';
 
 interface Props {
     books: Book[];
@@ -11,14 +10,24 @@ interface Props {
     onUpdate: () => void;
     user: User;
     campuses: Campus[];
+    people?: Person[];
+    isPeopleLoading?: boolean;
+    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
-export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses }) => {
+export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, people = [], isPeopleLoading, peopleSearchIndex = [] }) => {
     const [search, setSearch] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
-    const [showScanner, setShowScanner] = useState(false);
+
+    // Quick Loan State (Multiple Books)
+    const [selectedLoanBooks, setSelectedLoanBooks] = useState<Book[]>([]);
+    const [loanPerson, setLoanPerson] = useState<Person | null>(null);
+    const [loanPersonSearch, setLoanPersonSearch] = useState('');
+    const [loanBookSearch, setLoanBookSearch] = useState('');
+    const [loanObs, setLoanObs] = useState('');
+    const [isLoanLoading, setIsLoanLoading] = useState(false);
 
     // Form State
     const [edition, setEdition] = useState('');
@@ -101,6 +110,114 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .toLowerCase();
+    };
+
+    // Quick loan: filtered people by search index
+    const filteredLoanPeople = useMemo(() => {
+        if (!loanPersonSearch.trim() || loanPersonSearch.length < 2) return [];
+        const searchTerms = normalizeText(loanPersonSearch).split(/\s+/).filter(t => t.length > 0);
+        const matchingIds = new Set(
+            peopleSearchIndex
+                .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
+                .slice(0, 10)
+                .map(idx => idx.id)
+        );
+        return people.filter(p => matchingIds.has(p.id));
+    }, [loanPersonSearch, people, peopleSearchIndex]);
+
+    // Quick loan: filtered books by search within modal
+    const filteredLoanBooks = useMemo(() => {
+        if (!loanBookSearch.trim() || loanBookSearch.length < 2) return [];
+        const searchTerms = normalizeText(loanBookSearch).split(/\s+/).filter(t => t.length > 0);
+        return books.filter(b => {
+            const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
+            return searchTerms.every(term => bookText.includes(term));
+        }).slice(0, 5);
+    }, [loanBookSearch, books]);
+
+    const handleQuickLoan = async () => {
+        if (selectedLoanBooks.length === 0 || !loanPerson) return;
+        setIsLoanLoading(true);
+        try {
+            const now = new Date().toISOString();
+            const existing = bookLoans.find(l => l.personId === loanPerson.id && l.status === BookLoanStatus.ACTIVE);
+
+            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: "Ativo" | "Devolvido" }[] = selectedLoanBooks.map(b => ({
+                id: b.id,
+                title: b.title,
+                code: b.code,
+                series: b.series,
+                status: 'Ativo' as const
+            }));
+
+            if (existing) {
+                // Check if any book is already in open loan
+                const duplicates = selectedLoanBooks.filter(b =>
+                    existing.books.some(eb => eb.id === b.id && eb.status === 'Ativo')
+                );
+
+                if (duplicates.length > 0) {
+                    if (!confirm(`${loanPerson.name} já possui os seguintes livros em aberto:\n${duplicates.map(d => `• ${d.title}`).join('\n')}\n\nDeseja ignorar os duplicados e adicionar apenas os novos?`)) {
+                        setIsLoanLoading(false);
+                        return;
+                    }
+                }
+
+                const finalBooksToAdd = booksToAdd.filter(b =>
+                    !existing.books.some(eb => eb.id === b.id && eb.status === 'Ativo')
+                );
+
+                if (finalBooksToAdd.length === 0) {
+                    alert('Nenhum livro novo para adicionar ao empréstimo existente.');
+                    setIsLoanLoading(false);
+                    return;
+                }
+
+                await StorageService.saveBookLoan({
+                    ...existing,
+                    books: [...existing.books, ...finalBooksToAdd],
+                    history: [
+                        ...(existing.history || []),
+                        ...finalBooksToAdd.map(b => ({
+                            action: `Novo livro adicionado (Seta): ${b.title} (#${b.code || 'S/C'})`,
+                            user: user.name,
+                            timestamp: now
+                        }))
+                    ]
+                });
+            } else {
+                const newLoan: BookLoan = {
+                    id: Math.random().toString(36).substr(2, 9),
+                    personId: loanPerson.id,
+                    personName: loanPerson.name,
+                    personMatricula: loanPerson.matricula,
+                    books: booksToAdd,
+                    loanedBy: user.name,
+                    loanDate: now,
+                    status: BookLoanStatus.ACTIVE,
+                    observation: loanObs,
+                    campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+                    history: booksToAdd.map(b => ({
+                        action: `Empréstimo (Seta): ${b.title} (#${b.code || 'S/C'})`,
+                        user: user.name,
+                        timestamp: now
+                    }))
+                };
+                await StorageService.saveBookLoan(newLoan);
+            }
+
+            onUpdate();
+            alert(`${selectedLoanBooks.length} livro(s) emprestado(s) com sucesso para ${loanPerson.name}!`);
+            setSelectedLoanBooks([]);
+            setLoanPerson(null);
+            setLoanPersonSearch('');
+            setLoanBookSearch('');
+            setLoanObs('');
+        } catch {
+            alert('Erro ao registrar empréstimo.');
+        } finally {
+            setIsLoanLoading(false);
+        }
     };
 
     const filteredBooks = books.filter(b => {
@@ -354,6 +471,13 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                         <td className="p-4">
                                             <div className="flex justify-center gap-2">
                                                 <button
+                                                    onClick={() => setSelectedLoanBooks(prev => [...prev, book])}
+                                                    className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
+                                                    title="Adicionar para Empréstimo"
+                                                >
+                                                    <ArrowRight size={16} />
+                                                </button>
+                                                <button
                                                     onClick={() => handleEdit(book)}
                                                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
                                                     title="Editar"
@@ -404,14 +528,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                     className="w-full border rounded-lg p-2.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green"
                                     placeholder="Código único..."
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowScanner(true)}
-                                    className="absolute right-2 top-1.5 p-1 text-gray-400 hover:text-ifrn-green hover:bg-ifrn-green/10 rounded transition-colors"
-                                    title="Escanear código de barras"
-                                >
-                                    <Camera size={20} />
-                                </button>
+
                             </div>
                         </div>
                     </div>
@@ -517,15 +634,145 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 </form>
             </Modal>
 
-            {showScanner && (
-                <BarcodeScanner
-                    onScan={(decodedText) => {
-                        setCode(decodedText);
-                        setShowScanner(false);
-                    }}
-                    onClose={() => setShowScanner(false)}
-                />
-            )}
+            <Modal
+                isOpen={selectedLoanBooks.length > 0}
+                onClose={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setLoanBookSearch(''); setLoanObs(''); }}
+                title="Empréstimo Rápido (Múltiplos Livros)"
+            >
+                <div className="space-y-6">
+                    {/* Selected Books Section */}
+                    <div className="space-y-3">
+                        <label className="block text-xs font-black text-gray-400 uppercase tracking-widest leading-none">
+                            Livros Selecionados ({selectedLoanBooks.length})
+                        </label>
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                            {selectedLoanBooks.map((book, idx) => (
+                                <div key={`${book.id}-${idx}`} className="bg-ifrn-green/5 p-3 rounded-xl border border-ifrn-green/10 flex items-center justify-between group">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-ifrn-green/10 text-ifrn-green rounded-lg flex items-center justify-center font-bold text-xs">
+                                            {idx + 1}
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-800 text-sm leading-tight">{book.title}</h4>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">{book.code || 'S/C'} • {book.series}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedLoanBooks(prev => prev.filter((_, i) => i !== idx))}
+                                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add more books search */}
+                        <div className="relative pt-2">
+                            <Plus className="absolute left-3 top-4.5 text-ifrn-green" size={14} style={{ top: '1.15rem' }} />
+                            <input
+                                type="text"
+                                placeholder="Adicionar mais livros..."
+                                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-ifrn-green outline-none"
+                                value={loanBookSearch}
+                                onChange={e => setLoanBookSearch(e.target.value)}
+                            />
+                            {loanBookSearch.length >= 2 && (
+                                <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-40 overflow-y-auto">
+                                    {filteredLoanBooks.map(b => (
+                                        <button
+                                            key={b.id}
+                                            onClick={() => {
+                                                setSelectedLoanBooks(prev => [...prev, b]);
+                                                setLoanBookSearch('');
+                                            }}
+                                            className="w-full text-left p-3 hover:bg-ifrn-green/5 transition-colors border-b last:border-0 border-gray-100"
+                                        >
+                                            <p className="font-bold text-xs text-gray-800">{b.title}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold uppercase">{b.code || 'S/C'} • {b.series}</p>
+                                        </button>
+                                    ))}
+                                    {filteredLoanBooks.length === 0 && <div className="p-3 text-center text-[10px] text-gray-400">Nenhum livro encontrado.</div>}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase">Selecionar Aluno</label>
+                                {isPeopleLoading && <Loader2 size={12} className="animate-spin text-ifrn-green" />}
+                            </div>
+
+                            {loanPerson ? (
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
+                                    <div className="flex-1">
+                                        <p className="font-bold text-blue-900">{loanPerson.name}</p>
+                                        <p className="text-[10px] text-blue-700 font-bold uppercase">{loanPerson.matricula}</p>
+                                    </div>
+                                    <button onClick={() => setLoanPerson(null)} className="text-xs text-red-500 font-bold underline ml-4">Alterar</button>
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por nome ou matrícula..."
+                                        className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                                        value={loanPersonSearch}
+                                        onChange={e => setLoanPersonSearch(e.target.value)}
+                                        autoFocus
+                                    />
+                                    {loanPersonSearch.length >= 2 && (
+                                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                            {filteredLoanPeople.map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    onClick={() => setLoanPerson(p)}
+                                                    className="w-full text-left p-3 hover:bg-gray-50 transition-colors border-b last:border-0 border-gray-100"
+                                                >
+                                                    <p className="font-bold text-sm text-gray-800">{p.name}</p>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula}</p>
+                                                </button>
+                                            ))}
+                                            {filteredLoanPeople.length === 0 && <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Observação (Opcional)</label>
+                            <textarea
+                                className="w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-ifrn-green outline-none h-20 resize-none"
+                                placeholder="Adicione observações se necessário..."
+                                value={loanObs}
+                                onChange={e => setLoanObs(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-6 flex justify-end gap-3 border-t">
+                        <button
+                            onClick={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setLoanBookSearch(''); setLoanObs(''); }}
+                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-semibold"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleQuickLoan}
+                            disabled={isLoanLoading || !loanPerson}
+                            className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold flex items-center gap-2 disabled:opacity-50 shadow-md active:scale-95"
+                        >
+                            {isLoanLoading ? <Loader2 className="animate-spin" size={18} /> : 'Finalizar Empréstimo'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+
         </div>
     );
 };

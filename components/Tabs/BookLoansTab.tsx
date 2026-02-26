@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText, Camera } from 'lucide-react';
+import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText } from 'lucide-react';
 import { Modal } from '../ui/Modal';
-import { BarcodeScanner } from '../ui/BarcodeScanner';
 
 interface Props {
     loans: BookLoan[];
@@ -35,7 +34,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
     const [selectedSeries, setSelectedSeries] = useState<string>('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
-    const [showScanner, setShowScanner] = useState(false);
+
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -416,14 +415,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                         onFocus={() => setIsBookInputFocused(true)}
                                         onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowScanner(true)}
-                                        className="absolute right-2 top-1.5 p-1 text-gray-400 hover:text-ifrn-green hover:bg-ifrn-green/10 rounded transition-colors"
-                                        title="Escanear código de barras"
-                                    >
-                                        <Camera size={20} />
-                                    </button>
+
                                 </div>
                             </div>
                             <div className="relative">
@@ -713,21 +705,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                 )}
             </Modal>
 
-            {showScanner && (
-                <BarcodeScanner
-                    onScan={(decodedText) => {
-                        const book = books.find(b => b.code === decodedText);
-                        if (book) {
-                            handleAddBook(book);
-                            alert(`Livro encontrado: ${book.title}`);
-                        } else {
-                            alert(`Nenhum livro encontrado com o código: ${decodedText}`);
-                        }
-                        setShowScanner(false);
-                    }}
-                    onClose={() => setShowScanner(false)}
-                />
-            )}
+
         </div>
     );
 };

@@ -343,7 +343,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 </div>
 <div class="summary-grid">
     <div class="summary-item">
-        <div class="label">Total em Estoque</div>
+        <div class="label">Total de Livros</div>
         <div class="value">${totalInStock}</div>
     </div>
     <div class="summary-item">
@@ -351,7 +351,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         <div class="value">${totalBorrowed}</div>
     </div>
     <div class="summary-item">
-        <div class="label">Disponível p/ Empréstimo</div>
+        <div class="label">Disponíveis</div>
         <div class="value" style="color: #309B41">${totalAvailable}</div>
     </div>
 </div>

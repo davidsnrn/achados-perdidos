@@ -246,7 +246,7 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('people')
-        .select('id, name, matricula, campus_id')
+        .select('id, name, matricula, campus_id, type')
         .range(from, from + limit - 1);
 
       if (campusId) {
@@ -359,7 +359,8 @@ export const StorageService = {
       id: p.id,
       matricula: p.matricula,
       name: p.name,
-      type: p.type
+      type: p.type,
+      campus_id: p.campus_id
     }));
 
     if (toInsert.length > 0) {

@@ -136,8 +136,26 @@ const App: React.FC = () => {
   }, [user, adminGlobalCampusId]);
 
   const refreshPeople = useCallback(async () => {
-    // In search-heavy components, we fetch on-demand
-  }, []);
+    if (!user) return;
+    setIsPeopleLoading(true);
+    try {
+      const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+      const allPeople = await StorageService.getAllPeople(campusId);
+
+      // CONSTRUÇÃO DO ÍNDICE DE BUSCA (Roda uma única vez após o fetch)
+      // Isso economiza milhares de normalizações durante a digitação
+      peopleSearchIndexRef.current = allPeople.map(p => ({
+        id: p.id,
+        searchStr: normalizeText(`${p.name} ${p.matricula}`)
+      }));
+
+      setPeople(allPeople);
+    } catch (err) {
+      console.error("Erro ao carregar pessoas do campus:", err);
+    } finally {
+      setIsPeopleLoading(false);
+    }
+  }, [user, adminGlobalCampusId]);
 
   const refreshUsers = useCallback(async () => {
     if (!user || user.level !== UserLevel.ADMIN) return;
@@ -258,6 +276,8 @@ const App: React.FC = () => {
         ]);
         setUsers(fetchedUsers);
         setCampuses(fetchedCampuses);
+      } else if (activeTab === 'pessoas') {
+        await refreshPeople();
       }
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
@@ -272,30 +292,8 @@ const App: React.FC = () => {
 
   // Carrega as pessoas do campus APENAS quando o campus ou usuário muda
   useEffect(() => {
-    const fetchCampusPeople = async () => {
-      if (!user) return;
-      setIsPeopleLoading(true);
-      try {
-        const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-        const allPeople = await StorageService.getAllPeople(campusId);
-
-        // CONSTRUÇÃO DO ÍNDICE DE BUSCA (Roda uma única vez após o fetch)
-        // Isso economiza milhares de normalizações durante a digitação
-        peopleSearchIndexRef.current = allPeople.map(p => ({
-          id: p.id,
-          searchStr: normalizeText(`${p.name} ${p.matricula}`)
-        }));
-
-        setPeople(allPeople);
-      } catch (err) {
-        console.error("Erro ao carregar pessoas do campus:", err);
-      } finally {
-        setIsPeopleLoading(false);
-      }
-    };
-
-    fetchCampusPeople();
-  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level]);
+    refreshPeople();
+  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level, refreshPeople]);
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});

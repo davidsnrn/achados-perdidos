@@ -15,6 +15,97 @@ interface Props {
     peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
+interface BookTableProps {
+    books: Book[];
+    title: string;
+    onEdit: (book: Book) => void;
+    onDelete: (id: string) => void;
+    onLoan: (book: Book) => void;
+    getBorrowedCount: (id: string) => number;
+}
+
+const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount }) => (
+    <div className="space-y-4">
+        <h4 className="font-bold text-gray-700 text-md px-2">{title} ({books.length})</h4>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
+                        <tr>
+                            <th className="p-4">Edição</th>
+                            <th className="p-4">Código</th>
+                            <th className="p-4">Área</th>
+                            <th className="p-4">Título</th>
+                            <th className="p-4">Série</th>
+                            <th className="p-4">Editora</th>
+                            <th className="p-4 text-center">QTD EMP.</th>
+                            <th className="p-4 text-center">QTD ATUAL</th>
+                            <th className="p-4 text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {books.length === 0 ? (
+                            <tr>
+                                <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro encontrado nesta categoria.</td>
+                            </tr>
+                        ) : (
+                            books.map(book => (
+                                <tr key={book.id} className="hover:bg-gray-50 transition-colors group">
+                                    <td className="p-4 whitespace-nowrap">{book.edition}</td>
+                                    <td className="p-4 font-mono text-xs">{book.code}</td>
+                                    <td className="p-4">{book.area}</td>
+                                    <td className="p-4 font-bold text-gray-800">{book.title}</td>
+                                    <td className="p-4">{book.series}</td>
+                                    <td className="p-4">{book.publisher}</td>
+                                    <td className="p-4 text-center">
+                                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            {getBorrowedCount(book.id)}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-center font-bold">
+                                        {book.quantity === 'Indeterminado' ? (
+                                            <span className="text-gray-400">Indeterminado</span>
+                                        ) : (
+                                            <span className={parseInt(book.quantity) - getBorrowedCount(book.id) <= 0 ? 'text-red-600' : 'text-ifrn-darkGreen'}>
+                                                {Math.max(0, parseInt(book.quantity) - getBorrowedCount(book.id))}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex justify-center gap-2">
+                                            <button
+                                                onClick={() => onLoan(book)}
+                                                className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
+                                                title="Adicionar para Empréstimo"
+                                            >
+                                                <ArrowRight size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => onEdit(book)}
+                                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                title="Editar"
+                                            >
+                                                <Pencil size={16} />
+                                            </button>
+                                            <button
+                                                onClick={() => onDelete(book.id)}
+                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                title="Excluir"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+);
+
 export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, people = [], isPeopleLoading, peopleSearchIndex = [] }) => {
     const [search, setSearch] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -220,12 +311,17 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         }
     };
 
-    const filteredBooks = books.filter(b => {
-        if (!search.trim()) return true;
+    const filteredBooks = useMemo(() => {
+        if (!search.trim()) return books;
         const searchTerms = normalizeText(search).split(/\s+/).filter(t => t.length > 0);
-        const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
-        return searchTerms.every(term => bookText.includes(term));
-    });
+        return books.filter(b => {
+            const bookText = normalizeText(`${b.title} ${b.code} ${b.area} ${b.edition} ${b.publisher}`);
+            return searchTerms.every(term => bookText.includes(term));
+        });
+    }, [search, books]);
+
+    const studentBooks = filteredBooks.filter(b => !b.code?.endsWith('MP'));
+    const teacherBooks = filteredBooks.filter(b => b.code?.endsWith('MP'));
 
     const availableBooksForReport = filteredBooks.filter(book => {
         if (book.quantity === 'Indeterminado') return true;
@@ -396,7 +492,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     return (
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h3 className="font-bold text-gray-700 text-lg">Catálogo de Livros ({filteredBooks.length})</h3>
+                <h3 className="font-bold text-gray-700 text-lg">Catálogo Geral ({filteredBooks.length})</h3>
 
                 <div className="flex flex-wrap gap-2 w-full md:w-auto">
                     <div className="relative flex-1 md:w-64">
@@ -424,81 +520,24 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
-                            <tr>
-                                <th className="p-4">Edição</th>
-                                <th className="p-4">Código</th>
-                                <th className="p-4">Área</th>
-                                <th className="p-4">Título</th>
-                                <th className="p-4">Série</th>
-                                <th className="p-4">Editora</th>
-                                <th className="p-4 text-center">QTD EMP.</th>
-                                <th className="p-4 text-center">QTD ATUAL</th>
-                                <th className="p-4 text-center">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredBooks.length === 0 ? (
-                                <tr>
-                                    <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro cadastrado.</td>
-                                </tr>
-                            ) : (
-                                filteredBooks.map(book => (
-                                    <tr key={book.id} className="hover:bg-gray-50 transition-colors group">
-                                        <td className="p-4 whitespace-nowrap">{book.edition}</td>
-                                        <td className="p-4 font-mono text-xs">{book.code}</td>
-                                        <td className="p-4">{book.area}</td>
-                                        <td className="p-4 font-bold text-gray-800">{book.title}</td>
-                                        <td className="p-4">{book.series}</td>
-                                        <td className="p-4">{book.publisher}</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                {getBorrowedCount(book.id)}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-center font-bold">
-                                            {book.quantity === 'Indeterminado' ? (
-                                                <span className="text-gray-400">Indeterminado</span>
-                                            ) : (
-                                                <span className={parseInt(book.quantity) - getBorrowedCount(book.id) <= 0 ? 'text-red-600' : 'text-ifrn-darkGreen'}>
-                                                    {Math.max(0, parseInt(book.quantity) - getBorrowedCount(book.id))}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex justify-center gap-2">
-                                                <button
-                                                    onClick={() => setSelectedLoanBooks(prev => [...prev, book])}
-                                                    className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
-                                                    title="Adicionar para Empréstimo"
-                                                >
-                                                    <ArrowRight size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleEdit(book)}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                                    title="Editar"
-                                                >
-                                                    <Pencil size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(book.id)}
-                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+            <div className="space-y-8">
+                <BookTable
+                    title="Livro do Estudante"
+                    books={studentBooks}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onLoan={(book) => setSelectedLoanBooks(prev => [...prev, book])}
+                    getBorrowedCount={getBorrowedCount}
+                />
+
+                <BookTable
+                    title="Manual do Professor"
+                    books={teacherBooks}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onLoan={(book) => setSelectedLoanBooks(prev => [...prev, book])}
+                    getBorrowedCount={getBorrowedCount}
+                />
             </div>
 
             <Modal

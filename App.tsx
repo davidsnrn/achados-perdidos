@@ -639,7 +639,7 @@ const App: React.FC = () => {
       case 'DELETE_PEOPLE': return 'Limpar Base de Pessoas';
       case 'DELETE_USERS': return 'Limpar Usuários do Sistema';
       case 'DELETE_LOCKER_LOANS': return 'Limpar Empréstimos de Armários';
-      case 'DELETE_BOOKS': return 'Limpar Catálogo de Livros';
+      case 'DELETE_BOOKS': return 'Limpar Acervo de Livros';
       case 'DELETE_MATERIALS': return 'Limpar Base de Materiais';
       case 'FACTORY_RESET': return 'Reset Geral (Fábrica)';
       default: return '';
@@ -1317,7 +1317,7 @@ const App: React.FC = () => {
               )}
               {currentSystem === 'livros' && (
                 <>
-                  <button onClick={() => handleMobileNav('livros-catalogo')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'livros-catalogo' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><BookOpen size={20} /> Catálogo de Livros</button>
+                  <button onClick={() => handleMobileNav('livros-catalogo')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'livros-catalogo' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><BookOpen size={20} /> Livro do Estudante</button>
                   <button onClick={() => handleMobileNav('livros-emprestimos')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'livros-emprestimos' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><ArrowRight size={20} /> Empréstimos</button>
                 </>
               )}
@@ -1427,7 +1427,7 @@ const App: React.FC = () => {
           )}
           {currentSystem === 'livros' && (
             <>
-              <button onClick={() => setActiveTab('livros-catalogo')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'livros-catalogo' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><BookOpen size={18} /> Catálogo de Livros</button>
+              <button onClick={() => setActiveTab('livros-catalogo')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'livros-catalogo' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><BookOpen size={18} /> Livro do Estudante</button>
               <button onClick={() => setActiveTab('livros-emprestimos')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'livros-emprestimos' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ArrowRight size={18} /> Empréstimos</button>
             </>
           )}

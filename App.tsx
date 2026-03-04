@@ -74,6 +74,7 @@ const App: React.FC = () => {
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
   // Manter em Ref evita overhead de renderização e permite busca ultra-rápida
   const peopleSearchIndexRef = useRef<{ id: string, searchStr: string }[]>([]);
+  const lastFetchIdRef = useRef(0);
 
   const [users, setUsers] = useState<User[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
@@ -200,7 +201,10 @@ const App: React.FC = () => {
   // Refresh Data Helper (Async) with Timeout
   const refreshData = useCallback(async () => {
     if (!user || isBackdropSleep) return;
+
+    const fetchId = ++lastFetchIdRef.current;
     setLoading(true);
+
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     try {
       // Lazy Loading: Só carrega dados do sistema atual
@@ -211,6 +215,9 @@ const App: React.FC = () => {
           StorageService.getItems(campusId),
           StorageService.getReports(campusId)
         ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setItems(fetchedItems);
         setReports(fetchedReports);
         // Limpar outros dados pesados
@@ -223,6 +230,9 @@ const App: React.FC = () => {
         const [fetchedLockers] = await Promise.all([
           StorageService.getLockers(campusId)
         ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setLockers(fetchedLockers);
         setItems([]);
         setReports([]);
@@ -235,6 +245,9 @@ const App: React.FC = () => {
           StorageService.getBooks(campusId),
           StorageService.getBookLoans(campusId)
         ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setBooks(fetchedBooks);
         setBookLoans(fetchedLoans);
         setItems([]);
@@ -250,6 +263,9 @@ const App: React.FC = () => {
           StorageService.getMaterials(campusId),
           StorageService.getMaterialLoans(campusId)
         ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setLockers(fetchedLockers);
         setBooks(fetchedBooks);
         setBookLoans(fetchedBookLoans);
@@ -262,6 +278,9 @@ const App: React.FC = () => {
           StorageService.getMaterials(campusId),
           StorageService.getMaterialLoans(campusId)
         ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setMaterials(fetchedMaterials);
         setMaterialLoans(fetchedMaterialLoans);
         setItems([]);
@@ -274,6 +293,9 @@ const App: React.FC = () => {
           StorageService.getUsers(campusId),
           StorageService.getCampuses()
         ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
         setUsers(fetchedUsers);
         setCampuses(fetchedCampuses);
       } else if (activeTab === 'pessoas') {
@@ -282,7 +304,9 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
     } finally {
-      setLoading(false);
+      if (fetchId === lastFetchIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [user, currentSystem, activeTab, adminGlobalCampusId]);
 

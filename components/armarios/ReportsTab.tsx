@@ -342,9 +342,9 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                 {reportData.length > PAGE_SIZE && (
                     <div className="flex items-center justify-between border-t border-slate-50 pt-6 mt-4">
                         <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                            Mostrando {Math.min(reportData.length, (currentPage - 1) * PAGE_SIZE + 1)}-{Math.min(reportData.length, currentPage * PAGE_SIZE)} de {reportData.length} registros
+                            Mostrando <span className="text-slate-900">{paginatedData.length}</span> de <span className="text-slate-900">{reportData.length}</span> registros
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-1">
                             <button
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
@@ -352,9 +352,24 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                             >
                                 Anterior
                             </button>
-                            <div className="flex items-center px-4 text-[10px] font-black text-slate-400 uppercase">
-                                Página {currentPage} de {totalPages}
-                            </div>
+                            {[...Array(totalPages)].map((_, i) => {
+                                const pageNum = i + 1;
+                                if (pageNum === 1 || pageNum === totalPages || (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)) {
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                            className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${currentPage === pageNum ? 'bg-green-600 text-white shadow-lg' : 'hover:bg-slate-100 text-slate-500'}`}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                }
+                                if (pageNum === 2 || pageNum === totalPages - 1) {
+                                    return <span key={pageNum} className="text-slate-300 px-1 text-xs">...</span>;
+                                }
+                                return null;
+                            })}
                             <button
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}

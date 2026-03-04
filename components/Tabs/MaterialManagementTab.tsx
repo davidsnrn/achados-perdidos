@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -20,6 +20,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
+
+    // Pagination
+    const ITEMS_PER_PAGE = 20;
+    const [currentPageInventory, setCurrentPageInventory] = useState(1);
+    const [currentPageReports, setCurrentPageReports] = useState(1);
 
     // Material form
     const [showMaterialForm, setShowMaterialForm] = useState(false);
@@ -52,6 +57,20 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
     const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+
+    // Reset pagination on search or tab changes
+    useMemo(() => {
+        setCurrentPageInventory(1);
+    }, [searchTerm, filterStatus]);
+
+    useMemo(() => {
+        setCurrentPageReports(1);
+    }, [reportSearch, reportDateStart, reportDateEnd]);
+
+    useEffect(() => {
+        setCurrentPageInventory(1);
+        setCurrentPageReports(1);
+    }, [activeTab]);
 
     const stats = useMemo(() => {
         const active = loans.filter(l => l.status === 'ACTIVE').length;
@@ -100,6 +119,13 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             return true;
         });
     }, [inventory, searchTerm, filterStatus]);
+
+    const paginatedInventory = useMemo(() => {
+        const start = (currentPageInventory - 1) * ITEMS_PER_PAGE;
+        return filteredInventory.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredInventory, currentPageInventory]);
+
+    const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
     const handlePersonSearch = (val: string) => {
         setPersonSearch(val);
@@ -442,7 +468,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {filteredInventory.map(item => (
+                                    {paginatedInventory.map(item => (
                                         <tr
                                             key={item.id}
                                             className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedIds.includes(item.id) ? 'bg-indigo-50/50' : ''}`}
@@ -492,6 +518,49 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination UI - Inventory */}
+                        {totalPagesInventory > 1 && (
+                            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">
+                                    Mostrando <span className="text-gray-900">{paginatedInventory.length}</span> de <span className="text-gray-900">{filteredInventory.length}</span> materiais
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        disabled={currentPageInventory === 1}
+                                        onClick={() => setCurrentPageInventory(prev => Math.max(1, prev - 1))}
+                                        className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-white transition-all text-slate-600"
+                                    >
+                                        Anterior
+                                    </button>
+                                    {[...Array(totalPagesInventory)].map((_, i) => {
+                                        const pageNum = i + 1;
+                                        if (pageNum === 1 || pageNum === totalPagesInventory || (pageNum >= currentPageInventory - 1 && pageNum <= currentPageInventory + 1)) {
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setCurrentPageInventory(pageNum)}
+                                                    className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${currentPageInventory === pageNum ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-gray-100 text-slate-500'}`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        }
+                                        if (pageNum === 2 || pageNum === totalPagesInventory - 1) {
+                                            return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
+                                        }
+                                        return null;
+                                    })}
+                                    <button
+                                        disabled={currentPageInventory === totalPagesInventory}
+                                        onClick={() => setCurrentPageInventory(prev => Math.min(totalPagesInventory, prev + 1))}
+                                        className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-white transition-all text-slate-600"
+                                    >
+                                        Próxima
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -573,6 +642,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                             return matchesText && matchesStart && matchesEnd;
                                         })
                                         .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+                                        .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE)
                                         .map(loan => (
                                             <tr key={loan.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewingLoan(loan)}>
                                                 <td className="p-4">
@@ -616,6 +686,70 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination UI - Reports */}
+                        {(() => {
+                            const filteredReports = loans.filter(loan => {
+                                const search = reportSearch.toLowerCase().trim();
+                                const matchesText = !search ||
+                                    loan.materialName.toLowerCase().includes(search) ||
+                                    loan.personName.toLowerCase().includes(search) ||
+                                    loan.personMatricula.toLowerCase().includes(search) ||
+                                    loan.loanedBy.toLowerCase().includes(search) ||
+                                    (loan.returnedBy || '').toLowerCase().includes(search) ||
+                                    `#${loan.materialCode}`.includes(search) ||
+                                    loan.materialCode.includes(search);
+
+                                const loanDate = new Date(loan.loanDate);
+                                const matchesStart = !reportDateStart || loanDate >= new Date(reportDateStart + 'T00:00:00');
+                                const matchesEnd = !reportDateEnd || loanDate <= new Date(reportDateEnd + 'T23:59:59');
+
+                                return matchesText && matchesStart && matchesEnd;
+                            });
+                            const totalPagesReports = Math.ceil(filteredReports.length / ITEMS_PER_PAGE);
+
+                            return totalPagesReports > 1 && (
+                                <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                    <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">
+                                        Mostrando <span className="text-gray-900">{Math.min(filteredReports.length, ITEMS_PER_PAGE)}</span> de <span className="text-gray-900">{filteredReports.length}</span> registros
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            disabled={currentPageReports === 1}
+                                            onClick={() => setCurrentPageReports(prev => Math.max(1, prev - 1))}
+                                            className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-white transition-all text-slate-600"
+                                        >
+                                            Anterior
+                                        </button>
+                                        {[...Array(totalPagesReports)].map((_, i) => {
+                                            const pageNum = i + 1;
+                                            if (pageNum === 1 || pageNum === totalPagesReports || (pageNum >= currentPageReports - 1 && pageNum <= currentPageReports + 1)) {
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setCurrentPageReports(pageNum)}
+                                                        className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${currentPageReports === pageNum ? 'bg-indigo-600 text-white shadow-lg' : 'hover:bg-gray-100 text-slate-500'}`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            }
+                                            if (pageNum === 2 || pageNum === totalPagesReports - 1) {
+                                                return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
+                                            }
+                                            return null;
+                                        })}
+                                        <button
+                                            disabled={currentPageReports === totalPagesReports}
+                                            onClick={() => setCurrentPageReports(prev => Math.min(totalPagesReports, prev + 1))}
+                                            className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase tracking-widest disabled:opacity-30 hover:bg-white transition-all text-slate-600"
+                                        >
+                                            Próxima
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

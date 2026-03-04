@@ -15,7 +15,7 @@ interface Props {
   campuses: Campus[];
 }
 
-type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM';
+type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM' | 'SPECIFIC';
 type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound' | 'returnedDate';
 
 export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep, campuses }) => {
@@ -235,6 +235,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
           const start = new Date(startDate + 'T00:00:00');
           const end = new Date(endDate + 'T23:59:59');
           matchesDate = itemDate >= start && itemDate <= end;
+        } else if (dateFilter === 'SPECIFIC' && startDate) {
+          matchesDate = item.dateFound === startDate;
         }
       }
 
@@ -616,8 +618,20 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               <option value="WEEK">Esta Semana</option>
               <option value="THIS_MONTH">Este Mês</option>
               <option value="THIS_YEAR">Este Ano</option>
+              <option value="SPECIFIC">Data Específica</option>
               <option value="CUSTOM">Data Personalizada</option>
             </select>
+
+            {dateFilter === 'SPECIFIC' && (
+              <div className="flex items-center gap-1 pl-2 border-l border-gray-300 animate-fadeIn">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className="text-xs border rounded px-2 py-1 bg-white outline-none focus:ring-1 focus:ring-ifrn-green"
+                />
+              </div>
+            )}
 
             {dateFilter === 'CUSTOM' && (
               <div className="flex items-center gap-1 pl-2 border-l border-gray-300 animate-fadeIn">

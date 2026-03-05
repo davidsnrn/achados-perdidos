@@ -36,6 +36,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
     const [isSeriesSelectFocused, setIsSeriesSelectFocused] = useState(false);
     const [isMPToggleFocused, setIsMPToggleFocused] = useState(false);
+    const [isBookListExpanded, setIsBookListExpanded] = useState(false);
     const [showMPBooks, setShowMPBooks] = useState(false);
 
 
@@ -138,6 +139,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
             setBookSearch('');
             setObservation('');
             setShowMPBooks(false);
+            setIsBookListExpanded(false);
         } catch (err) {
             alert('Erro ao processar empréstimo.');
         } finally {
@@ -365,7 +367,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
 
             <Modal
                 isOpen={showLoanModal}
-                onClose={() => { setShowLoanModal(false); setSelectedPerson(null); setSelectedBooks([]); setShowMPBooks(false); }}
+                onClose={() => {
+                    setShowLoanModal(false);
+                    setSelectedPerson(null);
+                    setSelectedBooks([]);
+                    setShowMPBooks(false);
+                    setIsBookListExpanded(false);
+                }}
                 title="Novo Empréstimo de Livros"
             >
                 <div className="space-y-6">
@@ -396,6 +404,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                         placeholder="Buscar por nome ou matrícula..."
                                         className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                         value={personSearch}
+                                        onFocus={() => setIsBookListExpanded(false)}
                                         onChange={e => setPersonSearch(e.target.value)}
                                     />
                                 </div>
@@ -431,8 +440,14 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                         placeholder="Buscar livro pelo título ou código..."
                                         className="w-full pl-10 pr-12 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                         value={bookSearch}
-                                        onChange={e => setBookSearch(e.target.value)}
-                                        onFocus={() => setIsBookInputFocused(true)}
+                                        onChange={e => {
+                                            setBookSearch(e.target.value);
+                                            if (e.target.value.length > 0) setIsBookListExpanded(true);
+                                        }}
+                                        onFocus={() => {
+                                            setIsBookInputFocused(true);
+                                            setIsBookListExpanded(true);
+                                        }}
                                         onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
                                     />
 
@@ -441,8 +456,14 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                             <div className="relative">
                                 <select
                                     value={selectedSeries}
-                                    onChange={e => setSelectedSeries(e.target.value)}
-                                    onFocus={() => setIsSeriesSelectFocused(true)}
+                                    onChange={e => {
+                                        setSelectedSeries(e.target.value);
+                                        setIsBookListExpanded(true);
+                                    }}
+                                    onFocus={() => {
+                                        setIsSeriesSelectFocused(true);
+                                        setIsBookListExpanded(true);
+                                    }}
                                     onBlur={() => setTimeout(() => setIsSeriesSelectFocused(false), 200)}
                                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none appearance-none bg-white font-medium text-gray-700"
                                 >
@@ -460,21 +481,30 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                 type="checkbox"
                                 id="showMPBooks"
                                 checked={showMPBooks}
-                                onChange={e => setShowMPBooks(e.target.checked)}
-                                onFocus={() => setIsMPToggleFocused(true)}
+                                onChange={e => {
+                                    setShowMPBooks(e.target.checked);
+                                    setIsBookListExpanded(true);
+                                }}
+                                onFocus={() => {
+                                    setIsMPToggleFocused(true);
+                                    setIsBookListExpanded(true);
+                                }}
                                 onBlur={() => setTimeout(() => setIsMPToggleFocused(false), 200)}
                                 className="w-4 h-4 accent-ifrn-green rounded border-gray-300 cursor-pointer"
                             />
                             <label
                                 htmlFor="showMPBooks"
                                 className="text-xs font-bold text-gray-500 uppercase cursor-pointer select-none"
-                                onMouseDown={() => setIsMPToggleFocused(true)}
+                                onMouseDown={() => {
+                                    setIsMPToggleFocused(true);
+                                    setIsBookListExpanded(true);
+                                }}
                                 onMouseUp={() => setTimeout(() => setIsMPToggleFocused(false), 200)}
                             >
                                 Mostrar Livros "Manual do Professor" (MP)
                             </label>
                         </div>
-                        {(bookSearch.length > 0 || isBookInputFocused || isSeriesSelectFocused || isMPToggleFocused) && (
+                        {(bookSearch.length > 0 || isBookInputFocused || isSeriesSelectFocused || isMPToggleFocused || isBookListExpanded) && (
                             <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100 max-h-64 overflow-y-auto">
                                 {filteredLoanBooks.map(b => {
                                     const isMP = b.code?.endsWith('MP');
@@ -523,6 +553,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                             className="w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-ifrn-green outline-none h-20 resize-none"
                             placeholder="Adicione observações importantes sobre este empréstimo..."
                             value={observation}
+                            onFocus={() => setIsBookListExpanded(false)}
                             onChange={e => setObservation(e.target.value)}
                         />
                     </div>
@@ -548,7 +579,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                     <div className="pt-6 flex justify-end gap-3 border-t">
                         <button
                             type="button"
-                            onClick={() => { setShowLoanModal(false); setSelectedPerson(null); setSelectedBooks([]); setShowMPBooks(false); }}
+                            onClick={() => {
+                                setShowLoanModal(false);
+                                setSelectedPerson(null);
+                                setSelectedBooks([]);
+                                setShowMPBooks(false);
+                                setIsBookListExpanded(false);
+                            }}
                             className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
                         >
                             Cancelar

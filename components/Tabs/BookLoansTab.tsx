@@ -35,6 +35,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [selectedSeries, setSelectedSeries] = useState<string>('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
     const [isSeriesSelectFocused, setIsSeriesSelectFocused] = useState(false);
+    const [isMPToggleFocused, setIsMPToggleFocused] = useState(false);
+    const [showMPBooks, setShowMPBooks] = useState(false);
 
 
     const handleAddBook = (book: Book) => {
@@ -135,6 +137,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
             setPersonSearch('');
             setBookSearch('');
             setObservation('');
+            setShowMPBooks(false);
         } catch (err) {
             alert('Erro ao processar empréstimo.');
         } finally {
@@ -228,6 +231,10 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
             // Filter out already selected books
             if (selectedBookIds.has(b.id)) return false;
 
+            // Filter MP books if not toggled
+            const isMP = b.code?.endsWith('MP');
+            if (isMP && !showMPBooks) return false;
+
             // Filter by series if selected
             if (selectedSeries && b.series !== selectedSeries) return false;
 
@@ -235,7 +242,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
             const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
             return searchTerms.every(term => bookText.includes(term));
         });
-    }, [bookSearch, books, selectedSeries, selectedBooks]);
+    }, [bookSearch, books, selectedSeries, selectedBooks, showMPBooks]);
 
     const uniqueSeries = Array.from(new Set(books.map(b => b.series).filter(Boolean))).sort();
 
@@ -358,7 +365,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
 
             <Modal
                 isOpen={showLoanModal}
-                onClose={() => { setShowLoanModal(false); setSelectedPerson(null); setSelectedBooks([]); }}
+                onClose={() => { setShowLoanModal(false); setSelectedPerson(null); setSelectedBooks([]); setShowMPBooks(false); }}
                 title="Novo Empréstimo de Livros"
             >
                 <div className="space-y-6">
@@ -446,7 +453,28 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                 </select>
                             </div>
                         </div>
-                        {(bookSearch.length > 0 || isBookInputFocused || isSeriesSelectFocused) && (
+
+                        {/* MP Toggle Checkbox */}
+                        <div className="mt-3 flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                id="showMPBooks"
+                                checked={showMPBooks}
+                                onChange={e => setShowMPBooks(e.target.checked)}
+                                onFocus={() => setIsMPToggleFocused(true)}
+                                onBlur={() => setTimeout(() => setIsMPToggleFocused(false), 200)}
+                                className="w-4 h-4 accent-ifrn-green rounded border-gray-300 cursor-pointer"
+                            />
+                            <label
+                                htmlFor="showMPBooks"
+                                className="text-xs font-bold text-gray-500 uppercase cursor-pointer select-none"
+                                onMouseDown={() => setIsMPToggleFocused(true)}
+                                onMouseUp={() => setTimeout(() => setIsMPToggleFocused(false), 200)}
+                            >
+                                Mostrar Livros "Manual do Professor" (MP)
+                            </label>
+                        </div>
+                        {(bookSearch.length > 0 || isBookInputFocused || isSeriesSelectFocused || isMPToggleFocused) && (
                             <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100 max-h-64 overflow-y-auto">
                                 {filteredLoanBooks.map(b => {
                                     const isMP = b.code?.endsWith('MP');
@@ -520,7 +548,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                     <div className="pt-6 flex justify-end gap-3 border-t">
                         <button
                             type="button"
-                            onClick={() => { setShowLoanModal(false); setSelectedPerson(null); setSelectedBooks([]); }}
+                            onClick={() => { setShowLoanModal(false); setSelectedPerson(null); setSelectedBooks([]); setShowMPBooks(false); }}
                             className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
                         >
                             Cancelar

@@ -1,8 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel, Person } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, ArrowRight, X } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, ArrowRight, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+
+type SortDir = 'asc' | 'desc';
+type SortCol = keyof Pick<Book, 'edition' | 'code' | 'area' | 'title' | 'series' | 'publisher'>;
+type SortEntry = { col: SortCol; dir: SortDir };
 
 interface Props {
     books: Book[];
@@ -22,98 +26,124 @@ interface BookTableProps {
     onDelete: (id: string) => void;
     onLoan: (book: Book) => void;
     getBorrowedCount: (id: string) => number;
+    sortConfig: SortEntry[];
+    onSort: (col: SortCol) => void;
 }
 
-const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount }) => (
-    <div className="space-y-4">
-        <h4 className="font-bold text-gray-700 text-md px-2">{title} ({books.length})</h4>
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
-                        <tr>
-                            <th className="p-4">Edição</th>
-                            <th className="p-4">Código</th>
-                            <th className="p-4">Área</th>
-                            <th className="p-4">Título</th>
-                            <th className="p-4">Série</th>
-                            <th className="p-4">Editora</th>
-                            <th className="p-4 text-center">QTD EMP.</th>
-                            <th className="p-4 text-center">QTD ATUAL</th>
-                            <th className="p-4 text-center">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {books.length === 0 ? (
+const SORT_COLS: { col: SortCol; label: string }[] = [
+    { col: 'edition', label: 'Edição' },
+    { col: 'code', label: 'Código' },
+    { col: 'area', label: 'Área' },
+    { col: 'title', label: 'Título' },
+    { col: 'series', label: 'Série' },
+    { col: 'publisher', label: 'Editora' },
+];
+
+const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount, sortConfig, onSort }) => {
+    const SortIcon = ({ col }: { col: SortCol }) => {
+        const entry = sortConfig.find(s => s.col === col);
+        const priority = sortConfig.findIndex(s => s.col === col);
+        return (
+            <span className="inline-flex items-center gap-0.5 ml-1">
+                {priority >= 0 && (
+                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-ifrn-green text-white text-[9px] font-black rounded-full">{priority + 1}</span>
+                )}
+                {entry ? (entry.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ChevronsUpDown size={12} className="text-gray-300" />}
+            </span>
+        );
+    };
+
+    return (
+        <div className="space-y-4">
+            <h4 className="font-bold text-gray-700 text-md px-2">{title} ({books.length})</h4>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
                             <tr>
-                                <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro encontrado nesta categoria.</td>
+                                {SORT_COLS.map(({ col, label }) => (
+                                    <th key={col} className="p-4 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => onSort(col)}>
+                                        <span className="inline-flex items-center">{label}<SortIcon col={col} /></span>
+                                    </th>
+                                ))}
+                                <th className="p-4 text-center">QTD EMP.</th>
+                                <th className="p-4 text-center">QTD ATUAL</th>
+                                <th className="p-4 text-center">Ações</th>
                             </tr>
-                        ) : (
-                            books.map(book => {
-                                const isMP = book.code?.endsWith('MP');
-                                return (
-                                    <tr key={book.id} className={`hover:bg-gray-50 transition-colors group ${isMP ? 'bg-orange-200/50' : ''}`}>
-                                        <td className="p-4 whitespace-nowrap">{book.edition}</td>
-                                        <td className="p-4 font-mono text-xs">{book.code}</td>
-                                        <td className="p-4">{book.area}</td>
-                                        <td className="p-4 font-bold text-gray-800">{book.title}</td>
-                                        <td className="p-4">{book.series}</td>
-                                        <td className="p-4">{book.publisher}</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                {getBorrowedCount(book.id)}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-center font-bold">
-                                            {book.quantity === 'Indeterminado' ? (
-                                                <span className="text-gray-400">Indeterminado</span>
-                                            ) : (
-                                                <span className={parseInt(book.quantity) - getBorrowedCount(book.id) <= 0 ? 'text-red-600' : 'text-ifrn-darkGreen'}>
-                                                    {Math.max(0, parseInt(book.quantity) - getBorrowedCount(book.id))}
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {books.length === 0 ? (
+                                <tr>
+                                    <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro encontrado nesta categoria.</td>
+                                </tr>
+                            ) : (
+                                books.map(book => {
+                                    const isMP = book.code?.endsWith('MP');
+                                    return (
+                                        <tr key={book.id} className={`hover:bg-gray-50 transition-colors group ${isMP ? 'bg-orange-200/50' : ''}`}>
+                                            <td className="p-4 whitespace-nowrap">{book.edition}</td>
+                                            <td className="p-4 font-mono text-xs">{book.code}</td>
+                                            <td className="p-4">{book.area}</td>
+                                            <td className="p-4 font-bold text-gray-800">{book.title}</td>
+                                            <td className="p-4">{book.series}</td>
+                                            <td className="p-4">{book.publisher}</td>
+                                            <td className="p-4 text-center">
+                                                <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                    {getBorrowedCount(book.id)}
                                                 </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4">
-                                            <div className="flex justify-center gap-2">
-                                                <button
-                                                    onClick={() => onLoan(book)}
-                                                    className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
-                                                    title="Adicionar para Empréstimo"
-                                                >
-                                                    <ArrowRight size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => onEdit(book)}
-                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                                    title="Editar"
-                                                >
-                                                    <Pencil size={16} />
-                                                </button>
-                                                <button
-                                                    onClick={() => onDelete(book.id)}
-                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                    title="Excluir"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })
-                        )}
-                    </tbody>
-                </table>
+                                            </td>
+                                            <td className="p-4 text-center font-bold">
+                                                {book.quantity === 'Indeterminado' ? (
+                                                    <span className="text-gray-400">Indeterminado</span>
+                                                ) : (
+                                                    <span className={parseInt(book.quantity) - getBorrowedCount(book.id) <= 0 ? 'text-red-600' : 'text-ifrn-darkGreen'}>
+                                                        {Math.max(0, parseInt(book.quantity) - getBorrowedCount(book.id))}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex justify-center gap-2">
+                                                    <button
+                                                        onClick={() => onLoan(book)}
+                                                        className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
+                                                        title="Adicionar para Empréstimo"
+                                                    >
+                                                        <ArrowRight size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onEdit(book)}
+                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                        title="Editar"
+                                                    >
+                                                        <Pencil size={16} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => onDelete(book.id)}
+                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                        title="Excluir"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, people = [], isPeopleLoading, peopleSearchIndex = [] }) => {
     const [search, setSearch] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingBook, setEditingBook] = useState<Book | null>(null);
+    const [sortConfig, setSortConfig] = useState<SortEntry[]>([]);
 
     // Quick Loan State (Multiple Books)
     const [selectedLoanBooks, setSelectedLoanBooks] = useState<Book[]>([]);
@@ -323,14 +353,39 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         }
     };
 
+    const handleSort = (col: SortCol) => {
+        setSortConfig(prev => {
+            const existing = prev.find(s => s.col === col);
+            if (!existing) return [...prev, { col, dir: 'asc' }];
+            if (existing.dir === 'asc') return prev.map(s => s.col === col ? { ...s, dir: 'desc' } : s);
+            // third click → remove from sort
+            return prev.filter(s => s.col !== col);
+        });
+    };
+
     const filteredBooks = useMemo(() => {
-        if (!search.trim()) return books;
-        const searchTerms = normalizeText(search).split(/\s+/).filter(t => t.length > 0);
-        return books.filter(b => {
+        let result = books.filter(b => {
+            if (!search.trim()) return true;
+            const searchTerms = normalizeText(search).split(/\s+/).filter(t => t.length > 0);
             const bookText = normalizeText(`${b.title} ${b.code} ${b.area} ${b.edition} ${b.publisher}`);
             return searchTerms.every(term => bookText.includes(term));
         });
-    }, [search, books]);
+
+        if (sortConfig.length > 0) {
+            const getVal = (book: Book, col: SortCol): string => (book[col] ?? '').toLowerCase();
+            result = [...result].sort((a, b) => {
+                for (const { col, dir } of sortConfig) {
+                    const va = getVal(a, col);
+                    const vb = getVal(b, col);
+                    if (va < vb) return dir === 'asc' ? -1 : 1;
+                    if (va > vb) return dir === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+
+        return result;
+    }, [search, books, sortConfig]);
 
     const studentBooks = filteredBooks.filter(b => !b.code?.endsWith('MP'));
     const teacherBooks = filteredBooks.filter(b => b.code?.endsWith('MP'));
@@ -565,6 +620,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     onDelete={handleDelete}
                     onLoan={(book) => setSelectedLoanBooks(prev => [...prev, book])}
                     getBorrowedCount={getBorrowedCount}
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
                 />
 
                 <BookTable
@@ -574,6 +631,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     onDelete={handleDelete}
                     onLoan={(book) => setSelectedLoanBooks(prev => [...prev, book])}
                     getBorrowedCount={getBorrowedCount}
+                    sortConfig={sortConfig}
+                    onSort={handleSort}
                 />
             </div>
 
@@ -722,25 +781,31 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             Livros Selecionados ({selectedLoanBooks.length})
                         </label>
                         <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                            {selectedLoanBooks.map((book, idx) => (
-                                <div key={`${book.id}-${idx}`} className="bg-ifrn-green/5 p-3 rounded-xl border border-ifrn-green/10 flex items-center justify-between group">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-ifrn-green/10 text-ifrn-green rounded-lg flex items-center justify-center font-bold text-xs">
-                                            {idx + 1}
+                            {selectedLoanBooks.map((book, idx) => {
+                                const isMP = book.code?.endsWith('MP');
+                                return (
+                                    <div key={`${book.id}-${idx}`} className={`p-3 rounded-xl border flex items-center justify-between group ${isMP ? 'bg-orange-50 border-orange-200' : 'bg-ifrn-green/5 border-ifrn-green/10'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${isMP ? 'bg-orange-200 text-orange-800' : 'bg-ifrn-green/10 text-ifrn-green'}`}>
+                                                {idx + 1}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <h4 className={`font-bold text-sm leading-tight ${isMP ? 'text-orange-900' : 'text-gray-800'}`}>{book.title}</h4>
+                                                    {isMP && <span className="text-[8px] bg-orange-400 text-white px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">MP</span>}
+                                                </div>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase">{book.code || 'S/C'} • {book.series}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-800 text-sm leading-tight">{book.title}</h4>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase">{book.code || 'S/C'} • {book.series}</p>
-                                        </div>
+                                        <button
+                                            onClick={() => setSelectedLoanBooks(prev => prev.filter((_, i) => i !== idx))}
+                                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                        >
+                                            <X size={16} />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={() => setSelectedLoanBooks(prev => prev.filter((_, i) => i !== idx))}
-                                        className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Add more books search */}

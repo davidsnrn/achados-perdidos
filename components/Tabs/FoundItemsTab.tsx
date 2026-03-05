@@ -55,6 +55,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const [selectedCampusId, setSelectedCampusId] = useState<string>('');
 
+  // Discard modal state (for Advanced users choosing between soft/hard delete)
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [itemToDiscard, setItemToDiscard] = useState<FoundItem | null>(null);
+  const [discardType, setDiscardType] = useState<'Doado' | 'Descartado'>('Descartado');
+
   const handleShareImage = async (base64Data: string, fileName: string) => {
     try {
       const response = await fetch(base64Data);
@@ -189,7 +194,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       if (rawSearch.startsWith('#')) {
         const searchId = parseInt(rawSearch.replace('#', ''));
         if (!isNaN(searchId)) {
-          matchesSearch = item.id === searchId;
+          matchesSearch = (item.campusItemId ?? item.id) === searchId;
         } else {
           matchesSearch = false;
         }
@@ -197,7 +202,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
         const searchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
         if (searchTerms.length > 0) {
           const itemSearchableText = normalizeText(`
-            ${item.id} 
+            ${item.campusItemId ?? item.id} 
             ${item.description} 
             ${item.detailedDescription || ''} 
             ${item.locationFound} 
@@ -399,13 +404,65 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       alert("Usuários Padrão não podem excluir itens.");
       return;
     }
-    if (confirm('Tem certeza que deseja excluir este item?')) {
-      const itemToDelete = items.find(i => i.id === id);
-      if (itemToDelete?.imageUrl) {
-        await StorageService.deleteItemImage(itemToDelete.imageUrl);
+
+    const itemToDelete = items.find(i => i.id === id);
+    if (!itemToDelete) return;
+
+    if (user.level === UserLevel.ADVANCED) {
+      // Avançado: Encaminha direto para Descartado (Soft-delete)
+      if (confirm(`Deseja mover o item "${itemToDelete.description}" para a aba Descartado/Doado?`)) {
+        setIsLoading(true);
+        try {
+          const logMsg = `Item descartado por ${userString}.`;
+          const updated: FoundItem = {
+            ...itemToDelete,
+            status: ItemStatus.DISCARDED,
+            discardType: 'Descartado',
+            returnedDate: new Date().toISOString()
+          };
+          await StorageService.saveItem(updated, logMsg, userString);
+          onUpdate();
+        } catch (err: any) {
+          alert(`Erro: ${err.message}`);
+        } finally {
+          setIsLoading(false);
+        }
       }
-      await StorageService.deleteItem(id);
+      return;
+    }
+
+    // Admin: Abre modal com escolha (Exclusão normal/descarte ou permanente)
+    setItemToDiscard(itemToDelete);
+    setDiscardType('Descartado');
+    setShowDiscardModal(true);
+  };
+
+  const handleConfirmDiscard = async (action: 'SOFT' | 'HARD') => {
+    if (!itemToDiscard) return;
+    setIsLoading(true);
+    try {
+      if (action === 'HARD') {
+        if (itemToDiscard.imageUrl) {
+          await StorageService.deleteItemImage(itemToDiscard.imageUrl);
+        }
+        await StorageService.deleteItem(itemToDiscard.id);
+      } else {
+        const logMsg = `Item marcado como ${discardType} por ${userString}.`;
+        const updated: FoundItem = {
+          ...itemToDiscard,
+          status: ItemStatus.DISCARDED,
+          discardType,
+          returnedDate: new Date().toISOString()
+        };
+        await StorageService.saveItem(updated, logMsg, userString);
+      }
       onUpdate();
+    } catch (err: any) {
+      alert(`Erro: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+      setShowDiscardModal(false);
+      setItemToDiscard(null);
     }
   };
 
@@ -488,24 +545,29 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       return;
     }
 
-    if (confirm(`Marcar ${selectedItems.length} itens como Doado/Descartado?`)) {
+    if (confirm(`Registrar doação de ${selectedItems.length} itens selecionados?`)) {
       setIsLoading(true);
-      // Processar em série ou paralelo.
-      const promises = selectedItems.map(async (id) => {
-        const item = items.find(i => i.id === id);
-        if (item) {
-          return StorageService.saveItem({
-            ...item,
-            status: ItemStatus.DISCARDED,
-            returnedDate: new Date().toISOString()
-          }, 'Item marcado como Doado/Descartado em lote.', userString);
-        }
-      });
-      await Promise.all(promises);
+      try {
+        const promises = selectedItems.map(async (id) => {
+          const item = items.find(i => i.id === id);
+          if (item) {
+            return StorageService.saveItem({
+              ...item,
+              status: ItemStatus.DISCARDED,
+              discardType: 'Doado',
+              returnedDate: new Date().toISOString()
+            }, 'Item doado via ação em lote.', userString);
+          }
+        });
+        await Promise.all(promises);
 
-      setSelectedItems([]);
-      onUpdate();
-      setIsLoading(false);
+        setSelectedItems([]);
+        onUpdate();
+      } catch (err: any) {
+        alert(`Erro ao processar doação: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -733,7 +795,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                               disabled={user.level === UserLevel.STANDARD}
                             />
                           </td>
-                          <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
+                          <td className="p-4 font-bold text-ifrn-green">{item.campusItemId ?? item.id}</td>
                           <td className="p-4">
                             <div className="font-medium text-gray-900 group flex items-center gap-2">
                               {item.description}
@@ -753,13 +815,23 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                       {/* BODY FOR RETURNED / DISCARDED */}
                       {(activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) && (
                         <>
-                          <td className="p-4 font-bold text-ifrn-green">{item.id}</td>
+                          <td className="p-4 font-bold text-ifrn-green">{item.campusItemId ?? item.id}</td>
                           <td className="p-4">
                             <div className="font-medium text-gray-900 group flex items-center gap-2">
                               {item.description}
+                              {activeSubTab === ItemStatus.DISCARDED && item.discardType && (
+                                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${item.discardType === 'Doado' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
+                                  {item.discardType}
+                                </span>
+                              )}
                             </div>
                             {activeSubTab === ItemStatus.RETURNED && item.returnedTo && (
                               <div className="text-xs text-gray-500 mt-1">Para: {item.returnedTo}</div>
+                            )}
+                            {activeSubTab === ItemStatus.DISCARDED && item.history && item.history.length > 0 && (
+                              <div className="text-xs text-gray-500 mt-1 italic">
+                                {item.history[item.history.length - 1].action}
+                              </div>
                             )}
                           </td>
                           <td className="p-4 text-gray-600">
@@ -830,7 +902,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
       <Modal
         isOpen={showEditModal}
         onClose={() => { setShowEditModal(false); }}
-        title={editingItem ? `Editar Item #${editingItem.id}` : 'Cadastrar Novo Item'}
+        title={editingItem ? `Editar Item #${editingItem.campusItemId ?? editingItem.id}` : 'Cadastrar Novo Item'}
       >
         <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="col-span-2 md:col-span-1">
@@ -1056,7 +1128,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
               )}
               <div>
                 <span className="text-xs font-bold text-gray-400 uppercase">ID</span>
-                <p className="font-mono text-ifrn-darkGreen font-bold">#{viewingItem.id}</p>
+                <p className="font-mono text-ifrn-darkGreen font-bold">#{viewingItem.campusItemId ?? viewingItem.id}</p>
               </div>
               <div>
                 <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
@@ -1153,9 +1225,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                       <button
                         onClick={(e) => { setShowDetailModal(false); handleDelete(e, viewingItem.id); }}
                         className="px-3 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
-                        title="Excluir item permanentemente"
+                        title={user.level === UserLevel.ADMIN ? "Excluir item permanentemente" : "Excluir ou Descartar item"}
                       >
-                        <Trash2 size={16} /> Excluir
+                        <Trash2 size={16} /> {user.level === UserLevel.ADMIN ? "Excluir" : "Excluir"}
                       </button>
                     )}
                   </>
@@ -1208,6 +1280,78 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
                 <Share size={18} /> Enviar Imagem
               </button>
             </div>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={showDiscardModal}
+        onClose={() => setShowDiscardModal(false)}
+        title="Excluir ou Descartar Item"
+      >
+        <div className="space-y-6">
+          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+            <p className="text-amber-800 text-sm">
+              Você está prestes a remover o item <strong>{itemToDiscard?.description}</strong>. Escolha como deseja proceder:
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div
+              onClick={() => setDiscardType('Descartado')}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Descartado' ? 'border-amber-500 bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${discardType === 'Descartado' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-800">Mover para Descartado</p>
+                  <p className="text-xs text-gray-500">O item será movido para a aba Descartado/Doado com histórico.</p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              onClick={() => setDiscardType('Doado')}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Doado' ? 'border-amber-500 bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${discardType === 'Doado' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <Gift size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-gray-800">Mover para Doado</p>
+                  <p className="text-xs text-gray-500">O item será registrado como doação para fins de auditoria.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-4 border-t">
+            <button
+              onClick={() => handleConfirmDiscard('SOFT')}
+              className="w-full py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
+            >
+              Confirmar Movimentação
+            </button>
+            {user.level === UserLevel.ADMIN && (
+              <button
+                onClick={() => {
+                  if (confirm('Tem certeza que deseja excluir permanentemente? Esta ação apaga os dados e a foto do item para sempre.')) {
+                    handleConfirmDiscard('HARD');
+                  }
+                }}
+                className="w-full py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors"
+              >
+                Excluir Definitivamente (Permanente)
+              </button>
+            )}
+            <button
+              onClick={() => setShowDiscardModal(false)}
+              className="w-full py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       </Modal>

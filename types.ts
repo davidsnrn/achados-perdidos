@@ -65,7 +65,8 @@ export interface ItemHistory {
 }
 
 export interface FoundItem {
-  id: number; // Sequential ID
+  id: number; // Internal DB primary key
+  campusItemId?: number; // Sequential ID per campus (displayed to user)
   description: string;
   detailedDescription?: string;
   locationFound: string;
@@ -75,6 +76,7 @@ export interface FoundItem {
   status: ItemStatus;
   returnedTo?: string; // Person ID or Name
   returnedDate?: string; // Data de devolução OU descarte
+  discardType?: 'Doado' | 'Descartado'; // Tipo de saída
   history?: ItemHistory[]; // Log de auditoria do objeto
   imageUrl?: string; // Base64 or URL
   campus_id?: string;

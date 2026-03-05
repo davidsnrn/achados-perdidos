@@ -408,6 +408,7 @@ export const StorageService = {
 
     return allData.map((d: any) => ({
       id: d.id,
+      campusItemId: d.campus_item_id,
       description: d.description,
       detailedDescription: d.detailed_description,
       locationFound: d.location_found,
@@ -417,6 +418,7 @@ export const StorageService = {
       status: d.status as ItemStatus,
       returnedTo: d.returned_to,
       returnedDate: d.returned_date,
+      discardType: d.discard_type,
       history: d.history,
       imageUrl: d.image_url,
       campus_id: d.campus_id
@@ -438,6 +440,17 @@ export const StorageService = {
     }
     history.push(newHistoryEntry);
 
+    // For new items, get a campus-scoped sequential ID
+    let campusItemId = item.campusItemId;
+    if (isNew && item.campus_id) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_next_campus_item_id', {
+        p_campus_id: item.campus_id
+      });
+      if (!rpcError && rpcData) {
+        campusItemId = rpcData as number;
+      }
+    }
+
     const payload = {
       description: item.description,
       detailed_description: item.detailedDescription,
@@ -448,9 +461,11 @@ export const StorageService = {
       status: item.status,
       returned_to: item.returnedTo,
       returned_date: item.returnedDate,
+      discard_type: item.discardType || null,
       history: history,
       image_url: item.imageUrl,
-      campus_id: item.campus_id
+      campus_id: item.campus_id,
+      ...(campusItemId !== undefined ? { campus_item_id: campusItemId } : {})
     };
 
     let error = null;

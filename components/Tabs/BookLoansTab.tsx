@@ -34,6 +34,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
     const [selectedSeries, setSelectedSeries] = useState<string>('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
+    const [isSeriesSelectFocused, setIsSeriesSelectFocused] = useState(false);
 
 
     const handleAddBook = (book: Book) => {
@@ -221,7 +222,12 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
 
     const filteredLoanBooks = React.useMemo(() => {
         const searchTerms = normalizeText(bookSearch).split(/\s+/).filter(t => t.length > 0);
+        const selectedBookIds = new Set(selectedBooks.map(b => b.id));
+
         return books.filter(b => {
+            // Filter out already selected books
+            if (selectedBookIds.has(b.id)) return false;
+
             // Filter by series if selected
             if (selectedSeries && b.series !== selectedSeries) return false;
 
@@ -229,7 +235,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
             const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
             return searchTerms.every(term => bookText.includes(term));
         });
-    }, [bookSearch, books, selectedSeries]);
+    }, [bookSearch, books, selectedSeries, selectedBooks]);
 
     const uniqueSeries = Array.from(new Set(books.map(b => b.series).filter(Boolean))).sort();
 
@@ -429,6 +435,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                 <select
                                     value={selectedSeries}
                                     onChange={e => setSelectedSeries(e.target.value)}
+                                    onFocus={() => setIsSeriesSelectFocused(true)}
+                                    onBlur={() => setTimeout(() => setIsSeriesSelectFocused(false), 200)}
                                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none appearance-none bg-white font-medium text-gray-700"
                                 >
                                     <option value="">Todas as Séries</option>
@@ -438,7 +446,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                 </select>
                             </div>
                         </div>
-                        {(bookSearch.length > 0 || isBookInputFocused) && (
+                        {(bookSearch.length > 0 || isBookInputFocused || isSeriesSelectFocused) && (
                             <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100 max-h-64 overflow-y-auto">
                                 {filteredLoanBooks.map(b => {
                                     const isMP = b.code?.endsWith('MP');

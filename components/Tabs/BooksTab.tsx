@@ -62,7 +62,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                         <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
                             <tr>
                                 {SORT_COLS.map(({ col, label }) => (
-                                    <th key={col} className="p-4 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => onSort(col)}>
+                                    <th key={col} className="p-4 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSort(col); }}>
                                         <span className="inline-flex items-center">{label}<SortIcon col={col} /></span>
                                     </th>
                                 ))}
@@ -354,14 +354,21 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     };
 
     const handleSort = (col: SortCol) => {
+        const scrollY = window.scrollY;
         setSortConfig(prev => {
             const existing = prev.find(s => s.col === col);
             if (!existing) return [...prev, { col, dir: 'asc' }];
-            if (existing.dir === 'asc') return prev.map(s => s.col === col ? { ...s, dir: 'desc' } : s);
-            // third click → remove from sort
+            if (existing.dir === 'asc') return prev.map(s => s.col === col ? { ...s, dir: 'desc' as SortDir } : s);
             return prev.filter(s => s.col !== col);
         });
+        requestAnimationFrame(() => window.scrollTo({ top: scrollY, behavior: 'instant' as ScrollBehavior }));
     };
+
+    // Default base sort: title asc, then series asc (invisible, no badges)
+    const DEFAULT_SORT: SortEntry[] = [
+        { col: 'title', dir: 'asc' },
+        { col: 'series', dir: 'asc' },
+    ];
 
     const filteredBooks = useMemo(() => {
         let result = books.filter(b => {
@@ -371,18 +378,23 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             return searchTerms.every(term => bookText.includes(term));
         });
 
-        if (sortConfig.length > 0) {
-            const getVal = (book: Book, col: SortCol): string => (book[col] ?? '').toLowerCase();
-            result = [...result].sort((a, b) => {
-                for (const { col, dir } of sortConfig) {
-                    const va = getVal(a, col);
-                    const vb = getVal(b, col);
-                    if (va < vb) return dir === 'asc' ? -1 : 1;
-                    if (va > vb) return dir === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        }
+        // Merge user sort + default fallback (skip default cols already in user sort)
+        const userCols = new Set(sortConfig.map(s => s.col));
+        const effectiveSort = [
+            ...sortConfig,
+            ...DEFAULT_SORT.filter(s => !userCols.has(s.col)),
+        ];
+
+        const getVal = (book: Book, col: SortCol): string => (book[col] ?? '').toLowerCase();
+        result = [...result].sort((a, b) => {
+            for (const { col, dir } of effectiveSort) {
+                const va = getVal(a, col);
+                const vb = getVal(b, col);
+                if (va < vb) return dir === 'asc' ? -1 : 1;
+                if (va > vb) return dir === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
 
         return result;
     }, [search, books, sortConfig]);

@@ -61,6 +61,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
         const person = selectedPerson;
         if (!person) return;
 
+        const hasMP = selectedBooks.some(b => b.code?.endsWith('MP'));
+        if (hasMP) {
+            if (!confirm('Você selecionou um "Manual do Professor" (MP). Tem certeza que deseja emprestá-lo?')) {
+                return;
+            }
+        }
+
         setIsLoading(true);
         try {
             const now = new Date().toISOString();
@@ -212,17 +219,17 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
         return people.filter(p => matchingIds.has(p.id));
     }, [personSearch, peopleSearchIndex, people]);
 
-    const filteredBooks = books.filter(b => {
-        // Filter by series if selected
-        if (selectedSeries && b.series !== selectedSeries) return false;
-
-        // Show all books (up to limit) if search is empty but input is focused
-        if (!bookSearch.trim()) return isBookInputFocused;
-
+    const filteredLoanBooks = React.useMemo(() => {
         const searchTerms = normalizeText(bookSearch).split(/\s+/).filter(t => t.length > 0);
-        const bookText = normalizeText(`${b.title} ${b.code}`);
-        return searchTerms.every(term => bookText.includes(term));
-    }).slice(0, 5);
+        return books.filter(b => {
+            // Filter by series if selected
+            if (selectedSeries && b.series !== selectedSeries) return false;
+
+            if (searchTerms.length === 0) return true;
+            const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
+            return searchTerms.every(term => bookText.includes(term));
+        });
+    }, [bookSearch, books, selectedSeries]);
 
     const uniqueSeries = Array.from(new Set(books.map(b => b.series).filter(Boolean))).sort();
 
@@ -431,33 +438,44 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                 </select>
                             </div>
                         </div>
-                        {(bookSearch || isBookInputFocused) && (
-                            <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                {filteredBooks.map(b => (
-                                    <button
-                                        key={b.id}
-                                        onClick={() => { handleAddBook(b); setBookSearch(''); }}
-                                        className="w-full text-left p-2 rounded text-sm hover:bg-gray-200 text-gray-700 transition-colors flex justify-between items-center"
-                                    >
-                                        <div>
-                                            <div className="font-bold">{b.title}</div>
-                                            <div className="text-[10px] text-gray-400">{b.code} • {b.series}</div>
-                                        </div>
-                                        <Plus size={14} className="text-ifrn-green" />
-                                    </button>
-                                ))}
-                                {filteredBooks.length === 0 && <div className="p-2 text-xs text-center text-gray-400">Nenhum resultado.</div>}
+                        {(bookSearch.length > 0 || isBookInputFocused) && (
+                            <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100 max-h-64 overflow-y-auto">
+                                {filteredLoanBooks.map(b => {
+                                    const isMP = b.code?.endsWith('MP');
+                                    return (
+                                        <button
+                                            key={b.id}
+                                            onClick={() => { handleAddBook(b); setBookSearch(''); }}
+                                            className={`w-full text-left p-2 rounded text-sm hover:bg-gray-200 text-gray-700 transition-colors flex justify-between items-center ${isMP ? 'bg-orange-100/50' : ''}`}
+                                        >
+                                            <div>
+                                                <div className="font-bold">{b.title}</div>
+                                                <div className="text-[10px] text-gray-400">{b.code} • {b.series}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {isMP && (
+                                                    <span className="text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">MP</span>
+                                                )}
+                                                <Plus size={14} className="text-ifrn-green" />
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                                {filteredLoanBooks.length === 0 && <div className="p-2 text-xs text-center text-gray-400">Nenhum resultado.</div>}
                             </div>
                         )}
 
                         {selectedBooks.length > 0 && (
                             <div className="mt-4 flex flex-wrap gap-2">
-                                {selectedBooks.map(b => (
-                                    <span key={b.id} className="flex items-center gap-1 px-3 py-1 bg-ifrn-green/10 text-ifrn-darkGreen text-xs font-bold rounded-full border border-ifrn-green/20">
-                                        {b.title} <span className="opacity-60 font-medium">({b.code || 'S/C'})</span>
-                                        <button onClick={() => handleRemoveBook(b.id)} className="ml-1 hover:text-red-500 transition-colors"><X size={14} /></button>
-                                    </span>
-                                ))}
+                                {selectedBooks.map(b => {
+                                    const isMP = b.code?.endsWith('MP');
+                                    return (
+                                        <span key={b.id} className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full border ${isMP ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-ifrn-green/10 text-ifrn-darkGreen border-ifrn-green/20'}`}>
+                                            {b.title} <span className="opacity-60 font-medium">({b.code || 'S/C'})</span>
+                                            <button onClick={() => handleRemoveBook(b.id)} className="ml-1 hover:text-red-500 transition-colors"><X size={14} /></button>
+                                        </span>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

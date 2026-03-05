@@ -49,55 +49,58 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                                 <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro encontrado nesta categoria.</td>
                             </tr>
                         ) : (
-                            books.map(book => (
-                                <tr key={book.id} className="hover:bg-gray-50 transition-colors group">
-                                    <td className="p-4 whitespace-nowrap">{book.edition}</td>
-                                    <td className="p-4 font-mono text-xs">{book.code}</td>
-                                    <td className="p-4">{book.area}</td>
-                                    <td className="p-4 font-bold text-gray-800">{book.title}</td>
-                                    <td className="p-4">{book.series}</td>
-                                    <td className="p-4">{book.publisher}</td>
-                                    <td className="p-4 text-center">
-                                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
-                                            {getBorrowedCount(book.id)}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-center font-bold">
-                                        {book.quantity === 'Indeterminado' ? (
-                                            <span className="text-gray-400">Indeterminado</span>
-                                        ) : (
-                                            <span className={parseInt(book.quantity) - getBorrowedCount(book.id) <= 0 ? 'text-red-600' : 'text-ifrn-darkGreen'}>
-                                                {Math.max(0, parseInt(book.quantity) - getBorrowedCount(book.id))}
+                            books.map(book => {
+                                const isMP = book.code?.endsWith('MP');
+                                return (
+                                    <tr key={book.id} className={`hover:bg-gray-50 transition-colors group ${isMP ? 'bg-orange-200/50' : ''}`}>
+                                        <td className="p-4 whitespace-nowrap">{book.edition}</td>
+                                        <td className="p-4 font-mono text-xs">{book.code}</td>
+                                        <td className="p-4">{book.area}</td>
+                                        <td className="p-4 font-bold text-gray-800">{book.title}</td>
+                                        <td className="p-4">{book.series}</td>
+                                        <td className="p-4">{book.publisher}</td>
+                                        <td className="p-4 text-center">
+                                            <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                {getBorrowedCount(book.id)}
                                             </span>
-                                        )}
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex justify-center gap-2">
-                                            <button
-                                                onClick={() => onLoan(book)}
-                                                className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
-                                                title="Adicionar para Empréstimo"
-                                            >
-                                                <ArrowRight size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => onEdit(book)}
-                                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                                                title="Editar"
-                                            >
-                                                <Pencil size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => onDelete(book.id)}
-                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                                                title="Excluir"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
+                                        </td>
+                                        <td className="p-4 text-center font-bold">
+                                            {book.quantity === 'Indeterminado' ? (
+                                                <span className="text-gray-400">Indeterminado</span>
+                                            ) : (
+                                                <span className={parseInt(book.quantity) - getBorrowedCount(book.id) <= 0 ? 'text-red-600' : 'text-ifrn-darkGreen'}>
+                                                    {Math.max(0, parseInt(book.quantity) - getBorrowedCount(book.id))}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex justify-center gap-2">
+                                                <button
+                                                    onClick={() => onLoan(book)}
+                                                    className="p-1.5 text-ifrn-green hover:bg-ifrn-green/10 rounded"
+                                                    title="Adicionar para Empréstimo"
+                                                >
+                                                    <ArrowRight size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => onEdit(book)}
+                                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                    title="Editar"
+                                                >
+                                                    <Pencil size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => onDelete(book.id)}
+                                                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                    title="Excluir"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>
@@ -117,6 +120,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [loanPerson, setLoanPerson] = useState<Person | null>(null);
     const [loanPersonSearch, setLoanPersonSearch] = useState('');
     const [loanBookSearch, setLoanBookSearch] = useState('');
+    const [isBookInputFocused, setIsBookInputFocused] = useState(false);
     const [loanObs, setLoanObs] = useState('');
     const [isLoanLoading, setIsLoanLoading] = useState(false);
 
@@ -218,16 +222,24 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
     // Quick loan: filtered books by search within modal
     const filteredLoanBooks = useMemo(() => {
-        if (!loanBookSearch.trim() || loanBookSearch.length < 2) return [];
         const searchTerms = normalizeText(loanBookSearch).split(/\s+/).filter(t => t.length > 0);
         return books.filter(b => {
+            if (searchTerms.length === 0) return true;
             const bookText = normalizeText(`${b.title} ${b.code} ${b.area}`);
             return searchTerms.every(term => bookText.includes(term));
-        }).slice(0, 5);
+        });
     }, [loanBookSearch, books]);
 
     const handleQuickLoan = async () => {
         if (selectedLoanBooks.length === 0 || !loanPerson) return;
+
+        const hasMP = selectedLoanBooks.some(b => b.code?.endsWith('MP'));
+        if (hasMP) {
+            if (!confirm('Você selecionou um "Manual do Professor" (MP). Tem certeza que deseja emprestá-lo?')) {
+                return;
+            }
+        }
+
         setIsLoanLoading(true);
         try {
             const now = new Date().toISOString();
@@ -715,22 +727,34 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                 className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-ifrn-green outline-none"
                                 value={loanBookSearch}
                                 onChange={e => setLoanBookSearch(e.target.value)}
+                                onFocus={() => setIsBookInputFocused(true)}
+                                onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
                             />
-                            {loanBookSearch.length >= 2 && (
-                                <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-40 overflow-y-auto">
-                                    {filteredLoanBooks.map(b => (
-                                        <button
-                                            key={b.id}
-                                            onClick={() => {
-                                                setSelectedLoanBooks(prev => [...prev, b]);
-                                                setLoanBookSearch('');
-                                            }}
-                                            className="w-full text-left p-3 hover:bg-ifrn-green/5 transition-colors border-b last:border-0 border-gray-100"
-                                        >
-                                            <p className="font-bold text-xs text-gray-800">{b.title}</p>
-                                            <p className="text-[9px] text-gray-400 font-bold uppercase">{b.code || 'S/C'} • {b.series}</p>
-                                        </button>
-                                    ))}
+                            {(loanBookSearch.length > 0 || isBookInputFocused) && (
+                                <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                                    {filteredLoanBooks.map(b => {
+                                        const isMP = b.code?.endsWith('MP');
+                                        return (
+                                            <button
+                                                key={b.id}
+                                                onClick={() => {
+                                                    setSelectedLoanBooks(prev => [...prev, b]);
+                                                    setLoanBookSearch('');
+                                                }}
+                                                className={`w-full text-left p-3 hover:bg-ifrn-green/5 transition-colors border-b last:border-0 border-gray-100 ${isMP ? 'bg-orange-100/50' : ''}`}
+                                            >
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="font-bold text-xs text-gray-800">{b.title}</p>
+                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">{b.code || 'S/C'} • {b.series}</p>
+                                                    </div>
+                                                    {isMP && (
+                                                        <span className="text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">MP</span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
                                     {filteredLoanBooks.length === 0 && <div className="p-3 text-center text-[10px] text-gray-400">Nenhum livro encontrado.</div>}
                                 </div>
                             )}

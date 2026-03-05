@@ -426,8 +426,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     td.bold { font-weight: 900; font-style: normal; color: #111; }
     td.mono { font-family: monospace; font-size: 8px; font-style: normal; }
     td.center { text-align: center; font-style: normal; }
-    .footer { margin-top: 50px; padding-top: 20px; border-top: 1px dashed #ccc; text-align: center; }
-    .signature-line { display: inline-block; width: 220px; border-top: 1px solid #777; padding-top: 6px; margin-top: 50px; }
+    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px dashed #ccc; text-align: center; page-break-inside: avoid; break-inside: avoid; }
+    .signature-line { display: inline-block; width: 220px; border-top: 1px solid #777; padding-top: 6px; margin-top: 30px; }
     .signature-line p { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #555; }
     .footer-note { font-size: 8px; color: #aaa; margin-top: 20px; font-style: italic; }
 </style>

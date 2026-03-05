@@ -529,7 +529,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdat
     }
 
     setEditingItem(item);
-    setItemImage(null);
+    setItemImage(item?.imageUrl || null);
     setImageBlob(null);
     setZoomImage(null);
     setSelectedCampusId(item?.campus_id || '');

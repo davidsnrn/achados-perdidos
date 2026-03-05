@@ -348,20 +348,25 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         const dateStr = now.toLocaleDateString('pt-BR');
         const timeStr = now.toLocaleTimeString('pt-BR');
 
-        const rows = availableBooksForReport.map(book => {
-            const available = book.quantity === 'Indeterminado'
-                ? '∞'
-                : String(parseInt(book.quantity) - getBorrowedCount(book.id));
-            return `
-                <tr>
-                    <td>${book.edition || ''}</td>
-                    <td class="mono">${book.code || ''}</td>
-                    <td class="bold">${book.title || ''}</td>
-                    <td>${book.series || ''}</td>
-                    <td>${book.publisher || ''}</td>
-                    <td class="center bold">${available}</td>
-                </tr>`;
-        }).join('');
+        const studentBooksReport = availableBooksForReport.filter(b => !b.code?.endsWith('MP'));
+        const teacherBooksReport = availableBooksForReport.filter(b => b.code?.endsWith('MP'));
+
+        const renderTableRows = (bookList: Book[]) => {
+            return bookList.map(book => {
+                const available = book.quantity === 'Indeterminado'
+                    ? '∞'
+                    : String(parseInt(book.quantity) - getBorrowedCount(book.id));
+                return `
+                    <tr>
+                        <td>${book.edition || ''}</td>
+                        <td class="mono">${book.code || ''}</td>
+                        <td class="bold">${book.title || ''}</td>
+                        <td>${book.series || ''}</td>
+                        <td>${book.publisher || ''}</td>
+                        <td class="center bold">${available}</td>
+                    </tr>`;
+            }).join('');
+        };
 
         const totalInStock = books.reduce((acc, book) => {
             if (book.quantity === 'Indeterminado') return acc;
@@ -411,7 +416,9 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     .summary-item { background: #fff; border: 1px solid #111; padding: 12px; text-align: center; border-radius: 4px; }
     .summary-item .label { font-size: 8px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px; color: #555; }
     .summary-item .value { font-size: 14px; font-weight: 900; color: #111; }
-    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    
+    .section-title { font-size: 10px; font-weight: 900; text-transform: uppercase; color: #309B41; margin: 25px 0 10px 0; border-left: 4px solid #309B41; padding-left: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 10px; }
     thead tr { border-bottom: 2px solid #111; }
     thead th { padding: 8px 6px; font-weight: 900; text-transform: uppercase; font-size: 8px; letter-spacing: 0.05em; text-align: left; }
     tbody tr { border-bottom: 1px solid #e5e5e5; }
@@ -463,6 +470,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         <div class="value" style="color: #309B41">${totalAvailable}</div>
     </div>
 </div>
+
+<h2 class="section-title">Livro do Estudante</h2>
 <table>
     <thead>
         <tr>
@@ -474,8 +483,24 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             <th style="text-align:center">Disponível</th>
         </tr>
     </thead>
-    <tbody>${rows}</tbody>
+    <tbody>${renderTableRows(studentBooksReport)}</tbody>
 </table>
+
+<h2 class="section-title">Manual do Professor</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Edição</th>
+            <th>Código</th>
+            <th>Título</th>
+            <th>Série</th>
+            <th>Editora</th>
+            <th style="text-align:center">Disponível</th>
+        </tr>
+    </thead>
+    <tbody>${renderTableRows(teacherBooksReport)}</tbody>
+</table>
+
 <div class="footer">
     <div class="signature-line"><p>Assinatura Responsável</p></div>
     <p class="footer-note">Este documento foi gerado eletronicamente pelo SIGAE - IFRN em ${dateStr}</p>

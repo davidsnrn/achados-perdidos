@@ -6,25 +6,19 @@ import { Search, ExternalLink, CheckCircle, AlertTriangle, User as UserIcon, Boo
 import { StorageService } from '../../services/storage';
 
 interface NadaConstaTabProps {
-    people: Person[]; // Still accepting as prop but using search service
     lockers: Locker[];
     bookLoans: BookLoan[];
     materialLoans: MaterialLoan[];
     user: User;
     campuses: Campus[];
-    isPeopleLoading?: boolean;
-    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
 export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
-    people,
     lockers,
     bookLoans,
     materialLoans,
     user,
-    campuses,
-    isPeopleLoading,
-    peopleSearchIndex = []
+    campuses
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -156,11 +150,6 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                         <h2 className="text-3xl font-black text-slate-800 tracking-tight">Sistema de Nada Consta</h2>
                         <div className="flex items-center gap-3">
                             <p className="text-slate-500 font-medium italic">Verificação unificada de armários e livros PNLD</p>
-                            {isPeopleLoading && (
-                                <div className="flex items-center gap-1.5 text-[10px] text-blue-500 font-black uppercase tracking-widest animate-pulse bg-blue-50 px-2 py-0.5 rounded-full">
-                                    <Loader2 size={10} className="animate-spin" /> Atualizando base...
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

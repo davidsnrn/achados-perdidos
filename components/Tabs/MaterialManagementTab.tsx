@@ -8,15 +8,12 @@ import { Modal } from '../ui/Modal';
 interface Props {
     materials: Material[];
     loans: MaterialLoan[];
-    people: Person[];
     user: User;
     onUpdate: () => void;
     campuses: Campus[];
-    isPeopleLoading?: boolean;
-    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
-export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], people = [], user, onUpdate, campuses, isPeopleLoading, peopleSearchIndex = [] }) => {
+export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], user, onUpdate, campuses }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
@@ -127,21 +124,18 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
-    const handlePersonSearch = (val: string) => {
+    const handlePersonSearch = async (val: string) => {
         setPersonSearch(val);
         if (val.trim().length >= 2) {
-            const searchTerms = normalizeText(val).split(/\s+/).filter(t => t.length > 0);
-
-            // BUSCA OTIMIZADA EM MATERIAIS
-            const matchingIds = new Set(
-                peopleSearchIndex
-                    .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
-                    .slice(0, 10)
-                    .map(idx => idx.id)
-            );
-
-            const results = people.filter(p => matchingIds.has(p.id));
-            setSearchResultsPeople(results);
+            setIsSearchingPeople(true);
+            try {
+                const results = await StorageService.searchPeople(val);
+                setSearchResultsPeople(results.slice(0, 10));
+            } catch (error) {
+                console.error("Erro na busca:", error);
+            } finally {
+                setIsSearchingPeople(false);
+            }
         } else {
             setSearchResultsPeople([]);
         }
@@ -822,9 +816,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                     <div>
                         <div className="flex justify-between items-center mb-1">
                             <label className="block text-xs font-bold text-gray-500 uppercase">Pessoa</label>
-                            {isPeopleLoading && (
+                            {isSearchingPeople && (
                                 <div className="flex items-center gap-1 text-[10px] text-indigo-500 font-bold animate-pulse">
-                                    <Loader2 size={10} className="animate-spin" /> Atualizando...
+                                    <Loader2 size={10} className="animate-spin" /> Buscando...
                                 </div>
                             )}
                         </div>
@@ -840,14 +834,15 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             <div className="relative">
                                 <input
                                     type="text"
-                                    className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500"
+                                    className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500"
                                     placeholder="Buscar pessoa..."
                                     value={personSearch}
                                     onChange={e => handlePersonSearch(e.target.value)}
                                 />
+                                <Search className="absolute left-3 top-3 text-gray-400" size={16} />
                                 {isSearchingPeople && (
-                                    <div className="absolute right-3 top-3">
-                                        <Loader2 size={16} className="animate-spin text-indigo-500" />
+                                    <div className="absolute right-3 top-2.5">
+                                        <Loader2 size={16} className="animate-spin text-indigo-600" />
                                     </div>
                                 )}
                                 {searchResultsPeople.length > 0 && (
@@ -860,8 +855,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         ))}
                                     </div>
                                 )}
-                                {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && (
-                                    <div className="absolute z-[100] w-full mt-2 bg-white border rounded-xl p-4 text-center text-xs text-gray-400 italic shadow-lg">
+                                {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
+                                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-lg">
                                         Nenhuma pessoa encontrada
                                     </div>
                                 )}

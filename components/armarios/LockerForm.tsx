@@ -1,18 +1,22 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Locker, Student, LoanData } from '../../types-armarios';
+import { StorageService } from '../../services/storage';
+import { PersonType } from '../../types';
+import { Loader2 } from 'lucide-react';
 
 
 interface LockerFormProps {
   selectedLocker: Locker | null;
-  students: Student[];
   onSubmit: (data: LoanData) => void;
   onCancel: () => void;
   operatorName?: string;
 }
 
-const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSubmit, onCancel, operatorName }) => {
+const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCancel, operatorName }) => {
   const [studentSearch, setStudentSearch] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Student[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState<Partial<LoanData>>({
@@ -42,24 +46,34 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSub
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const searchResults = useMemo(() => {
-    const normalizedSearch = studentSearch
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-
-    const terms = normalizedSearch.split(' ').filter(t => t.length > 0);
-    if (terms.length === 0) return [];
-
-    return students.filter(s => {
-      const studentStr = `${s.registration} ${s.name} ${s.course} `
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase();
-
-      return terms.every(term => studentStr.includes(term));
-    }).slice(0, 8);
-  }, [studentSearch, students]);
+  const handleSearch = async (val: string) => {
+    setStudentSearch(val);
+    if (val.trim().length >= 2) {
+      setIsSearching(true);
+      setShowSearchDropdown(true);
+      try {
+        const results = await StorageService.searchPeople(val);
+        setSearchResults(results
+          .filter(p => p.type === PersonType.STUDENT)
+          .map(p => ({
+            registration: p.matricula,
+            name: p.name,
+            course: '',
+            situation: 'Matriculado',
+            email: ''
+          } as Student))
+          .slice(0, 8)
+        );
+      } catch (error) {
+        console.error("Erro na busca de alunos:", error);
+      } finally {
+        setIsSearching(false);
+      }
+    } else {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+    }
+  };
 
   const selectStudent = (student: Student) => {
     setFormData(prev => ({
@@ -109,12 +123,14 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, students, onSub
               placeholder="Digite partes do nome ou matrícula..."
               className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 pl-12 text-slate-800 font-bold focus:border-blue-500 outline-none transition-all shadow-inner placeholder:text-slate-300"
               value={studentSearch}
-              onChange={(e) => {
-                setStudentSearch(e.target.value);
-                setShowSearchDropdown(true);
-              }}
+              onChange={(e) => handleSearch(e.target.value)}
               onFocus={() => setShowSearchDropdown(true)}
             />
+            {isSearching && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                <Loader2 size={16} className="animate-spin text-blue-500" />
+              </div>
+            )}
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>

@@ -6,19 +6,20 @@ import { Modal } from '../ui/Modal';
 
 interface Props {
   reports: LostReport[];
-  people: Person[];
   items: FoundItem[];
   onUpdate: () => void;
   user: User;
   campuses: Campus[];
 }
 
-export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpdate, user, campuses }) => {
+export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user, campuses }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [viewingReport, setViewingReport] = useState<LostReport | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
   // Linking State
   const [showItemLinkSelector, setShowItemLinkSelector] = useState(false);
@@ -44,16 +45,22 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
       .toLowerCase();
   };
 
-  const filteredPeople = useMemo(() => {
-    if (!personSearch.trim()) return [];
-
-    const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
-
-    return people.filter(p => {
-      const personText = normalizeText(`${p.name} ${p.matricula}`);
-      return searchTerms.every(term => personText.includes(term));
-    }).slice(0, 5);
-  }, [people, personSearch]);
+  const handlePersonSearch = async (val: string) => {
+    setPersonSearch(val);
+    if (val.trim().length >= 2) {
+      setIsSearchingPeople(true);
+      try {
+        const results = await StorageService.searchPeople(val);
+        setSearchResultsPeople(results.slice(0, 5));
+      } catch (error) {
+        console.error("Erro na busca de pessoas:", error);
+      } finally {
+        setIsSearchingPeople(false);
+      }
+    } else {
+      setSearchResultsPeople([]);
+    }
+  };
 
   const availableItems = useMemo(() => {
     const available = items.filter(i => i.status === ItemStatus.AVAILABLE);
@@ -288,18 +295,28 @@ export const LostReportsTab: React.FC<Props> = ({ reports, people, items, onUpda
                   className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-ifrn-green transition-all"
                   placeholder="Busque por Nome ou Matrícula..."
                   value={personSearch}
-                  onChange={e => setPersonSearch(e.target.value)}
+                  onChange={e => handlePersonSearch(e.target.value)}
                 />
                 <Search className="absolute left-3 top-3.5 text-gray-300" size={18} />
+                {isSearchingPeople && (
+                  <div className="absolute right-3 top-3">
+                    <Loader2 size={16} className="animate-spin text-ifrn-green" />
+                  </div>
+                )}
 
-                {filteredPeople.length > 0 && (
+                {searchResultsPeople.length > 0 && (
                   <div className="absolute z-10 w-full mt-2 bg-white border rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
-                    {filteredPeople.map(p => (
-                      <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); }} className="p-4 hover:bg-green-50 cursor-pointer text-sm group transition-colors">
+                    {searchResultsPeople.map(p => (
+                      <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }} className="p-4 hover:bg-green-50 cursor-pointer text-sm group transition-colors">
                         <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
                         <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                       </div>
                     ))}
+                  </div>
+                )}
+                {personSearch.length > 1 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
+                  <div className="absolute z-10 w-full mt-2 bg-white border rounded-xl shadow-sm p-4 text-center">
+                    <p className="text-xs text-gray-400 italic">Nenhuma pessoa encontrada.</p>
                   </div>
                 )}
               </div>

@@ -1479,8 +1479,6 @@ const App: React.FC = () => {
                     onUpdate={refreshData}
                     user={user}
                     campuses={campuses}
-                    isPeopleLoading={isPeopleLoading}
-                    peopleSearchIndex={peopleSearchIndexRef.current}
                   />
                 )}
                 {activeTab === 'livros-emprestimos' && (
@@ -1490,8 +1488,6 @@ const App: React.FC = () => {
                     onUpdate={refreshBookLoans}
                     user={user}
                     campuses={campuses}
-                    isPeopleLoading={isPeopleLoading}
-                    peopleSearchIndex={peopleSearchIndexRef.current}
                   />
                 )}
                 {activeTab === 'nadaconsta' && (
@@ -1507,15 +1503,12 @@ const App: React.FC = () => {
                   <MaterialManagementTab
                     materials={materials}
                     loans={materialLoans}
-                    people={people}
                     user={user}
                     onUpdate={refreshData}
                     campuses={campuses}
-                    isPeopleLoading={isPeopleLoading}
-                    peopleSearchIndex={peopleSearchIndexRef.current}
                   />
                 )}
-                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} people={people} campuses={campuses} />}
+                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} />}
               </React.Suspense>
             )}
           </ErrorBoundary>

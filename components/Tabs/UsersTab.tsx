@@ -9,11 +9,10 @@ interface Props {
   users: User[];
   currentUser: User;
   onUpdate: () => void;
-  people: Person[];
   campuses: Campus[];
 }
 
-export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people, campuses }) => {
+export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,8 +27,9 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
   const [personSearch, setPersonSearch] = useState('');
   const [userSearch, setUserSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [formLevel, setFormLevel] = useState<UserLevel>(UserLevel.STANDARD);
-
   // Permission States
   const [permissions, setPermissions] = useState({
     achados: true,
@@ -51,16 +51,22 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       .toLowerCase();
   };
 
-  const filteredPeople = useMemo(() => {
-    if (!personSearch.trim()) return [];
-
-    const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
-
-    return people.filter(p => {
-      const personText = normalizeText(`${p.name} ${p.matricula}`);
-      return searchTerms.every(term => personText.includes(term));
-    }).slice(0, 5);
-  }, [people, personSearch]);
+  const handlePersonSearch = async (val: string) => {
+    setPersonSearch(val);
+    if (val.trim().length >= 2) {
+      setIsSearchingPeople(true);
+      try {
+        const results = await StorageService.searchPeople(val);
+        setSearchResultsPeople(results.slice(0, 5));
+      } catch (error) {
+        console.error("Erro na busca:", error);
+      } finally {
+        setIsSearchingPeople(false);
+      }
+    } else {
+      setSearchResultsPeople([]);
+    }
+  };
 
   const canManageUser = (targetUser: User) => {
     if (currentUser.id === targetUser.id) return true;
@@ -222,6 +228,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
       });
     }
     setPersonSearch('');
+    setSearchResultsPeople([]); // Clear search results when opening modal
     setShowEditModal(true);
   };
 
@@ -230,6 +237,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
     setFormName(p.name);
     setFormMatricula(p.matricula);
     setPersonSearch('');
+    setSearchResultsPeople([]); // Clear search results after selection
   };
 
   const clearSelection = () => {
@@ -237,6 +245,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
     setFormName('');
     setFormMatricula('');
     setPersonSearch('');
+    setSearchResultsPeople([]); // Clear search results when clearing selection
   };
 
   return (
@@ -410,13 +419,18 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                   className="w-full border rounded-lg p-2.5 pl-10 text-sm outline-none focus:ring-2 focus:ring-ifrn-green"
                   placeholder="Busque por Nome ou Matrícula..."
                   value={personSearch}
-                  onChange={e => setPersonSearch(e.target.value)}
+                  onChange={e => handlePersonSearch(e.target.value)}
                 />
                 <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                {isSearchingPeople && (
+                  <div className="absolute right-3 top-2.5">
+                    <Loader2 size={16} className="animate-spin text-ifrn-green" />
+                  </div>
+                )}
 
-                {filteredPeople.length > 0 && (
+                {searchResultsPeople.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
-                    {filteredPeople.map(p => (
+                    {searchResultsPeople.map(p => (
                       <div key={p.id} onClick={() => selectPerson(p)} className="p-3 hover:bg-gray-50 cursor-pointer text-sm group">
                         <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
                         <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
@@ -424,7 +438,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, people
                     ))}
                   </div>
                 )}
-                {personSearch.length > 1 && filteredPeople.length === 0 && (
+                {personSearch.length > 1 && !isSearchingPeople && searchResultsPeople.length === 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-sm p-3 text-center">
                     <p className="text-xs text-gray-400 italic">Nenhuma pessoa encontrada.</p>
                   </div>

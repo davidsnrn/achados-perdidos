@@ -103,7 +103,7 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
         if (loan.status === 'RETURNED') return;
 
         try {
-            await StorageService.returnMaterialLoan(loan.id);
+            await StorageService.returnMaterialLoan(loan.id, `${user.name} (${user.matricula})`);
             onUpdate();
             setViewingLoan(null);
             alert('Material devolvido com sucesso!');
@@ -168,8 +168,8 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                     </td>
                                     <td className="p-4 whitespace-nowrap">
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 ${loan.status === 'ACTIVE'
-                                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                                : 'bg-green-100 text-green-800 border border-green-200 shadow-sm'
+                                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                            : 'bg-green-100 text-green-800 border border-green-200 shadow-sm'
                                             }`}>
                                             {loan.status === 'RETURNED' && <CheckCircle size={12} />}
                                             {loan.status === 'ACTIVE' ? 'ATIVO' : 'DEVOLVIDO'}
@@ -341,8 +341,8 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                     Status
                                 </span>
                                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold mt-1 shadow-sm ${viewingLoan.status === 'ACTIVE'
-                                        ? 'bg-amber-100 text-amber-800'
-                                        : 'bg-green-100 text-green-800'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-green-100 text-green-800'
                                     }`}>
                                     {viewingLoan.status === 'ACTIVE' ? 'ATIVO' : 'DEVOLVIDO'}
                                 </span>

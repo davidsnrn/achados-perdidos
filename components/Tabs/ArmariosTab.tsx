@@ -15,26 +15,14 @@ import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSprea
 
 interface ArmariosTabProps {
   user: any; // User from Achados system
-  people: Person[];
   lockers: Locker[];
   onUpdate: () => void;
   campuses: Campus[];
 }
 
-export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers, onUpdate, campuses }) => {
+export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses }) => {
   const [loading, setLoading] = useState(false);
 
-  const students = useMemo(() => {
-    return people
-      .filter(p => p.type === PersonType.STUDENT)
-      .map(p => ({
-        registration: p.matricula,
-        name: p.name,
-        course: '', // In the basic Person type, we don't have course, but it's used in search
-        situation: 'Matriculado',
-        email: ''
-      }));
-  }, [people]);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedLocker, setSelectedLocker] = useState<Locker | null>(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -499,7 +487,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
                             onClick={() => toggleSection(sec.id)}
                             className="flex items-center justify-between w-full text-left py-4 group pr-4"
                           >
-                            <h4 className="text-sm font-black text-slate-400 group-hover:text-slate-600 uppercase tracking-widest transition-colors">
+                            <h4 className="text-sm font-black text-slate-400 group-hover:text-slate-600 uppercase tracking-widest">
                               {sec.title} (#{sec.range[0].toString().padStart(2, '0')}-#{sec.range[1]})
                             </h4>
                             <div className={`transition-transform duration-300 ${collapsedSections[sec.id] ? 'rotate-180' : 'rotate-0'}`}>
@@ -547,7 +535,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, people, lockers,
         )}
 
         {currentView === 'loan-form' && selectedLocker && (
-          <LockerForm selectedLocker={selectedLocker} students={students} onSubmit={handleLoanSubmit} onCancel={() => setCurrentView('dashboard')} operatorName={user?.name} />
+          <LockerForm selectedLocker={selectedLocker} onSubmit={handleLoanSubmit} onCancel={() => setCurrentView('dashboard')} operatorName={user?.name} />
         )}
       </div>
 

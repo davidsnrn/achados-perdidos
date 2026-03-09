@@ -5,17 +5,19 @@ import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2,
 import { Modal } from '../ui/Modal';
 
 interface Props {
-  people: Person[];
   onUpdate: () => void;
   user: User;
   campuses: Campus[];
 }
 
-export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses }) => {
+export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses }) => {
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
   const [filterType, setFilterType] = useState<PersonType | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -112,6 +114,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
       setName('');
       setMatricula('');
       onUpdate();
+      fetchData(); // Recarregar dados após cadastro
       alert('Pessoa cadastrada!');
     } catch (err) {
       alert((err as Error).message);
@@ -139,6 +142,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
     try {
       await StorageService.savePerson(updatedPerson);
       onUpdate();
+      fetchData(); // Recarregar dados após edição
       setShowEditModal(false);
       setEditingPerson(null);
     } catch (err) {
@@ -153,6 +157,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
     if (confirm('Tem certeza que deseja remover esta pessoa do cadastro?')) {
       await StorageService.deletePerson(id);
       onUpdate();
+      fetchData(); // Recarregar dados após exclusão
     }
   };
 
@@ -262,6 +267,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
       if (newPeople.length > 0) {
         await StorageService.importPeople(newPeople);
         onUpdate();
+        fetchData(); // Recarregar dados após importação
         setSelectedFiles([]);
         alert(`Importação concluída!\n\n${processingLog}\n${summary}`);
       } else {
@@ -285,40 +291,45 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
     }
     await StorageService.deleteAllPeople();
     onUpdate();
+    fetchData(); // Recarregar dados após limpar tudo
     setShowDeleteAllModal(false);
     setDeletePassword('');
     alert("Todas as pessoas foram removidas com sucesso.");
   };
 
-  const filtered = people.filter(p => {
-    const matchesType = filterType === 'ALL' || p.type === filterType;
-
-    if (!search.trim()) return matchesType;
-
-    const normalizedSearchTerms = normalizeText(search).split(/\s+/).filter(t => t.length > 0);
-    const personText = normalizeText(`${p.name} ${p.matricula}`);
-
-    const matchesSearch = normalizedSearchTerms.every(term => personText.includes(term));
-
-    return matchesType && matchesSearch;
-  });
-
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
-
-  const nextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
-  };
-
-  const prevPage = () => {
-    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  const fetchData = async () => {
+    setIsDataLoading(true);
+    try {
+      const [data, count] = await Promise.all([
+        StorageService.getPeoplePaginated(currentPage, itemsPerPage, user.level === UserLevel.ADMIN ? undefined : user.campus_id, filterType, search),
+        StorageService.getPeopleCount(user.level === UserLevel.ADMIN ? undefined : user.campus_id, filterType, search)
+      ]);
+      setPeople(data);
+      setTotalCount(count);
+    } catch (err) {
+      console.error("Erro ao buscar dados paginados:", err);
+    } finally {
+      setIsDataLoading(false);
+    }
   };
 
   React.useEffect(() => {
-    setCurrentPage(1);
-  }, [filterType, search]);
+    fetchData();
+  }, [currentPage, filterType]);
+
+  // Debounce para busca
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        fetchData();
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   const canDeleteAll = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
 
@@ -340,7 +351,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
             Importar CSV
           </button>
 
-          {canDeleteAll && people.length > 0 && (
+          {canDeleteAll && (
             <button
               onClick={() => setShowDeleteAllModal(true)}
               className="mb-1.5 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
@@ -461,7 +472,7 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
       <div className="space-y-4">
         {/* Layout Reorganizado: Título acima, filtros à direita */}
         <div className="flex flex-col gap-4">
-          <h3 className="font-bold text-gray-700 text-lg">Pessoas Cadastradas ({filtered.length})</h3>
+          <h3 className="font-bold text-gray-700 text-lg">Pessoas Cadastradas ({totalCount})</h3>
 
           <div className="flex flex-col md:flex-row justify-end items-center gap-3">
             <div className="flex gap-2 w-full md:w-auto">
@@ -496,39 +507,54 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {currentItems.map(p => (
-                  <tr
-                    key={p.id}
-                    className="hover:bg-gray-50 cursor-pointer group"
-                    onClick={() => { setEditingPerson(p); setShowEditModal(true); }}
-                  >
-                    <td className="p-3 font-mono text-gray-600 whitespace-nowrap">{p.matricula}</td>
-                    <td className="p-3 font-medium text-gray-900 whitespace-nowrap">{p.name}</td>
-                    <td className="p-3 whitespace-nowrap">
-                      <span className={`text-xs px-2 py-1 rounded-full ${p.type === PersonType.STUDENT ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
-                        {p.type}
-                      </span>
-                    </td>
-                    {user.level === UserLevel.ADMIN && (
-                      <td className="p-3 text-xs text-gray-500 whitespace-nowrap">
-                        {campuses.find(c => c.id === p.campus_id)?.name || '-'}
-                      </td>
-                    )}
-                    <td className="p-3 text-center whitespace-nowrap">
-                      <div className="flex justify-center gap-2">
-                        <button className="text-gray-400 hover:text-gray-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1">
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={(e) => handleDelete(e, p.id)}
-                          className="text-gray-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                {isDataLoading ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-gray-400">
+                      <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="animate-spin text-ifrn-green" size={24} />
+                        <span>Carregando dados...</span>
                       </div>
                     </td>
                   </tr>
-                ))}
+                ) : people.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-gray-400">Nenhuma pessoa encontrada com os filtros atuais.</td>
+                  </tr>
+                ) : (
+                  people.map(p => (
+                    <tr
+                      key={p.id}
+                      className="hover:bg-gray-50 cursor-pointer group"
+                      onClick={() => { setEditingPerson(p); setShowEditModal(true); }}
+                    >
+                      <td className="p-3 font-mono text-gray-600 whitespace-nowrap">{p.matricula}</td>
+                      <td className="p-3 font-medium text-gray-900 whitespace-nowrap">{p.name}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        <span className={`text-xs px-2 py-1 rounded-full ${p.type === PersonType.STUDENT ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
+                          {p.type}
+                        </span>
+                      </td>
+                      {user.level === UserLevel.ADMIN && (
+                        <td className="p-3 text-xs text-gray-500 whitespace-nowrap">
+                          {campuses.find(c => c.id === p.campus_id)?.name || '-'}
+                        </td>
+                      )}
+                      <td className="p-3 text-center whitespace-nowrap">
+                        <div className="flex justify-center gap-2">
+                          <button className="text-gray-400 hover:text-gray-600 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1">
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => handleDelete(e, p.id)}
+                            className="text-gray-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -536,12 +562,12 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
           {totalPages > 1 && (
             <div className="flex items-center justify-between p-4 border-t border-gray-100 bg-gray-50">
               <span className="text-xs text-gray-500">
-                Mostrando {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filtered.length)} de {filtered.length}
+                Mostrando {Math.min((currentPage * itemsPerPage) - itemsPerPage + 1, totalCount)} - {Math.min(currentPage * itemsPerPage, totalCount)} de {totalCount}
               </span>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={prevPage}
-                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1 || isDataLoading}
                   className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft size={20} className="text-gray-600" />
@@ -550,8 +576,8 @@ export const PeopleTab: React.FC<Props> = ({ people, onUpdate, user, campuses })
                   Página {currentPage} de {totalPages}
                 </span>
                 <button
-                  onClick={nextPage}
-                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || isDataLoading}
                   className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ChevronRight size={20} className="text-gray-600" />

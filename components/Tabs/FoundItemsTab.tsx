@@ -7,7 +7,6 @@ import { ImageViewer } from '../ui/ImageViewer';
 
 interface Props {
   items: FoundItem[];
-  people: Person[];
   reports: LostReport[];
   onUpdate: () => void;
   user: User;
@@ -18,7 +17,7 @@ interface Props {
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM' | 'SPECIFIC';
 type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound' | 'returnedDate';
 
-export const FoundItemsTab: React.FC<Props> = ({ items, people, reports, onUpdate, user, onToggleSleep, campuses }) => {
+export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);

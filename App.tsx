@@ -70,6 +70,13 @@ const App: React.FC = () => {
   const [items, setItems] = useState<FoundItem[]>([]);
   const [reports, setReports] = useState<LostReport[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
+  // Mantendo apenas para tipos se necessário, mas vazio
+  const [books, setBooks] = useState<Book[]>([]);
+  const [bookLoans, setBookLoans] = useState<BookLoan[]>([]);
+  const [lockers, setLockers] = useState<Locker[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialLoans, setMaterialLoans] = useState<MaterialLoan[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>([]);
 
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
   // Manter em Ref evita overhead de renderização e permite busca ultra-rápida
@@ -77,12 +84,6 @@ const App: React.FC = () => {
   const lastFetchIdRef = useRef(0);
 
   const [users, setUsers] = useState<User[]>([]);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [bookLoans, setBookLoans] = useState<BookLoan[]>([]);
-  const [lockers, setLockers] = useState<Locker[]>([]);
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [materialLoans, setMaterialLoans] = useState<MaterialLoan[]>([]);
-  const [campuses, setCampuses] = useState<Campus[]>([]);
 
   // Global Admin Campus Switcher
   const [adminGlobalCampusId, setAdminGlobalCampusId] = useState<string | null>(null);
@@ -136,27 +137,7 @@ const App: React.FC = () => {
     setReports(await StorageService.getReports(campusId));
   }, [user, adminGlobalCampusId]);
 
-  const refreshPeople = useCallback(async () => {
-    if (!user) return;
-    setIsPeopleLoading(true);
-    try {
-      const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-      const allPeople = await StorageService.getAllPeople(campusId);
-
-      // CONSTRUÇÃO DO ÍNDICE DE BUSCA (Roda uma única vez após o fetch)
-      // Isso economiza milhares de normalizações durante a digitação
-      peopleSearchIndexRef.current = allPeople.map(p => ({
-        id: p.id,
-        searchStr: normalizeText(`${p.name} ${p.matricula}`)
-      }));
-
-      setPeople(allPeople);
-    } catch (err) {
-      console.error("Erro ao carregar pessoas do campus:", err);
-    } finally {
-      setIsPeopleLoading(false);
-    }
-  }, [user, adminGlobalCampusId]);
+  // Removido refreshPeople massivo
 
   const refreshUsers = useCallback(async () => {
     if (!user || user.level !== UserLevel.ADMIN) return;
@@ -299,7 +280,7 @@ const App: React.FC = () => {
         setUsers(fetchedUsers);
         setCampuses(fetchedCampuses);
       } else if (activeTab === 'pessoas') {
-        await refreshPeople();
+        // People data is now fetched directly by PeopleTab
       }
     } catch (e) {
       console.error("Erro ao carregar dados:", e);
@@ -319,10 +300,8 @@ const App: React.FC = () => {
   const tabsNeedingPeople = ['pessoas', 'achados', 'relatos', 'armarios', 'livros-catalogo', 'livros-emprestimos'];
 
   useEffect(() => {
-    if (user && tabsNeedingPeople.includes(activeTab)) {
-      refreshPeople();
-    }
-  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level, refreshPeople, activeTab]);
+    // People data is now fetched directly by PeopleTab
+  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level, activeTab]);
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});
@@ -335,7 +314,7 @@ const App: React.FC = () => {
       switch (table) {
         case 'items': refreshItems(); break;
         case 'reports': refreshReports(); break;
-        case 'people': refreshPeople(); break;
+        case 'people': /* People data is now fetched directly by PeopleTab */ break;
         case 'users': refreshUsers(); break;
         case 'books': refreshBooks(); break;
         case 'book_loans': refreshBookLoans(); break;
@@ -344,7 +323,7 @@ const App: React.FC = () => {
         case 'material_loans': refreshMaterialLoans(); break;
       }
     }, 1000); // 1 second debounce
-  }, [refreshItems, refreshReports, refreshPeople, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans]);
+  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans]);
 
   // 0. Setup Realtime Listeners
   useEffect(() => {
@@ -1474,10 +1453,25 @@ const App: React.FC = () => {
               <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
             ) : (
               <React.Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>}>
-                {activeTab === 'achados' && <FoundItemsTab items={items} people={people} reports={reports} onUpdate={refreshData} user={user} onToggleSleep={setIsBackdropSleep} campuses={campuses} />}
-                {activeTab === 'relatos' && <LostReportsTab reports={reports} people={people} items={items} onUpdate={refreshData} user={user} campuses={campuses} />}
-                {activeTab === 'pessoas' && <PeopleTab people={people} onUpdate={refreshData} user={user} campuses={campuses} />}
-                {activeTab === 'armarios' && <ArmariosTab user={user} people={people} lockers={lockers} onUpdate={refreshData} campuses={campuses} />}
+                {activeTab === 'achados' && (
+                  <FoundItemsTab
+                    items={items}
+                    reports={reports}
+                    onUpdate={refreshData}
+                    user={user}
+                    onToggleSleep={setIsBackdropSleep}
+                    campuses={campuses}
+                  />
+                )}
+                {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'pessoas' && (
+                  <PeopleTab
+                    onUpdate={refreshData}
+                    user={user}
+                    campuses={campuses}
+                  />
+                )}
+                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} />}
                 {activeTab === 'livros-catalogo' && (
                   <BooksTab
                     books={books}
@@ -1485,7 +1479,6 @@ const App: React.FC = () => {
                     onUpdate={refreshData}
                     user={user}
                     campuses={campuses}
-                    people={people}
                     isPeopleLoading={isPeopleLoading}
                     peopleSearchIndex={peopleSearchIndexRef.current}
                   />
@@ -1494,7 +1487,6 @@ const App: React.FC = () => {
                   <BookLoansTab
                     loans={bookLoans}
                     books={books}
-                    people={people}
                     onUpdate={refreshBookLoans}
                     user={user}
                     campuses={campuses}

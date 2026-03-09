@@ -263,6 +263,69 @@ export const StorageService = {
     return allData;
   },
 
+  getPeoplePaginated: async (
+    page: number = 1,
+    limit: number = 50,
+    campusId?: string,
+    type?: string,
+    search?: string
+  ): Promise<Person[]> => {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    let query = supabase
+      .from('people')
+      .select('id, name, matricula, campus_id, type')
+      .range(from, to)
+      .order('name', { ascending: true });
+
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+
+    if (type && type !== 'ALL') {
+      query = query.eq('type', type);
+    }
+
+    if (search && search.trim().length >= 2) {
+      const tokens = search.trim().split(/\s+/).filter(t => t.length > 0);
+      query = query.or(tokens.map(t => `name.ilike.%${t}%,matricula.ilike.%${t}%`).join(','));
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Erro getPeoplePaginated:", error);
+      return [];
+    }
+    return data || [];
+  },
+
+  getPeopleCount: async (campusId?: string, type?: string, search?: string): Promise<number> => {
+    let query = supabase
+      .from('people')
+      .select('*', { count: 'exact', head: true });
+
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+
+    if (type && type !== 'ALL') {
+      query = query.eq('type', type);
+    }
+
+    if (search && search.trim().length >= 2) {
+      const tokens = search.trim().split(/\s+/).filter(t => t.length > 0);
+      query = query.or(tokens.map(t => `name.ilike.%${t}%,matricula.ilike.%${t}%`).join(','));
+    }
+
+    const { count, error } = await query;
+    if (error) {
+      console.error("Erro getPeopleCount:", error);
+      return 0;
+    }
+    return count || 0;
+  },
+
   searchPeople: async (query: string, limit: number = 20, campusId?: string): Promise<Person[]> => {
     if (!query || query.trim().length < 2) return [];
 

@@ -7,15 +7,12 @@ import { Modal } from '../ui/Modal';
 interface Props {
     loans: BookLoan[];
     books: Book[];
-    people: Person[];
     onUpdate: () => void;
     user: User;
     campuses: Campus[];
-    isPeopleLoading?: boolean;
-    peopleSearchIndex?: { id: string, searchStr: string }[];
 }
 
-export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, user, campuses, isPeopleLoading, peopleSearchIndex = [] }) => {
+export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, campuses }) => {
     const [activeSubTab, setActiveSubTab] = useState<'current' | 'history'>('current');
     const [showLoanModal, setShowLoanModal] = useState(false);
     const [showPartialReturnModal, setShowPartialReturnModal] = useState(false);
@@ -29,6 +26,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
     const [personSearch, setPersonSearch] = useState('');
     const [bookSearch, setBookSearch] = useState('');
     const [observation, setObservation] = useState('');
+    const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+    const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
     const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
@@ -196,11 +195,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
             .toLowerCase();
     };
 
-    const enrichedLoans = loans.map(loan => {
-        if (loan.personMatricula && loan.personMatricula !== '---') return loan;
-        const person = people.find(p => p.id === loan.personId);
-        return { ...loan, personMatricula: person?.matricula || '---' };
-    });
+    const enrichedLoans = loans; // A matrícula já deve vir do banco agora
 
     const filteredLoans = enrichedLoans.filter(l => {
         if (!search.trim()) return true;
@@ -211,19 +206,22 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
 
     const activeLoans = filteredLoans.filter(l => l.status === BookLoanStatus.ACTIVE);
     const historicalLoans = filteredLoans.filter(l => l.status === BookLoanStatus.RETURNED);
-    const filteredPeople = React.useMemo(() => {
-        if (!personSearch.trim() || personSearch.length < 2) return [];
-        const searchTerms = normalizeText(personSearch).split(/\s+/).filter(t => t.length > 0);
-
-        const matchingIds = new Set(
-            peopleSearchIndex
-                .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
-                .slice(0, 10)
-                .map(idx => idx.id)
-        );
-
-        return people.filter(p => matchingIds.has(p.id));
-    }, [personSearch, peopleSearchIndex, people]);
+    const handlePersonSearch = async (val: string) => {
+        setPersonSearch(val);
+        if (val.trim().length >= 2) {
+            setIsSearchingPeople(true);
+            try {
+                const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
+                setSearchResultsPeople(results);
+            } catch (err) {
+                console.error("Erro busca pessoas:", err);
+            } finally {
+                setIsSearchingPeople(false);
+            }
+        } else {
+            setSearchResultsPeople([]);
+        }
+    };
 
     const filteredLoanBooks = React.useMemo(() => {
         const searchTerms = normalizeText(bookSearch).split(/\s+/).filter(t => t.length > 0);
@@ -381,9 +379,9 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                     <div>
                         <div className="flex justify-between items-center mb-2">
                             <label className="block text-xs font-semibold text-gray-500 uppercase">1. Selecionar Aluno/Pessoa</label>
-                            {isPeopleLoading && (
+                            {isSearchingPeople && (
                                 <div className="flex items-center gap-1.5 text-[10px] text-ifrn-green font-bold animate-pulse">
-                                    <Loader2 size={12} className="animate-spin" /> Atualizando base...
+                                    <Loader2 size={12} className="animate-spin" /> Buscando...
                                 </div>
                             )}
                         </div>
@@ -405,23 +403,23 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, people, onUpdate, 
                                         className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                         value={personSearch}
                                         onFocus={() => setIsBookListExpanded(false)}
-                                        onChange={e => setPersonSearch(e.target.value)}
+                                        onChange={e => handlePersonSearch(e.target.value)}
                                     />
                                 </div>
                                 {personSearch && (
                                     <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                        {filteredPeople.map(p => (
+                                        {searchResultsPeople.map(p => (
                                             <button
                                                 key={p.id}
                                                 type="button"
-                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); }}
+                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }}
                                                 className="w-full text-left p-2 rounded text-sm hover:bg-gray-200 text-gray-700 transition-colors"
                                             >
                                                 <div className="font-bold">{p.name}</div>
                                                 <div className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula} • {p.type}</div>
                                             </button>
                                         ))}
-                                        {filteredPeople.length === 0 && <div className="p-2 text-xs text-center text-gray-400">Nenhum resultado.</div>}
+                                        {searchResultsPeople.length === 0 && !isSearchingPeople && personSearch.length >= 2 && <div className="p-2 text-xs text-center text-gray-400">Nenhum resultado.</div>}
                                     </div>
                                 )}
                             </>

@@ -560,27 +560,49 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses }) => {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between p-4 border-t border-gray-100 bg-gray-50">
-              <span className="text-xs text-gray-500">
-                Mostrando {Math.min((currentPage * itemsPerPage) - itemsPerPage + 1, totalCount)} - {Math.min(currentPage * itemsPerPage, totalCount)} de {totalCount}
-              </span>
-              <div className="flex items-center gap-2">
+            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <div className="text-xs text-gray-500 font-medium">
+                Mostrando <span className="text-gray-900">{Math.min((currentPage * itemsPerPage) - itemsPerPage + 1, totalCount)} - {Math.min(currentPage * itemsPerPage, totalCount)}</span> de <span className="text-gray-900">{totalCount}</span> pessoas
+              </div>
+              <div className="flex items-center gap-1">
                 <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1 || isDataLoading}
-                  className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
                 >
-                  <ChevronLeft size={20} className="text-gray-600" />
+                  Anterior
                 </button>
-                <span className="text-sm font-medium text-gray-700">
-                  Página {currentPage} de {totalPages}
-                </span>
+                {[...Array(totalPages)].map((_, i) => {
+                  const pageNum = i + 1;
+                  // Mostrar apenas as primeiras 3 páginas, as últimas 3, e a página atual
+                  if (
+                    pageNum === 1 ||
+                    pageNum === totalPages ||
+                    (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        disabled={isDataLoading}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-600'}`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  }
+                  // Mostrar "..." se necessário
+                  if (pageNum === 2 || pageNum === totalPages - 1) {
+                    return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
+                  }
+                  return null;
+                })}
                 <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages || isDataLoading}
-                  className="p-1 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
                 >
-                  <ChevronRight size={20} className="text-gray-600" />
+                  Próximo
                 </button>
               </div>
             </div>

@@ -29,6 +29,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [hasSearched, setHasSearched] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
@@ -45,43 +46,43 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
             .toLowerCase();
     };
 
-    useEffect(() => {
+    const handleSearch = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+
         const rawSearch = searchTerm.trim();
+        if (rawSearch.length === 0) {
+            setSearchResults([]);
+            setHasSearched(false);
+            return;
+        }
         if (rawSearch.length < 2) {
             setSearchResults([]);
-            setIsSearching(false);
             return;
         }
 
         setIsSearching(true);
-        const debounceTimer = setTimeout(() => {
+        setHasSearched(true);
+        try {
             // Suporte para busca única ou em lote (vírgula)
             const searchGroups = rawSearch.includes(',')
                 ? rawSearch.split(',').map(s => s.trim()).filter(s => s.length >= 2)
                 : [rawSearch];
 
-            let results: Person[] = [];
+            const campusId = (user.level === UserLevel.ADMIN) ? undefined : user.campus_id;
+            let allResults: Person[] = [];
 
-            searchGroups.forEach(group => {
-                const searchTerms = normalizeText(group).split(/\s+/).filter(t => t.length > 0);
+            // Buscar cada grupo no servidor de forma assíncrona
+            const searchPromises = searchGroups.map(group =>
+                StorageService.searchPeople(group, 50, campusId)
+            );
 
-                // BUSCA OTIMIZADA NO NADA CONSTA
-                const matchingIds = new Set(
-                    peopleSearchIndex
-                        .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
-                        .map(idx => idx.id)
-                );
-
-                const groupResults = people.filter(p => {
-                    // Filtro por campus se não for admin
-                    if (user.level !== UserLevel.ADMIN && p.campus_id !== user.campus_id) return false;
-                    return matchingIds.has(p.id);
-                });
-                results = [...results, ...groupResults];
+            const promiseResults = await Promise.all(searchPromises);
+            promiseResults.forEach(res => {
+                allResults = [...allResults, ...res];
             });
 
-            // Remover duplicados por ID
-            const uniqueResults = Array.from(new Map(results.map(r => [r.id, r])).values());
+            // Remover duplicados por ID (caso a busca retorne a mesma pessoa em grupos diferentes)
+            const uniqueResults = Array.from(new Map(allResults.map(r => [r.id, r])).values());
 
             setSearchResults(uniqueResults.map(p => ({
                 registration: p.matricula,
@@ -92,11 +93,21 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 id: p.id,
                 campus_id: p.campus_id
             })));
+        } catch (error) {
+            console.error("Erro ao realizar busca:", error);
+            alert("Erro ao realizar busca. Tente novamente.");
+        } finally {
             setIsSearching(false);
-        }, 300); // 300ms debounce
+        }
+    };
 
-        return () => clearTimeout(debounceTimer);
-    }, [searchTerm, people, user.campus_id, user.level, peopleSearchIndex]);
+    // Suporte para apertar Enter no textarea (Shift+Enter para nova linha se necessário, mas aqui é busca)
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSearch();
+        }
+    };
 
     const getStudentPendencies = (registration: string, studentId?: string, studentCampusId?: string) => {
         const activeLockerLoans: LoanData[] = [];
@@ -154,23 +165,35 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     </div>
                 </div>
 
-                <div className="relative">
+                <div className="relative group">
                     <textarea
                         ref={textareaRef}
                         placeholder="Ex: 202312345, 202398765 ou nomes..."
-                        className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300 min-h-[100px] overflow-hidden"
+                        className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 pr-40 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300 min-h-[120px] overflow-hidden"
                         rows={1}
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setSearchTerm(val);
+                            if (val.trim() === '') {
+                                setSearchResults([]);
+                                setHasSearched(false);
+                            }
+                        }}
+                        onKeyDown={handleKeyDown}
                     />
-                    {isSearching && (
-                        <div className="absolute right-6 top-6">
-                            <Loader2 size={32} className="animate-spin text-blue-500 opacity-50" />
-                        </div>
-                    )}
-                    <div className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2 ml-4">
-                        <Info size={12} /> Dica: Separe por vírgula para buscar vários alunos ao mesmo tempo.
-                    </div>
+
+                    <button
+                        onClick={() => handleSearch()}
+                        disabled={isSearching || searchTerm.trim().length < 2}
+                        className="absolute right-4 bottom-4 top-4 px-8 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95"
+                    >
+                        {isSearching ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
+                        Consultar
+                    </button>
+                </div>
+                <div className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2 ml-4">
+                    <Info size={12} /> Dica: Separe por vírgula para buscar vários alunos. Pressione <span className="text-blue-500 underline font-black">Enter</span> para pesquisar.
                 </div>
             </div>
 
@@ -342,7 +365,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     </div>
                 )}
 
-                {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && (
+                {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && hasSearched && (
                     <div className="text-center py-20 bg-white rounded-[2.5rem] border-4 border-dashed border-slate-100">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                             <UserIcon size={40} className="text-slate-200" />

@@ -282,11 +282,17 @@ export const StorageService = {
     if (error) {
       console.error("Erro ao pesquisar pessoas (RPC):", error);
       // Fallback para busca simples se o RPC falhar
+      const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
       let fallbackQuery = supabase
         .from('people')
-        .select('*')
-        .or(`name.ilike.%${searchTerm}%,matricula.ilike.%${searchTerm}%`)
-        .limit(limit);
+        .select('*');
+
+      // Filtro básico (tokens como AND)
+      tokens.forEach(token => {
+        fallbackQuery = fallbackQuery.or(`name.ilike.%${token}%,matricula.ilike.%${token}%`);
+      });
+
+      fallbackQuery = fallbackQuery.limit(limit);
 
       if (campusId) {
         fallbackQuery = fallbackQuery.eq('campus_id', campusId);

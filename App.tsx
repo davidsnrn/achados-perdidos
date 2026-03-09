@@ -315,9 +315,14 @@ const App: React.FC = () => {
   };
 
   // Carrega as pessoas do campus APENAS quando o campus ou usuário muda
+  // Carregar pessoas apenas quando necessário (Lazy Loading) para economizar memória (18k+ registros)
+  const tabsNeedingPeople = ['pessoas', 'achados', 'relatos', 'armarios', 'livros-catalogo', 'livros-emprestimos'];
+
   useEffect(() => {
-    refreshPeople();
-  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level, refreshPeople]);
+    if (user && tabsNeedingPeople.includes(activeTab)) {
+      refreshPeople();
+    }
+  }, [user?.id, user?.campus_id, adminGlobalCampusId, user?.level, refreshPeople, activeTab]);
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});
@@ -1499,14 +1504,11 @@ const App: React.FC = () => {
                 )}
                 {activeTab === 'nadaconsta' && (
                   <NadaConstaTab
-                    people={people}
                     lockers={lockers}
                     bookLoans={bookLoans}
                     materialLoans={materialLoans}
                     user={user}
                     campuses={campuses}
-                    isPeopleLoading={isPeopleLoading}
-                    peopleSearchIndex={peopleSearchIndexRef.current}
                   />
                 )}
                 {activeTab === 'materiais' && (

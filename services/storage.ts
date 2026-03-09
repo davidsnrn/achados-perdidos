@@ -143,30 +143,24 @@ export const StorageService = {
 
       if (error) throw error;
 
-      // 2. Criar usuário no Supabase Auth para permitir login imediato
+      // 2. Criar usuário no Supabase Auth via Edge Function para evitar troca de sessão
       try {
-        const email = `${user.matricula}@sistema.local`;
-        const { error: authError } = await supabase.auth.signUp({
-          email,
-          password, // Usa a senha plain text (ifrn123 ou outra)
-          options: {
-            data: {
-              matricula: user.matricula,
-              name: user.name
-            },
-            emailRedirectTo: undefined // Desabilita email de confirmação
+        const { error: funcError } = await supabase.functions.invoke('create-user', {
+          body: {
+            matricula: user.matricula,
+            name: user.name,
+            password: password
           }
         });
 
-        if (authError) {
-          console.warn(`[SAVE USER] Aviso ao criar no Auth: ${authError.message}`);
-          // Não falha se o Auth der erro - o usuário ainda pode logar pelo fallback local
+        if (funcError) {
+          console.warn(`[SAVE USER] Aviso ao criar no Auth via Edge Function: ${funcError.message}`);
+          // Não falha o processo total se o Auth der erro, permitindo fallback local
         } else {
-          console.log(`[SAVE USER] Usuário ${user.matricula} criado com sucesso no Auth.`);
+          console.log(`[SAVE USER] Usuário ${user.matricula} criado com sucesso no Auth via Edge Function.`);
         }
       } catch (authEx) {
-        console.error(`[SAVE USER] Exceção ao criar no Auth:`, authEx);
-        // Continua mesmo se der erro no Auth
+        console.error(`[SAVE USER] Exceção ao criar no Auth via Edge Function:`, authEx);
       }
     }
   },

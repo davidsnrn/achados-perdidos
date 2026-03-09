@@ -733,7 +733,13 @@ export const StorageService = {
       location: locker.location,
       campus_id: locker.campus_id
     };
-    const { error } = await supabase.from('lockers').update(payload).eq('number', locker.number);
+
+    let query = supabase.from('lockers').update(payload).eq('number', locker.number);
+    if (locker.campus_id) {
+      query = query.eq('campus_id', locker.campus_id);
+    }
+
+    const { error } = await query;
     if (error) throw error;
   },
 

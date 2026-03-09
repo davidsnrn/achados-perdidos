@@ -32,6 +32,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [selectedCampusId, setSelectedCampusId] = useState<string>(user?.campus_id || '');
 
   const isAdmin = user?.level === UserLevel.ADMIN;
+  const isAdvanced = user?.level === UserLevel.ADVANCED;
+  const canViewConfig = isAdmin || isAdvanced;
 
   useEffect(() => {
     // Escopo inicial gerenciado pelo pai (App.tsx)
@@ -68,7 +70,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   };
 
   const handleBatchGenerate = async (newLockers: Locker[]) => {
-    if (!isAdmin) return;
+    if (!isAdmin && !isAdvanced) return;
     setLoading(true);
     try {
       const lockersWithCampus = newLockers.map(l => ({
@@ -402,7 +404,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           <button onClick={() => setCurrentView('dashboard')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'dashboard' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><LayoutGrid size={14} /> Painel</button>
           <button onClick={() => setCurrentView('reports')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'reports' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileText size={14} /> Relatórios</button>
-          {isAdmin && (
+          {canViewConfig && (
             <button onClick={() => setCurrentView('config')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'config' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Settings size={14} /> Configuração</button>
           )}
         </div>
@@ -510,7 +512,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
         )}
 
 
-        {currentView === 'config' && isAdmin && (
+        {currentView === 'config' && canViewConfig && (
           <div className="space-y-12">
             {isAdmin && (
               <div className="bg-amber-50 p-6 rounded-[1.5rem] border border-amber-200">
@@ -529,8 +531,12 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
               </div>
             )}
             <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
-            <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
-            <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
+            {isAdmin && (
+              <>
+                <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />
+                <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
+              </>
+            )}
           </div>
         )}
 

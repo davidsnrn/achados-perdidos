@@ -46,13 +46,13 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSearch = async (val: string) => {
-    setStudentSearch(val);
-    if (val.trim().length >= 2) {
+  const handleSearch = async (val?: string) => {
+    const query = val !== undefined ? val : studentSearch;
+    if (query.trim().length >= 2) {
       setIsSearching(true);
       setShowSearchDropdown(true);
       try {
-        const results = await StorageService.searchPeople(val);
+        const results = await StorageService.searchPeople(query);
         setSearchResults(results
           .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({
@@ -117,27 +117,47 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
         {/* Campo de busca inteligente antes de tudo */}
         <div className="relative" ref={dropdownRef}>
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Buscar Aluno (Nome ou Matrícula)</label>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Digite partes do nome ou matrícula..."
-              className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 pl-12 text-slate-800 font-bold focus:border-blue-500 outline-none transition-all shadow-inner placeholder:text-slate-300"
-              value={studentSearch}
-              onChange={(e) => handleSearch(e.target.value)}
-              onFocus={() => setShowSearchDropdown(true)}
-            />
-            {isSearching && (
-              <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                <Loader2 size={16} className="animate-spin text-blue-500" />
+          <div className="relative flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Digite partes do nome ou matrícula..."
+                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 pl-12 text-slate-800 font-bold focus:border-blue-500 outline-none transition-all shadow-inner placeholder:text-slate-300"
+                value={studentSearch}
+                onChange={(e) => {
+                  setStudentSearch(e.target.value);
+                  if (e.target.value.length < 2) setSearchResults([]);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearch();
+                  }
+                }}
+                onFocus={() => {
+                  if (searchResults.length > 0) setShowSearchDropdown(true);
+                }}
+              />
+              {isSearching && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <Loader2 size={16} className="animate-spin text-blue-500" />
+                </div>
+              )}
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </div>
-            )}
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
+            <button
+              type="button"
+              onClick={() => handleSearch()}
+              className="px-6 py-4 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 transition-all shadow-md"
+            >
+              Buscar
+            </button>
           </div>
 
           {showSearchDropdown && searchResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-3xl shadow-2xl z-50 overflow-hidden animate-slide-up">
+            <div className="absolute top-full mt-2 w-full bg-white border border-slate-100 rounded-3xl shadow-2xl z-50 overflow-hidden animate-slide-up">
               {searchResults.map(s => (
                 <button
                   key={s.registration}
@@ -152,6 +172,11 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
                   <svg className="w-4 h-4 text-slate-200 group-hover:text-blue-400 transform translate-x-0 group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
                 </button>
               ))}
+            </div>
+          )}
+          {studentSearch.length >= 2 && !isSearching && searchResults.length === 0 && showSearchDropdown && (
+            <div className="absolute top-full mt-2 w-full bg-white border border-slate-100 rounded-3xl p-4 text-center text-xs text-slate-400 font-bold italic shadow-2xl z-50 animate-slide-up">
+              Nenhum aluno encontrado
             </div>
           )}
         </div>

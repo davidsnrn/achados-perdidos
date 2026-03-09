@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { MaterialLoan, Material } from '../../types-materiais';
 import { Person, User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Plus, CheckCircle, Hash, User as UserIcon, Calendar, FileText, CornerUpRight, AlertCircle } from 'lucide-react';
+import { Search, Plus, CheckCircle, Hash, User as UserIcon, Calendar, FileText, CornerUpRight, AlertCircle, Loader2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -24,6 +24,9 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
     const [observation, setObservation] = useState('');
 
+    const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+    const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+
     const filteredLoans = useMemo(() => {
         if (!searchTerm.trim()) return loans;
         const term = searchTerm.toLowerCase();
@@ -35,14 +38,22 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
         );
     }, [loans, searchTerm]);
 
-    const filteredPeople = useMemo(() => {
-        if (!personSearch.trim()) return [];
-        const term = personSearch.toLowerCase();
-        return people.filter(p =>
-            p.name.toLowerCase().includes(term) ||
-            p.matricula.toLowerCase().includes(term)
-        ).slice(0, 5);
-    }, [people, personSearch]);
+    const handlePersonSearch = async (val?: string) => {
+        const query = val !== undefined ? val : personSearch;
+        if (query.trim().length >= 2) {
+            setIsSearchingPeople(true);
+            try {
+                const results = await StorageService.searchPeople(query);
+                setSearchResultsPeople(results.slice(0, 5));
+            } catch (error) {
+                console.error("Erro na busca de pessoas:", error);
+            } finally {
+                setIsSearchingPeople(false);
+            }
+        } else {
+            setSearchResultsPeople([]);
+        }
+    };
 
     const openLoanForm = () => {
         setSelectedPerson(null);
@@ -218,22 +229,45 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                 </button>
                             </div>
                         ) : (
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500 transition-all"
-                                    placeholder="Busque por Nome ou Matrícula..."
-                                    value={personSearch}
-                                    onChange={e => setPersonSearch(e.target.value)}
-                                />
-                                <Search className="absolute left-3 top-3.5 text-gray-300" size={18} />
+                            <div className="relative flex gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500 transition-all"
+                                        placeholder="Busque por Nome ou Matrícula..."
+                                        value={personSearch}
+                                        onChange={e => {
+                                            setPersonSearch(e.target.value);
+                                            if (e.target.value.length < 2) setSearchResultsPeople([]);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handlePersonSearch();
+                                            }
+                                        }}
+                                    />
+                                    <Search className="absolute left-3 top-3.5 text-gray-300" size={18} />
+                                    {isSearchingPeople && (
+                                        <div className="absolute right-3 top-3">
+                                            <Loader2 size={16} className="animate-spin text-indigo-500" />
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handlePersonSearch()}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold transition-all"
+                                >
+                                    Buscar
+                                </button>
 
-                                {filteredPeople.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-2 bg-white border rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
-                                        {filteredPeople.map(p => (
+                                {searchResultsPeople.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
+                                        {searchResultsPeople.map(p => (
                                             <div
                                                 key={p.id}
-                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); }}
+                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }}
                                                 className="p-4 hover:bg-indigo-50 cursor-pointer text-sm group transition-colors"
                                             >
                                                 <div className="font-bold text-gray-800 group-hover:text-indigo-700">
@@ -242,6 +276,11 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                                 <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+                                {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl p-4 text-center text-xs text-slate-400 font-bold italic shadow-xl">
+                                        Nenhuma pessoa encontrada
                                     </div>
                                 )}
                             </div>

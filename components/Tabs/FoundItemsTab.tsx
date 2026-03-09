@@ -297,13 +297,13 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />;
   };
 
-  const handlePersonSearch = async (val: string) => {
-    setPersonSearch(val);
-    if (val.trim().length >= 2) {
+  const handlePersonSearch = async (val?: string) => {
+    const query = val !== undefined ? val : personSearch;
+    if (query.trim().length >= 2) {
       setIsSearchingPeople(true);
       try {
-        const results = await StorageService.searchPeople(val);
-        setSearchResultsPeople(results);
+        const results = await StorageService.searchPeople(query);
+        setSearchResultsPeople(results.slice(0, 10));
       } catch (err) {
         console.error("Erro busca pessoas:", err);
       } finally {
@@ -1014,24 +1014,42 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           {returnType === 'PERSON' && (
             <div className="relative space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                  placeholder="Digite o nome ou parte da matrícula..."
-                  value={personSearch}
-                  onChange={e => handlePersonSearch(e.target.value)}
-                />
-                <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                {isSearchingPeople && (
-                  <div className="absolute right-3 top-2.5">
-                    <Loader2 size={16} className="animate-spin text-ifrn-green" />
-                  </div>
-                )}
+              <div className="relative flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                    placeholder="Digite o nome ou parte da matrícula..."
+                    value={personSearch}
+                    onChange={e => {
+                      setPersonSearch(e.target.value);
+                      if (e.target.value.length < 2) setSearchResultsPeople([]);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handlePersonSearch();
+                      }
+                    }}
+                  />
+                  <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                  {isSearchingPeople && (
+                    <div className="absolute right-3 top-2.5">
+                      <Loader2 size={16} className="animate-spin text-ifrn-green" />
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePersonSearch()}
+                  className="px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold transition-all text-sm"
+                >
+                  Buscar
+                </button>
               </div>
 
               {selectedPerson ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3 mt-2">
                   <div className="bg-green-100 p-2 rounded-full text-green-700">
                     <UserIcon size={20} />
                   </div>
@@ -1049,7 +1067,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                 </div>
               ) : (
                 searchResultsPeople.length > 0 && (
-                  <div className="border rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100 absolute w-full bg-white z-20 shadow-lg">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100 z-50 shadow-xl">
                     {searchResultsPeople.map(p => (
                       <div
                         key={p.id}
@@ -1068,7 +1086,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                 )
               )}
               {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-lg">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-xl z-50">
                   Nenhuma pessoa encontrada
                 </div>
               )}

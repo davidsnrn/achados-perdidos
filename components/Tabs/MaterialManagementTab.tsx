@@ -124,12 +124,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
-    const handlePersonSearch = async (val: string) => {
-        setPersonSearch(val);
-        if (val.trim().length >= 2) {
+    const handlePersonSearch = async (val?: string) => {
+        const query = val !== undefined ? val : personSearch;
+        if (query.trim().length >= 2) {
             setIsSearchingPeople(true);
             try {
-                const results = await StorageService.searchPeople(val);
+                const results = await StorageService.searchPeople(query);
                 setSearchResultsPeople(results.slice(0, 10));
             } catch (error) {
                 console.error("Erro na busca:", error);
@@ -831,32 +831,56 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <button type="button" onClick={() => setSelectedPerson(null)} className="text-xs text-red-500 font-bold underline">Alterar</button>
                             </div>
                         ) : (
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500"
-                                    placeholder="Buscar pessoa..."
-                                    value={personSearch}
-                                    onChange={e => handlePersonSearch(e.target.value)}
-                                />
-                                <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                                {isSearchingPeople && (
-                                    <div className="absolute right-3 top-2.5">
-                                        <Loader2 size={16} className="animate-spin text-indigo-600" />
-                                    </div>
-                                )}
+                            <div className="relative flex gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        type="text"
+                                        className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500"
+                                        placeholder="Buscar pessoa..."
+                                        value={personSearch}
+                                        onChange={e => {
+                                            setPersonSearch(e.target.value);
+                                            if (e.target.value.length < 2) setSearchResultsPeople([]);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handlePersonSearch();
+                                            }
+                                        }}
+                                    />
+                                    <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                                    {isSearchingPeople && (
+                                        <div className="absolute right-3 top-2.5">
+                                            <Loader2 size={16} className="animate-spin text-indigo-600" />
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handlePersonSearch()}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold transition-all"
+                                >
+                                    Buscar
+                                </button>
                                 {searchResultsPeople.length > 0 && (
-                                    <div className="absolute z-[100] w-full mt-2 bg-white border rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y">
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
                                         {searchResultsPeople.map(p => (
-                                            <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }} className="p-4 hover:bg-indigo-50 cursor-pointer">
-                                                <div className="font-bold text-gray-800">{p.name}</div>
-                                                <div className="text-xs text-gray-500">{p.matricula}</div>
+                                            <div
+                                                key={p.id}
+                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }}
+                                                className="p-4 hover:bg-emerald-50 cursor-pointer text-sm group transition-colors"
+                                            >
+                                                <div className="font-bold text-gray-800 group-hover:text-emerald-700">
+                                                    {p.name}
+                                                </div>
+                                                <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                                 {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
-                                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-lg">
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl p-4 text-center text-xs text-slate-400 font-bold italic shadow-xl">
                                         Nenhuma pessoa encontrada
                                     </div>
                                 )}

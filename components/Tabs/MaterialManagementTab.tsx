@@ -129,7 +129,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         if (query.trim().length >= 2) {
             setIsSearchingPeople(true);
             try {
-                const results = await StorageService.searchPeople(query);
+                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined);
                 setSearchResultsPeople(results.slice(0, 10));
             } catch (error) {
                 console.error("Erro na busca:", error);

@@ -302,8 +302,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     if (query.trim().length >= 2) {
       setIsSearchingPeople(true);
       try {
-        const results = await StorageService.searchPeople(query);
-        setSearchResultsPeople(results.slice(0, 10));
+        const results = await StorageService.searchPeople(query, 10, user.campus_id);
+        setSearchResultsPeople(results);
       } catch (err) {
         console.error("Erro busca pessoas:", err);
       } finally {

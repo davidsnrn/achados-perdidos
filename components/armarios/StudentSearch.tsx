@@ -57,7 +57,9 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
     if (val.trim().length >= 2) {
       setIsSearching(true);
       try {
-        const results = await StorageService.searchPeople(val);
+        // We can get the campus_id from any of the lockers since they are all from the same campus
+        const campusId = lockers.length > 0 ? lockers[0].campus_id : undefined;
+        const results = await StorageService.searchPeople(val, 10, campusId);
         setSearchResults(results
           .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({

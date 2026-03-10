@@ -56,7 +56,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     if (val.trim().length >= 2) {
       setIsSearchingPeople(true);
       try {
-        const results = await StorageService.searchPeople(val);
+        const results = await StorageService.searchPeople(val, 10, currentUser.campus_id || undefined);
         setSearchResultsPeople(results.slice(0, 5));
       } catch (error) {
         console.error("Erro na busca:", error);

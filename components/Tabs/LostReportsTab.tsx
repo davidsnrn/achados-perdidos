@@ -50,8 +50,8 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
     if (query.trim().length >= 2) {
       setIsSearchingPeople(true);
       try {
-        const results = await StorageService.searchPeople(query);
-        setSearchResultsPeople(results.slice(0, 5));
+        const results = await StorageService.searchPeople(query, 5, user.campus_id);
+        setSearchResultsPeople(results);
       } catch (error) {
         console.error("Erro na busca de pessoas:", error);
       } finally {

@@ -330,44 +330,29 @@ export const StorageService = {
     if (!query || query.trim().length < 2) return [];
 
     const searchTerm = query.trim();
-    let rpcQuery = supabase
-      .rpc('search_people', {
-        search_term: searchTerm,
-        limit_count: limit
-      });
+    const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
 
-    if (campusId) {
-      rpcQuery = rpcQuery.eq('campus_id', campusId);
+    let supabaseQuery = supabase
+      .from('people')
+      .select('id, name, matricula, campus_id, type');
+
+    if (tokens.length > 0) {
+      // Usamos a mesma lógica do getPeoplePaginated que está funcionando para o usuário
+      const orFilter = tokens.map(t => `name.ilike.%${t}%,matricula.ilike.%${t}%`).join(',');
+      supabaseQuery = supabaseQuery.or(orFilter);
     }
 
-    const { data, error } = await rpcQuery;
+    if (campusId) {
+      supabaseQuery = supabaseQuery.eq('campus_id', campusId);
+    }
+
+    const { data, error } = await supabaseQuery
+      .limit(limit)
+      .order('name', { ascending: true });
 
     if (error) {
-      console.error("Erro ao pesquisar pessoas (RPC):", error);
-      // Fallback para busca simples se o RPC falhar
-      const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
-      let fallbackQuery = supabase
-        .from('people')
-        .select('*');
-
-      // Filtro básico (tokens como AND)
-      tokens.forEach(token => {
-        fallbackQuery = fallbackQuery.or(`name.ilike.%${token}%,matricula.ilike.%${token}%`);
-      });
-
-      fallbackQuery = fallbackQuery.limit(limit);
-
-      if (campusId) {
-        fallbackQuery = fallbackQuery.eq('campus_id', campusId);
-      }
-
-      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
-
-      if (fallbackError) {
-        console.error("Erro no fallback de pesquisa:", fallbackError);
-        return [];
-      }
-      return fallbackData || [];
+      console.error("Erro ao pesquisar pessoas:", error);
+      return [];
     }
 
     return data || [];

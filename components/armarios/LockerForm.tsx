@@ -52,7 +52,8 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
       setIsSearching(true);
       setShowSearchDropdown(true);
       try {
-        const results = await StorageService.searchPeople(query);
+        const campusId = selectedLocker?.campus_id;
+        const results = await StorageService.searchPeople(query, 10, campusId);
         setSearchResults(results
           .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({

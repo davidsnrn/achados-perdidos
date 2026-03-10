@@ -337,9 +337,9 @@ export const StorageService = {
       .select('id, name, matricula, campus_id, type');
 
     if (tokens.length > 0) {
-      // Usamos a mesma lógica do getPeoplePaginated que está funcionando para o usuário
-      const orFilter = tokens.map(t => `name.ilike.%${t}%,matricula.ilike.%${t}%`).join(',');
-      supabaseQuery = supabaseQuery.or(orFilter);
+      tokens.forEach(t => {
+        supabaseQuery = supabaseQuery.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+      });
     }
 
     if (campusId) {

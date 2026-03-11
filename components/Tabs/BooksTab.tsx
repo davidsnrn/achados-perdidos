@@ -153,6 +153,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
     const [loanObs, setLoanObs] = useState('');
     const [isLoanLoading, setIsLoanLoading] = useState(false);
+    const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
+    const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
     // Form State
     const [edition, setEdition] = useState('');
@@ -237,18 +239,23 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             .toLowerCase();
     };
 
-    // Quick loan: filtered people by search index
-    const filteredLoanPeople = useMemo(() => {
-        if (!loanPersonSearch.trim() || loanPersonSearch.length < 2) return [];
-        const searchTerms = normalizeText(loanPersonSearch).split(/\s+/).filter(t => t.length > 0);
-        const matchingIds = new Set(
-            peopleSearchIndex
-                .filter(idx => searchTerms.every(term => idx.searchStr.includes(term)))
-                .slice(0, 10)
-                .map(idx => idx.id)
-        );
-        return people.filter(p => matchingIds.has(p.id));
-    }, [loanPersonSearch, people, peopleSearchIndex]);
+    // Quick loan: handle person search via StorageService
+    const handlePersonSearch = async (val: string) => {
+        setLoanPersonSearch(val);
+        if (val.trim().length >= 2) {
+            setIsSearchingPeople(true);
+            try {
+                const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
+                setSearchResultsPeople(results);
+            } catch (err) {
+                console.error("Erro busca pessoas:", err);
+            } finally {
+                setIsSearchingPeople(false);
+            }
+        } else {
+            setSearchResultsPeople([]);
+        }
+    };
 
     // Quick loan: filtered books by search within modal
     const filteredLoanBooks = useMemo(() => {
@@ -344,6 +351,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             setSelectedLoanBooks([]);
             setLoanPerson(null);
             setLoanPersonSearch('');
+            setSearchResultsPeople([]);
             setLoanBookSearch('');
             setLoanObs('');
         } catch {
@@ -783,7 +791,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
             <Modal
                 isOpen={selectedLoanBooks.length > 0}
-                onClose={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setLoanBookSearch(''); setLoanObs(''); }}
+                onClose={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setSearchResultsPeople([]); setLoanBookSearch(''); setLoanObs(''); }}
                 title="Empréstimo Rápido (Múltiplos Livros)"
             >
                 <div className="space-y-6">
@@ -867,7 +875,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         <div>
                             <div className="flex justify-between items-center mb-2">
                                 <label className="block text-xs font-semibold text-gray-500 uppercase">Selecionar Aluno</label>
-                                {isPeopleLoading && <Loader2 size={12} className="animate-spin text-ifrn-green" />}
+                                {(isPeopleLoading || isSearchingPeople) && <Loader2 size={12} className="animate-spin text-ifrn-green" />}
                             </div>
 
                             {loanPerson ? (
@@ -886,22 +894,22 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                         placeholder="Buscar por nome ou matrícula..."
                                         className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                         value={loanPersonSearch}
-                                        onChange={e => setLoanPersonSearch(e.target.value)}
+                                        onChange={e => handlePersonSearch(e.target.value)}
                                         autoFocus
                                     />
                                     {loanPersonSearch.length >= 2 && (
-                                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                            {filteredLoanPeople.map(p => (
+                                        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                            {searchResultsPeople.map(p => (
                                                 <button
                                                     key={p.id}
-                                                    onClick={() => setLoanPerson(p)}
+                                                    onClick={() => { setLoanPerson(p); setLoanPersonSearch(''); setSearchResultsPeople([]); }}
                                                     className="w-full text-left p-3 hover:bg-gray-50 transition-colors border-b last:border-0 border-gray-100"
                                                 >
                                                     <p className="font-bold text-sm text-gray-800">{p.name}</p>
                                                     <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula}</p>
                                                 </button>
                                             ))}
-                                            {filteredLoanPeople.length === 0 && <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>}
+                                            {searchResultsPeople.length === 0 && !isSearchingPeople && <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>}
                                         </div>
                                     )}
                                 </div>
@@ -921,7 +929,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     <div className="pt-6 flex justify-end gap-3 border-t">
                         <button
-                            onClick={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setLoanBookSearch(''); setLoanObs(''); }}
+                            onClick={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setSearchResultsPeople([]); setLoanBookSearch(''); setLoanObs(''); }}
                             className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-semibold"
                         >
                             Cancelar

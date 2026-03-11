@@ -27,8 +27,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showMaterialForm, setShowMaterialForm] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
     const [formMaterialName, setFormMaterialName] = useState('');
+    const [batchMaterialText, setBatchMaterialText] = useState('');
+    const [materialFormMode, setMaterialFormMode] = useState<'single' | 'batch'>('single');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [generatedCode, setGeneratedCode] = useState('');
+    const [lastRegisteredCount, setLastRegisteredCount] = useState(0);
     const [copiedCode, setCopiedCode] = useState(false);
 
     // Loan form
@@ -156,41 +159,119 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }).slice(0, 10);
     }, [inventory, materialSearch, selectedMaterials]);
 
-    const generateCode = (): string => {
-        const existingCodes = materials.map(m => m.code);
-        let num = 1;
-        while (existingCodes.includes(num.toString().padStart(3, '0'))) {
-            num++;
+
+
+    const stripPrefix = (code: string): string => {
+        if (!code) return '';
+        if (code.includes(' ... ')) {
+            const parts = code.split(' ... ');
+            return `${stripPrefix(parts[0])} ... ${stripPrefix(parts[1])}`;
         }
-        return num.toString().padStart(3, '0');
+        const parts = code.split('-');
+        return parts.length > 1 ? parts[parts.length - 1] : code;
     };
 
     const handleMaterialSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const code = editingMaterial?.code || generateCode();
-        const material: Material = {
-            id: editingMaterial?.id || Math.random().toString(36).substr(2, 9),
-            code: code,
-            name: formMaterialName.trim(),
-            createdAt: editingMaterial?.createdAt || new Date().toISOString(),
-            campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
-        };
+        // 1. Obter o próximo número de código global direto do banco de dados
+        // Para evitar colisões entre campi, adicionamos um prefixo baseado no campus atual
+        const campusId = user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id;
+        const currentCampus = campuses.find(c => c.id === campusId);
 
+        // Gerar um prefixo simples: Primeiras 3 letras do campus
+        const prefix = currentCampus
+            ? currentCampus.name.substring(0, 3).toUpperCase()
+            : 'MAT';
+
+        let nextNum = 1;
         try {
-            await StorageService.saveMaterial(material);
-            await onUpdate();
-            setShowMaterialForm(false);
-
-            if (!editingMaterial) {
-                setGeneratedCode(code);
-                setShowSuccessModal(true);
-            } else {
-                alert('Material atualizado!');
+            const maxCode = await StorageService.getMaxMaterialCode(prefix);
+            if (maxCode && maxCode.startsWith(prefix)) {
+                // Tenta extrair o número após o prefixo (ex: "NC-050" -> 50)
+                const numPart = maxCode.split('-').pop();
+                const numOnly = numPart ? numPart.replace(/\D/g, '') : '';
+                if (numOnly) {
+                    nextNum = parseInt(numPart!, 10) + 1;
+                }
             }
-        } catch (error: any) {
-            console.error('Erro ao salvar material:', error);
-            alert(`Erro ao salvar material: ${error.message || 'Verifique a conexão com o banco de dados.'}`);
+        } catch (error) {
+            console.warn('Erro ao buscar código máximo no banco:', error);
+            // Fallback local se o banco falhar
+            materials.forEach(m => {
+                if (m.code.startsWith(prefix)) {
+                    const parts = m.code.split('-');
+                    const numPart = parts.pop();
+                    const n = parseInt(numPart || '0', 10);
+                    if (!isNaN(n) && n >= nextNum) nextNum = n + 1;
+                }
+            });
+        }
+
+        if (materialFormMode === 'single') {
+            const code = editingMaterial?.code || `${prefix}-${nextNum.toString().padStart(3, '0')}`;
+            const material: Material = {
+                id: editingMaterial?.id || Math.random().toString(36).substr(2, 9),
+                code: code,
+                name: formMaterialName.trim(),
+                createdAt: editingMaterial?.createdAt || new Date().toISOString(),
+                campus_id: campusId
+            };
+
+            try {
+                await StorageService.saveMaterial(material);
+                await onUpdate();
+                setShowMaterialForm(false);
+
+                if (!editingMaterial) {
+                    setGeneratedCode(code);
+                    setLastRegisteredCount(1);
+                    setShowSuccessModal(true);
+                } else {
+                    alert('Material atualizado!');
+                }
+            } catch (error: any) {
+                console.error('Erro ao salvar material:', error);
+                alert(`Erro ao salvar material: ${error.message || 'Verifique a conexão com o banco de dados.'}`);
+            }
+        } else {
+            // Batch Mode
+            const lines = batchMaterialText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            if (lines.length === 0) {
+                alert('Nenhum material informado para cadastro em lote.');
+                return;
+            }
+
+            const newMaterials: Material[] = [];
+            const startNum = nextNum;
+
+            lines.forEach(name => {
+                const code = `${prefix}-${nextNum.toString().padStart(3, '0')}`;
+                newMaterials.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    code: code,
+                    name: name,
+                    createdAt: new Date().toISOString(),
+                    campus_id: campusId
+                });
+                nextNum++;
+            });
+
+            const startCode = `${prefix}-${startNum.toString().padStart(3, '0')}`;
+            const endCode = `${prefix}-${(nextNum - 1).toString().padStart(3, '0')}`;
+
+            try {
+                await StorageService.saveMaterialsBulk(newMaterials);
+                await onUpdate();
+                setShowMaterialForm(false);
+                setBatchMaterialText('');
+                setLastRegisteredCount(newMaterials.length);
+                setGeneratedCode(newMaterials.length === 1 ? startCode : `${startCode} ... ${endCode}`);
+                setShowSuccessModal(true);
+            } catch (error: any) {
+                console.error('Erro ao salvar materiais em lote:', error);
+                alert(`Erro ao salvar materiais em lote: ${error.message || 'Verifique a conexão com o banco de dados.'}`);
+            }
         }
     };
 
@@ -424,6 +505,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 onClick={() => {
                                     setEditingMaterial(null);
                                     setFormMaterialName('');
+                                    setBatchMaterialText('');
+                                    setMaterialFormMode('single');
                                     setShowMaterialForm(true);
                                 }}
                                 className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 text-sm"
@@ -479,7 +562,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <Hash size={14} className="text-indigo-500" />
-                                                    <span className="font-mono text-xs font-bold text-indigo-600">{item.code}</span>
+                                                    <span className="font-mono text-xs font-bold text-indigo-600">{stripPrefix(item.code)}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4 font-bold text-gray-800">{item.name}</td>
@@ -641,7 +724,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                             <tr key={loan.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewingLoan(loan)}>
                                                 <td className="p-4">
                                                     <div className="font-bold text-gray-800">{loan.materialName}</div>
-                                                    <div className="text-xs text-gray-500 font-mono">#{loan.materialCode}</div>
+                                                    <div className="text-xs text-gray-500 font-mono">#{stripPrefix(loan.materialCode)}</div>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="font-medium text-gray-800">{loan.personName}</div>
@@ -751,17 +834,51 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             {/* Material Form Modal */}
             <Modal isOpen={showMaterialForm} onClose={() => setShowMaterialForm(false)} title={editingMaterial ? 'Editar Material' : 'Novo Material'}>
                 <form onSubmit={handleMaterialSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Material</label>
-                        <input
-                            type="text"
-                            required
-                            value={formMaterialName}
-                            onChange={e => setFormMaterialName(e.target.value)}
-                            className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 transition-all"
-                            placeholder="Ex: Adaptador HDMI"
-                        />
-                    </div>
+                    {!editingMaterial && (
+                        <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
+                            <button
+                                type="button"
+                                onClick={() => setMaterialFormMode('single')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${materialFormMode === 'single' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Individual
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMaterialFormMode('batch')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${materialFormMode === 'batch' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Em Lote
+                            </button>
+                        </div>
+                    )}
+
+                    {materialFormMode === 'single' ? (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Material</label>
+                            <input
+                                type="text"
+                                required
+                                value={formMaterialName}
+                                onChange={e => setFormMaterialName(e.target.value)}
+                                className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 transition-all"
+                                placeholder="Ex: Adaptador HDMI"
+                            />
+                        </div>
+                    ) : (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Lista de Materiais (Cole aqui)</label>
+                            <textarea
+                                required
+                                value={batchMaterialText}
+                                onChange={e => setBatchMaterialText(e.target.value)}
+                                rows={10}
+                                className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 transition-all font-mono"
+                                placeholder={"Cabo HDMI\nADAPTADOR VGA\nALICATE"}
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1 italic">Cada linha será cadastrada como um item individual com código sequencial.</p>
+                        </div>
+                    )}
                     {user.level === UserLevel.ADMIN && (
                         <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
                             <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Material</label>
@@ -786,12 +903,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             </Modal>
 
             {/* Success Modal */}
-            <Modal isOpen={showSuccessModal} onClose={() => setShowSuccessModal(false)} title="Material Cadastrado!">
+            <Modal isOpen={showSuccessModal} onClose={() => setShowSuccessModal(false)} title={lastRegisteredCount > 1 ? `${lastRegisteredCount} Materiais Cadastrados!` : 'Material Cadastrado!'}>
                 <div className="space-y-6">
                     <div className="bg-indigo-50 border-2 border-indigo-300 rounded-xl p-6 text-center">
-                        <p className="text-sm text-indigo-700 font-medium mb-2">CÓDIGO DE RASTREAMENTO</p>
+                        <p className="text-sm text-indigo-700 font-medium mb-2">{lastRegisteredCount > 1 ? 'INTERVALO DE CÓDIGOS' : 'CÓDIGO DE RASTREAMENTO'}</p>
                         <div className="bg-white border-2 border-indigo-400 rounded-lg p-4 mb-4">
-                            <p className="text-4xl font-black font-mono text-indigo-900">{generatedCode}</p>
+                            <p className="text-4xl font-black font-mono text-indigo-900">{stripPrefix(generatedCode)}</p>
                         </div>
                         <button
                             onClick={copyToClipboard}
@@ -924,7 +1041,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 >
                                                     <div>
                                                         <div className="font-bold text-gray-800">{m.name}</div>
-                                                        <div className="text-xs text-indigo-600 font-mono">#{m.code}</div>
+                                                        <div className="text-xs text-indigo-600 font-mono">#{stripPrefix(m.code)}</div>
                                                     </div>
                                                     <Plus size={16} className="text-indigo-400" />
                                                 </div>
@@ -947,7 +1064,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 {selectedMaterials.map(mat => (
                                     <div key={mat.id} className="flex justify-between items-center bg-gray-50 p-2 px-3 rounded-lg border border-gray-100 animate-fadeIn">
                                         <div className="flex items-center gap-2">
-                                            <span className="font-mono text-xs font-bold text-indigo-600">#{mat.code}</span>
+                                            <span className="font-mono text-xs font-bold text-indigo-600">#{stripPrefix(mat.code)}</span>
                                             <span className="text-sm font-medium text-gray-700">{mat.name}</span>
                                         </div>
                                         <button
@@ -1018,7 +1135,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <Edit2 size={16} />
                                     </button>
                                 </h4>
-                                <p className="text-sm font-mono text-gray-500 mt-1">Código: {viewingItem.code}</p>
+                                <p className="text-sm font-mono text-gray-500 mt-1">Código: {stripPrefix(viewingItem.code)}</p>
                             </div>
                         </div>
 
@@ -1104,7 +1221,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 </div>
                                 <div>
                                     <p className="text-xl font-black text-indigo-900 leading-none">{viewingLoan.materialName}</p>
-                                    <p className="text-xs font-mono text-indigo-600 mt-1">#{viewingLoan.materialCode}</p>
+                                    <p className="text-xs font-mono text-indigo-600 mt-1">#{stripPrefix(viewingLoan.materialCode)}</p>
                                 </div>
                             </div>
                         </div>

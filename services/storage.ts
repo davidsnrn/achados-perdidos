@@ -1052,6 +1052,34 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  saveMaterialsBulk: async (materials: Material[]) => {
+    const { error } = await supabase.from('materials').insert(materials.map(m => ({
+      id: m.id,
+      code: m.code,
+      name: m.name,
+      createdAt: m.createdAt,
+      campus_id: m.campus_id
+    })));
+    if (error) throw error;
+  },
+
+  getMaxMaterialCode: async (prefix?: string): Promise<string | null> => {
+    let query = supabase
+      .from('materials')
+      .select('code')
+      .order('code', { ascending: false })
+      .limit(1);
+
+    if (prefix) {
+      query = query.like('code', `${prefix}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error || !data || data.length === 0) return null;
+    return data[0].code;
+  },
+
   deleteMaterial: async (id: string) => {
     await StorageService.deleteMaterialsBulk([id]);
   },

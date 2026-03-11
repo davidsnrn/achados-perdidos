@@ -11,9 +11,10 @@ interface Props {
     user: User;
     onUpdate: () => void;
     campuses: Campus[];
+    adminGlobalCampusId?: string | null;
 }
 
-export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], user, onUpdate, campuses }) => {
+export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], user, onUpdate, campuses, adminGlobalCampusId }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
@@ -56,7 +57,16 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+    const [selectedCampusId, setSelectedCampusId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
+    );
+
+    // Sync with global admin campus selector
+    useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+            setSelectedCampusId(adminGlobalCampusId || '');
+        }
+    }, [adminGlobalCampusId, user.level]);
 
     // Reset pagination on search or tab changes
     useMemo(() => {

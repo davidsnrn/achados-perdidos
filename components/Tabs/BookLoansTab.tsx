@@ -10,9 +10,10 @@ interface Props {
     onUpdate: () => void;
     user: User;
     campuses: Campus[];
+    adminGlobalCampusId?: string | null;
 }
 
-export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, campuses }) => {
+export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, campuses, adminGlobalCampusId }) => {
     const [activeSubTab, setActiveSubTab] = useState<'current' | 'history'>('current');
     const [showLoanModal, setShowLoanModal] = useState(false);
     const [showPartialReturnModal, setShowPartialReturnModal] = useState(false);
@@ -30,7 +31,16 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
-    const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+    const [selectedCampusId, setSelectedCampusId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
+    );
+
+    // Sync with global admin campus selector
+    React.useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+            setSelectedCampusId(adminGlobalCampusId || '');
+        }
+    }, [adminGlobalCampusId, user.level]);
     const [selectedSeries, setSelectedSeries] = useState<string>('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
     const [isSeriesSelectFocused, setIsSeriesSelectFocused] = useState(false);

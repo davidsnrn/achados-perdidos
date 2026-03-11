@@ -10,9 +10,10 @@ interface Props {
   currentUser: User;
   onUpdate: () => void;
   campuses: Campus[];
+  adminGlobalCampusId?: string | null;
 }
 
-export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses }) => {
+export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses, adminGlobalCampusId }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -40,7 +41,16 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     usuarios: true,
     materiais: true,
   });
-  const [selectedCampusId, setSelectedCampusId] = useState<string>('');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(
+    (currentUser.level === UserLevel.ADMIN ? adminGlobalCampusId : currentUser.campus_id) || ''
+  );
+
+  // Sync with global admin campus selector
+  useEffect(() => {
+    if (currentUser.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+      setSelectedCampusId(adminGlobalCampusId || '');
+    }
+  }, [adminGlobalCampusId, currentUser.level]);
 
   const userString = `${currentUser.name} (${currentUser.matricula})`;
 

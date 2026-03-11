@@ -10,9 +10,10 @@ interface Props {
   onUpdate: () => void;
   user: User;
   campuses: Campus[];
+  adminGlobalCampusId?: string | null;
 }
 
-export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user, campuses }) => {
+export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user, campuses, adminGlobalCampusId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -34,7 +35,16 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
   const [newWhatsapp, setNewWhatsapp] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [selectedCampusId, setSelectedCampusId] = useState<string>('');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(
+    (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
+  );
+
+  // Sync with global admin campus selector
+  React.useEffect(() => {
+    if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+      setSelectedCampusId(adminGlobalCampusId || '');
+    }
+  }, [adminGlobalCampusId, user.level]);
 
   const userString = `${user.name} (${user.matricula})`;
 

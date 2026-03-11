@@ -1461,17 +1461,19 @@ const App: React.FC = () => {
                     user={user}
                     onToggleSleep={setIsBackdropSleep}
                     campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} />}
+                {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}
                 {activeTab === 'pessoas' && (
                   <PeopleTab
                     onUpdate={refreshData}
                     user={user}
                     campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} />}
+                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}
                 {activeTab === 'livros-catalogo' && (
                   <BooksTab
                     books={books}
@@ -1479,6 +1481,7 @@ const App: React.FC = () => {
                     onUpdate={refreshData}
                     user={user}
                     campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
                 {activeTab === 'livros-emprestimos' && (
@@ -1488,6 +1491,7 @@ const App: React.FC = () => {
                     onUpdate={refreshBookLoans}
                     user={user}
                     campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
                 {activeTab === 'nadaconsta' && (
@@ -1497,6 +1501,7 @@ const App: React.FC = () => {
                     materialLoans={materialLoans}
                     user={user}
                     campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
                 {activeTab === 'materiais' && (
@@ -1506,9 +1511,10 @@ const App: React.FC = () => {
                     user={user}
                     onUpdate={refreshData}
                     campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} />}
+                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}
               </React.Suspense>
             )}
           </ErrorBoundary>

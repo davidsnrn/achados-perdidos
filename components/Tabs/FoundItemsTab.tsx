@@ -12,12 +12,13 @@ interface Props {
   user: User;
   onToggleSleep?: (sleep: boolean) => void;
   campuses: Campus[];
+  adminGlobalCampusId?: string | null;
 }
 
 type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM' | 'SPECIFIC';
 type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound' | 'returnedDate';
 
-export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses }) => {
+export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses, adminGlobalCampusId }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
@@ -52,7 +53,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   const [imageBlob, setImageBlob] = useState<Blob | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
-  const [selectedCampusId, setSelectedCampusId] = useState<string>('');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(
+    (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
+  );
+
+  // Sync with global admin campus selector
+  React.useEffect(() => {
+    if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+      setSelectedCampusId(adminGlobalCampusId || '');
+    }
+  }, [adminGlobalCampusId, user.level]);
 
   // Discard modal state (for Advanced users choosing between soft/hard delete)
   const [showDiscardModal, setShowDiscardModal] = useState(false);

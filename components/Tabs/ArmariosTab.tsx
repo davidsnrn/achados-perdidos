@@ -18,9 +18,10 @@ interface ArmariosTabProps {
   lockers: Locker[];
   onUpdate: () => void;
   campuses: Campus[];
+  adminGlobalCampusId?: string | null;
 }
 
-export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses }) => {
+export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses, adminGlobalCampusId }) => {
   const [loading, setLoading] = useState(false);
 
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -29,7 +30,16 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [lockerSearch, setLockerSearch] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
-  const [selectedCampusId, setSelectedCampusId] = useState<string>(user?.campus_id || '');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(
+    (user?.level === UserLevel.ADMIN ? adminGlobalCampusId : user?.campus_id) || ''
+  );
+
+  // Sync with global admin campus selector
+  useEffect(() => {
+    if (user?.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+      setSelectedCampusId(adminGlobalCampusId || '');
+    }
+  }, [adminGlobalCampusId, user?.level]);
 
   const isAdmin = user?.level === UserLevel.ADMIN;
   const isAdvanced = user?.level === UserLevel.ADVANCED;

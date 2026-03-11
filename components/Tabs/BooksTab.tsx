@@ -17,6 +17,7 @@ interface Props {
     people?: Person[];
     isPeopleLoading?: boolean;
     peopleSearchIndex?: { id: string, searchStr: string }[];
+    adminGlobalCampusId?: string | null;
 }
 
 interface BookTableProps {
@@ -138,7 +139,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
     );
 };
 
-export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, people = [], isPeopleLoading, peopleSearchIndex = [] }) => {
+export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, people = [], isPeopleLoading, peopleSearchIndex = [], adminGlobalCampusId }) => {
     const [search, setSearch] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -164,7 +165,16 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [series, setSeries] = useState('');
     const [publisher, setPublisher] = useState('');
     const [quantity, setQuantity] = useState('Indeterminado');
-    const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+    const [selectedCampusId, setSelectedCampusId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
+    );
+
+    // Sync with global admin campus selector
+    React.useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+            setSelectedCampusId(adminGlobalCampusId || '');
+        }
+    }, [adminGlobalCampusId, user.level]);
 
     const getBorrowedCount = (bookId: string) => {
         return bookLoans.reduce((total, loan) => {

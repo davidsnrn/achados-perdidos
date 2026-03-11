@@ -11,6 +11,7 @@ interface NadaConstaTabProps {
     materialLoans: MaterialLoan[];
     user: User;
     campuses: Campus[];
+    adminGlobalCampusId?: string | null;
 }
 
 export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
@@ -18,7 +19,8 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
     bookLoans,
     materialLoans,
     user,
-    campuses
+    campuses,
+    adminGlobalCampusId
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -62,7 +64,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 ? rawSearch.split(',').map(s => s.trim()).filter(s => s.length >= 2)
                 : [rawSearch];
 
-            const campusId = (user.level === UserLevel.ADMIN) ? undefined : user.campus_id;
+            const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
             let allResults: Person[] = [];
 
             // Buscar cada grupo no servidor de forma assíncrona

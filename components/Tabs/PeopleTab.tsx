@@ -8,9 +8,10 @@ interface Props {
   onUpdate: () => void;
   user: User;
   campuses: Campus[];
+  adminGlobalCampusId?: string | null;
 }
 
-export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses }) => {
+export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlobalCampusId }) => {
   const [activeTab, setActiveTab] = useState<'manual' | 'import'>('manual');
   const [filterType, setFilterType] = useState<PersonType | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
@@ -36,9 +37,16 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses }) => {
   // Edit State
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingPerson, setEditingPerson] = useState<Person | null>(null);
-  const [selectedCampusId, setSelectedCampusId] = useState<string>(user.campus_id || '');
+  const [selectedCampusId, setSelectedCampusId] = useState<string>(
+    (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
+  );
 
-  // Delete All State
+  // Sync with global admin campus selector
+  React.useEffect(() => {
+    if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+      setSelectedCampusId(adminGlobalCampusId || '');
+    }
+  }, [adminGlobalCampusId, user.level]);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
 
@@ -300,9 +308,10 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses }) => {
   const fetchData = async () => {
     setIsDataLoading(true);
     try {
+      const campusFilter = user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id;
       const [data, count] = await Promise.all([
-        StorageService.getPeoplePaginated(currentPage, itemsPerPage, user.level === UserLevel.ADMIN ? undefined : user.campus_id, filterType, search),
-        StorageService.getPeopleCount(user.level === UserLevel.ADMIN ? undefined : user.campus_id, filterType, search)
+        StorageService.getPeoplePaginated(currentPage, itemsPerPage, campusFilter, filterType, search),
+        StorageService.getPeopleCount(campusFilter, filterType, search)
       ]);
       setPeople(data);
       setTotalCount(count);
@@ -315,7 +324,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses }) => {
 
   React.useEffect(() => {
     fetchData();
-  }, [currentPage, filterType]);
+  }, [currentPage, filterType, selectedCampusId]);
 
   // Debounce para busca
   React.useEffect(() => {

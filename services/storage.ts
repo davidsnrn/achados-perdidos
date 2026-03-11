@@ -391,12 +391,19 @@ export const StorageService = {
     await supabase.from('people').delete().eq('id', id);
   },
 
-  deleteAllPeople: async (campusId?: string) => {
+  deleteAllPeople: async (campusIds?: string[] | string) => {
     let query = supabase.from('people').delete().neq('id', '0');
-    if (campusId) {
-      query = query.eq('campus_id', campusId);
+
+    if (Array.isArray(campusIds)) {
+      if (campusIds.length > 0) {
+        query = query.in('campus_id', campusIds);
+      }
+    } else if (typeof campusIds === 'string' && campusIds.length > 0) {
+      query = query.eq('campus_id', campusIds);
     }
-    await query;
+
+    const { error } = await query;
+    if (error) throw error;
   },
 
   importPeople: async (people: Person[]) => {

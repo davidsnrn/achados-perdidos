@@ -49,6 +49,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
   }, [adminGlobalCampusId, user.level]);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
+  const [selectedDeleteCampuses, setSelectedDeleteCampuses] = useState<string[]>([]);
 
   const toTitleCase = (str: string) => {
     return str.toLowerCase().split(' ').map((word, index) => {
@@ -297,12 +298,30 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       alert("Senha incorreta.");
       return;
     }
-    await StorageService.deleteAllPeople();
-    onUpdate();
-    fetchData(); // Recarregar dados após limpar tudo
-    setShowDeleteAllModal(false);
-    setDeletePassword('');
-    alert("Todas as pessoas foram removidas com sucesso.");
+
+    try {
+      setIsLoading(true);
+      if (user.level === UserLevel.ADMIN) {
+        // Se nenhum campus for selecionado no modal, exclui de todos (ou podemos obrigar selecionar)
+        // Por segurança, vamos processar o que foi selecionado. Se vazio e clicou com "Todos" marcado, vira undefined.
+        const campusFilter = selectedDeleteCampuses.length === 0 ? undefined : selectedDeleteCampuses;
+        await StorageService.deleteAllPeople(campusFilter);
+      } else {
+        // Avançado: Exclui apenas do seu campus
+        await StorageService.deleteAllPeople(user.campus_id);
+      }
+
+      onUpdate();
+      fetchData();
+      setShowDeleteAllModal(false);
+      setDeletePassword('');
+      setSelectedDeleteCampuses([]);
+      alert("Pessoas removidas com sucesso.");
+    } catch (err) {
+      alert("Erro ao excluir pessoas: " + (err as Error).message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const fetchData = async () => {
@@ -649,11 +668,90 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         </form>
       </Modal>
 
-      <Modal isOpen={showDeleteAllModal} onClose={() => { setShowDeleteAllModal(false); setDeletePassword(''); }} title="Confirmar Exclusão em Massa">
+      <Modal isOpen={showDeleteAllModal} onClose={() => { setShowDeleteAllModal(false); setDeletePassword(''); setSelectedDeleteCampuses([]); }} title="Confirmar Exclusão em Massa">
         <form onSubmit={handleDeleteAll} className="space-y-4">
-          <div className="bg-red-50 text-red-800 p-4 rounded-lg text-sm mb-4 border border-red-200"><p className="font-bold flex items-center gap-2"><AlertTriangle size={16} /> Ação Irreversível</p><p className="mt-1">Você está prestes a excluir <strong>TODAS</strong> as pessoas cadastradas.</p><p>Esta ação não pode ser desfeita.</p></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Sua Senha</label><input type="password" required value={deletePassword} onChange={e => setDeletePassword(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none" placeholder="Confirme sua senha para continuar..." autoFocus /></div>
-          <div className="pt-4 flex justify-end gap-3 border-t"><button type="button" onClick={() => { setShowDeleteAllModal(false); setDeletePassword(''); }} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button><button type="submit" className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold flex items-center gap-2"><Trash2 size={18} /> Confirmar Exclusão</button></div>
+          <div className="bg-red-50 text-red-800 p-4 rounded-lg text-sm mb-4 border border-red-200">
+            <p className="font-bold flex items-center gap-2"><AlertTriangle size={16} /> Ação Irreversível</p>
+            {user.level === UserLevel.ADVANCED ? (
+              <p className="mt-1">Você está prestes a excluir <strong>TODAS</strong> as pessoas cadastradas no câmpus <strong>{campuses.find(c => c.id === user.campus_id)?.name}</strong>.</p>
+            ) : (
+              <p className="mt-1">Você está prestes a excluir as pessoas dos câmpus selecionados abaixo.</p>
+            )}
+            <p>Esta ação não pode ser desfeita.</p>
+          </div>
+
+          {user.level === UserLevel.ADMIN && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Selecionar Câmpus</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedDeleteCampuses.length === campuses.length) {
+                      setSelectedDeleteCampuses([]);
+                    } else {
+                      setSelectedDeleteCampuses(campuses.map(c => c.id));
+                    }
+                  }}
+                  className="text-xs font-bold text-ifrn-green hover:underline"
+                >
+                  {selectedDeleteCampuses.length === campuses.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </button>
+              </div>
+              <div className="max-h-48 overflow-y-auto border rounded-xl p-3 space-y-2 bg-gray-50">
+                {campuses.map(campus => (
+                  <label key={campus.id} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg transition-colors cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={selectedDeleteCampuses.includes(campus.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedDeleteCampuses(prev => [...prev, campus.id]);
+                        } else {
+                          setSelectedDeleteCampuses(prev => prev.filter(id => id !== campus.id));
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-ifrn-green focus:ring-ifrn-green"
+                    />
+                    <span className="text-sm text-gray-700 group-hover:text-ifrn-green font-medium transition-colors">{campus.name}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 italic">
+                * Se nenhum for selecionado e você confirmar, <strong>todos</strong> os câmpus serão limpos.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Sua Senha</label>
+            <input 
+              type="password" 
+              required 
+              value={deletePassword} 
+              onChange={e => setDeletePassword(e.target.value)} 
+              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-red-500 outline-none" 
+              placeholder="Confirme sua senha para continuar..." 
+              autoFocus 
+            />
+          </div>
+
+          <div className="pt-4 flex justify-end gap-3 border-t">
+            <button 
+              type="button" 
+              onClick={() => { setShowDeleteAllModal(false); setDeletePassword(''); setSelectedDeleteCampuses([]); }} 
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-bold flex items-center gap-2 disabled:opacity-50"
+            >
+              {isLoading ? <Loader2 className="animate-spin" size={18} /> : <><Trash2 size={18} /> Confirmar Exclusão</>}
+            </button>
+          </div>
         </form>
       </Modal>
     </div>

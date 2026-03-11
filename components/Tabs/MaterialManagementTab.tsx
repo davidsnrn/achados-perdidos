@@ -167,8 +167,13 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             const parts = code.split(' ... ');
             return `${stripPrefix(parts[0])} ... ${stripPrefix(parts[1])}`;
         }
+        // O código agora é slug-numero (ex: natal-central-001)
+        // Pegamos apenas a parte numérica final
         const parts = code.split('-');
-        return parts.length > 1 ? parts[parts.length - 1] : code;
+        const lastPart = parts[parts.length - 1];
+        // Se a última parte for numérica, retornamos ela. 
+        // Caso contrário (códigos legados sem hífen), retorna o original.
+        return /^\d+$/.test(lastPart) ? lastPart : code;
     };
 
     const handleMaterialSubmit = async (e: React.FormEvent) => {
@@ -179,20 +184,18 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         const campusId = user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id;
         const currentCampus = campuses.find(c => c.id === campusId);
 
-        // Gerar um prefixo simples: Primeiras 3 letras do campus
-        const prefix = currentCampus
-            ? currentCampus.name.substring(0, 3).toUpperCase()
-            : 'MAT';
+        // Gerar um prefixo Robusto: Usamos o slug do campus para garantir unicidade
+        const prefix = currentCampus ? currentCampus.slug : 'material';
 
         let nextNum = 1;
         try {
             const maxCode = await StorageService.getMaxMaterialCode(prefix);
             if (maxCode && maxCode.startsWith(prefix)) {
-                // Tenta extrair o número após o prefixo (ex: "NC-050" -> 50)
-                const numPart = maxCode.split('-').pop();
-                const numOnly = numPart ? numPart.replace(/\D/g, '') : '';
-                if (numOnly) {
-                    nextNum = parseInt(numPart!, 10) + 1;
+                // Tenta extrair o número após o prefixo (ex: "slug-campus-050" -> 50)
+                const parts = maxCode.split('-');
+                const lastPart = parts[parts.length - 1];
+                if (lastPart && /^\d+$/.test(lastPart)) {
+                    nextNum = parseInt(lastPart, 10) + 1;
                 }
             }
         } catch (error) {

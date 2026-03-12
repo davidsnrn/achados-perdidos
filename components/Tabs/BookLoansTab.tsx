@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText } from 'lucide-react';
+import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -12,6 +12,128 @@ interface Props {
     campuses: Campus[];
     adminGlobalCampusId?: string | null;
 }
+
+// ── LoanRow ──────────────────────────────────────────────────────────────────
+interface LoanRowProps {
+    loan: BookLoan;
+    onViewDetail: () => void;
+    onReturn: () => void;
+}
+
+const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn }) => {
+    const [expanded, setExpanded] = useState(false);
+    const activeBooks = loan.books.filter(b => b.status === 'Ativo');
+    const returnedBooks = loan.books.filter(b => b.status === 'Devolvido');
+    const isReturned = loan.status === BookLoanStatus.RETURNED;
+
+    return (
+        <div className={`transition-colors ${isReturned ? 'bg-white' : 'bg-white hover:bg-gray-50/70'}`}>
+            {/* Main Row */}
+            <div
+                className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3 cursor-pointer"
+                onClick={() => setExpanded(prev => !prev)}
+            >
+                {/* Expand chevron */}
+                <span className="text-gray-400 w-5">
+                    {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </span>
+
+                {/* Student info */}
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-800 text-sm truncate">{loan.personName}</p>
+                        {isReturned && (
+                            <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">
+                                <CheckCircle size={10} /> Devolvido
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">{loan.personMatricula || 'Matrícula não informada'}</p>
+                </div>
+
+                {/* Date */}
+                <div className="hidden md:flex flex-col items-end text-right">
+                    <span className="text-xs text-gray-600 font-medium">{new Date(loan.loanDate).toLocaleDateString('pt-BR')}</span>
+                    <span className="text-[10px] text-gray-400">{new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+
+                {/* Book count badge */}
+                <div className="flex items-center gap-1.5">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border ${isReturned ? 'bg-gray-50 text-gray-500 border-gray-100' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                        <BookIcon size={12} />
+                        {loan.books.length}
+                        {!isReturned && activeBooks.length < loan.books.length && (
+                            <span className="text-emerald-600">/{returnedBooks.length}✓</span>
+                        )}
+                    </span>
+                </div>
+
+                {/* Operator */}
+                <div className="hidden lg:block text-right">
+                    <p className="text-[10px] text-gray-400 font-medium truncate max-w-[120px]">{loan.loanedBy}</p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    {!isReturned && (
+                        <button
+                            onClick={onReturn}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-sm whitespace-nowrap"
+                        >
+                            <Undo2 size={13} /> Devolver
+                        </button>
+                    )}
+                    <button
+                        onClick={onViewDetail}
+                        className="p-1.5 text-gray-400 hover:text-ifrn-green hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Ver detalhes completos"
+                    >
+                        <FileText size={15} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Expanded book list */}
+            {expanded && (
+                <div className="px-12 pb-4 pt-1 bg-gray-50/50 border-t border-gray-100">
+                    {loan.observation && (
+                        <p className="text-[11px] italic text-gray-500 mb-3 px-1">
+                            <span className="font-bold not-italic text-gray-400 uppercase text-[9px] tracking-widest mr-1">Obs:</span>
+                            "{loan.observation}"
+                        </p>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {loan.books.map(book => {
+                            const isMP = book.code?.endsWith('MP');
+                            const isBookReturned = book.status === 'Devolvido';
+                            return (
+                                <div
+                                    key={book.id}
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-lg border text-xs
+                                        ${isBookReturned ? 'bg-emerald-50/50 border-emerald-100 opacity-80' : isMP ? 'bg-orange-50 border-orange-100' : 'bg-white border-gray-100'}`}
+                                >
+                                    <BookIcon size={14} className={isBookReturned ? 'text-emerald-500' : isMP ? 'text-orange-500' : 'text-blue-500'} />
+                                    <div className="min-w-0 flex-1">
+                                        <div className={`font-bold truncate ${isBookReturned ? 'line-through text-gray-400' : isMP ? 'text-orange-900' : 'text-gray-700'}`}>
+                                            {book.title}
+                                            {isMP && <span className="ml-1 text-[8px] bg-orange-200 text-orange-900 px-1 py-0.5 rounded font-black uppercase tracking-tighter align-middle">MP</span>}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400">
+                                            {book.code || 'S/C'} {book.series ? `• ${book.series}` : ''}
+                                        </div>
+                                    </div>
+                                    {isBookReturned && <CheckCircle size={14} className="text-emerald-500 shrink-0" />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 
 export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, campuses, adminGlobalCampusId }) => {
     const [activeSubTab, setActiveSubTab] = useState<'current' | 'history'>('current');
@@ -294,88 +416,39 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Expandable Table Layout */}
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                 {(activeSubTab === 'current' ? activeLoans : historicalLoans).length === 0 ? (
-                    <div className="col-span-full py-12 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-200">
+                    <div className="py-16 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl">
                         Nenhum registro encontrado.
                     </div>
                 ) : (
-                    (activeSubTab === 'current' ? activeLoans : historicalLoans).map(loan => (
-                        <div
-                            key={loan.id}
-                            onClick={() => setViewingLoan(loan)}
-                            className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group cursor-pointer"
-                        >
-                            {loan.status === BookLoanStatus.RETURNED && (
-                                <div className="absolute top-3 right-3 text-emerald-600 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-full">
-                                    <CheckCircle size={12} /> Devolvido
-                                </div>
-                            )}
-
-                            <div className="flex items-start gap-3 mb-4">
-                                <div className={`p-2 rounded-lg ${loan.status === BookLoanStatus.ACTIVE ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-500'}`}>
-                                    <UserIcon size={20} />
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-gray-800 leading-tight">{loan.personName}</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{loan.personMatricula || 'Não informada'}</p>
-                                    <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1">
-                                        <Calendar size={12} /> {new Date(loan.loanDate).toLocaleDateString('pt-BR')}
-                                        <Clock size={12} /> {new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2 mb-4">
-                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Livros Emprestados:</p>
-                                <div className="flex flex-col gap-1.5">
-                                    {loan.books.map(book => {
-                                        const isMP = book.code?.endsWith('MP');
-                                        return (
-                                            <div key={book.id} className={`flex flex-col p-2 rounded-lg border text-xs ${book.status === 'Devolvido' ? 'bg-green-50 text-green-600 border-green-100 opacity-70' : isMP ? 'bg-orange-50 text-orange-800 border-orange-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-1 font-bold">
-                                                        <BookIcon size={12} /> {book.title}
-                                                        {isMP && (
-                                                            <span className="ml-1 text-[8px] bg-orange-200 text-orange-900 px-1 py-0.5 rounded font-black uppercase tracking-tighter">MP</span>
-                                                        )}
-                                                    </div>
-                                                    {book.status === 'Devolvido' && <CheckCircle size={12} />}
-                                                </div>
-                                                <div className="text-[10px] text-gray-400 mt-0.5 ml-4">
-                                                    Código: <span className={isMP ? 'text-orange-700' : 'text-gray-600'}>{book.code || 'N/A'}</span> • Série: <span className={isMP ? 'text-orange-700' : 'text-gray-600'}>{book.series || 'N/A'}</span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {loan.observation && (
-                                <div className="mt-2 mb-4 p-2.5 bg-gray-50 rounded-lg border border-gray-100 italic text-[11px] text-gray-500 line-clamp-1">
-                                    "{loan.observation}"
-                                </div>
-                            )}
-
-                            <div className="pt-4 border-t border-dashed border-gray-100 flex items-center justify-between">
-                                <div className="text-[10px] text-gray-400">
-                                    Operador: <span className="font-medium text-gray-600">{loan.loanedBy}</span>
-                                </div>
-                                {loan.status === BookLoanStatus.ACTIVE && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSelectedLoanForReturn(loan);
-                                            setShowPartialReturnModal(true);
-                                        }}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg text-xs font-bold transition-all shadow-sm"
-                                    >
-                                        <Undo2 size={14} /> Devolver
-                                    </button>
-                                )}
-                            </div>
+                    <>
+                        {/* Table Header */}
+                        <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                            <span className="w-6" />
+                            <span>Aluno</span>
+                            <span className="hidden md:block">Data</span>
+                            <span className="text-center">Livros</span>
+                            <span className="hidden lg:block">Operador</span>
+                            <span />
                         </div>
-                    ))
+
+                        {/* Table Rows */}
+                        <div className="divide-y divide-gray-50">
+                            {(activeSubTab === 'current' ? activeLoans : historicalLoans).map(loan => (
+                                <LoanRow
+                                    key={loan.id}
+                                    loan={loan}
+                                    onViewDetail={() => setViewingLoan(loan)}
+                                    onReturn={() => {
+                                        setSelectedLoanForReturn(loan);
+                                        setShowPartialReturnModal(true);
+                                    }}
+                                />
+                            ))}
+                        </div>
+                    </>
                 )}
             </div>
 

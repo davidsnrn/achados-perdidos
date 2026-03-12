@@ -318,6 +318,26 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
+  const handleResetLayout = async () => {
+    if (!isAdmin && !isAdvanced) return;
+    if (!confirm("Isso removerá a localização (Bloco/Agrupamento) de TODOS os armários. Os empréstimos e o histórico serão mantidos. Deseja continuar?")) return;
+
+    setLoading(true);
+    try {
+      const resetLockers = lockers.map(l => ({
+        ...l,
+        location: ''
+      }));
+      await StorageService.saveLockers(resetLockers);
+      onUpdate();
+      alert("Layout reiniciado com sucesso.");
+    } catch (e) {
+      alert("Erro ao reiniciar layout.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSection = (id: string) => {
     setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -376,6 +396,19 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     const grouped: Record<string, Record<string, Locker[]>> = {};
 
     lockers.forEach(locker => {
+      // Se não tem localização, só mostramos se estiver ocupado ou em manutenção
+      if (!locker.location) {
+        if (locker.status === LockerStatus.AVAILABLE) return;
+        
+        const blockName = 'Sem Localização';
+        const groupName = 'Armários Ocupados/Pendentes';
+        
+        if (!grouped[blockName]) grouped[blockName] = {};
+        if (!grouped[blockName][groupName]) grouped[blockName][groupName] = [];
+        grouped[blockName][groupName].push(locker);
+        return;
+      }
+
       let blockName = 'Sem Bloco';
       let groupName = 'Geral';
 
@@ -405,7 +438,11 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           lockers: groupLockers
         };
       })
-    })).sort((a, b) => a.name.localeCompare(b.name));
+    })).sort((a, b) => {
+      if (a.name === 'Sem Localização') return 1;
+      if (b.name === 'Sem Localização') return -1;
+      return a.name.localeCompare(b.name);
+    });
   }, [lockers]);
 
   return (
@@ -540,7 +577,11 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
                 </select>
               </div>
             )}
-            <LockerManagement existingLockers={lockers} onGenerate={handleBatchGenerate} />
+            <LockerManagement 
+              existingLockers={lockers} 
+              onGenerate={handleBatchGenerate} 
+              onReset={handleResetLayout}
+            />
             {isAdmin && (
               <>
                 <CSVImport onImportLockers={handleImportLockers} onCancel={() => setCurrentView('dashboard')} />

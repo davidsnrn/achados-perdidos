@@ -5,6 +5,7 @@ import { Building2, Layers, Hash, Plus, AlertCircle } from 'lucide-react';
 
 interface LockerManagementProps {
     onGenerate: (newLockers: Locker[]) => void;
+    onReset: () => void;
     existingLockers: Locker[];
 }
 
@@ -15,7 +16,7 @@ interface RegistrationRow {
     endNumber: number;
 }
 
-const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, existingLockers }) => {
+const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset, existingLockers }) => {
     const [rows, setRows] = useState<RegistrationRow[]>([
         { blockName: '', groupName: '', startNumber: 1, endNumber: 40 }
     ]);
@@ -196,12 +197,22 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, existin
                         </p>
                     </div>
 
-                    <button
-                        onClick={handleGenerate}
-                        className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-5 rounded-[1.5rem] shadow-xl transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest"
-                    >
-                        <Plus size={18} /> Processar Todos os Armários
-                    </button>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <button
+                            onClick={handleGenerate}
+                            className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-black py-5 rounded-[1.5rem] shadow-xl transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest"
+                        >
+                            <Plus size={18} /> Processar Todos os Armários
+                        </button>
+                        
+                        <button
+                            onClick={onReset}
+                            className="bg-red-50 hover:bg-red-100 text-red-600 font-black py-5 px-8 rounded-[1.5rem] border-2 border-red-100 transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            Reiniciar Layout
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

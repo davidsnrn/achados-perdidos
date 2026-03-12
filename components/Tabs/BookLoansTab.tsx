@@ -329,19 +329,25 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             <div className="space-y-2 mb-4">
                                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Livros Emprestados:</p>
                                 <div className="flex flex-col gap-1.5">
-                                    {loan.books.map(book => (
-                                        <div key={book.id} className={`flex flex-col p-2 rounded-lg border text-xs ${book.status === 'Devolvido' ? 'bg-green-50 text-green-600 border-green-100 opacity-70' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1 font-bold">
-                                                    <BookIcon size={12} /> {book.title}
+                                    {loan.books.map(book => {
+                                        const isMP = book.code?.endsWith('MP');
+                                        return (
+                                            <div key={book.id} className={`flex flex-col p-2 rounded-lg border text-xs ${book.status === 'Devolvido' ? 'bg-green-50 text-green-600 border-green-100 opacity-70' : isMP ? 'bg-orange-50 text-orange-800 border-orange-100' : 'bg-gray-50 text-gray-600 border-gray-100'}`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-1 font-bold">
+                                                        <BookIcon size={12} /> {book.title}
+                                                        {isMP && (
+                                                            <span className="ml-1 text-[8px] bg-orange-200 text-orange-900 px-1 py-0.5 rounded font-black uppercase tracking-tighter">MP</span>
+                                                        )}
+                                                    </div>
+                                                    {book.status === 'Devolvido' && <CheckCircle size={12} />}
                                                 </div>
-                                                {book.status === 'Devolvido' && <CheckCircle size={12} />}
+                                                <div className="text-[10px] text-gray-400 mt-0.5 ml-4">
+                                                    Código: <span className={isMP ? 'text-orange-700' : 'text-gray-600'}>{book.code || 'N/A'}</span> • Série: <span className={isMP ? 'text-orange-700' : 'text-gray-600'}>{book.series || 'N/A'}</span>
+                                                </div>
                                             </div>
-                                            <div className="text-[10px] text-gray-400 mt-0.5 ml-4">
-                                                Código: <span className="text-gray-600">{book.code || 'N/A'}</span> • Série: <span className="text-gray-600">{book.series || 'N/A'}</span>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 
@@ -623,37 +629,44 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                         </div>
 
                         <div className="space-y-2">
-                            {selectedLoanForReturn.books.map(book => (
-                                <div
-                                    key={book.id}
-                                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${book.status === 'Devolvido' ? 'bg-gray-50 opacity-50 border-gray-200' : 'bg-white border-gray-100 hover:border-ifrn-green cursor-pointer'}`}
-                                    onClick={() => {
-                                        if (book.status === 'Devolvido') return;
-                                        const checkbox = document.getElementById(`book-${book.id}`) as HTMLInputElement;
-                                        if (checkbox) checkbox.checked = !checkbox.checked;
-                                    }}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <BookIcon size={18} className={book.status === 'Devolvido' ? 'text-gray-400' : 'text-ifrn-green'} />
-                                        <div>
-                                            <p className={`text-sm font-bold ${book.status === 'Devolvido' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                                                {book.title} <span className="text-[10px] opacity-60 font-semibold uppercase">({book.code || 'S/C'})</span>
-                                            </p>
-                                            {book.status === 'Devolvido' && (
-                                                <p className="text-[10px] text-green-600 font-bold uppercase">Já devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')}</p>
-                                            )}
+                            {selectedLoanForReturn.books.map(book => {
+                                const isMP = book.code?.endsWith('MP');
+                                return (
+                                    <div
+                                        key={book.id}
+                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${book.status === 'Devolvido' ? 'bg-gray-50 opacity-50 border-gray-200' : isMP ? 'bg-orange-50 border-orange-100 hover:border-orange-300 cursor-pointer' : 'bg-white border-gray-100 hover:border-ifrn-green cursor-pointer'}`}
+                                        onClick={() => {
+                                            if (book.status === 'Devolvido') return;
+                                            const checkbox = document.getElementById(`book-${book.id}`) as HTMLInputElement;
+                                            if (checkbox) checkbox.checked = !checkbox.checked;
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <BookIcon size={18} className={book.status === 'Devolvido' ? 'text-gray-400' : isMP ? 'text-orange-600' : 'text-ifrn-green'} />
+                                            <div>
+                                                <p className={`text-sm font-bold ${book.status === 'Devolvido' ? 'text-gray-400 line-through' : isMP ? 'text-orange-900' : 'text-gray-700'}`}>
+                                                    {book.title}
+                                                    {isMP && (
+                                                        <span className="ml-2 text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter align-middle">MP</span>
+                                                    )}
+                                                    <span className="ml-1 text-[10px] opacity-60 font-semibold uppercase">({book.code || 'S/C'})</span>
+                                                </p>
+                                                {book.status === 'Devolvido' && (
+                                                    <p className="text-[10px] text-green-600 font-bold uppercase">Já devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')}</p>
+                                                )}
+                                            </div>
                                         </div>
+                                        {book.status !== 'Devolvido' && (
+                                            <input
+                                                type="checkbox"
+                                                id={`book-${book.id}`}
+                                                className={`w-5 h-5 rounded border-gray-300 ${isMP ? 'accent-orange-600' : 'accent-ifrn-green'}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        )}
                                     </div>
-                                    {book.status !== 'Devolvido' && (
-                                        <input
-                                            type="checkbox"
-                                            id={`book-${book.id}`}
-                                            className="w-5 h-5 accent-ifrn-green rounded border-gray-300"
-                                            onClick={(e) => e.stopPropagation()}
-                                        />
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         <div className="pt-6 flex justify-end gap-3 border-t">
@@ -738,33 +751,41 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                 <BookIcon size={14} /> Livros e Movimentações por Item
                             </p>
                             <div className="space-y-3">
-                                {viewingLoan.books.map(book => (
-                                    <div key={book.id} className="p-4 rounded-2xl border border-gray-100 bg-white shadow-sm">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <h4 className="font-bold text-gray-800">{book.title}</h4>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
-                                                    CÓD: <span className="text-gray-600">{book.code || '---'}</span> • SÉRIE/ÁREA: <span className="text-gray-600">{book.series || '---'}</span>
-                                                </p>
+                                {viewingLoan.books.map(book => {
+                                    const isMP = book.code?.endsWith('MP');
+                                    return (
+                                        <div key={book.id} className={`p-4 rounded-2xl border ${book.status === 'Devolvido' ? 'bg-white border-gray-100' : isMP ? 'bg-orange-50/50 border-orange-100' : 'bg-white border-gray-100'} shadow-sm`}>
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+                                                    <h4 className={`font-bold ${isMP && book.status !== 'Devolvido' ? 'text-orange-900' : 'text-gray-800'}`}>
+                                                        {book.title}
+                                                        {isMP && (
+                                                            <span className="ml-2 text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter align-middle">MP</span>
+                                                        )}
+                                                    </h4>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
+                                                        CÓD: <span className={isMP && book.status !== 'Devolvido' ? 'text-orange-700' : 'text-gray-600'}>{book.code || '---'}</span> • SÉRIE/ÁREA: <span className={isMP && book.status !== 'Devolvido' ? 'text-orange-700' : 'text-gray-600'}>{book.series || '---'}</span>
+                                                    </p>
+                                                </div>
+                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${book.status === 'Devolvido' ? 'bg-emerald-100 text-emerald-700' : isMP ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                    {book.status}
+                                                </span>
                                             </div>
-                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${book.status === 'Devolvido' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                {book.status}
-                                            </span>
-                                        </div>
 
-                                        {book.status === 'Devolvido' && (
-                                            <div className="mt-3 pt-3 border-t border-dashed border-gray-100 flex items-center gap-3">
-                                                <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-                                                    <CheckCircle size={14} />
+                                            {book.status === 'Devolvido' && (
+                                                <div className="mt-3 pt-3 border-t border-dashed border-gray-100 flex items-center gap-3">
+                                                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                                                        <CheckCircle size={14} />
+                                                    </div>
+                                                    <div className="text-[11px]">
+                                                        <p className="font-bold text-emerald-700 uppercase tracking-tighter">Devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')} às {new Date(book.returnDate!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                                                        <p className="text-gray-500">Recebido por: <span className="font-medium">{book.returnedBy}</span></p>
+                                                    </div>
                                                 </div>
-                                                <div className="text-[11px]">
-                                                    <p className="font-bold text-emerald-700 uppercase tracking-tighter">Devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')} às {new Date(book.returnDate!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                                                    <p className="text-gray-500">Recebido por: <span className="font-medium">{book.returnedBy}</span></p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
 

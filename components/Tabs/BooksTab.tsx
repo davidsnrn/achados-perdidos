@@ -699,17 +699,6 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Título</label>
-                        <input
-                            required
-                            value={title}
-                            onChange={e => setTitle(e.target.value)}
-                            className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green"
-                            placeholder="Nome do livro..."
-                        />
-                    </div>
-
-                    <div>
                         <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Área do Conhecimento</label>
                         <input
                             required
@@ -717,6 +706,17 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             onChange={e => setArea(e.target.value)}
                             className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green"
                             placeholder="Ex: Matemática, Literatura..."
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Título</label>
+                        <input
+                            required
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green"
+                            placeholder="Nome do livro..."
                         />
                     </div>
 

@@ -318,7 +318,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-gray-800 leading-tight">{loan.personName}</h4>
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{loan.personMatricula}</p>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{loan.personMatricula || 'Não informada'}</p>
                                     <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-1">
                                         <Calendar size={12} /> {new Date(loan.loanDate).toLocaleDateString('pt-BR')}
                                         <Clock size={12} /> {new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
@@ -399,7 +399,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-4">
                                 <div className="flex-1">
                                     <p className="font-bold text-blue-900">{selectedPerson.name}</p>
-                                    <p className="text-[10px] text-blue-700 font-bold uppercase">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                                    <p className="text-[10px] text-blue-700 font-bold uppercase">{selectedPerson.matricula || 'Não informada'} • {selectedPerson.type}</p>
                                 </div>
                                 <button type="button" onClick={() => setSelectedPerson(null)} className="text-xs text-red-500 font-bold underline">Alterar</button>
                             </div>
@@ -426,7 +426,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                 className="w-full text-left p-2 rounded text-sm hover:bg-gray-200 text-gray-700 transition-colors"
                                             >
                                                 <div className="font-bold">{p.name}</div>
-                                                <div className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula} • {p.type}</div>
+                                                <div className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula || 'Não informada'} • {p.type}</div>
                                             </button>
                                         ))}
                                         {searchResultsPeople.length === 0 && !isSearchingPeople && personSearch.length >= 2 && <div className="p-2 text-xs text-center text-gray-400">Nenhum resultado.</div>}

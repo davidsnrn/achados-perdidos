@@ -756,6 +756,15 @@ export const StorageService = {
     if (upsertError) throw upsertError;
   },
 
+  deleteEmptyLockers: async (campusId?: string) => {
+    let query = supabase.from('lockers').delete().eq('status', LockerStatus.AVAILABLE);
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    const { error } = await query;
+    if (error) throw error;
+  },
+
   login: async (matricula: string, pass: string): Promise<User | null> => {
     // 1. Limpeza de input (Trim)
     const cleanMatricula = matricula ? matricula.trim() : '';

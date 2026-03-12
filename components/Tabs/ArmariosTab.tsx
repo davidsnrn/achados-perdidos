@@ -338,6 +338,28 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
+  const handleDeleteEmptyLockers = async () => {
+    if (!isAdmin && !isAdvanced) return;
+    const emptyCount = lockers.filter(l => l.status === LockerStatus.AVAILABLE).length;
+    if (emptyCount === 0) {
+      alert("Não há armários vazios para apagar.");
+      return;
+    }
+    if (!confirm(`Isso apagará permanentemente ${emptyCount} armário(s) vazio(s). Armários emprestados e em manutenção serão mantidos. Os dados de relatório NÃO serão afetados. Deseja continuar?`)) return;
+
+    setLoading(true);
+    try {
+      const campusId = user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id;
+      await StorageService.deleteEmptyLockers(campusId || undefined);
+      onUpdate();
+      alert(`${emptyCount} armário(s) vazio(s) apagado(s) com sucesso.`);
+    } catch (e) {
+      alert("Erro ao apagar armários vazios.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleSection = (id: string) => {
     setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -577,10 +599,11 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
                 </select>
               </div>
             )}
-            <LockerManagement 
-              existingLockers={lockers} 
-              onGenerate={handleBatchGenerate} 
+            <LockerManagement
+              existingLockers={lockers}
+              onGenerate={handleBatchGenerate}
               onReset={handleResetLayout}
+              onDeleteEmpty={handleDeleteEmptyLockers}
             />
             {isAdmin && (
               <>

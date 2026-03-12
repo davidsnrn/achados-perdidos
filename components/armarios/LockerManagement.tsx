@@ -6,6 +6,7 @@ import { Building2, Layers, Hash, Plus, AlertCircle } from 'lucide-react';
 interface LockerManagementProps {
     onGenerate: (newLockers: Locker[]) => void;
     onReset: () => void;
+    onDeleteEmpty: () => void;
     existingLockers: Locker[];
 }
 
@@ -16,7 +17,7 @@ interface RegistrationRow {
     endNumber: number;
 }
 
-const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset, existingLockers }) => {
+const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset, onDeleteEmpty, existingLockers }) => {
     const [rows, setRows] = useState<RegistrationRow[]>([
         { blockName: '', groupName: '', startNumber: 1, endNumber: 40 }
     ]);
@@ -204,13 +205,23 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
                         >
                             <Plus size={18} /> Processar Todos os Armários
                         </button>
-                        
+
                         <button
                             onClick={onReset}
-                            className="bg-red-50 hover:bg-red-100 text-red-600 font-black py-5 px-8 rounded-[1.5rem] border-2 border-red-100 transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest"
+                            className="bg-red-50 hover:bg-red-100 text-red-600 font-black py-5 px-6 rounded-[1.5rem] border-2 border-red-100 transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest"
+                            title="Remove a localização de todos os armários, mantendo empréstimos e histórico"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             Reiniciar Layout
+                        </button>
+
+                        <button
+                            onClick={onDeleteEmpty}
+                            className="bg-orange-50 hover:bg-orange-100 text-orange-600 font-black py-5 px-6 rounded-[1.5rem] border-2 border-orange-100 transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest"
+                            title="Apaga apenas armários vazios (disponíveis). Mantém os emprestados e em manutenção."
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                            Apagar Armários Vazios
                         </button>
                     </div>
                 </div>

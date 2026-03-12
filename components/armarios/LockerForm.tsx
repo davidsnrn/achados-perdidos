@@ -206,7 +206,6 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Turma/Curso</label>
             <input
-              required
               name="studentClass"
               placeholder="Ex: INFO3M"
               className="w-full bg-white border-2 border-slate-100 rounded-2xl p-4 text-slate-800 font-bold focus:border-green-500 outline-none transition-all shadow-sm"

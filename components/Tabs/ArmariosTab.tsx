@@ -345,7 +345,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       alert("Não há armários vazios para apagar.");
       return;
     }
-    if (!confirm(`Isso apagará permanentemente ${emptyCount} armário(s) vazio(s). Armários emprestados e em manutenção serão mantidos. Os dados de relatório NÃO serão afetados. Deseja continuar?`)) return;
+    if (!confirm(`Isso apagará permanentemente ${emptyCount} armário(s) vazio(s).\n\nArmários emprestados e em manutenção serão mantidos.\n\nOs históricos dos armários que estão disponíveis serão excluídos, incluindo os relatórios relacionados a esses armários.\n\nDeseja continuar?`)) return;
 
     setLoading(true);
     try {
@@ -421,10 +421,10 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       // Se não tem localização, só mostramos se estiver ocupado ou em manutenção
       if (!locker.location) {
         if (locker.status === LockerStatus.AVAILABLE) return;
-        
+
         const blockName = 'Sem Localização';
         const groupName = 'Armários Ocupados/Pendentes';
-        
+
         if (!grouped[blockName]) grouped[blockName] = {};
         if (!grouped[blockName][groupName]) grouped[blockName][groupName] = [];
         grouped[blockName][groupName].push(locker);

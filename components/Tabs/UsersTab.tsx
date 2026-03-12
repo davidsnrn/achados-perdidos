@@ -520,9 +520,9 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   }
                 }}
               >
-                <option value={UserLevel.STANDARD}>Padrão (Personalizável)</option>
-                <option value={UserLevel.ADVANCED}>Avançado (Acesso Total + Gestão)</option>
-                {currentUser.level === UserLevel.ADMIN && (<option value={UserLevel.ADMIN}>Administrador (Acesso Total)</option>)}
+                <option value={UserLevel.STANDARD}>Padrão</option>
+                <option value={UserLevel.ADVANCED}>Avançado</option>
+                {currentUser.level === UserLevel.ADMIN && (<option value={UserLevel.ADMIN}>Administrador</option>)}
               </select>
             </div>
 

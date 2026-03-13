@@ -978,7 +978,12 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('book_loans')
-        .select('*')
+        .select(`
+          *,
+          people:person_id (
+            type
+          )
+        `)
         .order('loan_date', { ascending: false })
         .range(from, from + limit - 1);
 
@@ -988,7 +993,10 @@ export const StorageService = {
 
       const { data, error } = await query;
 
-      if (error) break;
+      if (error) {
+        console.error("Erro getBookLoans:", error);
+        break;
+      }
       if (!data || data.length === 0) break;
       allData = [...allData, ...data];
       if (data.length < limit) break;
@@ -1000,6 +1008,7 @@ export const StorageService = {
       personId: d.person_id,
       personName: d.person_name,
       personMatricula: d.person_matricula,
+      personType: d.people?.type as PersonType,
       books: d.books,
       loanedBy: d.loaned_by,
       loanDate: d.loan_date,

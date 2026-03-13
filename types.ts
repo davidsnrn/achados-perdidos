@@ -144,5 +144,6 @@ export interface BookLoan {
     user: string;
     timestamp: string;
   }[];
+  personType?: PersonType;
   campus_id?: string;
 }

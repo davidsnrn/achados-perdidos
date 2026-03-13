@@ -232,6 +232,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [selectedLoanForReturn, setSelectedLoanForReturn] = useState<BookLoan | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [search, setSearch] = useState('');
+    const [personTypeFilter, setPersonTypeFilter] = useState<'ALL' | 'STUDENT' | 'SERVER'>('ALL');
 
     // New Loan Form State
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -426,8 +427,20 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
         return searchTerms.every((term: string) => loanText.includes(term));
     });
 
-    const activeLoans = filteredLoans.filter(l => l.status === BookLoanStatus.ACTIVE);
-    const historicalLoans = filteredLoans.filter(l => l.status === BookLoanStatus.RETURNED);
+    const activeLoans = filteredLoans.filter(l => {
+        const matchesStatus = l.status === BookLoanStatus.ACTIVE;
+        if (!matchesStatus) return false;
+        if (personTypeFilter === 'STUDENT') return l.personType === 'Aluno';
+        if (personTypeFilter === 'SERVER') return l.personType === 'Servidor';
+        return true;
+    });
+    const historicalLoans = filteredLoans.filter(l => {
+        const matchesStatus = l.status === BookLoanStatus.RETURNED;
+        if (!matchesStatus) return false;
+        if (personTypeFilter === 'STUDENT') return l.personType === 'Aluno';
+        if (personTypeFilter === 'SERVER') return l.personType === 'Servidor';
+        return true;
+    });
 
     // Group historical loans by student (personId)
     const groupedHistory = React.useMemo(() => {
@@ -487,7 +500,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 50;
+    const itemsPerPage = 30;
 
     // Reset pagination when filters change
     React.useEffect(() => {
@@ -521,6 +534,27 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                         className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeSubTab === 'history' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
                     >
                         Histórico
+                    </button>
+                </div>
+
+                <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                    <button
+                        onClick={() => setPersonTypeFilter('ALL')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${personTypeFilter === 'ALL' ? 'bg-white text-ifrn-green shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Todos
+                    </button>
+                    <button
+                        onClick={() => setPersonTypeFilter('STUDENT')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${personTypeFilter === 'STUDENT' ? 'bg-white text-ifrn-green shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Alunos
+                    </button>
+                    <button
+                        onClick={() => setPersonTypeFilter('SERVER')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${personTypeFilter === 'SERVER' ? 'bg-white text-ifrn-green shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Servidores
                     </button>
                 </div>
 

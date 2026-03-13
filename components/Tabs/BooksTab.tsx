@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel, Person } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, ArrowRight, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, ArrowRight, X, ChevronUp, ChevronDown, ChevronsUpDown, User as UserIcon } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 type SortDir = 'asc' | 'desc';
@@ -29,6 +29,7 @@ interface BookTableProps {
     getBorrowedCount: (id: string) => number;
     sortConfig: SortEntry[];
     onSort: (col: SortCol) => void;
+    onViewBorrowers: (book: Book) => void;
 }
 
 const SORT_COLS: { col: SortCol; label: string }[] = [
@@ -40,7 +41,7 @@ const SORT_COLS: { col: SortCol; label: string }[] = [
     { col: 'publisher', label: 'Editora' },
 ];
 
-const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount, sortConfig, onSort }) => {
+const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount, sortConfig, onSort, onViewBorrowers }) => {
     const SortIcon = ({ col }: { col: SortCol }) => {
         const entry = sortConfig.find(s => s.col === col);
         const priority = sortConfig.findIndex(s => s.col === col);
@@ -81,7 +82,11 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                                 books.map(book => {
                                     const isMP = book.code?.endsWith('MP');
                                     return (
-                                        <tr key={book.id} className={`hover:bg-gray-50 transition-colors group ${isMP ? 'bg-orange-200/50' : ''}`}>
+                                        <tr 
+                                            key={book.id} 
+                                            className={`hover:bg-gray-50 transition-colors group cursor-pointer ${isMP ? 'bg-orange-200/50' : ''}`}
+                                            onClick={() => onViewBorrowers(book)}
+                                        >
                                             <td className="p-4 whitespace-nowrap">{book.edition}</td>
                                             <td className="p-4 font-mono text-xs">{book.code}</td>
                                             <td className="p-4">{book.area}</td>
@@ -102,7 +107,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="p-4">
+                                            <td className="p-4" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-center gap-2">
                                                     <button
                                                         onClick={() => onLoan(book)}
@@ -158,6 +163,12 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
+    // View Borrowers State
+    const [showBorrowersModal, setShowBorrowersModal] = useState(false);
+    const [selectedBookForBorrowers, setSelectedBookForBorrowers] = useState<Book | null>(null);
+    const [borrowerSearch, setBorrowerSearch] = useState('');
+    const [borrowerTypeFilter, setBorrowerTypeFilter] = useState<'ALL' | 'STUDENT' | 'SERVER'>('ALL');
+
     // Form State
     const [edition, setEdition] = useState('');
     const [code, setCode] = useState('');
@@ -185,6 +196,21 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             }
             return total;
         }, 0);
+    };
+
+    const getBorrowers = (bookId: string) => {
+        return bookLoans
+            .filter(loan => 
+                loan.status === BookLoanStatus.ACTIVE && 
+                loan.books.some(b => b.id === bookId && b.status !== 'Devolvido')
+            )
+            .map(loan => ({
+                id: loan.personId,
+                name: loan.personName,
+                matricula: loan.personMatricula,
+                type: loan.personType,
+                loanDate: loan.loanDate
+            }));
     };
 
     const resetForm = () => {
@@ -656,6 +682,10 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     getBorrowedCount={getBorrowedCount}
                     sortConfig={sortConfig}
                     onSort={handleSort}
+                    onViewBorrowers={(book) => {
+                        setSelectedBookForBorrowers(book);
+                        setShowBorrowersModal(true);
+                    }}
                 />
 
                 <BookTable
@@ -672,6 +702,10 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     getBorrowedCount={getBorrowedCount}
                     sortConfig={sortConfig}
                     onSort={handleSort}
+                    onViewBorrowers={(book) => {
+                        setSelectedBookForBorrowers(book);
+                        setShowBorrowersModal(true);
+                    }}
                 />
             </div>
 
@@ -980,6 +1014,103 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             </Modal>
 
 
+            <Modal
+                isOpen={showBorrowersModal && !!selectedBookForBorrowers}
+                onClose={() => {
+                    setShowBorrowersModal(false);
+                    setSelectedBookForBorrowers(null);
+                    setBorrowerSearch('');
+                    setBorrowerTypeFilter('ALL');
+                }}
+                title="Pessoas com este Livro"
+            >
+                <div className="space-y-4">
+                    <div className="bg-ifrn-green/5 p-4 rounded-xl border border-ifrn-green/10 mb-2">
+                        <h4 className="font-bold text-gray-800 text-sm leading-tight">{selectedBookForBorrowers?.title}</h4>
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">{selectedBookForBorrowers?.code || 'S/C'} • {selectedBookForBorrowers?.series}</p>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-2.5 top-2.5 text-gray-400" size={14} />
+                            <input
+                                type="text"
+                                placeholder="Buscar pessoa ou matrícula..."
+                                className="w-full pl-8 pr-3 py-2 border rounded-lg text-xs focus:ring-2 focus:ring-ifrn-green outline-none"
+                                value={borrowerSearch}
+                                onChange={e => setBorrowerSearch(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg shrink-0">
+                            {(['ALL', 'STUDENT', 'SERVER'] as const).map(f => (
+                                <button
+                                    key={f}
+                                    onClick={() => setBorrowerTypeFilter(f)}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${borrowerTypeFilter === f ? 'bg-white text-ifrn-green shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                >
+                                    {f === 'ALL' ? 'Todos' : f === 'STUDENT' ? 'Alunos' : 'Servidores'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                        {(() => {
+                            if (!selectedBookForBorrowers) return null;
+                            const borrowers = getBorrowers(selectedBookForBorrowers.id);
+                            const filtered = borrowers.filter(b => {
+                                const st = normalizeText(borrowerSearch);
+                                const matchesSearch = normalizeText(b.name).includes(st) || (b.matricula && normalizeText(b.matricula).includes(st));
+                                const matchesType = borrowerTypeFilter === 'ALL' || 
+                                    (borrowerTypeFilter === 'STUDENT' && b.type === 'Aluno') || 
+                                    (borrowerTypeFilter === 'SERVER' && b.type === 'Servidor');
+                                return matchesSearch && matchesType;
+                            });
+
+                            if (filtered.length === 0) {
+                                return <p className="text-center py-8 text-gray-400 text-sm italic">Nenhum resultado encontrado.</p>;
+                            }
+
+                            return filtered.map((borrower, idx) => (
+                                <div key={`${borrower.id}-${idx}`} className="p-3 rounded-xl border bg-white border-gray-100 flex items-center justify-between group hover:border-ifrn-green/30 transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${borrower.type === 'Servidor' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            <UserIcon size={14} />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-bold text-sm text-gray-800 leading-none">{borrower.name}</h4>
+                                                <span className={`text-[8px] px-1 py-0.5 rounded font-black uppercase tracking-tighter ${borrower.type === 'Servidor' ? 'bg-orange-200 text-orange-900' : 'bg-blue-200 text-blue-900'}`}>
+                                                    {borrower.type || 'S/D'}
+                                                </span>
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{borrower.matricula || 'Matrícula não informada'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Desde</p>
+                                        <p className="text-xs text-ifrn-green font-bold leading-none">{new Date(borrower.loanDate).toLocaleDateString('pt-BR')}</p>
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+
+                    <div className="pt-4 flex justify-end border-t">
+                        <button
+                            onClick={() => { 
+                                setShowBorrowersModal(false); 
+                                setSelectedBookForBorrowers(null); 
+                                setBorrowerSearch('');
+                                setBorrowerTypeFilter('ALL');
+                            }}
+                            className="px-6 py-2 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-lg text-sm font-bold transition-all"
+                        >
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 };

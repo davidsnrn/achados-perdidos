@@ -289,7 +289,11 @@ export const StorageService = {
 
     if (search && search.trim().length >= 2) {
       const tokens = search.trim().split(/\s+/).filter(t => t.length > 0);
-      query = query.or(tokens.map(t => `name.ilike.%${t}%,matricula.ilike.%${t}%`).join(','));
+      tokens.forEach(t => {
+
+        query = query.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+
+      });
     }
 
     const { data, error } = await query;
@@ -315,7 +319,11 @@ export const StorageService = {
 
     if (search && search.trim().length >= 2) {
       const tokens = search.trim().split(/\s+/).filter(t => t.length > 0);
-      query = query.or(tokens.map(t => `name.ilike.%${t}%,matricula.ilike.%${t}%`).join(','));
+      tokens.forEach(t => {
+
+        query = query.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+
+      });
     }
 
     const { count, error } = await query;

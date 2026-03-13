@@ -132,6 +132,96 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn }) => {
         </div>
     );
 };
+// ── StudentLoanGroup (history grouping) ─────────────────────────────────────
+interface StudentLoanGroupProps {
+    loans: BookLoan[];
+    onViewDetail: (loan: BookLoan) => void;
+    onReturn: (loan: BookLoan) => void;
+}
+
+const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail, onReturn }) => {
+    const [expanded, setExpanded] = useState(false);
+    const first = loans[0];
+    const totalBooks = loans.reduce((acc, l) => acc + l.books.length, 0);
+    const allReturned = loans.every(l => l.status === BookLoanStatus.RETURNED);
+    const dates = loans.map(l => new Date(l.loanDate));
+    const latest = new Date(Math.max(...dates.map(d => d.getTime())));
+    const earliest = new Date(Math.min(...dates.map(d => d.getTime())));
+    const sameDay = latest.toDateString() === earliest.toDateString();
+
+    return (
+        <div className="transition-colors">
+            {/* Group Header */}
+            <div
+                className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
+                onClick={() => setExpanded(prev => !prev)}
+            >
+                <span className="text-gray-400 w-5">
+                    {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </span>
+
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-800 text-sm truncate">{first.personName}</p>
+                        {allReturned && (
+                            <span className="shrink-0 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full border border-emerald-100">
+                                <CheckCircle size={10} /> Devolvido
+                            </span>
+                        )}
+                        {loans.length > 1 && (
+                            <span className="shrink-0 text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">
+                                {loans.length} empréstimos
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">{first.personMatricula || 'Matrícula não informada'}</p>
+                </div>
+
+                {/* Date range */}
+                <div className="hidden md:flex flex-col items-end text-right">
+                    <span className="text-xs text-gray-600 font-medium">
+                        {sameDay
+                            ? latest.toLocaleDateString('pt-BR')
+                            : `${earliest.toLocaleDateString('pt-BR')} – ${latest.toLocaleDateString('pt-BR')}`}
+                    </span>
+                    {sameDay && (
+                        <span className="text-[10px] text-gray-400">{latest.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    )}
+                </div>
+
+                {/* Total book count */}
+                <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-black border bg-gray-50 text-gray-500 border-gray-100">
+                        <BookIcon size={12} />{totalBooks}
+                    </span>
+                </div>
+
+                {/* Operator */}
+                <div className="hidden lg:block text-right">
+                    <p className="text-[10px] text-gray-400 font-medium truncate max-w-[120px]">{first.loanedBy}</p>
+                </div>
+
+                {/* Actions placeholder */}
+                <div className="w-[60px]" />
+            </div>
+
+            {/* Sub-loans */}
+            {expanded && (
+                <div className="border-t border-gray-100 bg-gray-50/40 pl-8">
+                    {loans.map(loan => (
+                        <div key={loan.id} className="border-b border-gray-100 last:border-b-0">
+                            <LoanRow
+                                loan={loan}
+                                onViewDetail={() => onViewDetail(loan)}
+                                onReturn={() => onReturn(loan)}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 // ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -338,6 +428,23 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
 
     const activeLoans = filteredLoans.filter(l => l.status === BookLoanStatus.ACTIVE);
     const historicalLoans = filteredLoans.filter(l => l.status === BookLoanStatus.RETURNED);
+
+    // Group historical loans by student (personId)
+    const groupedHistory = React.useMemo(() => {
+        const map = new Map<string, BookLoan[]>();
+        historicalLoans.forEach(loan => {
+            const key = loan.personId || loan.personName;
+            const group = map.get(key) || [];
+            group.push(loan);
+            map.set(key, group);
+        });
+        // Sort each group by date descending
+        map.forEach(group => group.sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime()));
+        // Sort groups by most recent loan descending
+        return Array.from(map.values()).sort((a, b) =>
+            new Date(b[0].loanDate).getTime() - new Date(a[0].loanDate).getTime()
+        );
+    }, [historicalLoans]);
     const handlePersonSearch = async (val: string) => {
         setPersonSearch(val);
         if (val.trim().length >= 2) {
@@ -377,6 +484,27 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     }, [bookSearch, books, selectedSeries, selectedBooks, showMPBooks]);
 
     const uniqueSeries = Array.from(new Set(books.map(b => b.series).filter(Boolean))).sort();
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 50;
+
+    // Reset pagination when filters change
+    React.useEffect(() => {
+        setCurrentPage(1);
+    }, [search, activeSubTab]);
+
+    const totalPages = Math.ceil((activeSubTab === 'current' ? activeLoans.length : groupedHistory.length) / itemsPerPage);
+    
+    const paginatedActive = React.useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return activeLoans.slice(start, start + itemsPerPage);
+    }, [activeLoans, currentPage]);
+
+    const paginatedHistory = React.useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return groupedHistory.slice(start, start + itemsPerPage);
+    }, [groupedHistory, currentPage]);
 
     return (
         <div className="space-y-6">
@@ -418,7 +546,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
 
             {/* Expandable Table Layout */}
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                {(activeSubTab === 'current' ? activeLoans : historicalLoans).length === 0 ? (
+                {(activeSubTab === 'current' ? activeLoans : groupedHistory).length === 0 ? (
                     <div className="py-16 text-center text-gray-400 border border-dashed border-gray-200 rounded-xl">
                         Nenhum registro encontrado.
                     </div>
@@ -436,18 +564,88 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
 
                         {/* Table Rows */}
                         <div className="divide-y divide-gray-50">
-                            {(activeSubTab === 'current' ? activeLoans : historicalLoans).map(loan => (
-                                <LoanRow
-                                    key={loan.id}
-                                    loan={loan}
-                                    onViewDetail={() => setViewingLoan(loan)}
-                                    onReturn={() => {
-                                        setSelectedLoanForReturn(loan);
-                                        setShowPartialReturnModal(true);
-                                    }}
-                                />
-                            ))}
+                            {activeSubTab === 'current'
+                                ? paginatedActive.map(loan => (
+                                    <LoanRow
+                                        key={loan.id}
+                                        loan={loan}
+                                        onViewDetail={() => setViewingLoan(loan)}
+                                        onReturn={() => {
+                                            setSelectedLoanForReturn(loan);
+                                            setShowPartialReturnModal(true);
+                                        }}
+                                    />
+                                ))
+                                : paginatedHistory.map(group => (
+                                    group.length === 1
+                                        ? <LoanRow
+                                            key={group[0].id}
+                                            loan={group[0]}
+                                            onViewDetail={() => setViewingLoan(group[0])}
+                                            onReturn={() => {
+                                                setSelectedLoanForReturn(group[0]);
+                                                setShowPartialReturnModal(true);
+                                            }}
+                                          />
+                                        : <StudentLoanGroup
+                                            key={group[0].personId || group[0].personName}
+                                            loans={group}
+                                            onViewDetail={loan => setViewingLoan(loan)}
+                                            onReturn={loan => {
+                                                setSelectedLoanForReturn(loan);
+                                                setShowPartialReturnModal(true);
+                                            }}
+                                          />
+                                ))
+                            }
                         </div>
+
+                        {/* Pagination UI */}
+                        {totalPages > 1 && (
+                            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                                <div className="text-xs text-gray-500 font-medium">
+                                    Mostrando <span className="text-gray-900">{(activeSubTab === 'current' ? paginatedActive : paginatedHistory).length}</span> de <span className="text-gray-900">{(activeSubTab === 'current' ? activeLoans : groupedHistory).length}</span> {(activeSubTab === 'current' ? 'empréstimos' : 'alunos no histórico')}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+                                    >
+                                        Anterior
+                                    </button>
+                                    {[...Array(totalPages)].map((_, i) => {
+                                        const pageNum = i + 1;
+                                        if (
+                                            pageNum === 1 ||
+                                            pageNum === totalPages ||
+                                            (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                        ) {
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-600'}`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        }
+                                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                                            return <span key={pageNum} className="text-gray-300 px-1 text-xs">...</span>;
+                                        }
+                                        return null;
+                                    })}
+                                    <button
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold disabled:opacity-30 hover:bg-white transition-colors"
+                                    >
+                                        Próximo
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

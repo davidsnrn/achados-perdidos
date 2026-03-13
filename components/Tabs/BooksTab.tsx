@@ -325,9 +325,13 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 status: 'Ativo' as const
             }));
 
+            let totalLentCount = 0;
+            let affectedPeopleCount = 0;
+
             // Process loan for each selected student
             for (const person of loanPersons) {
                 const existing = bookLoans.find(l => l.personId === person.id && l.status === BookLoanStatus.ACTIVE);
+                let lentToThisPerson = 0;
 
                 if (existing) {
                     const duplicates = selectedLoanBooks.filter(b =>
@@ -336,7 +340,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     if (duplicates.length > 0) {
                         if (!confirm(`${person.name} já possui:\n${duplicates.map(d => `• ${d.title}`).join('\n')}\n\nIgnorar duplicados e adicionar apenas os novos?`)) {
-                            continue;
+                            setIsLoanLoading(false);
+                            return;
                         }
                     }
 
@@ -358,6 +363,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             }))
                         ]
                     });
+                    lentToThisPerson = finalBooksToAdd.length;
                 } else {
                     const newLoan: BookLoan = {
                         id: Math.random().toString(36).substr(2, 9),
@@ -377,18 +383,29 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         }))
                     };
                     await StorageService.saveBookLoan(newLoan);
+                    lentToThisPerson = booksToAdd.length;
+                }
+
+                if (lentToThisPerson > 0) {
+                    totalLentCount += lentToThisPerson;
+                    affectedPeopleCount++;
                 }
             }
 
             onUpdate();
-            alert(`${selectedLoanBooks.length} livro(s) emprestado(s) com sucesso para ${loanPersons.length} aluno(s)!`);
-            setSelectedLoanBooks([]);
-            setLoanPersons([]);
-            setLoanPersonSearch('');
-            setSearchResultsPeople([]);
-            setLoanBookSearch('');
-            setLoanObs('');
-            setShowQuickLoanModal(false);
+            
+            if (totalLentCount > 0) {
+                alert(`${totalLentCount} livro(s) emprestado(s) com sucesso para ${affectedPeopleCount} aluno(s)!`);
+                setSelectedLoanBooks([]);
+                setLoanPersons([]);
+                setLoanPersonSearch('');
+                setSearchResultsPeople([]);
+                setLoanBookSearch('');
+                setLoanObs('');
+                setShowQuickLoanModal(false);
+            } else {
+                alert('Nenhum novo livro foi emprestado (todos os selecionados já estavam emprestados).');
+            }
         } catch {
             alert('Erro ao registrar empréstimo.');
         } finally {

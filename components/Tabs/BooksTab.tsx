@@ -146,9 +146,10 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [editingBook, setEditingBook] = useState<Book | null>(null);
     const [sortConfig, setSortConfig] = useState<SortEntry[]>([]);
 
-    // Quick Loan State (Multiple Books)
+    // Quick Loan State (Multiple Books + Multiple Students)
     const [selectedLoanBooks, setSelectedLoanBooks] = useState<Book[]>([]);
-    const [loanPerson, setLoanPerson] = useState<Person | null>(null);
+    const [showQuickLoanModal, setShowQuickLoanModal] = useState(false);
+    const [loanPersons, setLoanPersons] = useState<Person[]>([]);
     const [loanPersonSearch, setLoanPersonSearch] = useState('');
     const [loanBookSearch, setLoanBookSearch] = useState('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
@@ -278,7 +279,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     }, [loanBookSearch, books]);
 
     const handleQuickLoan = async () => {
-        if (selectedLoanBooks.length === 0 || !loanPerson) return;
+        if (selectedLoanBooks.length === 0 || loanPersons.length === 0) return;
 
         const hasMP = selectedLoanBooks.some(b => b.code?.endsWith('MP'));
         if (hasMP) {
@@ -290,9 +291,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         setIsLoanLoading(true);
         try {
             const now = new Date().toISOString();
-            const existing = bookLoans.find(l => l.personId === loanPerson.id && l.status === BookLoanStatus.ACTIVE);
-
-            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: "Ativo" | "Devolvido" }[] = selectedLoanBooks.map(b => ({
+            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: 'Ativo' | 'Devolvido' }[] = selectedLoanBooks.map(b => ({
                 id: b.id,
                 title: b.title,
                 code: b.code,
@@ -300,70 +299,70 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 status: 'Ativo' as const
             }));
 
-            if (existing) {
-                // Check if any book is already in open loan
-                const duplicates = selectedLoanBooks.filter(b =>
-                    existing.books.some(eb => eb.id === b.id && eb.status === 'Ativo')
-                );
+            // Process loan for each selected student
+            for (const person of loanPersons) {
+                const existing = bookLoans.find(l => l.personId === person.id && l.status === BookLoanStatus.ACTIVE);
 
-                if (duplicates.length > 0) {
-                    if (!confirm(`${loanPerson.name} já possui os seguintes livros em aberto:\n${duplicates.map(d => `• ${d.title}`).join('\n')}\n\nDeseja ignorar os duplicados e adicionar apenas os novos?`)) {
-                        setIsLoanLoading(false);
-                        return;
+                if (existing) {
+                    const duplicates = selectedLoanBooks.filter(b =>
+                        existing.books.some(eb => eb.id === b.id && eb.status === 'Ativo')
+                    );
+
+                    if (duplicates.length > 0) {
+                        if (!confirm(`${person.name} já possui:\n${duplicates.map(d => `• ${d.title}`).join('\n')}\n\nIgnorar duplicados e adicionar apenas os novos?`)) {
+                            continue;
+                        }
                     }
-                }
 
-                const finalBooksToAdd = booksToAdd.filter(b =>
-                    !existing.books.some(eb => eb.id === b.id && eb.status === 'Ativo')
-                );
+                    const finalBooksToAdd = booksToAdd.filter(b =>
+                        !existing.books.some(eb => eb.id === b.id && eb.status === 'Ativo')
+                    );
 
-                if (finalBooksToAdd.length === 0) {
-                    alert('Nenhum livro novo para adicionar ao empréstimo existente.');
-                    setIsLoanLoading(false);
-                    return;
-                }
+                    if (finalBooksToAdd.length === 0) continue;
 
-                await StorageService.saveBookLoan({
-                    ...existing,
-                    books: [...existing.books, ...finalBooksToAdd],
-                    history: [
-                        ...(existing.history || []),
-                        ...finalBooksToAdd.map(b => ({
-                            action: `Novo livro adicionado (Seta): ${b.title} (#${b.code || 'S/C'})`,
+                    await StorageService.saveBookLoan({
+                        ...existing,
+                        books: [...existing.books, ...finalBooksToAdd],
+                        history: [
+                            ...(existing.history || []),
+                            ...finalBooksToAdd.map(b => ({
+                                action: `Novo livro adicionado: ${b.title} (#${b.code || 'S/C'})`,
+                                user: user.name,
+                                timestamp: now
+                            }))
+                        ]
+                    });
+                } else {
+                    const newLoan: BookLoan = {
+                        id: Math.random().toString(36).substr(2, 9),
+                        personId: person.id,
+                        personName: person.name,
+                        personMatricula: person.matricula,
+                        books: booksToAdd,
+                        loanedBy: user.name,
+                        loanDate: now,
+                        status: BookLoanStatus.ACTIVE,
+                        observation: loanObs,
+                        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+                        history: booksToAdd.map(b => ({
+                            action: `Empréstimo: ${b.title} (#${b.code || 'S/C'})`,
                             user: user.name,
                             timestamp: now
                         }))
-                    ]
-                });
-            } else {
-                const newLoan: BookLoan = {
-                    id: Math.random().toString(36).substr(2, 9),
-                    personId: loanPerson.id,
-                    personName: loanPerson.name,
-                    personMatricula: loanPerson.matricula,
-                    books: booksToAdd,
-                    loanedBy: user.name,
-                    loanDate: now,
-                    status: BookLoanStatus.ACTIVE,
-                    observation: loanObs,
-                    campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
-                    history: booksToAdd.map(b => ({
-                        action: `Empréstimo (Seta): ${b.title} (#${b.code || 'S/C'})`,
-                        user: user.name,
-                        timestamp: now
-                    }))
-                };
-                await StorageService.saveBookLoan(newLoan);
+                    };
+                    await StorageService.saveBookLoan(newLoan);
+                }
             }
 
             onUpdate();
-            alert(`${selectedLoanBooks.length} livro(s) emprestado(s) com sucesso para ${loanPerson.name}!`);
+            alert(`${selectedLoanBooks.length} livro(s) emprestado(s) com sucesso para ${loanPersons.length} aluno(s)!`);
             setSelectedLoanBooks([]);
-            setLoanPerson(null);
+            setLoanPersons([]);
             setLoanPersonSearch('');
             setSearchResultsPeople([]);
             setLoanBookSearch('');
             setLoanObs('');
+            setShowQuickLoanModal(false);
         } catch {
             alert('Erro ao registrar empréstimo.');
         } finally {
@@ -648,7 +647,12 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     books={studentBooks}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
-                    onLoan={(book) => setSelectedLoanBooks(prev => [...prev, book])}
+                    onLoan={(book) => {
+                        if (!selectedLoanBooks.find(b => b.id === book.id)) {
+                            setSelectedLoanBooks(prev => [...prev, book]);
+                        }
+                        setShowQuickLoanModal(true);
+                    }}
                     getBorrowedCount={getBorrowedCount}
                     sortConfig={sortConfig}
                     onSort={handleSort}
@@ -659,12 +663,42 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     books={teacherBooks}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
-                    onLoan={(book) => setSelectedLoanBooks(prev => [...prev, book])}
+                    onLoan={(book) => {
+                        if (!selectedLoanBooks.find(b => b.id === book.id)) {
+                            setSelectedLoanBooks(prev => [...prev, book]);
+                        }
+                        setShowQuickLoanModal(true);
+                    }}
                     getBorrowedCount={getBorrowedCount}
                     sortConfig={sortConfig}
                     onSort={handleSort}
                 />
             </div>
+
+            {/* Floating cart banner when modal is closed but books are selected */}
+            {selectedLoanBooks.length > 0 && !showQuickLoanModal && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-gray-900 text-white px-5 py-3 rounded-2xl shadow-2xl border border-white/10 backdrop-blur-sm">
+                    <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-6 h-6 bg-ifrn-green rounded-full text-xs font-black">{selectedLoanBooks.length}</span>
+                        <span className="text-sm font-semibold">{selectedLoanBooks.length === 1 ? 'livro selecionado' : 'livros selecionados'}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setShowQuickLoanModal(true)}
+                            className="px-4 py-1.5 bg-ifrn-green hover:bg-ifrn-darkGreen text-white rounded-lg text-xs font-bold transition-colors"
+                        >
+                            Ver Empréstimo
+                        </button>
+                        <button
+                            onClick={() => { setSelectedLoanBooks([]); setLoanPersons([]); setLoanObs(''); }}
+                            className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                            title="Limpar seleção"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <Modal
                 isOpen={showModal}
@@ -800,8 +834,13 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             </Modal>
 
             <Modal
-                isOpen={selectedLoanBooks.length > 0}
-                onClose={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setSearchResultsPeople([]); setLoanBookSearch(''); setLoanObs(''); }}
+                isOpen={showQuickLoanModal && selectedLoanBooks.length > 0}
+                onClose={() => {
+                    setShowQuickLoanModal(false);
+                    setLoanPersonSearch('');
+                    setSearchResultsPeople([]);
+                    setLoanBookSearch('');
+                }}
                 title="Empréstimo Rápido (Múltiplos Livros)"
             >
                 <div className="space-y-6">
@@ -838,92 +877,77 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             })}
                         </div>
 
-                        {/* Add more books search */}
-                        <div className="relative pt-2">
-                            <Plus className="absolute left-3 top-4.5 text-ifrn-green" size={14} style={{ top: '1.15rem' }} />
-                            <input
-                                type="text"
-                                placeholder="Adicionar mais livros..."
-                                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-ifrn-green outline-none"
-                                value={loanBookSearch}
-                                onChange={e => setLoanBookSearch(e.target.value)}
-                                onFocus={() => setIsBookInputFocused(true)}
-                                onBlur={() => setTimeout(() => setIsBookInputFocused(false), 200)}
-                            />
-                            {(loanBookSearch.length > 0 || isBookInputFocused) && (
-                                <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
-                                    {filteredLoanBooks.map(b => {
-                                        const isMP = b.code?.endsWith('MP');
-                                        return (
-                                            <button
-                                                key={b.id}
-                                                onClick={() => {
-                                                    setSelectedLoanBooks(prev => [...prev, b]);
-                                                    setLoanBookSearch('');
-                                                }}
-                                                className={`w-full text-left p-3 hover:bg-ifrn-green/5 transition-colors border-b last:border-0 border-gray-100 ${isMP ? 'bg-orange-100/50' : ''}`}
-                                            >
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <p className="font-bold text-xs text-gray-800">{b.title}</p>
-                                                        <p className="text-[9px] text-gray-400 font-bold uppercase">{b.code || 'S/C'} • {b.series}</p>
-                                                    </div>
-                                                    {isMP && (
-                                                        <span className="text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter">MP</span>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                    {filteredLoanBooks.length === 0 && <div className="p-3 text-center text-[10px] text-gray-400">Nenhum livro encontrado.</div>}
-                                </div>
-                            )}
-                        </div>
+                        {/* Add more books — closes modal so user can click on table */}
+                        <button
+                            type="button"
+                            onClick={() => { setShowQuickLoanModal(false); setLoanBookSearch(''); }}
+                            className="w-full flex items-center gap-2 px-4 py-2.5 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs text-gray-500 hover:border-ifrn-green hover:text-ifrn-green hover:bg-ifrn-green/5 transition-all font-semibold"
+                        >
+                            <Plus size={14} />
+                            Adicionar mais livros na tabela...
+                        </button>
                     </div>
 
                     <div className="space-y-4 pt-4 border-t border-gray-100">
+                        {/* Students Section */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="block text-xs font-semibold text-gray-500 uppercase">Selecionar Aluno</label>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase">Alunos ({loanPersons.length})</label>
                                 {(isPeopleLoading || isSearchingPeople) && <Loader2 size={12} className="animate-spin text-ifrn-green" />}
                             </div>
 
-                            {loanPerson ? (
-                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
-                                    <div className="flex-1">
-                                        <p className="font-bold text-blue-900">{loanPerson.name}</p>
-                                        <p className="text-[10px] text-blue-700 font-bold uppercase">{loanPerson.matricula}</p>
-                                    </div>
-                                    <button onClick={() => setLoanPerson(null)} className="text-xs text-red-500 font-bold underline ml-4">Alterar</button>
+                            {/* Selected students list */}
+                            {loanPersons.length > 0 && (
+                                <div className="space-y-1.5 mb-3">
+                                    {loanPersons.map(p => (
+                                        <div key={p.id} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-center justify-between">
+                                            <div>
+                                                <p className="font-bold text-blue-900 text-sm">{p.name}</p>
+                                                <p className="text-[10px] text-blue-600 font-bold uppercase">{p.matricula || 'Matrícula não informada'}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setLoanPersons(prev => prev.filter(x => x.id !== p.id))}
+                                                className="p-1 text-blue-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
                                 </div>
-                            ) : (
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar por nome ou matrícula..."
-                                        className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                                        value={loanPersonSearch}
-                                        onChange={e => handlePersonSearch(e.target.value)}
-                                        autoFocus
-                                    />
-                                    {loanPersonSearch.length >= 2 && (
-                                        <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                            {searchResultsPeople.map(p => (
+                            )}
+
+                            {/* Search to add more students */}
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder={loanPersons.length === 0 ? 'Buscar por nome ou matrícula...' : 'Adicionar outro aluno...'}
+                                    className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                                    value={loanPersonSearch}
+                                    onChange={e => handlePersonSearch(e.target.value)}
+                                    autoFocus={loanPersons.length === 0}
+                                />
+                                {loanPersonSearch.length >= 2 && (
+                                    <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                        {searchResultsPeople
+                                            .filter(p => !loanPersons.find(lp => lp.id === p.id))
+                                            .map(p => (
                                                 <button
                                                     key={p.id}
-                                                    onClick={() => { setLoanPerson(p); setLoanPersonSearch(''); setSearchResultsPeople([]); }}
+                                                    onClick={() => { setLoanPersons(prev => [...prev, p]); setLoanPersonSearch(''); setSearchResultsPeople([]); }}
                                                     className="w-full text-left p-3 hover:bg-gray-50 transition-colors border-b last:border-0 border-gray-100"
                                                 >
                                                     <p className="font-bold text-sm text-gray-800">{p.name}</p>
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula}</p>
+                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula || 'Matrícula não informada'}</p>
                                                 </button>
-                                            ))}
-                                            {searchResultsPeople.length === 0 && !isSearchingPeople && <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                            ))
+                                        }
+                                        {searchResultsPeople.filter(p => !loanPersons.find(lp => lp.id === p.id)).length === 0 && !isSearchingPeople && (
+                                            <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div>
@@ -939,17 +963,17 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     <div className="pt-6 flex justify-end gap-3 border-t">
                         <button
-                            onClick={() => { setSelectedLoanBooks([]); setLoanPerson(null); setLoanPersonSearch(''); setSearchResultsPeople([]); setLoanBookSearch(''); setLoanObs(''); }}
+                            onClick={() => { setSelectedLoanBooks([]); setLoanPersons([]); setLoanPersonSearch(''); setSearchResultsPeople([]); setLoanBookSearch(''); setLoanObs(''); setShowQuickLoanModal(false); }}
                             className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-semibold"
                         >
                             Cancelar
                         </button>
                         <button
                             onClick={handleQuickLoan}
-                            disabled={isLoanLoading || !loanPerson}
+                            disabled={isLoanLoading || loanPersons.length === 0}
                             className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold flex items-center gap-2 disabled:opacity-50 shadow-md active:scale-95"
                         >
-                            {isLoanLoading ? <Loader2 className="animate-spin" size={18} /> : 'Finalizar Empréstimo'}
+                            {isLoanLoading ? <Loader2 className="animate-spin" size={18} /> : `Finalizar (${loanPersons.length} aluno${loanPersons.length !== 1 ? 's' : ''})`}
                         </button>
                     </div>
                 </div>

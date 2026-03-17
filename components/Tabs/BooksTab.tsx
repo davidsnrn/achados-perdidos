@@ -162,6 +162,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [isLoanLoading, setIsLoanLoading] = useState(false);
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+    const [selectedPersonIndex, setSelectedPersonIndex] = useState<number | null>(null);
 
     // View Borrowers State
     const [showBorrowersModal, setShowBorrowersModal] = useState(false);
@@ -276,21 +277,66 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             .toLowerCase();
     };
 
-    // Quick loan: handle person search via StorageService
-    const handlePersonSearch = async (val: string) => {
+    // Quick loan: handle person search input change
+    const handlePersonSearchChange = (val: string) => {
         setLoanPersonSearch(val);
-        if (val.trim().length >= 2) {
-            setIsSearchingPeople(true);
-            try {
-                const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
-                setSearchResultsPeople(results);
-            } catch (err) {
-                console.error("Erro busca pessoas:", err);
-            } finally {
-                setIsSearchingPeople(false);
-            }
-        } else {
+        if (val.trim() === '') {
             setSearchResultsPeople([]);
+            setSelectedPersonIndex(null);
+        }
+    };
+
+    const performPersonSearch = async () => {
+        const val = loanPersonSearch.trim();
+        if (val.length < 2) return;
+
+        setIsSearchingPeople(true);
+        try {
+            const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
+            setSearchResultsPeople(results);
+            if (results.length > 0) {
+                setSelectedPersonIndex(0);
+            } else {
+                setSelectedPersonIndex(null);
+            }
+        } catch (err) {
+            console.error("Erro busca pessoas:", err);
+        } finally {
+            setIsSearchingPeople(false);
+        }
+    };
+
+    const handleAddPerson = (p: Person) => {
+        if (!loanPersons.find(lp => lp.id === p.id)) {
+            setLoanPersons(prev => [...prev, p]);
+        }
+        setLoanPersonSearch('');
+        setSearchResultsPeople([]);
+        setSelectedPersonIndex(null);
+    };
+
+    const handlePersonSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (searchResultsPeople.length > 0) {
+                setSelectedPersonIndex(prev => 
+                    prev === null || prev === searchResultsPeople.length - 1 ? 0 : prev + 1
+                );
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (searchResultsPeople.length > 0) {
+                setSelectedPersonIndex(prev => 
+                    prev === null || prev === 0 ? searchResultsPeople.length - 1 : prev - 1
+                );
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedPersonIndex !== null && searchResultsPeople[selectedPersonIndex]) {
+                handleAddPerson(searchResultsPeople[selectedPersonIndex]);
+            } else if (loanPersonSearch.trim().length >= 2) {
+                performPersonSearch();
+            }
         }
     };
 
@@ -968,27 +1014,37 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             )}
 
                             {/* Search to add more students */}
-                            <div className="relative">
-                                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                            <div className="relative group/search">
+                                <Search className="absolute left-3 top-2.5 text-gray-400 group-focus-within/search:text-ifrn-green" size={16} />
                                 <input
                                     type="text"
                                     placeholder={loanPersons.length === 0 ? 'Buscar por nome ou matrícula...' : 'Adicionar outro aluno...'}
-                                    className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                                    className="w-full pl-10 pr-12 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                     value={loanPersonSearch}
-                                    onChange={e => handlePersonSearch(e.target.value)}
+                                    onChange={e => handlePersonSearchChange(e.target.value)}
+                                    onKeyDown={handlePersonSearchKeyDown}
                                     autoFocus={loanPersons.length === 0}
                                 />
-                                {loanPersonSearch.length >= 2 && (
+                                <button
+                                    type="button"
+                                    onClick={performPersonSearch}
+                                    className="absolute right-2 top-1.5 p-1 text-gray-400 hover:text-ifrn-green hover:bg-gray-100 rounded-md transition-all active:scale-95"
+                                    title="Buscar aluno"
+                                >
+                                    <Search size={18} />
+                                </button>
+                                {searchResultsPeople.length > 0 && (
                                     <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                                         {searchResultsPeople
                                             .filter(p => !loanPersons.find(lp => lp.id === p.id))
-                                            .map(p => (
+                                            .map((p, idx) => (
                                                 <button
                                                     key={p.id}
-                                                    onClick={() => { setLoanPersons(prev => [...prev, p]); setLoanPersonSearch(''); setSearchResultsPeople([]); }}
-                                                    className="w-full text-left p-3 hover:bg-gray-50 transition-colors border-b last:border-0 border-gray-100"
+                                                    onClick={() => handleAddPerson(p)}
+                                                    className={`w-full text-left p-3 transition-colors border-b last:border-0 border-gray-100 ${selectedPersonIndex === idx ? 'bg-ifrn-green/10 border-l-4 border-l-ifrn-green' : 'hover:bg-gray-50'}`}
+                                                    onMouseMove={() => setSelectedPersonIndex(idx)}
                                                 >
-                                                    <p className="font-bold text-sm text-gray-800">{p.name}</p>
+                                                    <p className={`font-bold text-sm ${selectedPersonIndex === idx ? 'text-ifrn-darkGreen' : 'text-gray-800'}`}>{p.name}</p>
                                                     <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula || 'Matrícula não informada'}</p>
                                                 </button>
                                             ))

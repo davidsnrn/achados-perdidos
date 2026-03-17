@@ -242,6 +242,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [observation, setObservation] = useState('');
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+    const [selectedPersonIndex, setSelectedPersonIndex] = useState<number | null>(null);
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
@@ -458,20 +459,63 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             new Date(b[0].loanDate).getTime() - new Date(a[0].loanDate).getTime()
         );
     }, [historicalLoans]);
-    const handlePersonSearch = async (val: string) => {
+    const handlePersonSearchChange = (val: string) => {
         setPersonSearch(val);
-        if (val.trim().length >= 2) {
-            setIsSearchingPeople(true);
-            try {
-                const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
-                setSearchResultsPeople(results);
-            } catch (err) {
-                console.error("Erro busca pessoas:", err);
-            } finally {
-                setIsSearchingPeople(false);
-            }
-        } else {
+        if (val.trim() === '') {
             setSearchResultsPeople([]);
+            setSelectedPersonIndex(null);
+        }
+    };
+
+    const performPersonSearch = async () => {
+        const val = personSearch.trim();
+        if (val.length < 2) return;
+
+        setIsSearchingPeople(true);
+        try {
+            const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
+            setSearchResultsPeople(results);
+            if (results.length > 0) {
+                setSelectedPersonIndex(0);
+            } else {
+                setSelectedPersonIndex(null);
+            }
+        } catch (err) {
+            console.error("Erro busca pessoas:", err);
+        } finally {
+            setIsSearchingPeople(false);
+        }
+    };
+
+    const handleSelectPerson = (p: Person) => {
+        setSelectedPerson(p);
+        setPersonSearch('');
+        setSearchResultsPeople([]);
+        setSelectedPersonIndex(null);
+    };
+
+    const handlePersonSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (searchResultsPeople.length > 0) {
+                setSelectedPersonIndex(prev => 
+                    prev === null || prev === searchResultsPeople.length - 1 ? 0 : prev + 1
+                );
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (searchResultsPeople.length > 0) {
+                setSelectedPersonIndex(prev => 
+                    prev === null || prev === 0 ? searchResultsPeople.length - 1 : prev - 1
+                );
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedPersonIndex !== null && searchResultsPeople[selectedPersonIndex]) {
+                handleSelectPerson(searchResultsPeople[selectedPersonIndex]);
+            } else if (personSearch.trim().length >= 2) {
+                performPersonSearch();
+            }
         }
     };
 
@@ -716,27 +760,37 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             </div>
                         ) : (
                             <>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                <div className="relative group/search">
+                                    <Search className="absolute left-3 top-2.5 text-gray-400 group-focus-within/search:text-ifrn-green" size={16} />
                                     <input
                                         type="text"
                                         placeholder="Buscar por nome ou matrícula..."
-                                        className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                                        className="w-full pl-10 pr-12 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                         value={personSearch}
                                         onFocus={() => setIsBookListExpanded(false)}
-                                        onChange={e => handlePersonSearch(e.target.value)}
+                                        onChange={e => handlePersonSearchChange(e.target.value)}
+                                        onKeyDown={handlePersonSearchKeyDown}
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={performPersonSearch}
+                                        className="absolute right-2 top-1.5 p-1 text-gray-400 hover:text-ifrn-green hover:bg-gray-100 rounded-md transition-all active:scale-95"
+                                        title="Buscar aluno"
+                                    >
+                                        <Search size={18} />
+                                    </button>
                                 </div>
-                                {personSearch && (
+                                {searchResultsPeople.length > 0 && (
                                     <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                        {searchResultsPeople.map(p => (
+                                        {searchResultsPeople.map((p, idx) => (
                                             <button
                                                 key={p.id}
                                                 type="button"
-                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }}
-                                                className="w-full text-left p-2 rounded text-sm hover:bg-gray-200 text-gray-700 transition-colors"
+                                                onClick={() => handleSelectPerson(p)}
+                                                className={`w-full text-left p-2 rounded text-sm transition-colors flex flex-col ${selectedPersonIndex === idx ? 'bg-ifrn-green/10 border-l-4 border-l-ifrn-green' : 'hover:bg-gray-200 text-gray-700'}`}
+                                                onMouseMove={() => setSelectedPersonIndex(idx)}
                                             >
-                                                <div className="font-bold">{p.name}</div>
+                                                <div className={`font-bold ${selectedPersonIndex === idx ? 'text-ifrn-darkGreen' : ''}`}>{p.name}</div>
                                                 <div className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula || 'Não informada'} • {p.type}</div>
                                             </button>
                                         ))}

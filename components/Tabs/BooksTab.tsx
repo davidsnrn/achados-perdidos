@@ -210,7 +210,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 name: loan.personName,
                 matricula: loan.personMatricula,
                 type: loan.personType,
-                loanDate: loan.loanDate
+                loanDate: loan.books.find(b => b.id === bookId)?.loanDate || loan.loanDate
             }));
     };
 
@@ -363,12 +363,13 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         setIsLoanLoading(true);
         try {
             const now = new Date().toISOString();
-            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: 'Ativo' | 'Devolvido' }[] = selectedLoanBooks.map(b => ({
+            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: 'Ativo' | 'Devolvido'; loanDate: string }[] = selectedLoanBooks.map(b => ({
                 id: b.id,
                 title: b.title,
                 code: b.code,
                 series: b.series,
-                status: 'Ativo' as const
+                status: 'Ativo' as const,
+                loanDate: now
             }));
 
             let totalLentCount = 0;
@@ -399,7 +400,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     await StorageService.saveBookLoan({
                         ...existing,
-                        books: [...existing.books, ...finalBooksToAdd],
+                        books: [...existing.books, ...finalBooksToAdd.map(b => ({ ...b, loanDate: now }))],
                         history: [
                             ...(existing.history || []),
                             ...finalBooksToAdd.map(b => ({

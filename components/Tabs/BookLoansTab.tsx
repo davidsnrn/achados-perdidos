@@ -236,7 +236,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
 
     // New Loan Form State
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
-    const [selectedBooks, setSelectedBooks] = useState<{ id: string, title: string, code?: string, series?: string, status?: 'Ativo' | 'Devolvido' }[]>([]);
+    const [selectedBooks, setSelectedBooks] = useState<{ id: string, title: string, code?: string, series?: string, status?: 'Ativo' | 'Devolvido', loanDate?: string }[]>([]);
     const [personSearch, setPersonSearch] = useState('');
     const [bookSearch, setBookSearch] = useState('');
     const [observation, setObservation] = useState('');
@@ -270,7 +270,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             title: book.title,
             code: book.code,
             series: book.series,
-            status: 'Ativo'
+            status: 'Ativo',
+            loanDate: new Date().toISOString()
         }]);
     };
 
@@ -317,7 +318,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Atualizar empréstimo existente
                 const updatedLoan: BookLoan = {
                     ...existingActiveLoan,
-                    books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const }))],
+                    books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now }))],
                     history: [
                         ...(existingActiveLoan.history || []),
                         {
@@ -337,7 +338,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                     personId: person.id,
                     personName: person.name,
                     personMatricula: person.matricula, // Garantindo o mapeamento da matrícula
-                    books: selectedBooks.map(b => ({ ...b, status: 'Ativo' as const })),
+                    books: selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now })),
                     loanedBy: user.name,
                     loanDate: now,
                     status: BookLoanStatus.ACTIVE,

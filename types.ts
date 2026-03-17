@@ -131,6 +131,7 @@ export interface BookLoan {
     code?: string;
     series?: string;
     status?: 'Ativo' | 'Devolvido';
+    loanDate?: string;
     returnDate?: string;
     returnedBy?: string;
   }[];

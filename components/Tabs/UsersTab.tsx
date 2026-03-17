@@ -508,7 +508,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                 name="level"
                 value={formLevel}
                 disabled={(selectedUser?.id === currentUser.id && currentUser.level !== UserLevel.ADMIN) || selectedUser?.id === currentUser.id}
-                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none disabled:bg-gray-100 disabled:text-gray-500 cursor-not-allowed"
+                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                 onChange={(e) => {
                   const val = e.target.value as UserLevel;
                   setFormLevel(val);

@@ -205,13 +205,37 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 loan.status === BookLoanStatus.ACTIVE && 
                 loan.books.some(b => b.id === bookId && b.status !== 'Devolvido')
             )
-            .map(loan => ({
-                id: loan.personId,
-                name: loan.personName,
-                matricula: loan.personMatricula,
-                type: loan.personType,
-                loanDate: loan.books.find(b => b.id === bookId)?.loanDate || loan.loanDate
-            }));
+            .map(loan => {
+                const bookEntry = loan.books.find(b => b.id === bookId && b.status !== 'Devolvido');
+                let specificLoanDate = bookEntry?.loanDate;
+
+                // Fallback inteligente para dados legados: procurar no histórico
+                if (!specificLoanDate && loan.history) {
+                    const bookTitle = bookEntry?.title;
+                    const bookCode = bookEntry?.code;
+                    
+                    // Procurar a última ação de empréstimo/adição deste livro específico
+                    const historyEntry = [...loan.history].reverse().find(h => 
+                        (h.action.includes('Novo livro adicionado') || h.action.includes('Empréstimo') || h.action.includes('Empréstimo inicial')) &&
+                        (
+                            (bookTitle && h.action.toLowerCase().includes(bookTitle.toLowerCase())) ||
+                            (bookCode && h.action.includes(bookCode))
+                        )
+                    );
+                    
+                    if (historyEntry) {
+                        specificLoanDate = historyEntry.timestamp;
+                    }
+                }
+
+                return {
+                    id: loan.personId,
+                    name: loan.personName,
+                    matricula: loan.personMatricula,
+                    type: loan.personType,
+                    loanDate: specificLoanDate || loan.loanDate
+                };
+            });
     };
 
     const resetForm = () => {

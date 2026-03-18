@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserLevel, Person, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { DEFAULT_PASSWORD } from '../../constants';
-import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -40,6 +40,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     pessoas: true,
     usuarios: true,
     materiais: true,
+    copias: false,
   });
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (currentUser.level === UserLevel.ADMIN ? adminGlobalCampusId : currentUser.campus_id) || ''
@@ -218,6 +219,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
         pessoas: user.permissions?.pessoas ?? (user.level !== UserLevel.STANDARD),
         usuarios: user.permissions?.usuarios ?? (user.level !== UserLevel.STANDARD),
         materiais: user.permissions?.materiais ?? (user.level !== UserLevel.STANDARD),
+        copias: user.permissions?.copias ?? false,
       });
       setFormLevel(user.level);
       setSelectedCampusId(user.campus_id || '');
@@ -236,6 +238,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
         pessoas: false,
         usuarios: false,
         materiais: false,
+        copias: false,
       });
     }
     setPersonSearch('');
@@ -347,17 +350,18 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                         { id: 'livros', icon: <BookOpen size={14} />, label: 'Livros' },
                         { id: 'nadaconsta', icon: <FileCheck size={14} />, label: 'Nada Consta' },
                         { id: 'materiais', icon: <FileText size={14} />, label: 'Materiais' },
+                        { id: 'copias', icon: <Printer size={14} />, label: 'Cópias' },
                         { id: 'pessoas', icon: <UserIcon size={14} />, label: 'Pessoas' },
                         { id: 'usuarios', icon: <UserCog size={14} />, label: 'Usuários' }
                       ].filter(mod => {
-                        if (currentUser.level === UserLevel.ADMIN) return true;
-                        if (mod.id === 'nadaconsta') return true;
                         const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
-                        return perm !== undefined ? perm : (currentUser.level !== UserLevel.STANDARD);
+                        if (perm !== undefined) return perm;
+                        if (mod.id === 'nadaconsta') return true;
+                        return (currentUser.level !== UserLevel.STANDARD);
                       }).map(mod => {
-                        const hasAccess = u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
+                        const hasAccess = u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
                           ? u.permissions[mod.id as keyof typeof u.permissions]
-                          : (mod.id === 'nadaconsta' || u.level !== UserLevel.STANDARD);
+                          : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && u.level !== UserLevel.STANDARD)));
                         return (
                           <div
                             key={mod.id}
@@ -513,7 +517,16 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   const val = e.target.value as UserLevel;
                   setFormLevel(val);
                   if (val !== UserLevel.STANDARD) {
-                    setPermissions({ achados: true, armarios: true, livros: true, nadaconsta: true, pessoas: true, usuarios: true, materiais: true });
+                    setPermissions({
+                      achados: true,
+                      armarios: true,
+                      livros: true,
+                      nadaconsta: true,
+                      pessoas: true,
+                      usuarios: true,
+                      materiais: true,
+                      copias: val === UserLevel.ADMIN
+                    });
                   }
                   if (val === UserLevel.ADMIN) {
                     setSelectedCampusId('');
@@ -535,37 +548,42 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   { id: 'livros', label: 'Livros' },
                   { id: 'nadaconsta', label: 'Nada Consta' },
                   { id: 'materiais', label: 'Materiais' },
+                  { id: 'copias', label: 'Cópias' },
                   { id: 'pessoas', label: 'Pessoas' },
                   { id: 'usuarios', label: 'Usuários' }
                 ].filter(mod => {
-                  if (currentUser.level === UserLevel.ADMIN) return true;
-                  if (mod.id === 'nadaconsta') return true;
                   const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
-                  return perm !== undefined ? perm : (currentUser.level !== UserLevel.STANDARD);
-                }).map(module => (
-                  <button
-                    key={module.id}
-                    type="button"
-                    disabled={selectedUser?.id === currentUser.id}
-                    onClick={() => setPermissions(prev => ({ ...prev, [module.id]: !prev[module.id as keyof typeof prev] }))}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${permissions[module.id as keyof typeof permissions]
-                      ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
-                      : 'bg-gray-50 border-gray-100 text-gray-400 opacity-60'
-                      } ${selectedUser?.id === currentUser.id ? 'cursor-not-allowed' : ''}`}
-                  >
-                    <div className={permissions[module.id as keyof typeof permissions] ? 'text-green-600' : 'text-gray-400'}>
-                      {module.id === 'achados' ? <Package size={14} /> :
-                        module.id === 'armarios' ? <Key size={14} /> :
-                          module.id === 'livros' ? <BookOpen size={14} /> :
-                            module.id === 'nadaconsta' ? <FileCheck size={14} /> :
-                              module.id === 'materiais' ? <FileText size={14} /> :
-                                module.id === 'pessoas' ? <UserIcon size={14} /> :
-                                  <UserCog size={14} />}
-                    </div>
-                    {module.label}
-                    {permissions[module.id as keyof typeof permissions] && <CheckCircle size={12} className="ml-auto" />}
-                  </button>
-                ))}
+                  if (perm !== undefined) return perm;
+                  if (mod.id === 'nadaconsta') return true;
+                  return (currentUser.level !== UserLevel.STANDARD);
+                }).map(module => {
+                  const isActive = permissions[module.id as keyof typeof permissions] || formLevel === UserLevel.ADMIN;
+                  return (
+                    <button
+                      key={module.id}
+                      type="button"
+                      disabled={selectedUser?.id === currentUser.id}
+                      onClick={() => setPermissions(prev => ({ ...prev, [module.id]: !prev[module.id as keyof typeof prev] }))}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${isActive
+                        ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
+                        : 'bg-gray-50 border-gray-100 text-gray-400 opacity-60'
+                        } ${selectedUser?.id === currentUser.id ? 'cursor-not-allowed' : ''}`}
+                    >
+                      <div className={isActive ? 'text-green-600' : 'text-gray-400'}>
+                        {module.id === 'achados' ? <Package size={14} /> :
+                          module.id === 'armarios' ? <Key size={14} /> :
+                            module.id === 'livros' ? <BookOpen size={14} /> :
+                              module.id === 'nadaconsta' ? <FileCheck size={14} /> :
+                                module.id === 'materiais' ? <FileText size={14} /> :
+                                  module.id === 'copias' ? <Printer size={14} /> :
+                                    module.id === 'pessoas' ? <UserIcon size={14} /> :
+                                      <UserCog size={14} />}
+                      </div>
+                      {module.label}
+                      {isActive && <CheckCircle size={12} className="ml-auto" />}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 

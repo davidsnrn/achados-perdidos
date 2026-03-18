@@ -44,6 +44,7 @@ export interface User {
     pessoas?: boolean;
     usuarios?: boolean;
     materiais?: boolean;
+    copias?: boolean;
   };
   logs?: string[];
   access_logs?: string[];
@@ -148,4 +149,26 @@ export interface BookLoan {
   }[];
   personType?: PersonType;
   campus_id?: string;
+}
+
+export interface CopyConfig {
+  campus_id: string;
+  start_day: number;
+  end_day: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CopyRecord {
+  id: string;
+  campus_id: string;
+  person_id?: string;
+  person_name: string;
+  person_matricula: string;
+  sector: string;
+  print_type: 'PROVA' | 'OUTRAS';
+  quantity: number;
+  date: string; // ISO
+  operator_id: string;
+  created_at?: string;
 }

@@ -1188,7 +1188,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                     </div>
                                     <div className="text-right flex flex-col items-end gap-1">
                                         <div>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Desde</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Data do Empréstimo</p>
                                             <p className="text-xs text-ifrn-green font-bold leading-none">{new Date(borrower.loanDate).toLocaleDateString('pt-BR')}</p>
                                         </div>
                                         <div className="mt-1">

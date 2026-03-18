@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from './services/storage';
-import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus } from './types';
+import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord } from './types';
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
@@ -14,12 +14,13 @@ const BooksTab = React.lazy(() => import('./components/Tabs/BooksTab').then(modu
 const BookLoansTab = React.lazy(() => import('./components/Tabs/BookLoansTab').then(module => ({ default: module.BookLoansTab })));
 const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
 const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
+const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
 
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
-type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'DELETE_LOCKER_LOANS' | 'DELETE_BOOKS' | 'DELETE_MATERIALS' | 'FACTORY_RESET' | null;
+type ConfirmActionType = 'DELETE_ITEMS' | 'DELETE_REPORTS' | 'DELETE_PEOPLE' | 'DELETE_USERS' | 'DELETE_LOCKER_LOANS' | 'DELETE_BOOKS' | 'DELETE_MATERIALS' | 'DELETE_COPIES' | 'FACTORY_RESET' | null;
 
 interface ModuleInfo {
   id: string;
@@ -42,7 +43,7 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Initialize from sessionStorage
-  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | null>(() => {
+  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | null>(() => {
     return (sessionStorage.getItem('currentSystem') as any) || null;
   });
 
@@ -76,6 +77,8 @@ const App: React.FC = () => {
   const [lockers, setLockers] = useState<Locker[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialLoans, setMaterialLoans] = useState<MaterialLoan[]>([]);
+  const [copyRecords, setCopyRecords] = useState<CopyRecord[]>([]);
+  const [copyConfigs, setCopyConfigs] = useState<CopyConfig[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
 
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
@@ -117,10 +120,15 @@ const App: React.FC = () => {
 
   const hasAccess = (mod: keyof NonNullable<User['permissions']>) => {
     if (!user) return false;
+    if (user.level === UserLevel.ADMIN) return true;
+
     if (user.permissions && user.permissions[mod] !== undefined) {
       return user.permissions[mod];
     }
+
     if (mod === 'nadaconsta') return true;
+    if (mod === 'copias') return false;
+
     return user.level !== UserLevel.STANDARD;
   };
 
@@ -177,6 +185,21 @@ const App: React.FC = () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     setMaterialLoans(await StorageService.getMaterialLoans(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshCopyRecords = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setCopyRecords(await StorageService.getCopyRecords(campusId || ''));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshCopyConfigs = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    if (campusId) {
+      const config = await StorageService.getCopyConfig(campusId);
+      if (config) setCopyConfigs([config]);
+    }
   }, [user, adminGlobalCampusId]);
 
   // Refresh Data Helper (Async) with Timeout
@@ -269,6 +292,25 @@ const App: React.FC = () => {
         setLockers([]);
         setBooks([]);
         setBookLoans([]);
+        setBooks([]);
+        setBookLoans([]);
+      } else if (currentSystem === 'copias' || activeTab === 'copias') {
+        const [fetchedRecords, fetchedConfig] = await Promise.all([
+          StorageService.getCopyRecords(campusId || ''),
+          campusId ? StorageService.getCopyConfig(campusId) : Promise.resolve(null)
+        ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
+        setCopyRecords(fetchedRecords);
+        if (fetchedConfig) setCopyConfigs([fetchedConfig]);
+        setItems([]);
+        setReports([]);
+        setLockers([]);
+        setBooks([]);
+        setBookLoans([]);
+        setMaterials([]);
+        setMaterialLoans([]);
       } else if (activeTab === 'usuarios') {
         const [fetchedUsers, fetchedCampuses] = await Promise.all([
           StorageService.getUsers(campusId),
@@ -405,7 +447,7 @@ const App: React.FC = () => {
   // Handle module order
   useEffect(() => {
     if (user) {
-      const defaultOrder = ['achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
+      const defaultOrder = ['copias', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
       const savedOrder = user.moduleOrder || [];
       // Filtrar apenas módulos que existem (evitar erros se o nome mudar)
       const validSavedOrder = savedOrder.filter(id => defaultOrder.includes(id));
@@ -944,6 +986,24 @@ const App: React.FC = () => {
                     setCurrentSystem(null);
                     sessionStorage.removeItem('currentSystem');
                     setActiveTab('usuarios');
+                    setShowModuleSelector(false);
+                  }
+                },
+                copias: {
+                  id: 'copias',
+                  label: 'Controle de Cópias',
+                  description: 'Rastreie o uso de impressões e cópias por servidores e departamentos.',
+                  icon: <Printer size={32} />,
+                  color: 'text-rose-700',
+                  iconBg: 'bg-gradient-to-br from-rose-600 to-red-700',
+                  textColor: 'text-rose-700',
+                  hoverBorder: 'hover:border-rose-600',
+                  bgLight: 'bg-rose-50',
+                  permission: 'copias',
+                  onSelect: () => {
+                    setCurrentSystem('copias');
+                    sessionStorage.setItem('currentSystem', 'copias');
+                    setActiveTab('copias');
                     setShowModuleSelector(false);
                   }
                 }
@@ -1492,6 +1552,16 @@ const App: React.FC = () => {
                     user={user}
                     campuses={campuses}
                     adminGlobalCampusId={adminGlobalCampusId}
+                  />
+                )}
+                {activeTab === 'copias' && (
+                  <CopyControlTab
+                    records={copyRecords}
+                    config={copyConfigs[0]}
+                    user={user}
+                    campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
+                    onUpdate={refreshData}
                   />
                 )}
                 {activeTab === 'nadaconsta' && (

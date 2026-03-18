@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord } from "../types";
 import { Locker, LockerStatus, LoanData } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -1247,7 +1247,7 @@ export const StorageService = {
   },
 
   getBackupData: async () => {
-    const [config, users, people, items, reports, lockers, books, loans] = await Promise.all([
+    const [config, users, people, items, reports, lockers, books, loans, copyRecords, copyConfigs] = await Promise.all([
       supabase.from('config').select('*'),
       supabase.from('users').select('*'),
       supabase.from('people').select('*'),
@@ -1255,7 +1255,9 @@ export const StorageService = {
       supabase.from('reports').select('*'),
       supabase.from('lockers').select('*'),
       supabase.from('books').select('*'),
-      supabase.from('book_loans').select('*')
+      supabase.from('book_loans').select('*'),
+      supabase.from('copy_records').select('*'),
+      supabase.from('copy_configs').select('*')
     ]);
 
     return {
@@ -1267,8 +1269,82 @@ export const StorageService = {
       lockers: lockers.data || [],
       books: books.data || [],
       loans: loans.data || [],
+      copyRecords: copyRecords.data || [],
+      copyConfigs: copyConfigs.data || [],
       exportDate: new Date().toISOString(),
       version: '1.0'
     };
+  },
+
+  // Copy Control
+  getCopyConfig: async (campusId: string): Promise<CopyConfig | null> => {
+    const { data, error } = await supabase
+      .from('copy_configs')
+      .select('*')
+      .eq('campus_id', campusId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Erro ao buscar config de cópias:", error);
+      return null;
+    }
+    return data;
+  },
+
+  saveCopyConfig: async (config: CopyConfig) => {
+    const { error } = await supabase
+      .from('copy_configs')
+      .upsert({
+        campus_id: config.campus_id,
+        start_day: config.start_day,
+        end_day: config.end_day,
+        updated_at: new Date().toISOString()
+      });
+    if (error) throw error;
+  },
+
+  getCopyRecords: async (campusId: string, startDate?: string, endDate?: string): Promise<CopyRecord[]> => {
+    let query = supabase
+      .from('copy_records')
+      .select('*')
+      .eq('campus_id', campusId)
+      .order('date', { ascending: false });
+
+    if (startDate) {
+      query = query.gte('date', startDate);
+    }
+    if (endDate) {
+      query = query.lte('date', endDate);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("Erro ao buscar registros de cópias:", error);
+      return [];
+    }
+    return data || [];
+  },
+
+  saveCopyRecord: async (record: Partial<CopyRecord>) => {
+    const payload = {
+      id: record.id || undefined,
+      campus_id: record.campus_id,
+      person_id: record.person_id || null,
+      person_name: record.person_name,
+      person_matricula: record.person_matricula,
+      sector: record.sector,
+      print_type: record.print_type,
+      quantity: record.quantity,
+      date: record.date || new Date().toISOString(),
+      operator_id: record.operator_id
+    };
+
+    const { error } = await supabase.from('copy_records').upsert(payload);
+    if (error) throw error;
+  },
+
+  deleteCopyRecord: async (id: string) => {
+    const { error } = await supabase.from('copy_records').delete().eq('id', id);
+    if (error) throw error;
   }
 };

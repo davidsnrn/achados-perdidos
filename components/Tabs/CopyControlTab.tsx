@@ -23,7 +23,9 @@ import {
   Building2,
   Table as TableIcon,
   PieChart,
-  Save
+  Save,
+  Eye,
+  Info
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
@@ -48,6 +50,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<CopyRecord[] | null>(null);
   
   // Period Logic
   const currentMonth = new Date().getMonth();
@@ -102,6 +106,28 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       acc.total += curr.quantity;
       return acc;
     }, { prova: 0, outras: 0, total: 0 });
+  }, [filteredRecords]);
+
+  // Group records by person, date (minute), and type
+  const groupedRecords = useMemo(() => {
+    const groups: { [key: string]: { records: CopyRecord[]; totalQuantity: number } } = {};
+    
+    filteredRecords.forEach(record => {
+      const dateObj = new Date(record.date);
+      dateObj.setSeconds(0, 0);
+      const minuteKey = dateObj.toISOString();
+      const key = `${record.person_matricula}-${minuteKey}-${record.print_type}`;
+      
+      if (!groups[key]) {
+        groups[key] = { records: [], totalQuantity: 0 };
+      }
+      groups[key].records.push(record);
+      groups[key].totalQuantity += record.quantity;
+    });
+    
+    return Object.values(groups).sort((a, b) => 
+      new Date(b.records[0].date).getTime() - new Date(a.records[0].date).getTime()
+    );
   }, [filteredRecords]);
 
   // Config State
@@ -180,11 +206,17 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     }
   };
 
-  const handleDeleteRecord = async (id: string) => {
-    if (!window.confirm("Deseja realmente excluir este registro?")) return;
+  const handleDeleteRecord = async (id: string | string[]) => {
+    const counts = Array.isArray(id) ? id.length : 1;
+    if (!window.confirm(`Deseja realmente excluir este(s) ${counts} registro(s)?`)) return;
     try {
-      await StorageService.deleteCopyRecord(id);
+      if (Array.isArray(id)) {
+        await Promise.all(id.map(i => StorageService.deleteCopyRecord(i)));
+      } else {
+        await StorageService.deleteCopyRecord(id);
+      }
       await onUpdate();
+      setIsDetailsModalOpen(false);
     } catch (error) {
       console.error(error);
     }
@@ -347,61 +379,80 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredRecords.length > 0 ? filteredRecords.map((record) => (
-                <tr key={record.id} className="hover:bg-gray-50/80 transition-colors group">
-                  <td className="px-8 py-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center text-indigo-500 font-black shadow-sm">
-                        {record.person_name.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{record.person_name}</p>
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 mt-1">
-                          <span className="bg-gray-100 px-2 py-0.5 rounded-md">{record.person_matricula}</span>
-                          <span className="flex items-center gap-1"><Building2 size={10} /> {record.sector || 'Sem Setor'}</span>
+              {groupedRecords.length > 0 ? groupedRecords.map((group) => {
+                const record = group.records[0];
+                const isGrouped = group.records.length > 1;
+                
+                return (
+                  <tr key={record.id} className="hover:bg-gray-50/80 transition-colors group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center text-indigo-500 font-black shadow-sm">
+                          {record.person_name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{record.person_name}</p>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 mt-1">
+                            <span className="bg-gray-100 px-2 py-0.5 rounded-md">{record.person_matricula}</span>
+                            <span className="flex items-center gap-1">
+                              <Building2 size={10} /> 
+                              {isGrouped ? `${group.records.length} Setores` : (record.sector || 'Sem Setor')}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                      record.print_type === 'PROVA' 
-                        ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100' 
-                        : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
-                    }`}>
-                      <Printer size={12} /> {record.print_type}
-                    </span>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xl font-black text-gray-800 tracking-tight">{record.quantity}</span>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">UNID</span>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase">
-                        <Calendar size={12} className="text-gray-400" />
-                        {new Date(record.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                        record.print_type === 'PROVA' 
+                          ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100' 
+                          : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
+                      }`}>
+                        <Printer size={12} /> {record.print_type}
+                      </span>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xl font-black text-gray-800 tracking-tight">{group.totalQuantity}</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">UNID</span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-tighter">
-                        <Clock size={12} />
-                        {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase">
+                          <Calendar size={12} className="text-gray-400" />
+                          {new Date(record.date).toLocaleDateString()}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-tighter">
+                          <Clock size={12} />
+                          {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className="flex items-center justify-center gap-2">
-                       <button 
-                        onClick={() => handleDeleteRecord(record.id)}
-                        className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )) : (
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center justify-center gap-2">
+                         <button 
+                          onClick={() => {
+                            setSelectedGroup(group.records);
+                            setIsDetailsModalOpen(true);
+                          }}
+                          className="p-2.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                          title="Ver Detalhes"
+                        >
+                          <Eye size={18} />
+                        </button>
+                         <button 
+                          onClick={() => handleDeleteRecord(group.records.map(r => r.id))}
+                          className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                          title="Excluir"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : (
                 <tr>
                   <td colSpan={5} className="px-8 py-20 text-center">
                     <div className="max-w-xs mx-auto">
@@ -630,6 +681,86 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   <Save size={20} /> Salvar Configuração
                 </>
               )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+      {/* DETAILS MODAL */}
+      <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title="">
+        <div className="space-y-6">
+          <div className="text-center pb-6 border-b border-gray-100">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-200">
+              <Printer size={32} className="text-white" />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-2">Detalhes da Impressão</h3>
+            <p className="text-sm text-gray-500 font-medium">Breakdown por setor e quantidade</p>
+          </div>
+
+          {selectedGroup && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
+                  <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1 text-left">Solicitante</p>
+                    <p className="font-bold text-gray-800 text-left">{selectedGroup[0].person_name}</p>
+                    <p className="text-xs text-rose-500 font-bold text-left">{selectedGroup[0].person_matricula}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Data / Hora</p>
+                    <p className="text-xs font-bold text-gray-700">
+                      {new Date(selectedGroup[0].date).toLocaleDateString()} {new Date(selectedGroup[0].date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-left">Detalhamento</p>
+                  {selectedGroup.map((record, idx) => (
+                    <div key={record.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500 text-xs font-black">
+                          {idx + 1}
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-bold text-gray-800">{record.sector || 'Sem Setor'}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <span className="text-sm font-black text-gray-900">{record.quantity}</span>
+                          <span className="text-[10px] font-bold text-gray-400 ml-1">UNID</span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteRecord(record.id)}
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Excluir este item"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-200 flex items-center justify-between">
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Total Acumulado</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-black text-rose-600">
+                      {selectedGroup.reduce((acc, curr) => acc + curr.quantity, 0)}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase">UNID</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2">
+            <button 
+              onClick={() => setIsDetailsModalOpen(false)}
+              className="w-full px-6 py-4 bg-gray-50 text-gray-500 hover:text-gray-700 rounded-2xl font-black transition-all text-xs uppercase tracking-widest border-2 border-transparent hover:border-gray-100"
+            >
+              Fechar Visualização
             </button>
           </div>
         </div>

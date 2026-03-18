@@ -82,8 +82,8 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                                 books.map(book => {
                                     const isMP = book.code?.endsWith('MP');
                                     return (
-                                        <tr 
-                                            key={book.id} 
+                                        <tr
+                                            key={book.id}
                                             className={`hover:bg-gray-50 transition-colors group cursor-pointer ${isMP ? 'bg-orange-200/50' : ''}`}
                                             onClick={() => onViewBorrowers(book)}
                                         >
@@ -201,8 +201,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
     const getBorrowers = (bookId: string) => {
         return bookLoans
-            .filter(loan => 
-                loan.status === BookLoanStatus.ACTIVE && 
+            .filter(loan =>
+                loan.status === BookLoanStatus.ACTIVE &&
                 loan.books.some(b => b.id === bookId && b.status !== 'Devolvido')
             )
             .map(loan => {
@@ -213,16 +213,16 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 if (!specificLoanDate && loan.history) {
                     const bookTitle = bookEntry?.title;
                     const bookCode = bookEntry?.code;
-                    
+
                     // Procurar a última ação de empréstimo/adição deste livro específico
-                    const historyEntry = [...loan.history].reverse().find(h => 
+                    const historyEntry = [...loan.history].reverse().find(h =>
                         (h.action.includes('Novo livro adicionado') || h.action.includes('Empréstimo') || h.action.includes('Empréstimo inicial')) &&
                         (
                             (bookTitle && h.action.toLowerCase().includes(bookTitle.toLowerCase())) ||
                             (bookCode && h.action.includes(bookCode))
                         )
                     );
-                    
+
                     if (historyEntry) {
                         specificLoanDate = historyEntry.timestamp;
                     }
@@ -233,7 +233,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     name: loan.personName,
                     matricula: loan.personMatricula,
                     type: loan.personType,
-                    loanDate: specificLoanDate || loan.loanDate
+                    loanDate: specificLoanDate || loan.loanDate,
+                    loanedBy: bookEntry?.loanedBy || loan.loanedBy
                 };
             });
     };
@@ -343,14 +344,14 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             if (searchResultsPeople.length > 0) {
-                setSelectedPersonIndex(prev => 
+                setSelectedPersonIndex(prev =>
                     prev === null || prev === searchResultsPeople.length - 1 ? 0 : prev + 1
                 );
             }
         } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             if (searchResultsPeople.length > 0) {
-                setSelectedPersonIndex(prev => 
+                setSelectedPersonIndex(prev =>
                     prev === null || prev === 0 ? searchResultsPeople.length - 1 : prev - 1
                 );
             }
@@ -464,7 +465,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             }
 
             onUpdate();
-            
+
             if (totalLentCount > 0) {
                 alert(`${totalLentCount} livro(s) emprestado(s) com sucesso para ${affectedPeopleCount} aluno(s)!`);
                 setSelectedLoanBooks([]);
@@ -1014,7 +1015,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         {/* Students Section */}
                         <div>
                             <div className="flex justify-between items-center mb-2">
-                                <label className="block text-xs font-semibold text-gray-500 uppercase">Alunos ({loanPersons.length})</label>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase">Aluno / Servidor ({loanPersons.length})</label>
                                 {(isPeopleLoading || isSearchingPeople) && <Loader2 size={12} className="animate-spin text-ifrn-green" />}
                             </div>
 
@@ -1159,8 +1160,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             const filtered = borrowers.filter(b => {
                                 const st = normalizeText(borrowerSearch);
                                 const matchesSearch = normalizeText(b.name).includes(st) || (b.matricula && normalizeText(b.matricula).includes(st));
-                                const matchesType = borrowerTypeFilter === 'ALL' || 
-                                    (borrowerTypeFilter === 'STUDENT' && b.type === 'Aluno') || 
+                                const matchesType = borrowerTypeFilter === 'ALL' ||
+                                    (borrowerTypeFilter === 'STUDENT' && b.type === 'Aluno') ||
                                     (borrowerTypeFilter === 'SERVER' && b.type === 'Servidor');
                                 return matchesSearch && matchesType;
                             });
@@ -1185,9 +1186,15 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                             <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{borrower.matricula || 'Matrícula não informada'}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Desde</p>
-                                        <p className="text-xs text-ifrn-green font-bold leading-none">{new Date(borrower.loanDate).toLocaleDateString('pt-BR')}</p>
+                                    <div className="text-right flex flex-col items-end gap-1">
+                                        <div>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mb-1">Desde</p>
+                                            <p className="text-xs text-ifrn-green font-bold leading-none">{new Date(borrower.loanDate).toLocaleDateString('pt-BR')}</p>
+                                        </div>
+                                        <div className="mt-1">
+                                            <p className="text-[9px] text-gray-300 font-bold uppercase leading-none mb-0.5">Operador</p>
+                                            <p className="text-[10px] text-gray-500 font-medium leading-none truncate max-w-[80px]" title={borrower.loanedBy}>{borrower.loanedBy}</p>
+                                        </div>
                                     </div>
                                 </div>
                             ));
@@ -1196,9 +1203,9 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     <div className="pt-4 flex justify-end border-t">
                         <button
-                            onClick={() => { 
-                                setShowBorrowersModal(false); 
-                                setSelectedBookForBorrowers(null); 
+                            onClick={() => {
+                                setShowBorrowersModal(false);
+                                setSelectedBookForBorrowers(null);
                                 setBorrowerSearch('');
                                 setBorrowerTypeFilter('ALL');
                             }}

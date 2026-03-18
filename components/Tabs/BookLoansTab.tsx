@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel } from '../../types';
+import { Book, BookLoan, BookLoanStatus, Person, PersonType, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -232,6 +232,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [selectedLoanForReturn, setSelectedLoanForReturn] = useState<BookLoan | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [search, setSearch] = useState('');
+    const [returnSearch, setReturnSearch] = useState('');
     const [personTypeFilter, setPersonTypeFilter] = useState<'ALL' | 'STUDENT' | 'SERVER'>('ALL');
 
     // New Loan Form State
@@ -245,6 +246,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [selectedPersonIndex, setSelectedPersonIndex] = useState<number | null>(null);
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
+    const [expandedBookIdInModal, setExpandedBookIdInModal] = useState<string | null>(null);
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
     );
@@ -318,7 +320,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Atualizar empréstimo existente
                 const updatedLoan: BookLoan = {
                     ...existingActiveLoan,
-                    books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now }))],
+                    books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name }))],
                     history: [
                         ...(existingActiveLoan.history || []),
                         {
@@ -338,7 +340,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                     personId: person.id,
                     personName: person.name,
                     personMatricula: person.matricula, // Garantindo o mapeamento da matrícula
-                    books: selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now })),
+                    books: selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name })),
                     loanedBy: user.name,
                     loanDate: now,
                     status: BookLoanStatus.ACTIVE,
@@ -978,61 +980,112 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             {/* Partial Return Modal */}
             <Modal
                 isOpen={showPartialReturnModal}
-                onClose={() => { setShowPartialReturnModal(false); setSelectedLoanForReturn(null); }}
+                onClose={() => { 
+                    setShowPartialReturnModal(false); 
+                    setSelectedLoanForReturn(null); 
+                    setReturnSearch('');
+                }}
                 title="Confirmar Devolução de Livros"
             >
                 {selectedLoanForReturn && (
                     <div className="space-y-6">
-                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-4">
-                            <p className="text-sm font-bold text-blue-700">{selectedLoanForReturn.personName}</p>
-                            <p className="text-xs text-blue-500 mt-1">Selecione os livros que estão sendo devolvidos agora:</p>
+                        <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100/50">
+                            <div className="flex items-center justify-between mb-1">
+                                <p className="text-sm font-bold text-blue-700">{selectedLoanForReturn.personName}</p>
+                                <span className="text-[10px] font-bold text-blue-400 uppercase bg-white/50 px-2 py-0.5 rounded-full border border-blue-100">
+                                    {selectedLoanForReturn.personType === PersonType.STUDENT ? 'ALUNO' : 'SERVIDOR'}
+                                </span>
+                            </div>
+                            <p className="text-xs text-blue-500">Selecione os livros que estão sendo devolvidos agora:</p>
                         </div>
 
-                        <div className="space-y-2">
-                            {selectedLoanForReturn.books.map(book => {
-                                const isMP = book.code?.endsWith('MP');
-                                return (
-                                    <div
-                                        key={book.id}
-                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${book.status === 'Devolvido' ? 'bg-gray-50 opacity-50 border-gray-200' : isMP ? 'bg-orange-50 border-orange-100 hover:border-orange-300 cursor-pointer' : 'bg-white border-gray-100 hover:border-ifrn-green cursor-pointer'}`}
-                                        onClick={() => {
-                                            if (book.status === 'Devolvido') return;
-                                            const checkbox = document.getElementById(`book-${book.id}`) as HTMLInputElement;
-                                            if (checkbox) checkbox.checked = !checkbox.checked;
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <BookIcon size={18} className={book.status === 'Devolvido' ? 'text-gray-400' : isMP ? 'text-orange-600' : 'text-ifrn-green'} />
-                                            <div>
-                                                <p className={`text-sm font-bold ${book.status === 'Devolvido' ? 'text-gray-400 line-through' : isMP ? 'text-orange-900' : 'text-gray-700'}`}>
-                                                    {book.title}
-                                                    {isMP && (
-                                                        <span className="ml-2 text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter align-middle">MP</span>
+                        {/* Return Search Filter */}
+                        <div className="relative group">
+                            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${returnSearch ? 'text-ifrn-green' : 'text-gray-400'}`} />
+                            <input
+                                type="text"
+                                placeholder="Filtrar livros por título, código ou série..."
+                                value={returnSearch}
+                                onChange={(e) => setReturnSearch(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green transition-all"
+                            />
+                            {returnSearch && (
+                                <button 
+                                    onClick={() => setReturnSearch('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full hover:bg-gray-200 transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                            {selectedLoanForReturn.books
+                                .filter(book => {
+                                    if (!returnSearch) return true;
+                                    const searchLower = returnSearch.toLowerCase();
+                                    return (
+                                        book.title.toLowerCase().includes(searchLower) ||
+                                        (book.code || '').toLowerCase().includes(searchLower) ||
+                                        (book.series || '').toLowerCase().includes(searchLower)
+                                    );
+                                })
+                                .map(book => {
+                                    const isMP = book.code?.endsWith('MP');
+                                    return (
+                                        <div
+                                            key={book.id}
+                                            className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${book.status === 'Devolvido' ? 'bg-gray-50/50 opacity-50 border-gray-100' : isMP ? 'bg-orange-50/30 border-orange-100 hover:border-orange-300' : 'bg-white border-gray-100 hover:border-ifrn-green/50'} ${book.status !== 'Devolvido' ? 'cursor-pointer active:scale-[0.99]' : ''}`}
+                                            onClick={() => {
+                                                if (book.status === 'Devolvido') return;
+                                                const checkbox = document.getElementById(`book-${book.id}`) as HTMLInputElement;
+                                                if (checkbox) checkbox.checked = !checkbox.checked;
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`shrink-0 p-2 rounded-lg ${book.status === 'Devolvido' ? 'bg-gray-100 text-gray-400' : isMP ? 'bg-orange-100 text-orange-600' : 'bg-green-50 text-ifrn-green'}`}>
+                                                    <BookIcon size={16} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className={`text-sm font-bold truncate ${book.status === 'Devolvido' ? 'text-gray-400 line-through' : isMP ? 'text-orange-900' : 'text-gray-700'}`}>
+                                                        {book.title}
+                                                        {isMP && (
+                                                            <span className="ml-2 text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter align-middle font-sans">MP</span>
+                                                        )}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">CÓD: <span className={book.status === 'Devolvido' ? '' : isMP ? 'text-orange-700' : 'text-gray-600'}>{book.code || '---'}</span></span>
+                                                        <span className="text-[10px] text-gray-300">•</span>
+                                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">SÉRIE: <span className={book.status === 'Devolvido' ? '' : isMP ? 'text-orange-700' : 'text-gray-600'}>{book.series || '---'}</span></span>
+                                                    </div>
+                                                    {book.status === 'Devolvido' && (
+                                                        <p className="text-[9px] text-emerald-600 font-bold uppercase mt-1 flex items-center gap-1"><CheckCircle size={10} /> Devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')}</p>
                                                     )}
-                                                    <span className="ml-1 text-[10px] opacity-60 font-semibold uppercase">({book.code || 'S/C'})</span>
-                                                </p>
-                                                {book.status === 'Devolvido' && (
-                                                    <p className="text-[10px] text-green-600 font-bold uppercase">Já devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')}</p>
-                                                )}
+                                                </div>
                                             </div>
+                                            {book.status !== 'Devolvido' && (
+                                                <div className="relative flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`book-${book.id}`}
+                                                        className={`w-5 h-5 rounded border-gray-300 ${isMP ? 'accent-orange-500' : 'accent-ifrn-green'} cursor-pointer group-hover:scale-110 transition-transform`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
-                                        {book.status !== 'Devolvido' && (
-                                            <input
-                                                type="checkbox"
-                                                id={`book-${book.id}`}
-                                                className={`w-5 h-5 rounded border-gray-300 ${isMP ? 'accent-orange-600' : 'accent-ifrn-green'}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                            />
-                                        )}
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
                         </div>
 
-                        <div className="pt-6 flex justify-end gap-3 border-t">
+                        <div className="pt-6 flex justify-end gap-3 border-t bg-white">
                             <button
-                                onClick={() => { setShowPartialReturnModal(false); setSelectedLoanForReturn(null); }}
-                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                                onClick={() => { 
+                                    setShowPartialReturnModal(false); 
+                                    setSelectedLoanForReturn(null); 
+                                    setReturnSearch(''); 
+                                }}
+                                className="px-5 py-2 text-gray-500 font-bold text-[11px] uppercase tracking-wider hover:bg-gray-100 rounded-xl transition-colors"
                             >
                                 Cancelar
                             </button>
@@ -1062,7 +1115,10 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             {/* Loan Detail Modal */}
             <Modal
                 isOpen={!!viewingLoan}
-                onClose={() => setViewingLoan(null)}
+                onClose={() => {
+                    setViewingLoan(null);
+                    setExpandedBookIdInModal(null);
+                }}
                 title="Detalhes do Empréstimo"
             >
                 {viewingLoan && (
@@ -1075,21 +1131,6 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             <div>
                                 <h3 className="font-bold text-gray-800 text-lg">{viewingLoan.personName}</h3>
                                 <p className="text-sm text-gray-500 font-medium">Matrícula: {viewingLoan.personMatricula || 'Não informada'}</p>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100">
-                                <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-1">Data Empréstimo</p>
-                                <p className="text-sm font-bold text-blue-700">
-                                    {new Date(viewingLoan.loanDate).toLocaleDateString('pt-BR')} às {new Date(viewingLoan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                            </div>
-                            <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100">
-                                <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mb-1">Status Geral</p>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${viewingLoan.status === BookLoanStatus.ACTIVE ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                    {viewingLoan.status}
-                                </span>
                             </div>
                         </div>
 
@@ -1113,63 +1154,67 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             <div className="space-y-3">
                                 {viewingLoan.books.map(book => {
                                     const isMP = book.code?.endsWith('MP');
+                                    const isExpanded = expandedBookIdInModal === book.id;
                                     return (
-                                        <div key={book.id} className={`p-4 rounded-2xl border ${book.status === 'Devolvido' ? 'bg-white border-gray-100' : isMP ? 'bg-orange-50/50 border-orange-100' : 'bg-white border-gray-100'} shadow-sm`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h4 className={`font-bold ${isMP && book.status !== 'Devolvido' ? 'text-orange-900' : 'text-gray-800'}`}>
-                                                        {book.title}
-                                                        {isMP && (
-                                                            <span className="ml-2 text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter align-middle">MP</span>
-                                                        )}
-                                                    </h4>
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
-                                                        CÓD: <span className={isMP && book.status !== 'Devolvido' ? 'text-orange-700' : 'text-gray-600'}>{book.code || '---'}</span> • SÉRIE/ÁREA: <span className={isMP && book.status !== 'Devolvido' ? 'text-orange-700' : 'text-gray-600'}>{book.series || '---'}</span>
-                                                    </p>
+                                        <div key={book.id} className={`overflow-hidden rounded-2xl border transition-all ${book.status === 'Devolvido' ? 'bg-white border-gray-100' : isMP ? 'bg-orange-50/50 border-orange-100' : 'bg-white border-gray-100'} shadow-sm`}>
+                                            <div 
+                                                className={`p-4 cursor-pointer hover:bg-gray-50/50 transition-colors ${isExpanded ? 'bg-gray-50/30' : ''}`}
+                                                onClick={() => setExpandedBookIdInModal(isExpanded ? null : book.id)}
+                                            >
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex-1 min-w-0">
+                                                        <h4 className={`font-bold truncate ${isMP && book.status !== 'Devolvido' ? 'text-orange-900' : 'text-gray-800'}`}>
+                                                            {book.title}
+                                                            {isMP && (
+                                                                <span className="ml-2 text-[8px] bg-orange-200 text-orange-900 px-1.5 py-0.5 rounded font-black uppercase tracking-tighter align-middle">MP</span>
+                                                            )}
+                                                        </h4>
+                                                        <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
+                                                            CÓD: <span className={isMP && book.status !== 'Devolvido' ? 'text-orange-700' : 'text-gray-600'}>{book.code || '---'}</span> • SÉRIE: <span className={isMP && book.status !== 'Devolvido' ? 'text-orange-700' : 'text-gray-600'}>{book.series || '---'}</span>
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 ml-4">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${book.status === 'Devolvido' ? 'bg-emerald-100 text-emerald-700' : isMP ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                            {book.status}
+                                                        </span>
+                                                        <span className="text-gray-400">
+                                                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${book.status === 'Devolvido' ? 'bg-emerald-100 text-emerald-700' : isMP ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                    {book.status}
-                                                </span>
-                                            </div>
 
-                                            {book.status === 'Devolvido' && (
-                                                <div className="mt-3 pt-3 border-t border-dashed border-gray-100 flex items-center gap-3">
-                                                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-                                                        <CheckCircle size={14} />
+                                                {/* Book Specific Loan Details (Expandable) */}
+                                                {isExpanded && (
+                                                    <div className="mt-4 pt-4 border-t border-gray-100/50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100">
+                                                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Empréstimo</p>
+                                                                <p className="text-[11px] font-bold text-gray-700">
+                                                                    {book.loanDate ? new Date(book.loanDate).toLocaleDateString('pt-BR') : '---'} às {book.loanDate ? new Date(book.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '---'}
+                                                                </p>
+                                                                <p className="text-[9px] text-gray-400 mt-1 uppercase">Por: <span className="font-bold text-gray-600">{book.loanedBy || viewingLoan.loanedBy}</span></p>
+                                                            </div>
+
+                                                            {book.status === 'Devolvido' && book.returnDate ? (
+                                                                <div className="p-2.5 bg-emerald-50/30 rounded-xl border border-emerald-100">
+                                                                    <p className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider mb-1">Devolução</p>
+                                                                    <p className="text-[11px] font-bold text-emerald-700">
+                                                                        {new Date(book.returnDate).toLocaleDateString('pt-BR')} às {new Date(book.returnDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                    </p>
+                                                                    <p className="text-[9px] text-emerald-500 mt-1 uppercase">Para: <span className="font-bold text-emerald-600">{book.returnedBy || '---'}</span></p>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100 flex items-center justify-center border-dashed">
+                                                                    <p className="text-[9px] text-gray-300 font-black uppercase italic tracking-widest">Em aberto</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="text-[11px]">
-                                                        <p className="font-bold text-emerald-700 uppercase tracking-tighter">Devolvido em {new Date(book.returnDate!).toLocaleDateString('pt-BR')} às {new Date(book.returnDate!).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                                                        <p className="text-gray-500">Recebido por: <span className="font-medium">{book.returnedBy}</span></p>
-                                                    </div>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}
-                            </div>
-                        </div>
-
-                        {/* Movement History */}
-                        <div className="space-y-3">
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                                <History size={14} /> Histórico de Ações
-                            </p>
-                            <div className="space-y-2">
-                                {viewingLoan.history?.map((entry, idx) => (
-                                    <div key={idx} className="flex gap-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
-                                        <div className="mt-1">
-                                            <div className="w-2 h-2 rounded-full bg-ifrn-green shadow-sm shadow-ifrn-green/50"></div>
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm text-gray-700 font-medium">{entry.action}</p>
-                                            <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400 font-bold uppercase">
-                                                <span className="flex items-center gap-1"><Calendar size={10} /> {new Date(entry.timestamp).toLocaleDateString('pt-BR')}</span>
-                                                <span className="flex items-center gap-1"><Clock size={10} /> {new Date(entry.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                                <span className="flex items-center gap-1"><UserIcon size={10} /> {entry.user}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
                         </div>
 

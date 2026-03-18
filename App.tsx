@@ -12,11 +12,12 @@ const UsersTab = React.lazy(() => import('./components/Tabs/UsersTab').then(modu
 const ArmariosTab = React.lazy(() => import('./components/Tabs/ArmariosTab').then(module => ({ default: module.ArmariosTab })));
 const BooksTab = React.lazy(() => import('./components/Tabs/BooksTab').then(module => ({ default: module.BooksTab })));
 const BookLoansTab = React.lazy(() => import('./components/Tabs/BookLoansTab').then(module => ({ default: module.BookLoansTab })));
+const BookReportsTab = React.lazy(() => import('./components/Tabs/BookReportsTab').then(module => ({ default: module.BookReportsTab })));
 const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
 const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
 const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
 
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3 } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
@@ -1497,6 +1498,7 @@ const App: React.FC = () => {
             <>
               <button onClick={() => setActiveTab('livros-catalogo')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'livros-catalogo' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><BookOpen size={18} /> Livro do Estudante</button>
               <button onClick={() => setActiveTab('livros-emprestimos')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'livros-emprestimos' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ArrowRight size={18} /> Empréstimos</button>
+              <button onClick={() => setActiveTab('livros-relatorios')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'livros-relatorios' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><BarChart3 size={18} /> Relatórios</button>
             </>
           )}
           {currentSystem === 'nadaconsta' && (
@@ -1549,6 +1551,15 @@ const App: React.FC = () => {
                     loans={bookLoans}
                     books={books}
                     onUpdate={refreshBookLoans}
+                    user={user}
+                    campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
+                  />
+                )}
+                {activeTab === 'livros-relatorios' && (
+                  <BookReportsTab
+                    books={books}
+                    loans={bookLoans}
                     user={user}
                     campuses={campuses}
                     adminGlobalCampusId={adminGlobalCampusId}

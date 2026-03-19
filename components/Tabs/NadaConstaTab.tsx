@@ -160,7 +160,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     <textarea
                         ref={textareaRef}
                         placeholder="Ex: 202312345, 202398765 ou nomes..."
-                        className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 pr-40 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300 min-h-[120px] overflow-hidden"
+                        className="w-full bg-slate-50 border-4 border-slate-100 rounded-3xl p-6 pr-20 md:pr-40 text-xl font-black text-slate-800 outline-none focus:border-blue-500 transition-all shadow-inner placeholder:text-slate-300 min-h-[120px] md:min-h-[150px] overflow-hidden"
                         rows={1}
                         value={searchTerm}
                         onChange={(e) => {
@@ -177,10 +177,11 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                     <button
                         onClick={() => handleSearch()}
                         disabled={isSearching || searchTerm.trim().length < 2}
-                        className="absolute right-4 bottom-4 top-4 px-8 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200 flex items-center gap-3 active:scale-95"
+                        className="absolute right-4 bottom-4 top-4 w-12 md:w-32 bg-blue-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-3 active:scale-95"
+                        title="Consultar"
                     >
-                        {isSearching ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
-                        Consultar
+                        {isSearching ? <Loader2 size={24} className="animate-spin" /> : <Search size={24} />}
+                        <span className="hidden md:inline">Consultar</span>
                     </button>
                 </div>
                 <div className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2 ml-4">

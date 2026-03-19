@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -41,6 +41,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [personSearch, setPersonSearch] = useState('');
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+    const [personTypeFilter, setPersonTypeFilter] = useState<'ALL' | 'Aluno' | 'Servidor'>('ALL');
     const [selectedMaterials, setSelectedMaterials] = useState<Material[]>([]);
     const [materialSearch, setMaterialSearch] = useState('');
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
@@ -142,7 +143,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         if (query.trim().length >= 2) {
             setIsSearchingPeople(true);
             try {
-                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined);
+                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined, personTypeFilter);
                 setSearchResultsPeople(results.slice(0, 10));
             } catch (error) {
                 console.error("Erro na busca:", error);
@@ -519,6 +520,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     setFormMaterialName('');
                                     setBatchMaterialText('');
                                     setMaterialFormMode('single');
+                                    setPersonTypeFilter('ALL');
                                     setShowMaterialForm(true);
                                 }}
                                 className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 text-sm"
@@ -526,7 +528,10 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <Plus size={18} /> Cadastrar Material
                             </button>
                             <button
-                                onClick={() => setShowLoanForm(true)}
+                                onClick={() => {
+                                    setPersonTypeFilter('ALL');
+                                    setShowLoanForm(true);
+                                }}
                                 className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg shadow-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 text-sm"
                             >
                                 <Plus size={18} /> Novo Empréstimo
@@ -957,10 +962,51 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     <p className="font-bold text-indigo-900">{selectedPerson.name}</p>
                                     <p className="text-xs text-indigo-700">{selectedPerson.matricula}</p>
                                 </div>
-                                <button type="button" onClick={() => setSelectedPerson(null)} className="text-xs text-red-500 font-bold underline">Alterar</button>
+                                <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="text-xs text-red-500 font-bold underline">Alterar</button>
                             </div>
                         ) : (
-                            <div className="relative flex gap-2">
+                            <div className="space-y-3">
+                                {/* Filtro de Tipo de Pessoa */}
+                                <div className="flex bg-gray-100 p-1 rounded-xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('ALL');
+                                            if (personSearch.trim().length >= 2) {
+                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'ALL').then(res => setSearchResultsPeople(res));
+                                            }
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <Users size={14} /> Todos
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('Aluno');
+                                            if (personSearch.trim().length >= 2) {
+                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Aluno').then(res => setSearchResultsPeople(res));
+                                            }
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <GraduationCap size={14} /> Alunos
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('Servidor');
+                                            if (personSearch.trim().length >= 2) {
+                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Servidor').then(res => setSearchResultsPeople(res));
+                                            }
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                    >
+                                        <UserCog size={14} /> Servidores
+                                    </button>
+                                </div>
+
+                                <div className="relative flex gap-2">
                                 <div className="relative flex-1">
                                     <input
                                         type="text"
@@ -1013,6 +1059,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         Nenhuma pessoa encontrada
                                     </div>
                                 )}
+                                </div>
                             </div>
                         )}
                     </div>

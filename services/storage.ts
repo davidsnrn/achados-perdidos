@@ -396,10 +396,40 @@ export const StorageService = {
   },
 
   deletePerson: async (id: string) => {
-    await supabase.from('people').delete().eq('id', id);
+    // Limpar referências em outras tabelas para evitar erro de Foreign Key
+    await Promise.all([
+      supabase.from('book_loans').update({ person_id: null }).eq('person_id', id),
+      supabase.from('copy_records').update({ person_id: null }).eq('person_id', id),
+      supabase.from('material_loans').update({ personId: null }).eq('personId', id),
+      supabase.from('reports').update({ person_id: null }).eq('person_id', id)
+    ]);
+
+    const { error } = await supabase.from('people').delete().eq('id', id);
+    if (error) throw error;
   },
 
   deleteAllPeople: async (campusIds?: string[] | string) => {
+    // 1. Limpar referências em tabelas dependentes
+    const tables = ['book_loans', 'copy_records', 'material_loans', 'reports'];
+    
+    for (const table of tables) {
+      let updateQuery = supabase.from(table).update({ 
+        [table === 'material_loans' ? 'personId' : 'person_id']: null 
+      });
+
+      if (Array.isArray(campusIds) && campusIds.length > 0) {
+        updateQuery = updateQuery.in('campus_id', campusIds);
+      } else if (typeof campusIds === 'string' && campusIds.length > 0) {
+        updateQuery = updateQuery.eq('campus_id', campusIds);
+      } else {
+        // Se campusIds for undefined, limpa de todos (neq '0' é apenas um truque para pegar todos)
+        updateQuery = updateQuery.neq('id', 'truquetodos'); 
+      }
+      
+      await updateQuery;
+    }
+
+    // 2. Deletar as pessoas
     let query = supabase.from('people').delete().neq('id', '0');
 
     if (Array.isArray(campusIds)) {
@@ -1351,5 +1381,54 @@ export const StorageService = {
   deleteCopyRecord: async (id: string) => {
     const { error } = await supabase.from('copy_records').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  checkPersonAndPendencies: async (matricula: string, campusId?: string) => {
+    // 1. Check if person exists in the 'people' table
+    const { data: person } = await supabase
+      .from('people')
+      .select('*, campuses(name)')
+      .eq('matricula', matricula)
+      .maybeSingle();
+
+    // 2. Check for active book loans
+    let bookLoansQuery = supabase
+      .from('book_loans')
+      .select('*')
+      .eq('status', 'ACTIVE');
+    
+    if (person) {
+      bookLoansQuery = bookLoansQuery.or(`person_id.eq.${person.id},person_matricula.eq.${matricula}`);
+    } else {
+      bookLoansQuery = bookLoansQuery.eq('person_matricula', matricula);
+    }
+    const { data: bookLoans } = await bookLoansQuery;
+
+    // 3. Check for active material loans
+    let materialLoansQuery = supabase
+      .from('material_loans')
+      .select('*')
+      .eq('status', 'ACTIVE');
+    
+    if (person) {
+      materialLoansQuery = materialLoansQuery.or(`personId.eq.${person.id},personMatricula.eq.${matricula}`);
+    } else {
+      materialLoansQuery = materialLoansQuery.eq('personMatricula', matricula);
+    }
+    const { data: materialLoans } = await materialLoansQuery;
+
+    // 4. Check for active locker loans (JSON field)
+    let lockersQuery = supabase.from('lockers').select('*').not('current_loan', 'is', null);
+    if (campusId) lockersQuery = lockersQuery.eq('campus_id', campusId);
+    const { data: lockerData } = await lockersQuery;
+    const activeLockerLoans = (lockerData || []).filter(l => l.current_loan?.registrationNumber === matricula);
+
+    return {
+      person,
+      bookLoans: bookLoans || [],
+      materialLoans: materialLoans || [],
+      lockerLoans: activeLockerLoans.map(l => ({ ...l.current_loan, lockerNumber: l.number })),
+      hasPendencies: (bookLoans?.length || 0) > 0 || (materialLoans?.length || 0) > 0 || activeLockerLoans.length > 0
+    };
   }
 };

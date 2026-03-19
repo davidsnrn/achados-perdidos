@@ -122,10 +122,13 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         // Por isso o searchResults agora inclui o id.
         const personId = studentId;
 
-        if (personId) {
+        if (personId || registration) {
             bookLoans.forEach(loan => {
                 const hasActiveBooks = loan.books.some(b => b.status === 'Ativo' || !b.status);
-                if (loan.personId === personId && (loan.status === BookLoanStatus.ACTIVE || hasActiveBooks)) {
+                // Busca por ID ou Matrícula (caso o ID tenha sido removido na exclusão em massa)
+                const isOwner = (personId && loan.personId === personId) || (registration && loan.personMatricula === registration);
+                
+                if (isOwner && (loan.status === BookLoanStatus.ACTIVE || hasActiveBooks)) {
                     activeBookLoans.push(loan);
                 }
             });

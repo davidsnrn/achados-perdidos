@@ -10,19 +10,18 @@ interface Props {
     adminGlobalCampusId?: string | null;
 }
 
-type ReportView = 'general' | 'period' | 'person';
+type ReportView = 'general' | 'detailed';
 type BookDisplayStyle = 'table' | 'cards';
 
 export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, adminGlobalCampusId }) => {
     const [activeView, setActiveView] = useState<ReportView>('general');
     const [bookStyle, setBookStyle] = useState<BookDisplayStyle>('table');
     
-    // Period Filter State
+    // Filters State
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
-    
-    // Person Filter State
     const [personSearch, setPersonSearch] = useState<string>('');
+    const [bookSearch, setBookSearch] = useState<string>('');
     
     // Base stats
     const stats = useMemo(() => {
@@ -46,36 +45,44 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         };
     }, [books, loans]);
 
-    // Period Filtered Loans
-    const periodLoans = useMemo(() => {
-        if (!startDate && !endDate) return [];
-        
+    // Unified Filtered Loans
+    const filteredLoans = useMemo(() => {
         return loans.filter(l => {
-            const loanDate = new Date(l.loanDate);
-            const start = startDate ? new Date(startDate) : new Date(0);
-            const end = endDate ? new Date(endDate) : new Date();
-            // Ajustar o fim do dia para a data final
-            if (endDate) end.setHours(23, 59, 59, 999);
-            
-            return loanDate >= start && loanDate <= end;
-        });
-    }, [loans, startDate, endDate]);
+            // Filter by Period
+            if (startDate || endDate) {
+                const loanDate = new Date(l.loanDate);
+                const start = startDate ? new Date(startDate) : new Date(0);
+                const end = endDate ? new Date(endDate) : new Date();
+                if (endDate) end.setHours(23, 59, 59, 999);
+                if (loanDate < start || loanDate > end) return false;
+            }
 
-    // Person Filtered Loans
-    const personLoans = useMemo(() => {
-        if (!personSearch.trim()) return [];
-        const terms = personSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-        
-        return loans.filter(l => {
-            const name = l.personName.toLowerCase();
-            const matricula = l.personMatricula?.toLowerCase() || '';
-            
-            // All terms must be found in either name or matricula
-            return terms.every(term => 
-                name.includes(term) || matricula.includes(term)
-            );
+            // Filter by Person
+            if (personSearch.trim()) {
+                const terms = personSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+                const name = l.personName.toLowerCase();
+                const matricula = l.personMatricula?.toLowerCase() || '';
+                const matchesPerson = terms.every(term => 
+                    name.includes(term) || matricula.includes(term)
+                );
+                if (!matchesPerson) return false;
+            }
+
+            // Filter by Book
+            if (bookSearch.trim()) {
+                const terms = bookSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+                const matchesBook = terms.every(term => 
+                    l.books.some(b => 
+                        b.title.toLowerCase().includes(term) || 
+                        b.code?.toLowerCase().includes(term)
+                    )
+                );
+                if (!matchesBook) return false;
+            }
+
+            return true;
         });
-    }, [loans, personSearch]);
+    }, [loans, startDate, endDate, personSearch, bookSearch]);
 
     // Most Borrowed Books
     const mostBorrowed = useMemo(() => {
@@ -239,11 +246,62 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         </div>
     );
 
-    const renderPeriodView = () => (
+    const handleExportPDF = async () => {
+        if (filteredLoans.length === 0) {
+            alert("Nenhum dado para exportar.");
+            return;
+        }
+
+        try {
+            const { jsPDF } = await import('jspdf');
+            const autoTable = (await import('jspdf-autotable')).default;
+            
+            const doc = new jsPDF();
+            
+            // Header Content
+            doc.setFontSize(20);
+            doc.setTextColor(40, 40, 40);
+            doc.text("Relatório de Empréstimos - IFRN", 14, 22);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            const periodText = startDate || endDate ? `Período: ${startDate || 'Início'} até ${endDate || 'Fim'}` : "Histórico Geral";
+            doc.text(`${periodText} | Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
+            
+            const tableData = filteredLoans.map(loan => [
+                new Date(loan.loanDate).toLocaleDateString('pt-BR'),
+                loan.personName,
+                loan.personMatricula || 'N/A',
+                loan.books.map(b => `${b.title} (${b.code || 'S/C'})`).join(', '),
+                loan.status,
+                loan.loanedBy
+            ]);
+
+            autoTable(doc, {
+                startY: 35,
+                head: [['Data', 'Pessoa', 'Matrícula', 'Livros', 'Status', 'Operador']],
+                body: tableData,
+                theme: 'striped',
+                headStyles: { fillColor: [4, 120, 87] }, // IFRN Green
+                styles: { fontSize: 8, cellPadding: 2 },
+                columnStyles: {
+                    0: { cellWidth: 20 },
+                    3: { cellWidth: 60 }
+                }
+            });
+
+            doc.save(`relatorio_livros_${new Date().getTime()}.pdf`);
+        } catch (error) {
+            console.error("Erro ao gerar PDF:", error);
+            alert("Erro ao gerar o PDF. Verifique se as dependências estão instaladas.");
+        }
+    };
+
+    const renderDetailedView = () => (
         <div className="space-y-6 animate-fade-in-up">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex flex-col md:flex-row items-end gap-4">
-                    <div className="flex-1 w-full">
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                    <div className="w-full">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Inicial</label>
                         <div className="relative">
                             <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -255,7 +313,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                             />
                         </div>
                     </div>
-                    <div className="flex-1 w-full">
+                    <div className="w-full">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Final</label>
                         <div className="relative">
                             <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -267,17 +325,47 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                             />
                         </div>
                     </div>
+                    <div className="w-full">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pessoa (Nome/Matrícula)</label>
+                        <div className="relative">
+                            <UserIcon className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                            <input 
+                                type="text" 
+                                placeholder="Filtrar por pessoa..."
+                                value={personSearch}
+                                onChange={e => setPersonSearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                            />
+                        </div>
+                    </div>
+                    <div className="w-full">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Livro (Título/Código)</label>
+                        <div className="relative">
+                            <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                            <input 
+                                type="text" 
+                                placeholder="Filtrar por livro..."
+                                value={bookSearch}
+                                onChange={e => setBookSearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="flex justify-end gap-3 pt-2">
                     <button 
-                        onClick={() => { setStartDate(''); setEndDate(''); }}
-                        className="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors font-bold text-sm h-[40px]"
+                        onClick={() => { setStartDate(''); setEndDate(''); setPersonSearch(''); setBookSearch(''); }}
+                        className="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors font-bold text-sm h-[42px]"
                     >
-                        Limpar
+                        Limpar Filtros
                     </button>
                     <button 
-                        className="px-6 py-2 bg-ifrn-green text-white rounded-xl hover:bg-ifrn-darkGreen transition-colors font-bold text-sm h-[40px] flex items-center gap-2"
-                        disabled={periodLoans.length === 0}
+                        onClick={handleExportPDF}
+                        disabled={filteredLoans.length === 0}
+                        className="px-6 py-2 bg-ifrn-green text-white rounded-xl hover:bg-ifrn-darkGreen transition-colors font-bold text-sm h-[42px] flex items-center gap-2 shadow-md shadow-green-100 disabled:opacity-50 disabled:shadow-none"
                     >
-                        <Download size={18} /> Exportar
+                        <Download size={18} /> Exportar PDF
                     </button>
                 </div>
             </div>
@@ -286,168 +374,81 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         <Filter size={18} className="text-ifrn-green" />
-                        Resultados do Período
-                        {periodLoans.length > 0 && <span className="ml-2 px-2 py-0.5 bg-ifrn-green/10 text-ifrn-green text-[10px] rounded-full uppercase font-black">{periodLoans.length} registros</span>}
+                        Resultados do Relatório
+                        {filteredLoans.length > 0 ? (
+                            <span className="ml-2 px-2 py-0.5 bg-ifrn-green/10 text-ifrn-green text-[10px] rounded-full uppercase font-black">{filteredLoans.length} registros</span>
+                        ) : (
+                            <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] rounded-full uppercase font-black">Nenhum registro</span>
+                        )}
                     </h3>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-                            <tr>
-                                <th className="px-6 py-3 text-left">Data</th>
-                                <th className="px-6 py-3 text-left">Aluno/Pessoa</th>
-                                <th className="px-6 py-3 text-left">Livros</th>
-                                <th className="px-6 py-3 text-left">Status</th>
-                                <th className="px-6 py-3 text-left">Operador</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {periodLoans.map(loan => (
-                                <tr key={loan.id} className="hover:bg-gray-50/80 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-gray-800">{new Date(loan.loanDate).toLocaleDateString('pt-BR')}</span>
-                                            <span className="text-[10px] text-gray-400">{new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <p className="font-bold text-gray-800">{loan.personName}</p>
-                                        <p className="text-[10px] text-gray-400 uppercase font-bold">{loan.personMatricula}</p>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex flex-wrap gap-1">
-                                            {loan.books.map(b => (
-                                                <div key={b.id} className={`flex flex-col text-[9px] px-2 py-1 rounded-lg border ${b.status === 'Devolvido' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
-                                                    <span className="font-black uppercase">{b.title}</span>
-                                                    {b.series && <span className="text-[8px] opacity-70 font-bold italic">{b.series}</span>}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${loan.status === BookLoanStatus.RETURNED ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                            {loan.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                                        {loan.loanedBy}
-                                    </td>
-                                </tr>
-                            ))}
-                            {!startDate && !endDate && (
+                
+                {filteredLoans.length > 0 ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center">
-                                        <div className="flex flex-col items-center gap-3 text-gray-400 italic">
-                                            <Calendar size={32} strokeWidth={1} />
-                                            <p>Selecione um intervalo de datas para gerar o relatório.</p>
-                                        </div>
-                                    </td>
+                                    <th className="px-6 py-3 text-left">Data</th>
+                                    <th className="px-6 py-3 text-left">Aluno/Pessoa</th>
+                                    <th className="px-6 py-3 text-left">Livros</th>
+                                    <th className="px-6 py-3 text-left">Status</th>
+                                    <th className="px-6 py-3 text-left">Operador</th>
                                 </tr>
-                            )}
-                            {(startDate || endDate) && periodLoans.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-400 italic">
-                                        Nenhum empréstimo encontrado para este período.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderPersonView = () => (
-        <div className="space-y-6 animate-fade-in-up">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-                    <input 
-                        type="text" 
-                        placeholder="Pesquisar por Nome ou Matrícula..."
-                        value={personSearch}
-                        onChange={e => setPersonSearch(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none shadow-inner"
-                    />
-                </div>
-                {personLoans.length > 0 && (
-                    <button className="px-6 py-3 bg-ifrn-green text-white rounded-2xl hover:bg-ifrn-darkGreen transition-colors font-bold text-sm shadow-md flex items-center gap-2">
-                        <Download size={18} /> Histórico PDF
-                    </button>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredLoans.map(loan => (
+                                    <tr key={loan.id} className="hover:bg-gray-50/80 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-gray-800">{new Date(loan.loanDate).toLocaleDateString('pt-BR')}</span>
+                                                <span className="text-[10px] text-gray-400">{new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="font-bold text-gray-900">{loan.personName}</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{loan.personMatricula}</p>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex flex-wrap gap-1">
+                                                {loan.books.map(b => (
+                                                    <div key={b.id} className={`flex flex-col text-[9px] px-2 py-1 rounded-lg border ${b.status === 'Devolvido' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 opacity-80' : 'bg-blue-50 text-blue-600 border-blue-100 font-black'}`}>
+                                                        <span className="uppercase">{b.title}</span>
+                                                        <div className="flex items-center gap-1 opacity-70">
+                                                            <span className="text-[8px] font-bold tracking-tighter">{b.code || 'S/C'}</span>
+                                                            {b.series && <span className="text-[7px]">|</span>}
+                                                            <span className="text-[8px] font-medium italic">{b.series}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${loan.status === BookLoanStatus.RETURNED ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                {loan.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium italic">
+                                            {loan.loanedBy}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="px-6 py-16 text-center">
+                        <div className="flex flex-col items-center gap-4 text-gray-400 italic">
+                            <div className="p-4 bg-gray-50 rounded-full">
+                                <FileText size={40} strokeWidth={1} />
+                            </div>
+                            <div className="space-y-1">
+                                <p className="font-bold text-gray-500 not-italic">Nenhum registro encontrado</p>
+                                <p className="text-sm">Ajuste os filtros acima para visualizar os dados.</p>
+                            </div>
+                        </div>
+                    </div>
                 )}
             </div>
-
-            {personLoans.length > 0 ? (
-                <div className="grid grid-cols-1 gap-6">
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                            <h3 className="font-bold text-gray-800 flex items-center gap-2 uppercase tracking-wide text-xs">
-                                <TrendingUp size={16} className="text-ifrn-green" />
-                                Histórico de Empréstimos
-                            </h3>
-                        </div>
-                        <div className="divide-y divide-gray-100">
-                            {personLoans.map(loan => (
-                                <div key={loan.id} className="p-6 hover:bg-gray-50/50 transition-colors">
-                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
-                                        <div className="flex items-center gap-4 text-sm">
-                                            <div className={`p-2 rounded-xl border ${loan.status === BookLoanStatus.ACTIVE ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                                                <Calendar size={20} />
-                                            </div>
-                                            <div>
-                                                <p className="font-black text-gray-900">{new Date(loan.loanDate).toLocaleDateString('pt-BR')}</p>
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase leading-none mt-0.5">{loan.personName}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="text-right">
-                                                <p className="text-[10px] text-gray-400 font-bold uppercase mb-0.5">Operador</p>
-                                                <p className="text-xs font-bold text-gray-700">{loan.loanedBy}</p>
-                                            </div>
-                                            <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${loan.status === BookLoanStatus.ACTIVE ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                                                {loan.status}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                        {loan.books.map(book => (
-                                            <div key={book.id} className={`flex items-center gap-3 p-3 rounded-xl border ${book.status === 'Devolvido' ? 'bg-emerald-50/30 border-emerald-100 opacity-60' : 'bg-white border-gray-100 shadow-sm'}`}>
-                                                <BookIcon size={16} className={book.status === 'Devolvido' ? 'text-emerald-500' : 'text-ifrn-green'} />
-                                                <div className="min-w-0 flex-1">
-                                                    <p className={`font-bold text-xs truncate ${book.status === 'Devolvido' ? 'text-emerald-700' : 'text-gray-900'}`}>{book.title}</p>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-tighter">{book.code || 'S/C'}</span>
-                                                        {book.series && <span className="text-[9px] text-gray-300">•</span>}
-                                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{book.series}</span>
-                                                    </div>
-                                                </div>
-                                                {book.status === 'Devolvido' && <CheckCircle size={14} className="text-emerald-500 shrink-0" />}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {loan.observation && (
-                                        <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100 flex gap-3 italic text-gray-500 text-xs">
-                                            <AlertCircle size={14} className="text-gray-400 flex-shrink-0 mt-0.5" />
-                                            <p><span className="font-bold not-italic text-gray-400 mr-1">Observação:</span> “{loan.observation}”</p>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            ) : (
-                <div className="bg-white p-20 rounded-2xl border border-dashed border-gray-200 text-center space-y-4">
-                    <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <UserIcon size={40} className="text-gray-300" />
-                    </div>
-                    <div className="space-y-1">
-                        <h4 className="font-bold text-gray-800">Selecione uma Pessoa</h4>
-                        <p className="text-sm text-gray-400 max-w-sm mx-auto">Pesquise por nome ou matrícula para visualizar todo o histórico de empréstimos individuais.</p>
-                    </div>
-                </div>
-            )}
         </div>
     );
 
@@ -463,16 +464,10 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                         <TrendingUp size={18} /> Visão Geral
                     </button>
                     <button 
-                        onClick={() => setActiveView('period')}
-                        className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeView === 'period' ? 'bg-ifrn-green text-white shadow-lg shadow-green-200' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+                        onClick={() => setActiveView('detailed')}
+                        className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeView === 'detailed' ? 'bg-ifrn-green text-white shadow-lg shadow-green-200' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
                     >
-                        <Calendar size={18} /> Por Período
-                    </button>
-                    <button 
-                        onClick={() => setActiveView('person')}
-                        className={`flex items-center gap-2.5 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${activeView === 'person' ? 'bg-ifrn-green text-white shadow-lg shadow-green-200' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
-                    >
-                        <UserIcon size={18} /> Por Pessoa
+                        <FileText size={18} /> Relatórios Detalhados
                     </button>
                 </div>
                 
@@ -491,8 +486,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
             {/* Dynamic Content Rendering */}
             <main className="min-h-[600px]">
                 {activeView === 'general' && renderGeneralView()}
-                {activeView === 'period' && renderPeriodView()}
-                {activeView === 'person' && renderPersonView()}
+                {activeView === 'detailed' && renderDetailedView()}
             </main>
 
             {/* Print/Export Floating Badge */}

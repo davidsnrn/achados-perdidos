@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Person, PersonType, User, UserLevel, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2, ShieldAlert, BookOpen, Package, Lock as LockIcon, CheckCircle2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -40,6 +40,16 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
   );
+
+  // Matricula Check State
+  const [matriculaCheck, setMatriculaCheck] = useState<{
+    person?: any;
+    bookLoans: any[];
+    materialLoans: any[];
+    lockerLoans: any[];
+    hasPendencies: boolean;
+  } | null>(null);
+  const [isCheckingMatricula, setIsCheckingMatricula] = useState(false);
 
   // Sync with global admin campus selector
   React.useEffect(() => {
@@ -109,6 +119,34 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     return rows;
   };
 
+  const performMatriculaCheck = async (mat: string) => {
+    if (mat.length < 3) {
+      setMatriculaCheck(null);
+      return;
+    }
+    setIsCheckingMatricula(true);
+    try {
+      const result = await StorageService.checkPersonAndPendencies(mat, user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id);
+      setMatriculaCheck(result);
+    } catch (err) {
+      console.error("Erro ao verificar matrícula:", err);
+    } finally {
+      setIsCheckingMatricula(false);
+    }
+  };
+
+  // Debounce matricula check
+  React.useEffect(() => {
+    if (activeTab === 'manual' && matricula.length >= 3) {
+      const timer = setTimeout(() => {
+        performMatriculaCheck(matricula);
+      }, 600);
+      return () => clearTimeout(timer);
+    } else {
+      setMatriculaCheck(null);
+    }
+  }, [matricula, activeTab, selectedCampusId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -125,6 +163,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       onUpdate();
       fetchData(); // Recarregar dados após cadastro
       alert('Pessoa cadastrada!');
+      setMatriculaCheck(null); // Limpar check
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -394,9 +433,12 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
         {activeTab === 'manual' ? (
           <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="w-full md:w-48">
+            <div className="w-full md:w-48 relative">
               <label className="block text-xs font-semibold text-gray-500 mb-1">Matrícula</label>
-              <input required value={matricula} onChange={e => setMatricula(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm" placeholder="202..." />
+              <div className="relative">
+                <input required value={matricula} onChange={e => setMatricula(e.target.value)} className={`w-full border rounded-lg p-2.5 text-sm ${matriculaCheck?.person ? 'border-amber-400 bg-amber-50' : matriculaCheck?.hasPendencies ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} placeholder="202..." />
+                {isCheckingMatricula && <Loader2 size={14} className="animate-spin absolute right-3 top-3 text-ifrn-green" />}
+              </div>
             </div>
             <div className="flex-1 w-full">
               <label className="block text-xs font-semibold text-gray-500 mb-1">Nome Completo</label>
@@ -410,7 +452,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 <option value={PersonType.EXTERNAL}>Externo</option>
               </select>
             </div>
-            <button type="submit" disabled={isLoading} className="w-full md:w-auto px-6 py-2.5 bg-ifrn-darkGreen text-white rounded-lg hover:bg-emerald-900 flex items-center justify-center gap-2">
+            <button type="submit" disabled={isLoading || isCheckingMatricula} className="w-full md:w-auto px-6 py-2.5 bg-ifrn-darkGreen text-white rounded-lg hover:bg-emerald-900 flex items-center justify-center gap-2">
               {isLoading ? <Loader2 className="animate-spin" size={18} /> : <><UserPlus size={18} /> Salvar</>}
             </button>
           </form>
@@ -473,6 +515,73 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                     {isProcessing ? 'Processando...' : <><CheckCircle size={18} /> Importar</>}
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Feedback de Verificação de Matrícula */}
+        {activeTab === 'manual' && matriculaCheck && (
+          <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+            {matriculaCheck.person ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="text-amber-600" size={20} />
+                  <div>
+                    <p className="text-xs font-bold text-amber-900">Esta matrícula já está cadastrada!</p>
+                    <p className="text-[10px] text-amber-700 font-medium">
+                      Pertence a <strong>{matriculaCheck.person.name}</strong> ({matriculaCheck.person.campuses?.name || 'Câmpus desconhecido'}).
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => { setEditingPerson(matriculaCheck.person); setShowEditModal(true); }}
+                  className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold rounded hover:bg-amber-700 transition-colors"
+                >
+                  EDITAR EXISTENTE
+                </button>
+              </div>
+            ) : matriculaCheck.hasPendencies ? (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-lg space-y-3">
+                <div className="flex items-center gap-3">
+                  <ShieldAlert className="text-red-600" size={20} />
+                  <div>
+                    <p className="text-xs font-black text-red-900 uppercase tracking-tight">Pendências Encontradas!</p>
+                    <p className="text-[10px] text-red-700 font-medium italic">
+                      Esta matrícula possui registros pendentes no sistema, embora não esteja na lista de pessoas.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {matriculaCheck.bookLoans.length > 0 && (
+                    <div className="bg-white/60 p-2 rounded border border-red-100 flex items-center gap-2">
+                      <BookOpen size={14} className="text-red-500" />
+                      <span className="text-[10px] font-bold text-red-800">{matriculaCheck.bookLoans.length} empréstimo(s) de livro</span>
+                    </div>
+                  )}
+                  {matriculaCheck.materialLoans.length > 0 && (
+                    <div className="bg-white/60 p-2 rounded border border-red-100 flex items-center gap-2">
+                      <Package size={14} className="text-red-500" />
+                      <span className="text-[10px] font-bold text-red-800">{matriculaCheck.materialLoans.length} material(is) pendente(s)</span>
+                    </div>
+                  )}
+                  {matriculaCheck.lockerLoans.length > 0 && (
+                    <div className="bg-white/60 p-2 rounded border border-red-100 flex items-center gap-2">
+                      <LockIcon size={14} className="text-red-500" />
+                      <span className="text-[10px] font-bold text-red-800">Armário nº {matriculaCheck.lockerLoans[0].lockerNumber} ocupado</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[9px] text-red-500 font-bold uppercase animate-pulse">
+                  * Ao cadastrar esta pessoa, as pendências serão vinculadas automaticamente a ela.
+                </p>
+              </div>
+            ) : matricula.length >= 3 && !isCheckingMatricula && (
+              <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-2">
+                 <CheckCircle2 className="text-emerald-500" size={16} />
+                 <span className="text-[10px] font-bold text-emerald-700">Matrícula disponível e sem pendências vinculadas.</span>
               </div>
             )}
           </div>

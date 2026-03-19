@@ -303,7 +303,11 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             const now = new Date().toISOString();
 
             // Verificando se já existe um empréstimo ATIVO para esta pessoa
-            const existingActiveLoan = loans.find(l => l.personId === person.id && l.status === BookLoanStatus.ACTIVE);
+            // Verificando se já existe um empréstimo ATIVO para esta pessoa (por ID ou Matrícula)
+            const existingActiveLoan = loans.find(l => 
+                (l.personId === person.id || (l.personMatricula === person.matricula)) && 
+                l.status === BookLoanStatus.ACTIVE
+            );
 
             if (existingActiveLoan) {
                 // Verificar se o aluno já possui algum dos livros selecionados (ativos)
@@ -320,6 +324,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Atualizar empréstimo existente
                 const updatedLoan: BookLoan = {
                     ...existingActiveLoan,
+                    personId: person.id, // Re-vincula se o ID estava nulo após exclusão
                     books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name }))],
                     history: [
                         ...(existingActiveLoan.history || []),

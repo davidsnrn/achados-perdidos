@@ -1,19 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import { CopyRecord, CopyConfig, User, Campus, UserLevel, PersonType, Person } from '../../types';
 import { StorageService } from '../../services/storage';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  Settings, 
-  Printer, 
-  FileText, 
-  TrendingUp, 
-  TrendingDown, 
-  MoreHorizontal, 
-  Trash2, 
-  ChevronLeft, 
+import {
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  Settings,
+  Printer,
+  FileText,
+  TrendingUp,
+  TrendingDown,
+  MoreHorizontal,
+  Trash2,
+  ChevronLeft,
   ChevronRight,
   Download,
   AlertCircle,
@@ -53,11 +53,11 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<CopyRecord[] | null>(null);
-  
+
   // Period Logic
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  
+
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
@@ -75,12 +75,12 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const periodRange = useMemo(() => {
     const startDay = config?.start_day || 13;
     const endDay = config?.end_day || 12;
-    
+
     // Start date: Day X of previous month
     const startDate = new Date(selectedYear, selectedMonth - 1, startDay, 0, 0, 0);
     // End date: Day Y of current month
     const endDate = new Date(selectedYear, selectedMonth, endDay, 23, 59, 59);
-    
+
     return { start: startDate, end: endDate };
   }, [selectedMonth, selectedYear, config]);
 
@@ -89,12 +89,12 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     return records.filter(record => {
       const recordDate = new Date(record.date);
       const isInPeriod = recordDate >= periodRange.start && recordDate <= periodRange.end;
-      
-      const matchesSearch = !appliedSearchTerm || 
+
+      const matchesSearch = !appliedSearchTerm ||
         record.person_name.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
         record.person_matricula.includes(appliedSearchTerm) ||
         record.sector?.toLowerCase().includes(appliedSearchTerm.toLowerCase());
-        
+
       return isInPeriod && matchesSearch;
     });
   }, [records, periodRange, appliedSearchTerm]);
@@ -104,7 +104,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     return filteredRecords.reduce((acc, curr) => {
       if (curr.print_type === 'PROVA') acc.prova += curr.quantity;
       else acc.outras += curr.quantity;
-      
+
       if (curr.person_type === PersonType.STUDENT) acc.aluno += curr.quantity;
       else if (curr.person_type === PersonType.SERVER) acc.servidor += curr.quantity;
 
@@ -116,23 +116,23 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   // Group records by person only for the main list
   const groupedRecords = useMemo(() => {
     const groups: { [key: string]: { records: CopyRecord[]; totalQuantity: number } } = {};
-    
+
     filteredRecords.forEach(record => {
       const key = record.person_matricula;
-      
+
       if (!groups[key]) {
         groups[key] = { records: [], totalQuantity: 0 };
       }
       groups[key].records.push(record);
       groups[key].totalQuantity += record.quantity;
     });
-    
+
     // Within each group, sort records by date (descending)
     Object.values(groups).forEach(group => {
       group.records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     });
-    
-    return Object.values(groups).sort((a, b) => 
+
+    return Object.values(groups).sort((a, b) =>
       new Date(b.records[0].date).getTime() - new Date(a.records[0].date).getTime()
     );
   }, [filteredRecords]);
@@ -189,7 +189,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       alert("Preencha todos os campos obrigatórios.");
       return;
     }
-    
+
     setIsSaving(true);
     try {
       await StorageService.saveCopyRecord({
@@ -229,6 +229,47 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     }
   };
 
+  const handleExportCSV = () => {
+    if (filteredRecords.length === 0) {
+      alert("Nenhum registro para exportar no período selecionado.");
+      return;
+    }
+
+    // CSV Headers
+    const headers = [
+      "Data",
+      "Nome",
+      "Matricula",
+      "Tipo",
+      "Quantidade",
+      "Setor"
+    ];
+
+    // CSV Rows
+    const csvRows = filteredRecords.map(record => {
+      const date = new Date(record.date);
+      return [
+        `"${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"`,
+        `"${record.person_name}"`,
+        `"${record.person_matricula}"`,
+        `"${record.print_type}"`,
+        `"${record.quantity}"`,
+        `"${record.sector || 'Sem Setor'}"`
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(';'), ...csvRows.map(row => row.join(';'))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `controle_copias_${selectedYear}_${selectedMonth + 1}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -239,7 +280,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       {/* Header & Stats */}
       <div className="bg-white rounded-[2.5rem] shadow-xl shadow-rose-100/50 p-8 border border-rose-50 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-rose-50 rounded-full -mr-32 -mt-32 opacity-50 blur-3xl pointer-events-none"></div>
-        
+
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -253,7 +294,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center bg-gray-50 p-1.5 rounded-2xl border border-gray-100 shadow-sm">
-              <button 
+              <button
                 onClick={() => {
                   if (selectedMonth === 0) {
                     setSelectedMonth(11);
@@ -269,7 +310,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <div className="px-4 font-bold text-gray-700 min-w-[140px] text-center">
                 {months[selectedMonth]} {selectedYear}
               </div>
-              <button 
+              <button
                 onClick={() => {
                   if (selectedMonth === 11) {
                     setSelectedMonth(0);
@@ -284,7 +325,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               </button>
             </div>
 
-            <button 
+            <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 bg-gradient-to-r from-rose-600 to-red-600 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:shadow-rose-300 hover:-translate-y-0.5 transition-all"
             >
@@ -292,7 +333,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </button>
 
             {user?.level === UserLevel.ADMIN && (
-              <button 
+              <button
                 onClick={() => setIsConfigModalOpen(true)}
                 className="p-3.5 bg-white text-gray-600 hover:text-rose-600 border-2 border-gray-100 rounded-2xl hover:border-rose-200 transition-all shadow-sm"
                 title="Configurações de Período"
@@ -331,19 +372,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-[2rem] border border-blue-100 shadow-sm transition-all hover:shadow-md group">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
-                <UserIcon size={24} />
-              </div>
-              <span className="text-[10px] font-black tracking-widest text-blue-300 uppercase">Alunos</span>
-            </div>
-            <div className="space-y-1">
-              <h3 className="text-4xl font-black text-gray-900">{totals.aluno}</h3>
-              <p className="text-xs font-bold text-gray-400">Cópias de alunos</p>
-            </div>
-          </div>
-
           <div className="bg-gradient-to-br from-emerald-50 to-white p-6 rounded-[2rem] border border-emerald-100 shadow-sm transition-all hover:shadow-md group">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-white text-emerald-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
@@ -357,6 +385,20 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </div>
           </div>
 
+          <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-[2rem] border border-blue-100 shadow-sm transition-all hover:shadow-md group">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+                <UserIcon size={24} />
+              </div>
+              <span className="text-[10px] font-black tracking-widest text-blue-300 uppercase">Alunos</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-4xl font-black text-gray-900">{totals.aluno}</h3>
+              <p className="text-xs font-bold text-gray-400">Cópias de alunos</p>
+            </div>
+          </div>
+
+
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-[2rem] shadow-xl shadow-gray-200 group relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5">
               <TrendingUp size={120} />
@@ -365,7 +407,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <div className="p-3 bg-white/10 text-white rounded-2xl backdrop-blur-md group-hover:scale-110 transition-transform">
                 <TrendingUp size={24} />
               </div>
-              <span className="text-[10px] font-black tracking-widest text-white/30 uppercase">Total</span>
+              <span className="text-[10px] font-black tracking-widest text-white/30 uppercase">Geral</span>
             </div>
             <div className="space-y-1 relative z-10">
               <h3 className="text-4xl font-black text-white">{totals.total}</h3>
@@ -379,7 +421,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-100 border border-gray-50 overflow-hidden">
         <div className="p-8 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md group">
-            <input 
+            <input
               type="text"
               placeholder="Pesquisar por nome, matrícula ou setor..."
               value={searchTerm}
@@ -394,7 +436,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               }}
               className="w-full pl-6 pr-14 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 shadow-inner"
             />
-            <button 
+            <button
               onClick={() => setAppliedSearchTerm(searchTerm)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-600 transition-colors p-2"
             >
@@ -407,7 +449,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <Calendar size={14} />
               Periodo: {periodRange.start.toLocaleDateString()} - {periodRange.end.toLocaleDateString()}
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 border-2 border-gray-100 rounded-xl text-gray-500 hover:text-rose-600 hover:border-rose-200 transition-all font-bold text-xs uppercase tracking-wide">
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-4 py-2 border-2 border-gray-100 rounded-xl text-gray-500 hover:text-rose-600 hover:border-rose-200 transition-all font-bold text-xs uppercase tracking-wide"
+            >
               <Download size={16} /> Exportar
             </button>
           </div>
@@ -428,7 +473,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               {groupedRecords.length > 0 ? groupedRecords.map((group) => {
                 const record = group.records[0];
                 const isGrouped = group.records.length > 1;
-                
+
                 return (
                   <tr key={record.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="px-8 py-6">
@@ -441,7 +486,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 mt-1">
                             <span className="bg-gray-100 px-2 py-0.5 rounded-md">{record.person_matricula}</span>
                             <span className="flex items-center gap-1">
-                              <Building2 size={10} /> 
+                              <Building2 size={10} />
                               {(() => {
                                 const sectors = Array.from(new Set(group.records.map(r => r.sector).filter(Boolean)));
                                 if (sectors.length > 1) return `${sectors.length} Setores`;
@@ -460,9 +505,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           return (
                             <div className="flex flex-wrap gap-1">
                               {types.map(t => (
-                                <span key={t} className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider ${
-                                  t === 'PROVA' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
-                                }`}>
+                                <span key={t} className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider ${t === 'PROVA' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
+                                  }`}>
                                   {t}
                                 </span>
                               ))}
@@ -470,11 +514,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           );
                         }
                         return (
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                            record.print_type === 'PROVA' 
-                              ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100' 
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${record.print_type === 'PROVA'
+                              ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100'
                               : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
-                          }`}>
+                            }`}>
                             <Printer size={12} /> {record.print_type}
                           </span>
                         );
@@ -500,7 +543,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center justify-center gap-2">
-                         <button 
+                        <button
                           onClick={() => {
                             setSelectedGroup(group.records);
                             setIsDetailsModalOpen(true);
@@ -510,7 +553,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                         >
                           <Eye size={18} />
                         </button>
-                         <button 
+                        <button
                           onClick={() => handleDeleteRecord(group.records.map(r => r.id))}
                           className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                           title="Excluir"
@@ -530,7 +573,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                       </div>
                       <h3 className="text-lg font-black text-gray-800 mb-2">Sem registros</h3>
                       <p className="text-sm text-gray-500 mb-6">Nenhuma cópia registrada para este período ou busca.</p>
-                      <button 
+                      <button
                         onClick={() => setIsModalOpen(true)}
                         className="text-rose-600 font-bold hover:underline"
                       >
@@ -574,7 +617,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                       <p className="text-xs text-rose-400 font-medium">{selectedPerson.matricula}</p>
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setSelectedPerson(null)}
                     className="p-2 hover:bg-white hover:text-rose-600 rounded-lg transition-all"
                   >
@@ -584,7 +627,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               ) : (
                 <div className="relative group">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-rose-600 transition-colors" size={18} />
-                  <input 
+                  <input
                     type="text"
                     placeholder="Nome ou Matrícula..."
                     value={personSearch}
@@ -594,7 +637,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   {searchResults.length > 0 && (
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-xl mt-2 overflow-hidden z-[100] border-t-0 animate-in fade-in slide-in-from-top-2 duration-300">
                       {searchResults.map(p => (
-                        <button 
+                        <button
                           key={p.id}
                           onClick={() => handleSelectPerson(p)}
                           className="w-full p-4 hover:bg-rose-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0"
@@ -617,7 +660,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   <PieChart size={16} className="text-rose-500" />
                   Finalidade
                 </label>
-                <select 
+                <select
                   value={newRecord.print_type}
                   onChange={e => setNewRecord(v => ({ ...v, print_type: e.target.value as any }))}
                   className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
@@ -632,7 +675,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   <TrendingUp size={16} className="text-rose-500" />
                   Quantidade
                 </label>
-                <input 
+                <input
                   type="number"
                   min="1"
                   value={newRecord.quantity}
@@ -647,7 +690,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 <Building2 size={16} className="text-rose-500" />
                 Setor / Destino
               </label>
-              <input 
+              <input
                 type="text"
                 placeholder="Ex: Coordenação, Biblioteca..."
                 value={newRecord.sector || ''}
@@ -657,13 +700,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </div>
 
             <div className="pt-6 border-t border-gray-100 flex gap-4">
-              <button 
+              <button
                 onClick={() => setIsModalOpen(false)}
                 className="flex-1 px-6 py-4 bg-gray-50 text-gray-400 hover:text-gray-700 rounded-2xl font-black transition-all text-xs uppercase tracking-widest"
               >
                 Cancelar
               </button>
-              <button 
+              <button
                 onClick={handleSaveRecord}
                 disabled={isSaving}
                 className="flex-[2] px-6 py-4 bg-gradient-to-r from-rose-600 to-red-600 text-white rounded-2xl font-black shadow-lg shadow-rose-200 hover:shadow-rose-400 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-widest disabled:opacity-50"
@@ -705,7 +748,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 <Calendar size={16} className="text-indigo-500" />
                 Dia de Início
               </label>
-              <input 
+              <input
                 type="number"
                 min="1"
                 max="31"
@@ -720,7 +763,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 <Calendar size={16} className="text-indigo-500" />
                 Dia de Fim
               </label>
-              <input 
+              <input
                 type="number"
                 min="1"
                 max="31"
@@ -732,13 +775,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           </div>
 
           <div className="pt-6 border-t border-gray-100 flex gap-4">
-            <button 
+            <button
               onClick={() => setIsConfigModalOpen(false)}
               className="flex-1 px-6 py-4 bg-gray-50 text-gray-400 hover:text-gray-700 rounded-2xl font-black transition-all text-xs uppercase tracking-widest"
             >
               Fechar
             </button>
-            <button 
+            <button
               onClick={handleSaveConfig}
               disabled={isSaving}
               className="flex-[2] px-6 py-4 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-400 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-widest disabled:opacity-50"
@@ -793,9 +836,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                         <div className="text-left">
                           <div className="flex items-center gap-2">
                             <p className="text-xs font-bold text-gray-800">{record.sector || 'Sem Setor'}</p>
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                              record.print_type === 'PROVA' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
-                            }`}>
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${record.print_type === 'PROVA' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                              }`}>
                               {record.print_type}
                             </span>
                           </div>
@@ -809,7 +851,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           <span className="text-sm font-black text-gray-900">{record.quantity}</span>
                           <span className="text-[10px] font-bold text-gray-400 ml-1">UNID</span>
                         </div>
-                        <button 
+                        <button
                           onClick={() => handleDeleteRecord(record.id)}
                           className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                           title="Excluir este item"
@@ -835,7 +877,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           )}
 
           <div className="pt-2">
-            <button 
+            <button
               onClick={() => setIsDetailsModalOpen(false)}
               className="w-full px-6 py-4 bg-gray-50 text-gray-500 hover:text-gray-700 rounded-2xl font-black transition-all text-xs uppercase tracking-widest border-2 border-transparent hover:border-gray-100"
             >

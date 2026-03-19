@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Person, PersonType, User, UserLevel, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2, ShieldAlert, BookOpen, Package, Lock as LockIcon, CheckCircle2 } from 'lucide-react';
+import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2, ShieldAlert, BookOpen, Package, Lock as LockIcon, CheckCircle2, Search } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -50,6 +50,9 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     hasPendencies: boolean;
   } | null>(null);
   const [isCheckingMatricula, setIsCheckingMatricula] = useState(false);
+
+  // Search State
+  const [searchInput, setSearchInput] = useState('');
 
   // Sync with global admin campus selector
   React.useEffect(() => {
@@ -152,7 +155,6 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     setIsLoading(true);
     try {
       await StorageService.savePerson({
-        id: Math.random().toString(36).substr(2, 9),
         name: toTitleCase(name),
         matricula,
         type,
@@ -296,7 +298,6 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           }
 
           newPeople.push({
-            id: Math.random().toString(36).substr(2, 9),
             name: cleanName,
             matricula: cleanMatricula,
             type: detectedType,
@@ -384,16 +385,19 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     fetchData();
   }, [currentPage, filterType, selectedCampusId]);
 
-  // Debounce para busca
+  // Trigger search manually
+  const handleSearchTrigger = () => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    } else {
+      fetchData();
+    }
+    setSearch(searchInput);
+  };
+
+  // Sync search state ONLY when it actually changes (triggered by handleSearchTrigger)
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      if (currentPage !== 1) {
-        setCurrentPage(1);
-      } else {
-        fetchData();
-      }
-    }, 500);
-    return () => clearTimeout(timer);
+    fetchData();
   }, [search]);
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
@@ -621,12 +625,22 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 <option value="ALL">Todos</option>
                 {Object.values(PersonType).map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-              <input
-                className="text-sm border rounded-lg px-3 py-1.5 w-full md:w-56 focus:ring-2 focus:ring-ifrn-green outline-none"
-                placeholder="Buscar (nome, matrícula)..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+              <div className="relative flex items-center w-full md:w-64">
+                <input
+                  className="text-sm border rounded-l-lg px-3 py-1.5 w-full focus:ring-2 focus:ring-ifrn-green outline-none h-[38px]"
+                  placeholder="Buscar (nome, matrícula)..."
+                  value={searchInput}
+                  onChange={e => setSearchInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearchTrigger()}
+                />
+                <button
+                  onClick={handleSearchTrigger}
+                  className="bg-ifrn-green text-white px-3 py-1.5 rounded-r-lg hover:bg-ifrn-darkGreen transition-colors flex items-center justify-center h-[38px] border border-l-0 border-ifrn-green"
+                  title="Pesquisar"
+                >
+                  <Search size={16} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -660,7 +674,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 ) : (
                   people.map(p => (
                     <tr
-                      key={p.id}
+                      key={p.matricula}
                       className="hover:bg-gray-50 cursor-pointer group"
                       onClick={() => { setEditingPerson(p); setShowEditModal(true); }}
                     >
@@ -682,7 +696,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                             <Pencil size={14} />
                           </button>
                           <button
-                            onClick={(e) => handleDelete(e, p.id)}
+                            onClick={(e) => handleDelete(e, p.matricula)}
                             className="text-gray-400 hover:text-red-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1"
                           >
                             <Trash2 size={14} />

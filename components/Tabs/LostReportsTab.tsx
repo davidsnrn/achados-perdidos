@@ -96,7 +96,6 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
     const newReport: LostReport = {
       id: Math.random().toString(36).substr(2, 9),
       itemDescription: newItemDesc,
-      personId: selectedPerson.id,
       personName: selectedPerson.name,
       whatsapp: cleanPhone,
       email: newEmail,
@@ -335,7 +334,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
                 {searchResultsPeople.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
                     {searchResultsPeople.map(p => (
-                      <div key={p.id} onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }} className="p-4 hover:bg-green-50 cursor-pointer text-sm group transition-colors">
+                      <div key={p.matricula} onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }} className="p-4 hover:bg-green-50 cursor-pointer text-sm group transition-colors">
                         <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
                         <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                       </div>

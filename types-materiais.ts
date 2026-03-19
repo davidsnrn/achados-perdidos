@@ -11,7 +11,6 @@ export interface MaterialLoan {
     materialId: string;
     materialName: string;
     materialCode: string; // Track by code
-    personId: string;
     personName: string;
     personMatricula: string;
     loanDate: string;

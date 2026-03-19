@@ -78,7 +78,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
             });
 
             // Remover duplicados por ID (caso a busca retorne a mesma pessoa em grupos diferentes)
-            const uniqueResults = Array.from(new Map(allResults.map(r => [r.id, r])).values());
+            const uniqueResults = Array.from(new Map(allResults.map(r => [r.matricula, r])).values());
 
             setSearchResults(uniqueResults.map(p => ({
                 registration: p.matricula,
@@ -86,7 +86,7 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 course: '',
                 situation: 'Matriculado',
                 email: '',
-                id: p.id,
+                id: p.matricula,
                 campus_id: p.campus_id
             })));
         } catch (error) {
@@ -118,15 +118,11 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
         });
 
         // Check Books
-        // Aqui usamos o ID se disponível, se não buscamos no people (embora people agora venha vazio)
-        // Por isso o searchResults agora inclui o id.
-        const personId = studentId;
-
-        if (personId || registration) {
+        if (registration) {
             bookLoans.forEach(loan => {
                 const hasActiveBooks = loan.books.some(b => b.status === 'Ativo' || !b.status);
-                // Busca por ID ou Matrícula (caso o ID tenha sido removido na exclusão em massa)
-                const isOwner = (personId && loan.personId === personId) || (registration && loan.personMatricula === registration);
+                // Busca por Matrícula
+                const isOwner = registration && loan.personMatricula === registration;
                 
                 if (isOwner && (loan.status === BookLoanStatus.ACTIVE || hasActiveBooks)) {
                     activeBookLoans.push(loan);

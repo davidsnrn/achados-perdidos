@@ -305,7 +305,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             // Verificando se já existe um empréstimo ATIVO para esta pessoa
             // Verificando se já existe um empréstimo ATIVO para esta pessoa (por ID ou Matrícula)
             const existingActiveLoan = loans.find(l => 
-                (l.personId === person.id || (l.personMatricula === person.matricula)) && 
+                (l.personMatricula === person.matricula) && 
                 l.status === BookLoanStatus.ACTIVE
             );
 
@@ -324,7 +324,6 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Atualizar empréstimo existente
                 const updatedLoan: BookLoan = {
                     ...existingActiveLoan,
-                    personId: person.id, // Re-vincula se o ID estava nulo após exclusão
                     books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name }))],
                     history: [
                         ...(existingActiveLoan.history || []),
@@ -342,7 +341,6 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Criar novo empréstimo
                 const newLoan: BookLoan = {
                     id: Math.random().toString(36).substr(2, 9),
-                    personId: person.id,
                     personName: person.name,
                     personMatricula: person.matricula, // Garantindo o mapeamento da matrícula
                     books: selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name })),
@@ -451,11 +449,11 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
         return true;
     });
 
-    // Group historical loans by student (personId)
+    // Group historical loans by student (personMatricula)
     const groupedHistory = React.useMemo(() => {
         const map = new Map<string, BookLoan[]>();
         historicalLoans.forEach(loan => {
-            const key = loan.personId || loan.personName;
+            const key = loan.personMatricula || loan.personName;
             const group = map.get(key) || [];
             group.push(loan);
             map.set(key, group);
@@ -674,7 +672,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                             }}
                                           />
                                         : <StudentLoanGroup
-                                            key={group[0].personId || group[0].personName}
+                                            key={group[0].personMatricula || group[0].personName}
                                             loans={group}
                                             onViewDetail={loan => setViewingLoan(loan)}
                                             onReturn={loan => {
@@ -792,7 +790,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                     <div className="mt-2 space-y-1 bg-gray-50 p-2 rounded-lg border border-gray-100">
                                         {searchResultsPeople.map((p, idx) => (
                                             <button
-                                                key={p.id}
+                                                key={p.matricula}
                                                 type="button"
                                                 onClick={() => handleSelectPerson(p)}
                                                 className={`w-full text-left p-2 rounded text-sm transition-colors flex flex-col ${selectedPersonIndex === idx ? 'bg-ifrn-green/10 border-l-4 border-l-ifrn-green' : 'hover:bg-gray-200 text-gray-700'}`}

@@ -229,7 +229,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 }
 
                 return {
-                    id: loan.personId,
+                    id: loan.personMatricula,
                     name: loan.personName,
                     matricula: loan.personMatricula,
                     type: loan.personType,
@@ -332,7 +332,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     };
 
     const handleAddPerson = (p: Person) => {
-        if (!loanPersons.find(lp => lp.id === p.id)) {
+        if (!loanPersons.find(lp => lp.matricula === p.matricula)) {
             setLoanPersons(prev => [...prev, p]);
         }
         setLoanPersonSearch('');
@@ -402,7 +402,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
             // Process loan for each selected student
             for (const person of loanPersons) {
-                const existing = bookLoans.find(l => l.personId === person.id && l.status === BookLoanStatus.ACTIVE);
+                const existing = bookLoans.find(l => l.personMatricula === person.matricula && l.status === BookLoanStatus.ACTIVE);
                 let lentToThisPerson = 0;
 
                 if (existing) {
@@ -439,7 +439,6 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 } else {
                     const newLoan: BookLoan = {
                         id: Math.random().toString(36).substr(2, 9),
-                        personId: person.id,
                         personName: person.name,
                         personMatricula: person.matricula,
                         books: booksToAdd,
@@ -1023,13 +1022,13 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                             {loanPersons.length > 0 && (
                                 <div className="space-y-1.5 mb-3">
                                     {loanPersons.map(p => (
-                                        <div key={p.id} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-center justify-between">
+                                        <div key={p.matricula} className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-center justify-between">
                                             <div>
                                                 <p className="font-bold text-blue-900 text-sm">{p.name}</p>
                                                 <p className="text-[10px] text-blue-600 font-bold uppercase">{p.matricula || 'Matrícula não informada'}</p>
                                             </div>
                                             <button
-                                                onClick={() => setLoanPersons(prev => prev.filter(x => x.id !== p.id))}
+                                                onClick={() => setLoanPersons(prev => prev.filter(x => x.matricula !== p.matricula))}
                                                 className="p-1 text-blue-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                             >
                                                 <X size={14} />
@@ -1062,10 +1061,10 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                 {searchResultsPeople.length > 0 && (
                                     <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                                         {searchResultsPeople
-                                            .filter(p => !loanPersons.find(lp => lp.id === p.id))
+                                            .filter(p => !loanPersons.find(lp => lp.matricula === p.matricula))
                                             .map((p, idx) => (
                                                 <button
-                                                    key={p.id}
+                                                    key={p.matricula}
                                                     onClick={() => handleAddPerson(p)}
                                                     className={`w-full text-left p-3 transition-colors border-b last:border-0 border-gray-100 ${selectedPersonIndex === idx ? 'bg-ifrn-green/10 border-l-4 border-l-ifrn-green' : 'hover:bg-gray-50'}`}
                                                     onMouseMove={() => setSelectedPersonIndex(idx)}
@@ -1075,7 +1074,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                                 </button>
                                             ))
                                         }
-                                        {searchResultsPeople.filter(p => !loanPersons.find(lp => lp.id === p.id)).length === 0 && !isSearchingPeople && (
+                                        {searchResultsPeople.filter(p => !loanPersons.find(lp => lp.matricula === p.matricula)).length === 0 && !isSearchingPeople && (
                                             <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>
                                         )}
                                     </div>

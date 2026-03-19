@@ -34,7 +34,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
             return acc;
         }, 0);
         
-        const uniqueBorrowers = new Set(loans.map(l => l.personId)).size;
+        const uniqueBorrowers = new Set(loans.map(l => l.personMatricula)).size;
         
         return {
             totalBooks,

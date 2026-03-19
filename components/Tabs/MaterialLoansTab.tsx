@@ -91,7 +91,6 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
             materialId: selectedMaterial.id,
             materialName: selectedMaterial.name,
             materialCode: selectedMaterial.code,
-            personId: selectedPerson.id,
             personName: selectedPerson.name,
             personMatricula: selectedPerson.matricula,
             loanDate: new Date().toISOString(),
@@ -266,7 +265,7 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                     <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
                                         {searchResultsPeople.map(p => (
                                             <div
-                                                key={p.id}
+                                                key={p.matricula}
                                                 onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }}
                                                 className="p-4 hover:bg-indigo-50 cursor-pointer text-sm group transition-colors"
                                             >

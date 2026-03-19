@@ -52,7 +52,6 @@ export interface User {
 }
 
 export interface Person {
-  id: string;
   matricula: string;
   name: string;
   type: PersonType;
@@ -86,7 +85,7 @@ export interface FoundItem {
 export interface LostReport {
   id: string;
   itemDescription: string;
-  personId?: string; // Link to Person
+  personMatricula?: string; // Link to Person by matricula
   personName: string; // Fallback or display name
   whatsapp: string;
   email?: string;
@@ -123,9 +122,8 @@ export interface Book {
 
 export interface BookLoan {
   id: string;
-  personId: string;
   personName: string;
-  personMatricula?: string;
+  personMatricula: string;
   books: {
     id: string;
     title: string;
@@ -162,7 +160,6 @@ export interface CopyConfig {
 export interface CopyRecord {
   id: string;
   campus_id: string;
-  person_id?: string;
   person_name: string;
   person_matricula: string;
   person_type?: PersonType; // For statistics and display

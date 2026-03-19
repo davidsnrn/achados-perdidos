@@ -275,7 +275,7 @@ export const StorageService = {
 
     let query = supabase
       .from('people')
-      .select('id, name, matricula, campus_id, type')
+      .select('name, matricula, campus_id, type')
       .range(from, to)
       .order('name', { ascending: true });
 
@@ -290,9 +290,11 @@ export const StorageService = {
     if (search && search.trim().length >= 2) {
       const tokens = search.trim().split(/\s+/).filter(t => t.length > 0);
       tokens.forEach(t => {
-
-        query = query.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
-
+        if (/^\d{6,}$/.test(t)) {
+          query = query.or(`matricula.eq.${t},name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        } else {
+          query = query.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        }
       });
     }
 
@@ -320,9 +322,11 @@ export const StorageService = {
     if (search && search.trim().length >= 2) {
       const tokens = search.trim().split(/\s+/).filter(t => t.length > 0);
       tokens.forEach(t => {
-
-        query = query.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
-
+        if (/^\d{6,}$/.test(t)) {
+          query = query.or(`matricula.eq.${t},name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        } else {
+          query = query.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        }
       });
     }
 
@@ -342,11 +346,15 @@ export const StorageService = {
 
     let supabaseQuery = supabase
       .from('people')
-      .select('id, name, matricula, campus_id, type');
+      .select('name, matricula, campus_id, type');
 
     if (tokens.length > 0) {
       tokens.forEach(t => {
-        supabaseQuery = supabaseQuery.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        if (/^\d{6,}$/.test(t)) {
+          supabaseQuery = supabaseQuery.or(`matricula.eq.${t},name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        } else {
+          supabaseQuery = supabaseQuery.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        }
       });
     }
 
@@ -374,63 +382,24 @@ export const StorageService = {
   },
 
   savePerson: async (person: Person) => {
-    const { data: existing } = await supabase
-      .from('people')
-      .select('id')
-      .eq('matricula', person.matricula)
-      .neq('id', person.id);
-
-    if (existing && existing.length > 0) {
-      throw new Error("Matrícula já cadastrada para outra pessoa.");
-    }
-
     const { error } = await supabase.from('people').upsert({
-      id: person.id,
       matricula: person.matricula,
       name: person.name,
       type: person.type,
       campus_id: person.campus_id
-    });
+    }, { onConflict: 'matricula' });
 
     if (error) throw error;
   },
 
-  deletePerson: async (id: string) => {
-    // Limpar referências em outras tabelas para evitar erro de Foreign Key
-    await Promise.all([
-      supabase.from('book_loans').update({ person_id: null }).eq('person_id', id),
-      supabase.from('copy_records').update({ person_id: null }).eq('person_id', id),
-      supabase.from('material_loans').update({ personId: null }).eq('personId', id),
-      supabase.from('reports').update({ person_id: null }).eq('person_id', id)
-    ]);
-
-    const { error } = await supabase.from('people').delete().eq('id', id);
+  deletePerson: async (matricula: string) => {
+    const { error } = await supabase.from('people').delete().eq('matricula', matricula);
     if (error) throw error;
   },
 
   deleteAllPeople: async (campusIds?: string[] | string) => {
-    // 1. Limpar referências em tabelas dependentes
-    const tables = ['book_loans', 'copy_records', 'material_loans', 'reports'];
-    
-    for (const table of tables) {
-      let updateQuery = supabase.from(table).update({ 
-        [table === 'material_loans' ? 'personId' : 'person_id']: null 
-      });
-
-      if (Array.isArray(campusIds) && campusIds.length > 0) {
-        updateQuery = updateQuery.in('campus_id', campusIds);
-      } else if (typeof campusIds === 'string' && campusIds.length > 0) {
-        updateQuery = updateQuery.eq('campus_id', campusIds);
-      } else {
-        // Se campusIds for undefined, limpa de todos (neq '0' é apenas um truque para pegar todos)
-        updateQuery = updateQuery.neq('id', 'truquetodos'); 
-      }
-      
-      await updateQuery;
-    }
-
     // 2. Deletar as pessoas
-    let query = supabase.from('people').delete().neq('id', '0');
+    let query = supabase.from('people').delete().neq('matricula', 'PLACEHOLDER_QUE_NUNCA_EXISTE');
 
     if (Array.isArray(campusIds)) {
       if (campusIds.length > 0) {
@@ -449,7 +418,6 @@ export const StorageService = {
     const existingMats = new Set(existing?.map(p => p.matricula));
 
     const toInsert = people.filter(p => !existingMats.has(p.matricula)).map(p => ({
-      id: p.id,
       matricula: p.matricula,
       name: p.name,
       type: p.type,
@@ -654,7 +622,7 @@ export const StorageService = {
     return allData.map((d: any) => ({
       id: d.id,
       itemDescription: d.item_description,
-      personId: d.person_id,
+      personMatricula: d.person_matricula,
       personName: d.person_name,
       whatsapp: d.whatsapp,
       email: d.email,
@@ -669,7 +637,7 @@ export const StorageService = {
     const payload = {
       id: report.id,
       item_description: report.itemDescription,
-      person_id: report.personId,
+      person_matricula: report.personMatricula,
       person_name: report.personName,
       whatsapp: report.whatsapp,
       email: report.email,
@@ -1016,12 +984,7 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('book_loans')
-        .select(`
-          *,
-          people:person_id (
-            type
-          )
-        `)
+        .select('*')
         .order('loan_date', { ascending: false })
         .range(from, from + limit - 1);
 
@@ -1041,12 +1004,21 @@ export const StorageService = {
       from += limit;
     }
 
+    // Manual join to get PersonType
+    const matriculasIdList = Array.from(new Set(allData.map(d => d.person_matricula).filter(Boolean)));
+    const peopleMap: Record<string, string> = {};
+    if (matriculasIdList.length > 0) {
+      const { data: pData } = await supabase.from('people').select('matricula, type').in('matricula', matriculasIdList);
+      if (pData) {
+        pData.forEach(p => peopleMap[p.matricula] = p.type);
+      }
+    }
+
     return allData.map((d: any) => ({
       id: d.id,
-      personId: d.person_id,
       personName: d.person_name,
       personMatricula: d.person_matricula,
-      personType: d.people?.type as PersonType,
+      personType: peopleMap[d.person_matricula] as PersonType,
       books: d.books,
       loanedBy: d.loaned_by,
       loanDate: d.loan_date,
@@ -1061,7 +1033,6 @@ export const StorageService = {
   saveBookLoan: async (loan: BookLoan) => {
     const payload = {
       id: loan.id,
-      person_id: loan.personId,
       person_name: loan.personName,
       person_matricula: loan.personMatricula,
       books: loan.books,
@@ -1215,7 +1186,6 @@ export const StorageService = {
       materialId: d.materialId,
       materialName: d.materialName,
       materialCode: d.materialCode,
-      personId: d.personId,
       personName: d.personName,
       personMatricula: d.personMatricula,
       loanDate: d.loanDate,
@@ -1234,7 +1204,6 @@ export const StorageService = {
       materialId: loan.materialId,
       materialName: loan.materialName,
       materialCode: loan.materialCode,
-      personId: loan.personId,
       personName: loan.personName,
       personMatricula: loan.personMatricula,
       loanDate: loan.loanDate,
@@ -1336,7 +1305,7 @@ export const StorageService = {
   getCopyRecords: async (campusId: string, startDate?: string, endDate?: string): Promise<CopyRecord[]> => {
     let query = supabase
       .from('copy_records')
-      .select('*, people(type)')
+      .select('*')
       .eq('campus_id', campusId)
       .order('date', { ascending: false });
 
@@ -1347,16 +1316,25 @@ export const StorageService = {
       query = query.lte('date', endDate);
     }
 
-    const { data, error } = await query;
+    const { data: records, error } = await query;
     if (error) {
       console.error("Erro ao buscar registros de cópias:", error);
       return [];
     }
 
-    // Flatten people.type into the record
-    return (data || []).map((record: any) => ({
+    // Manual join to get PersonType
+    const matriculasIdList = Array.from(new Set((records || []).map(r => r.person_matricula).filter(Boolean)));
+    const peopleMap: Record<string, string> = {};
+    if (matriculasIdList.length > 0) {
+      const { data: pData } = await supabase.from('people').select('matricula, type').in('matricula', matriculasIdList);
+      if (pData) {
+        pData.forEach(p => peopleMap[p.matricula] = p.type);
+      }
+    }
+
+    return (records || []).map((record: any) => ({
       ...record,
-      person_type: record.people?.type
+      person_type: peopleMap[record.person_matricula]
     }));
   },
 
@@ -1364,7 +1342,6 @@ export const StorageService = {
     const payload = {
       id: record.id || undefined,
       campus_id: record.campus_id,
-      person_id: record.person_id || null,
       person_name: record.person_name,
       person_matricula: record.person_matricula,
       sector: record.sector,
@@ -1398,7 +1375,7 @@ export const StorageService = {
       .eq('status', 'ACTIVE');
     
     if (person) {
-      bookLoansQuery = bookLoansQuery.or(`person_id.eq.${person.id},person_matricula.eq.${matricula}`);
+      bookLoansQuery = bookLoansQuery.eq('person_matricula', matricula);
     } else {
       bookLoansQuery = bookLoansQuery.eq('person_matricula', matricula);
     }
@@ -1411,7 +1388,7 @@ export const StorageService = {
       .eq('status', 'ACTIVE');
     
     if (person) {
-      materialLoansQuery = materialLoansQuery.or(`personId.eq.${person.id},personMatricula.eq.${matricula}`);
+      materialLoansQuery = materialLoansQuery.eq('personMatricula', matricula);
     } else {
       materialLoansQuery = materialLoansQuery.eq('personMatricula', matricula);
     }

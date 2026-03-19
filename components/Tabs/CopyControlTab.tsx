@@ -176,7 +176,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     setSelectedPerson(p);
     setNewRecord(prev => ({
       ...prev,
-      person_id: p.id,
       person_name: p.name,
       person_matricula: p.matricula
     }));
@@ -638,7 +637,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-xl mt-2 overflow-hidden z-[100] border-t-0 animate-in fade-in slide-in-from-top-2 duration-300">
                       {searchResults.map(p => (
                         <button
-                          key={p.id}
+                          key={p.matricula}
                           onClick={() => handleSelectPerson(p)}
                           className="w-full p-4 hover:bg-rose-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0"
                         >

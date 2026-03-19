@@ -1306,7 +1306,7 @@ export const StorageService = {
   getCopyRecords: async (campusId: string, startDate?: string, endDate?: string): Promise<CopyRecord[]> => {
     let query = supabase
       .from('copy_records')
-      .select('*')
+      .select('*, people(type)')
       .eq('campus_id', campusId)
       .order('date', { ascending: false });
 
@@ -1322,7 +1322,12 @@ export const StorageService = {
       console.error("Erro ao buscar registros de cópias:", error);
       return [];
     }
-    return data || [];
+
+    // Flatten people.type into the record
+    return (data || []).map((record: any) => ({
+      ...record,
+      person_type: record.people?.type
+    }));
   },
 
   saveCopyRecord: async (record: Partial<CopyRecord>) => {

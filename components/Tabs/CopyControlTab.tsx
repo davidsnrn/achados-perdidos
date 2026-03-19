@@ -47,6 +47,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   onUpdate
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -89,40 +90,46 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       const recordDate = new Date(record.date);
       const isInPeriod = recordDate >= periodRange.start && recordDate <= periodRange.end;
       
-      const matchesSearch = 
-        record.person_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.person_matricula.includes(searchTerm) ||
-        record.sector?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = !appliedSearchTerm || 
+        record.person_name.toLowerCase().includes(appliedSearchTerm.toLowerCase()) ||
+        record.person_matricula.includes(appliedSearchTerm) ||
+        record.sector?.toLowerCase().includes(appliedSearchTerm.toLowerCase());
         
       return isInPeriod && matchesSearch;
     });
-  }, [records, periodRange, searchTerm]);
+  }, [records, periodRange, appliedSearchTerm]);
 
   // Totals
   const totals = useMemo(() => {
     return filteredRecords.reduce((acc, curr) => {
       if (curr.print_type === 'PROVA') acc.prova += curr.quantity;
       else acc.outras += curr.quantity;
+      
+      if (curr.person_type === PersonType.STUDENT) acc.aluno += curr.quantity;
+      else if (curr.person_type === PersonType.SERVER) acc.servidor += curr.quantity;
+
       acc.total += curr.quantity;
       return acc;
-    }, { prova: 0, outras: 0, total: 0 });
+    }, { prova: 0, outras: 0, aluno: 0, servidor: 0, total: 0 });
   }, [filteredRecords]);
 
-  // Group records by person, date (minute), and type
+  // Group records by person only for the main list
   const groupedRecords = useMemo(() => {
     const groups: { [key: string]: { records: CopyRecord[]; totalQuantity: number } } = {};
     
     filteredRecords.forEach(record => {
-      const dateObj = new Date(record.date);
-      dateObj.setSeconds(0, 0);
-      const minuteKey = dateObj.toISOString();
-      const key = `${record.person_matricula}-${minuteKey}-${record.print_type}`;
+      const key = record.person_matricula;
       
       if (!groups[key]) {
         groups[key] = { records: [], totalQuantity: 0 };
       }
       groups[key].records.push(record);
       groups[key].totalQuantity += record.quantity;
+    });
+    
+    // Within each group, sort records by date (descending)
+    Object.values(groups).forEach(group => {
+      group.records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     });
     
     return Object.values(groups).sort((a, b) => 
@@ -297,7 +304,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         </div>
 
         {/* Dash Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mt-10">
           <div className="bg-gradient-to-br from-rose-50 to-white p-6 rounded-[2rem] border border-rose-100 shadow-sm transition-all hover:shadow-md group">
             <div className="flex items-center justify-between mb-4">
               <div className="p-3 bg-white text-rose-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
@@ -307,7 +314,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </div>
             <div className="space-y-1">
               <h3 className="text-4xl font-black text-gray-900">{totals.prova}</h3>
-              <p className="text-xs font-bold text-gray-400">Total de cópias em provas</p>
+              <p className="text-xs font-bold text-gray-400">Total em provas</p>
             </div>
           </div>
 
@@ -320,7 +327,33 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </div>
             <div className="space-y-1">
               <h3 className="text-4xl font-black text-gray-900">{totals.outras}</h3>
-              <p className="text-xs font-bold text-gray-400">Trabalhos, apostilas e outros</p>
+              <p className="text-xs font-bold text-gray-400">Apostilas e outros</p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-[2rem] border border-blue-100 shadow-sm transition-all hover:shadow-md group">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+                <UserIcon size={24} />
+              </div>
+              <span className="text-[10px] font-black tracking-widest text-blue-300 uppercase">Alunos</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-4xl font-black text-gray-900">{totals.aluno}</h3>
+              <p className="text-xs font-bold text-gray-400">Cópias de alunos</p>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-emerald-50 to-white p-6 rounded-[2rem] border border-emerald-100 shadow-sm transition-all hover:shadow-md group">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-white text-emerald-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+                <Building2 size={24} />
+              </div>
+              <span className="text-[10px] font-black tracking-widest text-emerald-300 uppercase">Servidores</span>
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-4xl font-black text-gray-900">{totals.servidor}</h3>
+              <p className="text-xs font-bold text-gray-400">Cópias de servidores</p>
             </div>
           </div>
 
@@ -332,11 +365,11 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <div className="p-3 bg-white/10 text-white rounded-2xl backdrop-blur-md group-hover:scale-110 transition-transform">
                 <TrendingUp size={24} />
               </div>
-              <span className="text-[10px] font-black tracking-widest text-white/30 uppercase">Consumo Geral</span>
+              <span className="text-[10px] font-black tracking-widest text-white/30 uppercase">Total</span>
             </div>
             <div className="space-y-1 relative z-10">
               <h3 className="text-4xl font-black text-white">{totals.total}</h3>
-              <p className="text-xs font-bold text-white/50">Total geral no período</p>
+              <p className="text-xs font-bold text-white/50">Geral no período</p>
             </div>
           </div>
         </div>
@@ -346,14 +379,27 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       <div className="bg-white rounded-[2.5rem] shadow-xl shadow-gray-100 border border-gray-50 overflow-hidden">
         <div className="p-8 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="relative flex-1 max-w-md group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-rose-600 transition-colors" size={20} />
             <input 
               type="text"
               placeholder="Pesquisar por nome, matrícula ou setor..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 shadow-inner"
+              onChange={e => {
+                setSearchTerm(e.target.value);
+                setAppliedSearchTerm(''); // Clear results when editing
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  setAppliedSearchTerm(searchTerm);
+                }
+              }}
+              className="w-full pl-6 pr-14 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 shadow-inner"
             />
+            <button 
+              onClick={() => setAppliedSearchTerm(searchTerm)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-600 transition-colors p-2"
+            >
+              <Search size={24} />
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -396,20 +442,43 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                             <span className="bg-gray-100 px-2 py-0.5 rounded-md">{record.person_matricula}</span>
                             <span className="flex items-center gap-1">
                               <Building2 size={10} /> 
-                              {isGrouped ? `${group.records.length} Setores` : (record.sector || 'Sem Setor')}
+                              {(() => {
+                                const sectors = Array.from(new Set(group.records.map(r => r.sector).filter(Boolean)));
+                                if (sectors.length > 1) return `${sectors.length} Setores`;
+                                if (sectors.length === 1) return sectors[0];
+                                return 'Sem Setor';
+                              })()}
                             </span>
                           </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                        record.print_type === 'PROVA' 
-                          ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100' 
-                          : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
-                      }`}>
-                        <Printer size={12} /> {record.print_type}
-                      </span>
+                      {(() => {
+                        const types = Array.from(new Set(group.records.map(r => r.print_type)));
+                        if (types.length > 1) {
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {types.map(t => (
+                                <span key={t} className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider ${
+                                  t === 'PROVA' ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-600'
+                                }`}>
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                            record.print_type === 'PROVA' 
+                              ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100' 
+                              : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
+                          }`}>
+                            <Printer size={12} /> {record.print_type}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-2 mt-1">
@@ -718,11 +787,21 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   {selectedGroup.map((record, idx) => (
                     <div key={record.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500 text-xs font-black">
-                          {idx + 1}
+                        <div className="w-8 h-8 rounded-lg bg-rose-50 flex items-center justify-center text-rose-500 text-[10px] font-black italic">
+                          {record.print_type === 'PROVA' ? <FileText size={14} /> : <Printer size={14} className="text-amber-500" />}
                         </div>
                         <div className="text-left">
-                          <p className="text-xs font-bold text-gray-800">{record.sector || 'Sem Setor'}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs font-bold text-gray-800">{record.sector || 'Sem Setor'}</p>
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                              record.print_type === 'PROVA' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {record.print_type}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-gray-400 font-medium">
+                            {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">

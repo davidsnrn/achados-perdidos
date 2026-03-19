@@ -165,6 +165,7 @@ export interface CopyRecord {
   person_id?: string;
   person_name: string;
   person_matricula: string;
+  person_type?: PersonType; // For statistics and display
   sector: string;
   print_type: 'PROVA' | 'OUTRAS';
   quantity: number;

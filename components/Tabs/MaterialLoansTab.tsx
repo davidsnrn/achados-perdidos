@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { MaterialLoan, Material } from '../../types-materiais';
 import { Person, User } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Plus, CheckCircle, Hash, User as UserIcon, Calendar, FileText, CornerUpRight, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, Plus, CheckCircle, Hash, User as UserIcon, Calendar, FileText, CornerUpRight, AlertCircle, Loader2, GraduationCap, UserCog, Users } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -26,6 +26,7 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
 
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+    const [personTypeFilter, setPersonTypeFilter] = useState<'ALL' | 'Aluno' | 'Servidor'>('ALL');
 
     const filteredLoans = useMemo(() => {
         if (!searchTerm.trim()) return loans;
@@ -38,12 +39,19 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
         );
     }, [loans, searchTerm]);
 
-    const handlePersonSearch = async (val?: string) => {
+    const handlePersonSearch = async (val?: string, forceType?: string) => {
         const query = val !== undefined ? val : personSearch;
+        const typeFilter = forceType !== undefined ? forceType : personTypeFilter;
+
         if (query.trim().length >= 2) {
             setIsSearchingPeople(true);
             try {
-                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined);
+                const results = await StorageService.searchPeople(
+                    query,
+                    10,
+                    user.campus_id || undefined,
+                    typeFilter
+                );
                 setSearchResultsPeople(results.slice(0, 5));
             } catch (error) {
                 console.error("Erro na busca de pessoas:", error);
@@ -58,6 +66,7 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
     const openLoanForm = () => {
         setSelectedPerson(null);
         setPersonSearch('');
+        setPersonTypeFilter('ALL');
         setSelectedMaterial(null);
         setObservation('');
         setShowLoanForm(true);
@@ -228,7 +237,51 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                 </button>
                             </div>
                         ) : (
-                            <div className="relative flex gap-2">
+                            <div className="relative space-y-3">
+                                {/* Type Filter Selector */}
+                                <div className="flex gap-2 p-1 bg-gray-50 border border-gray-100 rounded-xl w-fit">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('ALL');
+                                            if (personSearch.length >= 2) handlePersonSearch(personSearch, 'ALL');
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${personTypeFilter === 'ALL'
+                                                ? 'bg-white text-indigo-600 shadow-sm border border-gray-100'
+                                                : 'text-gray-400 hover:text-gray-600'
+                                            }`}
+                                    >
+                                        <Users size={14} /> Todos
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('Aluno');
+                                            if (personSearch.length >= 2) handlePersonSearch(personSearch, 'Aluno');
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${personTypeFilter === 'Aluno'
+                                                ? 'bg-white text-indigo-600 shadow-sm border border-gray-100'
+                                                : 'text-gray-400 hover:text-gray-600'
+                                            }`}
+                                    >
+                                        <GraduationCap size={14} /> Alunos
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('Servidor');
+                                            if (personSearch.length >= 2) handlePersonSearch(personSearch, 'Servidor');
+                                        }}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${personTypeFilter === 'Servidor'
+                                                ? 'bg-white text-indigo-600 shadow-sm border border-gray-100'
+                                                : 'text-gray-400 hover:text-gray-600'
+                                            }`}
+                                    >
+                                        <UserCog size={14} /> Servidores
+                                    </button>
+                                </div>
+
+                                <div className="relative flex gap-2">
                                 <div className="relative flex-1">
                                     <input
                                         type="text"
@@ -283,8 +336,9 @@ export const MaterialLoansTab: React.FC<Props> = ({ loans, materials, people, on
                                     </div>
                                 )}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
+                </div>
 
                     {/* Material Selection */}
                     <div className="space-y-2">

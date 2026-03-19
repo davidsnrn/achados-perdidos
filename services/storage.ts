@@ -338,7 +338,7 @@ export const StorageService = {
     return count || 0;
   },
 
-  searchPeople: async (query: string, limit: number = 20, campusId?: string): Promise<Person[]> => {
+  searchPeople: async (query: string, limit: number = 20, campusId?: string, type?: string): Promise<Person[]> => {
     if (!query || query.trim().length < 2) return [];
 
     const searchTerm = query.trim();
@@ -360,6 +360,10 @@ export const StorageService = {
 
     if (campusId) {
       supabaseQuery = supabaseQuery.eq('campus_id', campusId);
+    }
+
+    if (type && type !== 'ALL') {
+      supabaseQuery = supabaseQuery.eq('type', type);
     }
 
     const { data, error } = await supabaseQuery

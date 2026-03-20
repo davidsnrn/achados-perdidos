@@ -330,17 +330,32 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         endDate.toISOString()
       );
 
+      // Helper for consistent month key formatting
+      const formatMonthKey = (month: number, pStart: Date, pEnd: Date) => {
+        const mStr = (month + 1).toString().padStart(2, '0');
+        const sDay = pStart.getDate().toString().padStart(2, '0');
+        const sMonth = (pStart.getMonth() + 1).toString().padStart(2, '0');
+        const eDay = pEnd.getDate().toString().padStart(2, '0');
+        const eMonth = (pEnd.getMonth() + 1).toString().padStart(2, '0');
+        
+        return `${months[month].substring(0, 3).toUpperCase()} ${sDay}/${sMonth}-${eDay}/${eMonth}`;
+      };
+
       // 3. Generate list of months in the range
-      const monthPeriods: { month: number; year: number; start: Date; end: Date }[] = [];
+      const monthPeriods: { month: number; year: number; start: Date; end: Date; key: string }[] = [];
       let currMonth = reportRange.startMonth;
       let currYear = reportRange.startYear;
 
       while (currYear < reportRange.endYear || (currYear === reportRange.endYear && currMonth <= reportRange.endMonth)) {
+        const pStart = new Date(currYear, currMonth, startDay, 0, 0, 0);
+        const pEnd = new Date(currYear, currMonth + 1, endDay, 23, 59, 59);
+        
         monthPeriods.push({
           month: currMonth,
           year: currYear,
-          start: new Date(currYear, currMonth, startDay, 0, 0, 0),
-          end: new Date(currYear, currMonth + 1, endDay, 23, 59, 59)
+          start: pStart,
+          end: pEnd,
+          key: formatMonthKey(currMonth, pStart, pEnd)
         });
 
         currMonth++;
@@ -355,23 +370,18 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       const grandTotals: Record<string, { prova: number; outras: number }> = {}; // monthKey -> totals
 
       allRecords.forEach(record => {
-        // Find which period this record belongs to
         const rDate = new Date(record.date);
-        const periodIndex = monthPeriods.findIndex(p => rDate >= p.start && rDate <= p.end);
-        if (periodIndex === -1) return;
+        const period = monthPeriods.find(p => rDate >= p.start && rDate <= p.end);
+        if (!period) return;
 
-        const period = monthPeriods[periodIndex];
-        const monthKey = `${months[period.month].substring(0, 3).toUpperCase()} ${period.start.getDate()}/${period.start.getMonth() + 1}-${period.end.getDate()}/${period.end.getMonth() + 1}`;
-
+        const monthKey = period.key;
         if (!grandTotals[monthKey]) grandTotals[monthKey] = { prova: 0, outras: 0 };
 
         const sector = record.sector || 'SEM SETOR';
         const server = record.person_name;
 
         if (!data[sector]) data[sector] = {};
-        if (!data[sector][server]) data[sector][server] = {
-          months: {}, // monthKey -> {prova, outras}
-        };
+        if (!data[sector][server]) data[sector][server] = { months: {} };
 
         if (!data[sector][server].months[monthKey]) {
           data[sector][server].months[monthKey] = { prova: 0, outras: 0 };
@@ -390,24 +400,33 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       const doc = new jsPDF('l', 'mm', 'a4');
       const campusName = campuses.find(c => c.id === campusId)?.name || '';
 
-      doc.setFontSize(16);
-      doc.text(`Controle de Cópias - ${campusName}`, 14, 15);
+      // Set elegant headers
+      doc.setFillColor(225, 29, 72); // rose-600
+      doc.rect(0, 0, 297, 40, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.text('Controle de Cópias', 14, 20);
+      
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text(`Período: ${months[reportRange.startMonth]} ${reportRange.startYear} até ${months[reportRange.endMonth]} ${reportRange.endYear}`, 14, 22);
+      doc.text(`${campusName} • Relatório de Gestão de Impressões`, 14, 28);
+      
+      doc.setFontSize(9);
+      doc.text(`Período de Referência: ${months[reportRange.startMonth]} ${reportRange.startYear} até ${months[reportRange.endMonth]} ${reportRange.endYear}`, 14, 34);
 
       const tableHeaders = ['SETOR', 'SERVIDOR', 'TIPO'];
-      const monthKeys = monthPeriods.map(p => 
-        `${months[p.month].substring(0, 3).toUpperCase()} ${p.start.getDate()}/${p.start.getMonth() + 1 <= 9 ? '0' + (p.start.getMonth() + 1) : (p.start.getMonth() + 1)}-${p.end.getDate()}/${p.end.getMonth() + 1 <= 9 ? '0' + (p.end.getMonth() + 1) : (p.end.getMonth() + 1)}`
-      );
+      const monthKeys = monthPeriods.map(p => p.key);
       tableHeaders.push(...monthKeys);
       tableHeaders.push('TOTAL');
 
       const tableRows: any[] = [];
 
-      // Grand Total Row (Top)
-      const provaTotalRow = ['Total', '', 'PROVA'];
-      const outrasTotalRow = ['Total', '', 'OUTRAS'];
-      const sumRow = ['Somatório', '', ''];
+      // Grand Total Row (Top) - Styled elegantly
+      const provaTotalRow = ['TOTAL GERAL', '', 'PROVA'];
+      const outrasTotalRow = ['', '', 'OUTRAS'];
+      const sumRow = ['SOMATÓRIO', '', 'TODOS'];
 
       let grandProvaSum = 0;
       let grandOutrasSum = 0;
@@ -415,9 +434,9 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       monthKeys.forEach(mk => {
         const pVal = grandTotals[mk]?.prova || 0;
         const oVal = grandTotals[mk]?.outras || 0;
-        provaTotalRow.push(pVal ? pVal.toString() : '');
-        outrasTotalRow.push(oVal ? oVal.toString() : '');
-        sumRow.push((pVal + oVal) ? (pVal + oVal).toString() : '');
+        provaTotalRow.push(pVal ? pVal.toString() : '0');
+        outrasTotalRow.push(oVal ? oVal.toString() : '0');
+        sumRow.push((pVal + oVal).toString());
         grandProvaSum += pVal;
         grandOutrasSum += oVal;
       });
@@ -438,14 +457,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
 
           monthKeys.forEach(mk => {
             const val = data[sector][server].months[mk];
-            sProvaRow.push(val?.prova ? val.prova.toString() : '');
-            sOutrasRow.push(val?.outras ? val.outras.toString() : '');
+            sProvaRow.push(val?.prova ? val.prova.toString() : '0');
+            sOutrasRow.push(val?.outras ? val.outras.toString() : '0');
             sTotalProva += (val?.prova || 0);
             sTotalOutras += (val?.outras || 0);
           });
 
-          sProvaRow.push(sTotalProva ? sTotalProva.toString() : '');
-          sOutrasRow.push(sTotalOutras ? sTotalOutras.toString() : '');
+          sProvaRow.push(sTotalProva.toString());
+          sOutrasRow.push(sTotalOutras.toString());
           tableRows.push(sProvaRow, sOutrasRow);
         });
       });
@@ -453,22 +472,79 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       autoTable(doc, {
         head: [tableHeaders],
         body: tableRows,
-        startY: 30,
+        startY: 50,
         theme: 'grid',
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [200, 200, 200], textColor: 20, fontStyle: 'bold' },
+        styles: { 
+          fontSize: 8, 
+          cellPadding: 3,
+          font: 'helvetica',
+          lineColor: [240, 240, 240],
+          lineWidth: 0.1,
+        },
+        headStyles: { 
+          fillColor: [31, 41, 55], // gray-800
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        columnStyles: {
+          0: { cellWidth: 35 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 20, fontStyle: 'bold' }
+        },
         didParseCell: (data) => {
+          // Alignment for numbers
+          if (data.column.index > 2) {
+            data.cell.styles.halign = 'center';
+          }
+
+          // Total Rows Style (Top 3 rows)
           if (data.row.index < 3) {
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fillColor = [245, 245, 245];
+            data.cell.styles.fillColor = [255, 241, 242]; // rose-50
+            data.cell.styles.textColor = [159, 18, 57]; // rose-900
+
+            if (data.row.index === 2) { // Somatório row
+              data.cell.styles.fillColor = [31, 41, 55]; // gray-800
+              data.cell.styles.textColor = [255, 255, 255];
+            }
           }
-          if (data.row.index === 2) {
-            data.cell.styles.fillColor = [230, 230, 230];
+
+          // Color coded print types
+          if (data.column.index === 2) {
+            if (data.cell.text[0] === 'PROVA') {
+              data.cell.styles.textColor = [225, 29, 72]; // rose-600
+            } else if (data.cell.text[0] === 'OUTRAS') {
+              data.cell.styles.textColor = [217, 119, 6]; // amber-600
+            }
           }
-        }
+          
+          // Total column highligh
+          if (data.column.index === tableHeaders.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            if (data.row.index >= 3) {
+              data.cell.styles.fillColor = [249, 250, 251]; // gray-50
+            }
+          }
+        },
+        margin: { top: 50 },
       });
 
-      doc.save(`relatorio_copias_${reportRange.startYear}_${reportRange.endYear}.pdf`);
+      // Footer
+      const pageCount = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(
+          `Gerado em ${new Date().toLocaleString()} • Página ${i} de ${pageCount}`,
+          doc.internal.pageSize.getWidth() / 2,
+          doc.internal.pageSize.getHeight() - 10,
+          { align: 'center' }
+        );
+      }
+
+      doc.save(`relatorio_copias_elegante_${reportRange.startYear}.pdf`);
       setIsReportModalOpen(false);
     } catch (error) {
       console.error(error);

@@ -25,9 +25,12 @@ import {
   PieChart,
   Save,
   Eye,
-  Info
+  Info,
+  FileDown
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface CopyControlTabProps {
   records: CopyRecord[];
@@ -53,6 +56,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<CopyRecord[] | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportRange, setReportRange] = useState({
+    startMonth: new Date().getMonth(),
+    startYear: new Date().getFullYear(),
+    endMonth: new Date().getMonth(),
+    endYear: new Date().getFullYear()
+  });
 
   // Period Logic
   const startDayConfig = config?.start_day || 13;
@@ -300,6 +310,174 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     document.body.removeChild(link);
   };
 
+  const handleGeneratePDF = async () => {
+    setIsSaving(true);
+    try {
+      const startDay = config?.start_day || 13;
+      const endDay = config?.end_day || 12;
+
+      // 1. Calculate overall date range for fetching
+      const startDate = new Date(reportRange.startYear, reportRange.startMonth, startDay, 0, 0, 0);
+      const endDate = new Date(reportRange.endYear, reportRange.endMonth + 1, endDay, 23, 59, 59);
+
+      // 2. Fetch all records in range
+      const campusId = adminGlobalCampusId || user?.campus_id;
+      if (!campusId) return;
+
+      const allRecords = await StorageService.getCopyRecords(
+        campusId,
+        startDate.toISOString(),
+        endDate.toISOString()
+      );
+
+      // 3. Generate list of months in the range
+      const monthPeriods: { month: number; year: number; start: Date; end: Date }[] = [];
+      let currMonth = reportRange.startMonth;
+      let currYear = reportRange.startYear;
+
+      while (currYear < reportRange.endYear || (currYear === reportRange.endYear && currMonth <= reportRange.endMonth)) {
+        monthPeriods.push({
+          month: currMonth,
+          year: currYear,
+          start: new Date(currYear, currMonth, startDay, 0, 0, 0),
+          end: new Date(currYear, currMonth + 1, endDay, 23, 59, 59)
+        });
+
+        currMonth++;
+        if (currMonth > 11) {
+          currMonth = 0;
+          currYear++;
+        }
+      }
+
+      // 4. Process data: Grouped by Sector -> Server
+      const data: any = {};
+      const grandTotals: Record<string, { prova: number; outras: number }> = {}; // monthKey -> totals
+
+      allRecords.forEach(record => {
+        // Find which period this record belongs to
+        const rDate = new Date(record.date);
+        const periodIndex = monthPeriods.findIndex(p => rDate >= p.start && rDate <= p.end);
+        if (periodIndex === -1) return;
+
+        const period = monthPeriods[periodIndex];
+        const monthKey = `${months[period.month].substring(0, 3).toUpperCase()} ${period.start.getDate()}/${period.start.getMonth() + 1}-${period.end.getDate()}/${period.end.getMonth() + 1}`;
+
+        if (!grandTotals[monthKey]) grandTotals[monthKey] = { prova: 0, outras: 0 };
+
+        const sector = record.sector || 'SEM SETOR';
+        const server = record.person_name;
+
+        if (!data[sector]) data[sector] = {};
+        if (!data[sector][server]) data[sector][server] = {
+          months: {}, // monthKey -> {prova, outras}
+        };
+
+        if (!data[sector][server].months[monthKey]) {
+          data[sector][server].months[monthKey] = { prova: 0, outras: 0 };
+        }
+
+        if (record.print_type === 'PROVA') {
+          data[sector][server].months[monthKey].prova += record.quantity;
+          grandTotals[monthKey].prova += record.quantity;
+        } else {
+          data[sector][server].months[monthKey].outras += record.quantity;
+          grandTotals[monthKey].outras += record.quantity;
+        }
+      });
+
+      // 5. Generate PDF
+      const doc = new jsPDF('l', 'mm', 'a4');
+      const campusName = campuses.find(c => c.id === campusId)?.name || '';
+
+      doc.setFontSize(16);
+      doc.text(`Controle de Cópias - ${campusName}`, 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Período: ${months[reportRange.startMonth]} ${reportRange.startYear} até ${months[reportRange.endMonth]} ${reportRange.endYear}`, 14, 22);
+
+      const tableHeaders = ['SETOR', 'SERVIDOR', 'TIPO'];
+      const monthKeys = monthPeriods.map(p => 
+        `${months[p.month].substring(0, 3).toUpperCase()} ${p.start.getDate()}/${p.start.getMonth() + 1 <= 9 ? '0' + (p.start.getMonth() + 1) : (p.start.getMonth() + 1)}-${p.end.getDate()}/${p.end.getMonth() + 1 <= 9 ? '0' + (p.end.getMonth() + 1) : (p.end.getMonth() + 1)}`
+      );
+      tableHeaders.push(...monthKeys);
+      tableHeaders.push('TOTAL');
+
+      const tableRows: any[] = [];
+
+      // Grand Total Row (Top)
+      const provaTotalRow = ['Total', '', 'PROVA'];
+      const outrasTotalRow = ['Total', '', 'OUTRAS'];
+      const sumRow = ['Somatório', '', ''];
+
+      let grandProvaSum = 0;
+      let grandOutrasSum = 0;
+
+      monthKeys.forEach(mk => {
+        const pVal = grandTotals[mk]?.prova || 0;
+        const oVal = grandTotals[mk]?.outras || 0;
+        provaTotalRow.push(pVal ? pVal.toString() : '');
+        outrasTotalRow.push(oVal ? oVal.toString() : '');
+        sumRow.push((pVal + oVal) ? (pVal + oVal).toString() : '');
+        grandProvaSum += pVal;
+        grandOutrasSum += oVal;
+      });
+
+      provaTotalRow.push(grandProvaSum.toString());
+      outrasTotalRow.push(grandOutrasSum.toString());
+      sumRow.push((grandProvaSum + grandOutrasSum).toString());
+
+      tableRows.push(provaTotalRow, outrasTotalRow, sumRow);
+
+      // Body Rows
+      Object.keys(data).sort().forEach(sector => {
+        Object.keys(data[sector]).sort().forEach(server => {
+          const sProvaRow = [sector.toString(), server.toString(), 'PROVA'];
+          const sOutrasRow = ['', '', 'OUTRAS'];
+          let sTotalProva = 0;
+          let sTotalOutras = 0;
+
+          monthKeys.forEach(mk => {
+            const val = data[sector][server].months[mk];
+            sProvaRow.push(val?.prova ? val.prova.toString() : '');
+            sOutrasRow.push(val?.outras ? val.outras.toString() : '');
+            sTotalProva += (val?.prova || 0);
+            sTotalOutras += (val?.outras || 0);
+          });
+
+          sProvaRow.push(sTotalProva ? sTotalProva.toString() : '');
+          sOutrasRow.push(sTotalOutras ? sTotalOutras.toString() : '');
+          tableRows.push(sProvaRow, sOutrasRow);
+        });
+      });
+
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableRows,
+        startY: 30,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [200, 200, 200], textColor: 20, fontStyle: 'bold' },
+        didParseCell: (data) => {
+          if (data.row.index < 3) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [245, 245, 245];
+          }
+          if (data.row.index === 2) {
+            data.cell.styles.fillColor = [230, 230, 230];
+          }
+        }
+      });
+
+      doc.save(`relatorio_copias_${reportRange.startYear}_${reportRange.endYear}.pdf`);
+      setIsReportModalOpen(false);
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao gerar PDF.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const months = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -324,6 +502,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center bg-gray-50 p-1.5 rounded-2xl border border-gray-100 shadow-sm">
+              <button
+                onClick={() => setIsReportModalOpen(true)}
+                className="flex items-center gap-2 bg-white text-rose-600 border-2 border-rose-100 px-6 py-3.5 rounded-2xl font-bold shadow-sm hover:border-rose-300 hover:-translate-y-0.5 transition-all"
+              >
+                <FileDown size={20} /> RELATÓRIO PDF
+              </button>
+
               <button
                 onClick={() => {
                   if (selectedMonth === 0) {
@@ -843,6 +1028,82 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           </div>
         </div>
       </Modal>
+
+      {/* REPORT PDF MODAL */}
+      <Modal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} title="">
+        <div className="space-y-6">
+          <div className="text-center pb-6 border-b border-gray-100">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-200">
+              <FileDown size={32} className="text-white" />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-2">Gerar Relatório PDF</h3>
+            <p className="text-sm text-gray-500 font-medium">Escolha o intervalo de meses para o relatório</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <label className="block text-sm font-black text-gray-700 uppercase tracking-widest">Início</label>
+              <div className="flex flex-col gap-2">
+                <select
+                  value={reportRange.startMonth}
+                  onChange={e => setReportRange(v => ({ ...v, startMonth: parseInt(e.target.value) }))}
+                  className="w-full p-3 bg-gray-50 border-2 border-transparent focus:border-rose-200 rounded-xl outline-none font-bold text-sm"
+                >
+                  {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+                <input
+                  type="number"
+                  value={reportRange.startYear}
+                  onChange={e => setReportRange(v => ({ ...v, startYear: parseInt(e.target.value) }))}
+                  className="w-full p-3 bg-gray-50 border-2 border-transparent focus:border-rose-200 rounded-xl outline-none font-bold text-sm text-center"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-black text-gray-700 uppercase tracking-widest">Fim</label>
+              <div className="flex flex-col gap-2">
+                <select
+                  value={reportRange.endMonth}
+                  onChange={e => setReportRange(v => ({ ...v, endMonth: parseInt(e.target.value) }))}
+                  className="w-full p-3 bg-gray-50 border-2 border-transparent focus:border-rose-200 rounded-xl outline-none font-bold text-sm"
+                >
+                  {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+                <input
+                  type="number"
+                  value={reportRange.endYear}
+                  onChange={e => setReportRange(v => ({ ...v, endYear: parseInt(e.target.value) }))}
+                  className="w-full p-3 bg-gray-50 border-2 border-transparent focus:border-rose-200 rounded-xl outline-none font-bold text-sm text-center"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-gray-100 flex gap-4">
+            <button
+              onClick={() => setIsReportModalOpen(false)}
+              className="flex-1 px-6 py-4 bg-gray-50 text-gray-400 hover:text-gray-700 rounded-2xl font-black transition-all text-xs uppercase tracking-widest"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleGeneratePDF}
+              disabled={isSaving}
+              className="flex-[2] px-6 py-4 bg-gradient-to-r from-rose-600 to-red-600 text-white rounded-2xl font-black shadow-lg shadow-rose-200 hover:shadow-rose-400 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-3 text-xs uppercase tracking-widest disabled:opacity-50"
+            >
+              {isSaving ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <FileDown size={20} /> Gerar Relatório
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       {/* DETAILS MODAL */}
       <Modal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} title="">
         <div className="space-y-6">

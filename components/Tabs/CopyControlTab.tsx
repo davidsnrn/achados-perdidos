@@ -55,11 +55,36 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [selectedGroup, setSelectedGroup] = useState<CopyRecord[] | null>(null);
 
   // Period Logic
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
+  const startDayConfig = config?.start_day || 13;
+  const { initialMonth, initialYear, isAccountingDiff } = useMemo(() => {
+    const today = new Date();
+    let month = today.getMonth();
+    let year = today.getFullYear();
+    let diff = false;
 
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [selectedYear, setSelectedYear] = useState(currentYear);
+    if (today.getDate() < startDayConfig) {
+      month -= 1;
+      if (month < 0) {
+        month = 11;
+        year -= 1;
+      }
+      diff = true;
+    }
+    return { initialMonth: month, initialYear: year, isAccountingDiff: diff };
+  }, [startDayConfig]);
+
+  const [selectedMonth, setSelectedMonth] = useState(initialMonth);
+  const [selectedYear, setSelectedYear] = useState(initialYear);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Re-sync on first mount or when config loads if not manually changed
+  React.useEffect(() => {
+    if (!hasInitialized) {
+      setSelectedMonth(initialMonth);
+      setSelectedYear(initialYear);
+      setHasInitialized(true);
+    }
+  }, [initialMonth, initialYear, hasInitialized]);
 
   // New Record Form State
   const [newRecord, setNewRecord] = useState<Partial<CopyRecord>>({
@@ -76,13 +101,19 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     const startDay = config?.start_day || 13;
     const endDay = config?.end_day || 12;
 
-    // Start date: Day X of previous month
-    const startDate = new Date(selectedYear, selectedMonth - 1, startDay, 0, 0, 0);
-    // End date: Day Y of current month
-    const endDate = new Date(selectedYear, selectedMonth, endDay, 23, 59, 59);
+    // Start date: Day X of SELECTED month
+    const startDate = new Date(selectedYear, selectedMonth, startDay, 0, 0, 0);
+    // End date: Day Y of NEXT month
+    const endDate = new Date(selectedYear, selectedMonth + 1, endDay, 23, 59, 59);
 
     return { start: startDate, end: endDate };
   }, [selectedMonth, selectedYear, config]);
+
+  // Check if current selected period matches today's date
+  const isPeriodForToday = useMemo(() => {
+    const today = new Date();
+    return today >= periodRange.start && today <= periodRange.end;
+  }, [periodRange]);
 
   // Filter records by period and search term
   const filteredRecords = useMemo(() => {
@@ -331,7 +362,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <Plus size={20} /> NOVO REGISTRO
             </button>
 
-            {user?.level === UserLevel.ADMIN && (
+            {(user?.level === UserLevel.ADMIN || user?.level === UserLevel.ADVANCED) && (
               <button
                 onClick={() => setIsConfigModalOpen(true)}
                 className="p-3.5 bg-white text-gray-600 hover:text-rose-600 border-2 border-gray-100 rounded-2xl hover:border-rose-200 transition-all shadow-sm"
@@ -444,16 +475,32 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 rounded-xl text-rose-700 text-xs font-bold border border-rose-100 italic">
-              <Calendar size={14} />
-              Periodo: {periodRange.start.toLocaleDateString()} - {periodRange.end.toLocaleDateString()}
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 rounded-xl text-rose-700 text-xs font-bold border border-rose-100 italic">
+                  <Calendar size={14} />
+                  Periodo: {periodRange.start.toLocaleDateString()} - {periodRange.end.toLocaleDateString()}
+                </div>
+                <button 
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-4 py-2 border-2 border-gray-100 rounded-xl text-gray-500 hover:text-rose-600 hover:border-rose-200 transition-all font-bold text-xs uppercase tracking-wide"
+                >
+                  <Download size={16} /> Exportar
+                </button>
+              </div>
+              
+              {/* Accounting Month Notice */}
+              {!isPeriodForToday && (
+                <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest px-2 py-1 bg-amber-50 rounded-lg animate-pulse border border-amber-100">
+                  <Info size={12} /> Visualizando Competência: {months[selectedMonth]} {selectedYear}
+                </div>
+              )}
+              {isPeriodForToday && (
+                <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-500 uppercase tracking-widest px-2 py-1 bg-emerald-50 rounded-lg border border-emerald-100">
+                  <CheckCircle2 size={12} /> Competência Atual: {months[selectedMonth]} {selectedYear}
+                </div>
+              )}
             </div>
-            <button 
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2 border-2 border-gray-100 rounded-xl text-gray-500 hover:text-rose-600 hover:border-rose-200 transition-all font-bold text-xs uppercase tracking-wide"
-            >
-              <Download size={16} /> Exportar
-            </button>
           </div>
         </div>
 
@@ -734,10 +781,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             <p className="text-sm text-gray-500 font-medium">Defina os dias de corte do mês</p>
           </div>
 
-          <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100 flex gap-3 text-amber-700">
-            <AlertCircle size={20} className="shrink-0" />
+          <div className="bg-rose-50 rounded-2xl p-4 border border-rose-100 flex gap-3 text-rose-700">
+            <Info size={20} className="shrink-0" />
             <p className="text-xs font-bold leading-relaxed">
-              Dica: Se o período for do dia 13 ao dia 12 do mês seguinte, configure Dia de Início as 13 e Dia de Fim como 12.
+              Define os dias em que o relatório de cada mês inicia e termina.
             </p>
           </div>
 

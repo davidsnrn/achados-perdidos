@@ -23,6 +23,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+  const [hasSearchedPeople, setHasSearchedPeople] = useState(false);
+  const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
 
   // Sort State
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'desc' });
@@ -307,20 +309,27 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />;
   };
 
-  const handlePersonSearch = async (val?: string) => {
+  const handlePersonSearch = async (val?: string, isTriggered = false) => {
     const query = val !== undefined ? val : personSearch;
-    if (query.trim().length >= 2) {
+    setPersonSearch(query);
+
+    if (isTriggered && query.trim().length >= 2) {
       setIsSearchingPeople(true);
       try {
         const results = await StorageService.searchPeople(query, 10, user.campus_id);
         setSearchResultsPeople(results);
+        setHasSearchedPeople(true);
+        setSelectedResultIndex(results.length > 0 ? 0 : -1);
       } catch (err) {
         console.error("Erro busca pessoas:", err);
       } finally {
         setIsSearchingPeople(false);
       }
-    } else {
+    } else if (!isTriggered) {
+      // Clear results on edit or when typing too few characters
       setSearchResultsPeople([]);
+      setHasSearchedPeople(false);
+      setSelectedResultIndex(-1);
     }
   };
 
@@ -1024,39 +1033,48 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           {returnType === 'PERSON' && (
             <div className="relative space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
-              <div className="relative flex gap-2">
                 <div className="relative flex-1">
                   <input
                     type="text"
-                    className="w-full border rounded-lg p-2.5 pl-10 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                    className="w-full border rounded-lg p-2.5 pr-14 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                     placeholder="Digite o nome ou parte da matrícula..."
                     value={personSearch}
-                    onChange={e => {
-                      setPersonSearch(e.target.value);
-                      if (e.target.value.length < 2) setSearchResultsPeople([]);
-                    }}
+                    onChange={e => handlePersonSearch(e.target.value, false)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
-                        handlePersonSearch();
+                        if (searchResultsPeople.length > 0 && selectedResultIndex >= 0) {
+                          const p = searchResultsPeople[selectedResultIndex];
+                          setSelectedPerson(p);
+                          setPersonSearch(p.name);
+                          setSearchResultsPeople([]);
+                          setSelectedResultIndex(-1);
+                        } else {
+                          handlePersonSearch(personSearch, true);
+                        }
+                      } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSelectedResultIndex(prev =>
+                          prev < searchResultsPeople.length - 1 ? prev + 1 : prev
+                        );
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSelectedResultIndex(prev => prev > 0 ? prev - 1 : prev);
                       }
                     }}
                   />
-                  <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                  {isSearchingPeople && (
-                    <div className="absolute right-3 top-2.5">
-                      <Loader2 size={16} className="animate-spin text-ifrn-green" />
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handlePersonSearch(personSearch, true)}
+                    className="absolute right-0 top-0 bottom-0 px-4 flex items-center justify-center text-gray-400 hover:text-ifrn-green transition-colors border-l"
+                  >
+                    {isSearchingPeople ? (
+                      <Loader2 size={18} className="animate-spin text-ifrn-green" />
+                    ) : (
+                      <Search size={18} />
+                    )}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handlePersonSearch()}
-                  className="px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold transition-all text-sm"
-                >
-                  Buscar
-                </button>
-              </div>
 
               {selectedPerson ? (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3 mt-2">
@@ -1078,15 +1096,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               ) : (
                 searchResultsPeople.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg max-h-40 overflow-y-auto divide-y divide-gray-100 z-50 shadow-xl">
-                    {searchResultsPeople.map(p => (
+                    {searchResultsPeople.map((p, index) => (
                       <div
-                        key={p.id}
+                        key={p.matricula}
                         onClick={() => {
                           setSelectedPerson(p);
                           setPersonSearch(p.name);
                           setSearchResultsPeople([]);
+                          setSelectedResultIndex(-1);
                         }}
-                        className="p-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                        className={`p-3 cursor-pointer transition-colors ${selectedResultIndex === index ? 'bg-ifrn-green/10 border-l-4 border-ifrn-green' : 'hover:bg-gray-50'}`}
                       >
                         <p className="text-sm font-medium text-gray-800">{p.name}</p>
                         <p className="text-xs text-gray-500">{p.matricula}</p>
@@ -1095,8 +1114,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                   </div>
                 )
               )}
-              {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-xl z-50">
+              {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && hasSearchedPeople && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-lg p-3 text-center text-xs text-gray-400 italic shadow-xl z-50 flex items-center justify-center gap-2">
                   Nenhuma pessoa encontrada
                 </div>
               )}

@@ -106,6 +106,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [searchResults, setSearchResults] = useState<Person[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
 
   // Calculate period dates
   const periodRange = useMemo(() => {
@@ -211,6 +212,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       try {
         const results = await StorageService.searchPeople(val, 5, adminGlobalCampusId || user?.campus_id || undefined);
         setSearchResults(results);
+        setSelectedResultIndex(results.length > 0 ? 0 : -1);
       } catch (error) {
         console.error(error);
       } finally {
@@ -219,6 +221,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     } else {
       // Clear results when editing or search is too short
       setSearchResults([]);
+      setSelectedResultIndex(-1);
     }
   };
 
@@ -998,7 +1001,20 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                     onChange={e => handlePersonSearch(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === 'Enter') {
-                        handlePersonSearch(personSearch, true);
+                        e.preventDefault();
+                        if (searchResults.length > 0 && selectedResultIndex >= 0) {
+                          handleSelectPerson(searchResults[selectedResultIndex]);
+                        } else {
+                          handlePersonSearch(personSearch, true);
+                        }
+                      } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSelectedResultIndex(prev =>
+                          prev < searchResults.length - 1 ? prev + 1 : prev
+                        );
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSelectedResultIndex(prev => prev > 0 ? prev - 1 : prev);
                       }
                     }}
                     className="w-full pl-6 pr-14 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm"
@@ -1021,16 +1037,18 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           Pesquisando...
                         </div>
                       ) : (
-                        searchResults.map(p => (
+                        searchResults.map((p, index) => (
                           <button
                             key={p.matricula}
                             onClick={() => handleSelectPerson(p)}
-                            className="w-full p-4 hover:bg-rose-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0"
+                            className={`w-full p-4 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0 ${selectedResultIndex === index ? 'bg-rose-50 border-l-4 border-rose-500' : 'hover:bg-rose-50 pl-4'}`}
+                            style={{ paddingLeft: selectedResultIndex === index ? '12px' : '16px' }}
                           >
                             <div className="text-left">
-                              <p className="font-bold text-gray-800 text-sm uppercase">{p.name}</p>
+                              <p className={`font-bold text-sm uppercase ${selectedResultIndex === index ? 'text-rose-600' : 'text-gray-800'}`}>{p.name}</p>
                               <p className="text-xs text-gray-400 font-medium">{p.matricula} • {p.type}</p>
                             </div>
+                            {selectedResultIndex === index && <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest">Selecionar</span>}
                           </button>
                         ))
                       )}

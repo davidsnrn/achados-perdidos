@@ -467,10 +467,9 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     }, [historicalLoans]);
     const handlePersonSearchChange = (val: string) => {
         setPersonSearch(val);
-        if (val.trim() === '') {
-            setSearchResultsPeople([]);
-            setSelectedPersonIndex(null);
-        }
+        // Clear results on change, matching FoundItemsTab behavior
+        setSearchResultsPeople([]);
+        setSelectedPersonIndex(null);
     };
 
     const performPersonSearch = async () => {

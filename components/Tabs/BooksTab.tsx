@@ -305,10 +305,9 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     // Quick loan: handle person search input change
     const handlePersonSearchChange = (val: string) => {
         setLoanPersonSearch(val);
-        if (val.trim() === '') {
-            setSearchResultsPeople([]);
-            setSelectedPersonIndex(null);
-        }
+        // Clear results on change, matching FoundItemsTab behavior
+        setSearchResultsPeople([]);
+        setSelectedPersonIndex(null);
     };
 
     const performPersonSearch = async () => {

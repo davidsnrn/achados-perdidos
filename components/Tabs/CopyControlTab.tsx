@@ -107,6 +107,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Calculate period dates
   const periodRange = useMemo(() => {
@@ -246,6 +247,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     try {
       await StorageService.saveCopyRecord({
         ...newRecord,
+        date: new Date(selectedDate + "T12:00:00").toISOString(), // Standardize to noon to avoid timezone shift issues
         campus_id: adminGlobalCampusId || user!.campus_id!,
         operator_id: user!.id
       });
@@ -257,6 +259,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         date: new Date().toISOString()
       });
       setSelectedPerson(null);
+      setSelectedDate(new Date().toISOString().split('T')[0]);
     } catch (error) {
       console.error(error);
       alert("Erro ao salvar registro.");
@@ -678,7 +681,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             </div>
 
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setIsModalOpen(true);
+                setSelectedDate(new Date().toISOString().split('T')[0]);
+              }}
               className="flex items-center gap-2 bg-gradient-to-r from-rose-600 to-red-600 text-white px-6 py-3.5 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:shadow-rose-300 hover:-translate-y-0.5 transition-all"
             >
               <Plus size={20} /> NOVO REGISTRO
@@ -845,11 +851,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 return (
                   <tr key={record.id} className="hover:bg-gray-50/80 transition-colors group">
                     <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center text-indigo-500 font-black shadow-sm">
-                          {record.person_name.charAt(0)}
-                        </div>
-                        <div>
+                      <div>
                           <p className="font-bold text-gray-900 group-hover:text-rose-600 transition-colors">{record.person_name}</p>
                           <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 mt-1">
                             <span className="bg-gray-100 px-2 py-0.5 rounded-md">{record.person_matricula}</span>
@@ -864,7 +866,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                             </span>
                           </div>
                         </div>
-                      </div>
                     </td>
                     <td className="px-8 py-6">
                       {(() => {
@@ -942,7 +943,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                       <h3 className="text-lg font-black text-gray-800 mb-2">Sem registros</h3>
                       <p className="text-sm text-gray-500 mb-6">Nenhuma cópia registrada para este período ou busca.</p>
                       <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => {
+                          setIsModalOpen(true);
+                          setSelectedDate(new Date().toISOString().split('T')[0]);
+                        }}
                         className="text-rose-600 font-bold hover:underline"
                       >
                         Clique aqui para adicionar
@@ -977,9 +981,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               {selectedPerson ? (
                 <div className="flex items-center justify-between p-4 bg-rose-50 border-2 border-rose-200 rounded-2xl gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-rose-600 font-black shadow-sm">
-                      {selectedPerson.name.charAt(0)}
-                    </div>
                     <div>
                       <p className="font-bold text-gray-800 text-sm">{selectedPerson.name}</p>
                       <p className="text-xs text-rose-400 font-medium">{selectedPerson.matricula}</p>
@@ -1058,22 +1059,22 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                  <PieChart size={16} className="text-rose-500" />
-                  Finalidade
-                </label>
-                <select
-                  value={newRecord.print_type}
-                  onChange={e => setNewRecord(v => ({ ...v, print_type: e.target.value as any }))}
-                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
-                >
-                  <option value="PROVA">PROVA</option>
-                  <option value="OUTRAS">OUTRAS</option>
-                </select>
-              </div>
+            <div className="space-y-3">
+              <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                <PieChart size={16} className="text-rose-500" />
+                Finalidade
+              </label>
+              <select
+                value={newRecord.print_type}
+                onChange={e => setNewRecord(v => ({ ...v, print_type: e.target.value as any }))}
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
+              >
+                <option value="PROVA">PROVA</option>
+                <option value="OUTRAS">OUTRAS</option>
+              </select>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3">
                 <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
                   <TrendingUp size={16} className="text-rose-500" />
@@ -1085,6 +1086,19 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   value={newRecord.quantity}
                   onChange={e => setNewRecord(v => ({ ...v, quantity: parseInt(e.target.value) }))}
                   className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-black text-lg text-rose-700 text-center"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <Calendar size={16} className="text-rose-500" />
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm text-gray-700 text-center"
                 />
               </div>
             </div>

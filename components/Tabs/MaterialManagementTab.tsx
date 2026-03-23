@@ -42,6 +42,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
     const [personTypeFilter, setPersonTypeFilter] = useState<'ALL' | 'Aluno' | 'Servidor'>('ALL');
+    const [hasSearchedPeople, setHasSearchedPeople] = useState(false);
+    const [selectedResultIndex, setSelectedResultIndex] = useState(0);
     const [selectedMaterials, setSelectedMaterials] = useState<Material[]>([]);
     const [materialSearch, setMaterialSearch] = useState('');
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
@@ -138,10 +140,20 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
-    const handlePersonSearch = async (val?: string) => {
+    const handlePersonSearch = async (val?: string, isTriggered: boolean = true) => {
         const query = val !== undefined ? val : personSearch;
+        
+        if (!isTriggered) {
+            setHasSearchedPeople(false);
+            setSearchResultsPeople([]);
+            setSelectedResultIndex(0);
+            return;
+        }
+
         if (query.trim().length >= 2) {
             setIsSearchingPeople(true);
+            setHasSearchedPeople(true);
+            setSelectedResultIndex(0);
             try {
                 const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined, personTypeFilter);
                 setSearchResultsPeople(results.slice(0, 10));
@@ -152,6 +164,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             }
         } else {
             setSearchResultsPeople([]);
+            setHasSearchedPeople(false);
         }
     };
 
@@ -1010,53 +1023,90 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <div className="relative flex-1">
                                     <input
                                         type="text"
-                                        className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500"
+                                        className="w-full border-2 border-gray-100 rounded-xl p-3 pr-12 text-sm outline-none focus:border-indigo-500 transition-all font-medium"
                                         placeholder="Buscar pessoa..."
                                         value={personSearch}
                                         onChange={e => {
                                             setPersonSearch(e.target.value);
-                                            if (e.target.value.length < 2) setSearchResultsPeople([]);
+                                            handlePersonSearch(e.target.value, false);
                                         }}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
+                                            if (e.key === 'ArrowDown') {
                                                 e.preventDefault();
-                                                handlePersonSearch();
+                                                if (searchResultsPeople.length > 0) {
+                                                    setSelectedResultIndex(prev => (prev + 1) % searchResultsPeople.length);
+                                                }
+                                            } else if (e.key === 'ArrowUp') {
+                                                e.preventDefault();
+                                                if (searchResultsPeople.length > 0) {
+                                                    setSelectedResultIndex(prev => (prev - 1 + searchResultsPeople.length) % searchResultsPeople.length);
+                                                }
+                                            } else if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                if (searchResultsPeople.length > 0) {
+                                                    const p = searchResultsPeople[selectedResultIndex];
+                                                    setSelectedPerson(p);
+                                                    setPersonSearch('');
+                                                    setSearchResultsPeople([]);
+                                                    setHasSearchedPeople(false);
+                                                } else {
+                                                    handlePersonSearch();
+                                                }
                                             }
                                         }}
                                     />
-                                    <Search className="absolute left-3 top-3 text-gray-400" size={16} />
-                                    {isSearchingPeople && (
-                                        <div className="absolute right-3 top-2.5">
-                                            <Loader2 size={16} className="animate-spin text-indigo-600" />
-                                        </div>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePersonSearch()}
+                                        className="absolute right-3 top-2.5 p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all group"
+                                        title="Buscar"
+                                    >
+                                        {isSearchingPeople ? (
+                                            <Loader2 size={18} className="animate-spin" />
+                                        ) : (
+                                            <Search size={18} className="group-hover:scale-110 transition-transform" />
+                                        )}
+                                    </button>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => handlePersonSearch()}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold transition-all"
-                                >
-                                    Buscar
-                                </button>
                                 {searchResultsPeople.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50">
-                                        {searchResultsPeople.map(p => (
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50 p-1">
+                                        {searchResultsPeople.map((p, index) => (
                                             <div
                                                 key={p.matricula}
-                                                onClick={() => { setSelectedPerson(p); setPersonSearch(''); setSearchResultsPeople([]); }}
-                                                className="p-4 hover:bg-emerald-50 cursor-pointer text-sm group transition-colors"
+                                                onClick={() => { 
+                                                    setSelectedPerson(p); 
+                                                    setPersonSearch(''); 
+                                                    setSearchResultsPeople([]); 
+                                                    setHasSearchedPeople(false);
+                                                }}
+                                                className={`p-4 rounded-lg cursor-pointer text-sm group transition-all flex justify-between items-center ${
+                                                    index === selectedResultIndex 
+                                                    ? 'bg-emerald-50 border-l-4 border-emerald-500 shadow-sm' 
+                                                    : 'hover:bg-emerald-50/50 border-l-4 border-transparent'
+                                                }`}
                                             >
-                                                <div className="font-bold text-gray-800 group-hover:text-emerald-700">
-                                                    {p.name}
+                                                <div>
+                                                    <div className={`font-bold ${index === selectedResultIndex ? 'text-emerald-700' : 'text-gray-800'}`}>
+                                                        {p.name}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                                                 </div>
-                                                <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
+                                                {index === selectedResultIndex && (
+                                                    <div className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md animate-pulse">
+                                                        ENTER PARA SELECIONAR
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                                {personSearch.length >= 2 && !isSearchingPeople && searchResultsPeople.length === 0 && !selectedPerson && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl p-4 text-center text-xs text-slate-400 font-bold italic shadow-xl">
-                                        Nenhuma pessoa encontrada
+                                {hasSearchedPeople && searchResultsPeople.length === 0 && !isSearchingPeople && (
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl p-6 text-center shadow-xl animate-fadeIn">
+                                        <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <Search size={20} className="text-slate-300" />
+                                        </div>
+                                        <p className="text-xs text-slate-500 font-bold">Nenhuma pessoa encontrada</p>
+                                        <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-tight">Verifique o nome ou matrícula e tente novamente</p>
                                     </div>
                                 )}
                                 </div>

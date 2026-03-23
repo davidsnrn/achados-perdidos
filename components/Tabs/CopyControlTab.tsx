@@ -104,6 +104,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   });
   const [personSearch, setPersonSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Person[]>([]);
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   // Calculate period dates
@@ -203,12 +204,20 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     }
   };
 
-  const handlePersonSearch = async (val: string) => {
+  const handlePersonSearch = async (val: string, isTriggered = false) => {
     setPersonSearch(val);
-    if (val.length >= 2) {
-      const results = await StorageService.searchPeople(val, 5, adminGlobalCampusId || user?.campus_id || undefined);
-      setSearchResults(results);
+    if (isTriggered && val.length >= 2) {
+      setIsSearchingPeople(true);
+      try {
+        const results = await StorageService.searchPeople(val, 5, adminGlobalCampusId || user?.campus_id || undefined);
+        setSearchResults(results);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsSearchingPeople(false);
+      }
     } else {
+      // Clear results when editing or search is too short
       setSearchResults([]);
     }
   };
@@ -365,7 +374,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         }
       }
 
-      // 4. Process data: Grouped by Sector -> Server
+      // 4. Process data: Grouped by Server -> Sector
       const data: any = {};
       const grandTotals: Record<string, { prova: number; outras: number }> = {}; // monthKey -> totals
 
@@ -380,18 +389,18 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         const sector = record.sector || 'SEM SETOR';
         const server = record.person_name;
 
-        if (!data[sector]) data[sector] = {};
-        if (!data[sector][server]) data[sector][server] = { months: {} };
+        if (!data[server]) data[server] = {};
+        if (!data[server][sector]) data[server][sector] = { months: {} };
 
-        if (!data[sector][server].months[monthKey]) {
-          data[sector][server].months[monthKey] = { prova: 0, outras: 0 };
+        if (!data[server][sector].months[monthKey]) {
+          data[server][sector].months[monthKey] = { prova: 0, outras: 0 };
         }
 
         if (record.print_type === 'PROVA') {
-          data[sector][server].months[monthKey].prova += record.quantity;
+          data[server][sector].months[monthKey].prova += record.quantity;
           grandTotals[monthKey].prova += record.quantity;
         } else {
-          data[sector][server].months[monthKey].outras += record.quantity;
+          data[server][sector].months[monthKey].outras += record.quantity;
           grandTotals[monthKey].outras += record.quantity;
         }
       });
@@ -400,23 +409,51 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       const doc = new jsPDF('l', 'mm', 'a4');
       const campusName = campuses.find(c => c.id === campusId)?.name || '';
 
+      // IFRN Colors
+      const IFRN_GREEN: [number, number, number] = [120, 190, 32];
+      const IFRN_RED: [number, number, number] = [203, 22, 29];
+
       // Set elegant headers
-      doc.setFillColor(225, 29, 72); // rose-600
+      doc.setFillColor(IFRN_GREEN[0], IFRN_GREEN[1], IFRN_GREEN[2]);
       doc.rect(0, 0, 297, 40, 'F');
+
+      // Draw IFRN Logo (top-aligned with title)
+      const logoX = 14;
+      const size = 2.2;
+      const gap = 2.8;
+      const logoY = 12; // Adjusted to align with line 18 title
+
+      // Draw red circle (top-left)
+      doc.setFillColor(IFRN_RED[0], IFRN_RED[1], IFRN_RED[2]);
+      doc.circle(logoX + size / 2, logoY + size / 2, size / 2, 'F');
+
+      // Draw squares (white on green background for visibility)
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(logoX + gap, logoY, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX + gap * 2, logoY, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX, logoY + gap, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX, logoY + gap * 2, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap * 2, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX + gap * 2, logoY + gap * 2, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX, logoY + gap * 3, size, size, 0.4, 0.4, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap * 3, size, size, 0.4, 0.4, 'F');
+
+      const textX = logoX + (gap * 2) + size + 4;
 
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(22);
-      doc.text('Controle de Cópias', 14, 20);
+      doc.setFontSize(18);
+      doc.text('• Controle de Cópias', textX, 18);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
-      doc.text(`${campusName} • Relatório de Gestão de Impressões`, 14, 28);
+      doc.text(`${campusName} • Relatório de Gestão de Impressões`, 14, 27);
 
       doc.setFontSize(9);
       doc.text(`Período de Referência: ${months[reportRange.startMonth]} ${reportRange.startYear} até ${months[reportRange.endMonth]} ${reportRange.endYear}`, 14, 34);
 
-      const tableHeaders = ['SETOR', 'SERVIDOR', 'TIPO'];
+      const tableHeaders = ['SERVIDOR', 'SETOR', 'TIPO'];
       const monthKeys = monthPeriods.map(p => p.key);
       tableHeaders.push(...monthKeys);
       tableHeaders.push('TOTAL');
@@ -448,24 +485,41 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       tableRows.push(provaTotalRow, outrasTotalRow, sumRow);
 
       // Body Rows
-      Object.keys(data).sort().forEach(sector => {
-        Object.keys(data[sector]).sort().forEach(server => {
-          const sProvaRow = [sector.toString(), server.toString(), 'PROVA'];
-          const sOutrasRow = ['', '', 'OUTRAS'];
+      let lastServer = '';
+      Object.keys(data).sort().forEach(server => {
+        Object.keys(data[server]).sort().forEach(sector => {
           let sTotalProva = 0;
           let sTotalOutras = 0;
 
+          // Calculate totals first to check if we should skip this row
           monthKeys.forEach(mk => {
-            const val = data[sector][server].months[mk];
-            sProvaRow.push(val?.prova ? val.prova.toString() : '0');
-            sOutrasRow.push(val?.outras ? val.outras.toString() : '0');
+            const val = data[server][sector].months[mk];
             sTotalProva += (val?.prova || 0);
             sTotalOutras += (val?.outras || 0);
           });
 
-          sProvaRow.push(sTotalProva.toString());
-          sOutrasRow.push(sTotalOutras.toString());
-          tableRows.push(sProvaRow, sOutrasRow);
+          // Skip individual lines with zero totals for a cleaner report
+          if (sTotalProva > 0) {
+            const sProvaRow = [server === lastServer ? '' : server.toString(), sector.toString(), 'PROVA'];
+            monthKeys.forEach(mk => {
+              const val = data[server][sector].months[mk];
+              sProvaRow.push(val?.prova ? val.prova.toString() : '0');
+            });
+            sProvaRow.push(sTotalProva.toString());
+            tableRows.push(sProvaRow);
+            lastServer = server;
+          }
+
+          if (sTotalOutras > 0) {
+            const sOutrasRow = [server === lastServer ? '' : server.toString(), sector.toString(), 'OUTRAS'];
+            monthKeys.forEach(mk => {
+              const val = data[server][sector].months[mk];
+              sOutrasRow.push(val?.outras ? val.outras.toString() : '0');
+            });
+            sOutrasRow.push(sTotalOutras.toString());
+            tableRows.push(sOutrasRow);
+            lastServer = server;
+          }
         });
       });
 
@@ -493,6 +547,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           2: { cellWidth: 20, fontStyle: 'bold' }
         },
         didParseCell: (data) => {
+          // IFRN Colors
+          const IFRN_GREEN: [number, number, number] = [120, 190, 32];
+          const IFRN_RED: [number, number, number] = [203, 22, 29];
+
           // Alignment for numbers
           if (data.column.index > 2) {
             data.cell.styles.halign = 'center';
@@ -501,8 +559,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           // Total Rows Style (Top 3 rows)
           if (data.row.index < 3) {
             data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fillColor = [255, 241, 242]; // rose-50
-            data.cell.styles.textColor = [159, 18, 57]; // rose-900
+            data.cell.styles.fillColor = [240, 253, 244]; // green-50
+            data.cell.styles.textColor = [20, 83, 45]; // green-900
 
             if (data.row.index === 2) { // Somatório row
               data.cell.styles.fillColor = [31, 41, 55]; // gray-800
@@ -513,7 +571,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           // Color coded print types
           if (data.column.index === 2) {
             if (data.cell.text[0] === 'PROVA') {
-              data.cell.styles.textColor = [225, 29, 72]; // rose-600
+              data.cell.styles.textColor = IFRN_RED;
             } else if (data.cell.text[0] === 'OUTRAS') {
               data.cell.styles.textColor = [217, 119, 6]; // amber-600
             }
@@ -933,28 +991,49 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 </div>
               ) : (
                 <div className="relative group">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-rose-600 transition-colors" size={18} />
                   <input
                     type="text"
                     placeholder="Nome ou Matrícula..."
                     value={personSearch}
                     onChange={e => handlePersonSearch(e.target.value)}
-                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        handlePersonSearch(personSearch, true);
+                      }
+                    }}
+                    className="w-full pl-6 pr-14 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm"
                   />
-                  {searchResults.length > 0 && (
+                  <button
+                    onClick={() => handlePersonSearch(personSearch, true)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-rose-600 transition-colors p-2"
+                  >
+                    {isSearchingPeople ? (
+                      <div className="w-5 h-5 border-2 border-rose-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <Search size={22} />
+                    )}
+                  </button>
+                  {(searchResults.length > 0 || isSearchingPeople) && (
                     <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-xl mt-2 overflow-hidden z-[100] border-t-0 animate-in fade-in slide-in-from-top-2 duration-300">
-                      {searchResults.map(p => (
-                        <button
-                          key={p.matricula}
-                          onClick={() => handleSelectPerson(p)}
-                          className="w-full p-4 hover:bg-rose-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0"
-                        >
-                          <div className="text-left">
-                            <p className="font-bold text-gray-800 text-sm uppercase">{p.name}</p>
-                            <p className="text-xs text-gray-400 font-medium">{p.matricula} • {p.type}</p>
-                          </div>
-                        </button>
-                      ))}
+                      {isSearchingPeople ? (
+                        <div className="p-4 text-center text-gray-400 text-sm font-bold flex items-center justify-center gap-2 italic">
+                          <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+                          Pesquisando...
+                        </div>
+                      ) : (
+                        searchResults.map(p => (
+                          <button
+                            key={p.matricula}
+                            onClick={() => handleSelectPerson(p)}
+                            className="w-full p-4 hover:bg-rose-50 flex items-center justify-between transition-colors border-b border-gray-50 last:border-0"
+                          >
+                            <div className="text-left">
+                              <p className="font-bold text-gray-800 text-sm uppercase">{p.name}</p>
+                              <p className="text-xs text-gray-400 font-medium">{p.matricula} • {p.type}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>

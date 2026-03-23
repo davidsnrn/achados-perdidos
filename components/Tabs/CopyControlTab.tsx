@@ -337,7 +337,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         const sMonth = (pStart.getMonth() + 1).toString().padStart(2, '0');
         const eDay = pEnd.getDate().toString().padStart(2, '0');
         const eMonth = (pEnd.getMonth() + 1).toString().padStart(2, '0');
-        
+
         return `${months[month].substring(0, 3).toUpperCase()} ${sDay}/${sMonth}-${eDay}/${eMonth}`;
       };
 
@@ -349,7 +349,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       while (currYear < reportRange.endYear || (currYear === reportRange.endYear && currMonth <= reportRange.endMonth)) {
         const pStart = new Date(currYear, currMonth, startDay, 0, 0, 0);
         const pEnd = new Date(currYear, currMonth + 1, endDay, 23, 59, 59);
-        
+
         monthPeriods.push({
           month: currMonth,
           year: currYear,
@@ -403,16 +403,16 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       // Set elegant headers
       doc.setFillColor(225, 29, 72); // rose-600
       doc.rect(0, 0, 297, 40, 'F');
-      
+
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(22);
       doc.text('Controle de Cópias', 14, 20);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.text(`${campusName} • Relatório de Gestão de Impressões`, 14, 28);
-      
+
       doc.setFontSize(9);
       doc.text(`Período de Referência: ${months[reportRange.startMonth]} ${reportRange.startYear} até ${months[reportRange.endMonth]} ${reportRange.endYear}`, 14, 34);
 
@@ -474,16 +474,16 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         body: tableRows,
         startY: 50,
         theme: 'grid',
-        styles: { 
-          fontSize: 8, 
+        styles: {
+          fontSize: 8,
           cellPadding: 3,
           font: 'helvetica',
           lineColor: [240, 240, 240],
           lineWidth: 0.1,
         },
-        headStyles: { 
+        headStyles: {
           fillColor: [31, 41, 55], // gray-800
-          textColor: [255, 255, 255], 
+          textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center'
         },
@@ -518,7 +518,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               data.cell.styles.textColor = [217, 119, 6]; // amber-600
             }
           }
-          
+
           // Total column highligh
           if (data.column.index === tableHeaders.length - 1) {
             data.cell.styles.fontStyle = 'bold';
@@ -544,7 +544,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         );
       }
 
-      doc.save(`relatorio_copias_elegante_${reportRange.startYear}.pdf`);
+      doc.save(`relatorio_copias_${reportRange.startYear}.pdf`);
       setIsReportModalOpen(false);
     } catch (error) {
       console.error(error);
@@ -742,14 +742,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   <Calendar size={14} />
                   Periodo: {periodRange.start.toLocaleDateString()} - {periodRange.end.toLocaleDateString()}
                 </div>
-                <button 
+                <button
                   onClick={handleExportCSV}
                   className="flex items-center gap-2 px-4 py-2 border-2 border-gray-100 rounded-xl text-gray-500 hover:text-rose-600 hover:border-rose-200 transition-all font-bold text-xs uppercase tracking-wide"
                 >
                   <Download size={16} /> Exportar
                 </button>
               </div>
-              
+
               {/* Accounting Month Notice */}
               {!isPeriodForToday && (
                 <div className="flex items-center gap-1.5 text-[10px] font-black text-amber-500 uppercase tracking-widest px-2 py-1 bg-amber-50 rounded-lg animate-pulse border border-amber-100">
@@ -822,8 +822,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                         }
                         return (
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${record.print_type === 'PROVA'
-                              ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100'
-                              : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
+                            ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100'
+                            : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
                             }`}>
                             <Printer size={12} /> {record.print_type}
                           </span>

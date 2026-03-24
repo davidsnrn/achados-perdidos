@@ -23,6 +23,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
     const [endTime, setEndTime] = useState<string>('');
     const [personSearch, setPersonSearch] = useState<string>('');
     const [bookSearch, setBookSearch] = useState<string>('');
+    const [operatorSearch, setOperatorSearch] = useState<string>('');
     
     // Base stats
     const stats = useMemo(() => {
@@ -231,7 +232,9 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         loans.forEach(loan => {
             loan.books.forEach(book => {
                 const bookStatus = book.status === 'Devolvido' ? 'Devolvido' : 'Emprestado';
-                const actionDateStr = book.status === 'Devolvido' && book.returnDate ? book.returnDate : loan.loanDate;
+                const actionDateStr = book.status === 'Devolvido' && book.returnDate 
+                    ? book.returnDate 
+                    : (book.loanDate || loan.loanDate);
                 
                 // Filters
                 const localDate = new Date(actionDateStr);
@@ -274,6 +277,15 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                     if (!matchesBook) return;
                 }
 
+                if (operatorSearch.trim()) {
+                    const terms = operatorSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+                    const actionOperator = (book.status === 'Devolvido' && book.returnedBy ? book.returnedBy : (book.loanedBy || loan.loanedBy)) || '';
+                    const matchesOperator = terms.every(term => 
+                        actionOperator.toLowerCase().includes(term)
+                    );
+                    if (!matchesOperator) return;
+                }
+
                 result.push({
                     loanId: loan.id,
                     loanDate: actionDateStr,
@@ -281,7 +293,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                     personMatricula: loan.personMatricula,
                     book: book,
                     status: bookStatus,
-                    loanedBy: book.status === 'Devolvido' && book.returnedBy ? book.returnedBy : loan.loanedBy,
+                    loanedBy: book.status === 'Devolvido' && book.returnedBy ? book.returnedBy : (book.loanedBy || loan.loanedBy),
                     returnDate: book.returnDate,
                     returnedBy: book.returnedBy
                 });
@@ -289,7 +301,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         });
 
         return result.sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime());
-    }, [loans, startDate, endDate, startTime, endTime, personSearch, bookSearch]);
+    }, [loans, startDate, endDate, startTime, endTime, personSearch, bookSearch, operatorSearch]);
 
     const handleExportPDF = async () => {
         if (flattenedReportBooks.length === 0) {
@@ -414,7 +426,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                         </div>
                     </div>
 
-                    <div className="w-full lg:col-span-3">
+                    <div className="w-full lg:col-span-2">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Livro (Título/Código)</label>
                         <div className="relative">
                             <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -427,11 +439,25 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                             />
                         </div>
                     </div>
+
+                    <div className="w-full">
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Operador</label>
+                        <div className="relative">
+                            <UserIcon className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                            <input 
+                                type="text" 
+                                placeholder="Filtrar por operador..."
+                                value={operatorSearch}
+                                onChange={e => setOperatorSearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                            />
+                        </div>
+                    </div>
                 </div>
                 
                 <div className="flex justify-end gap-3 pt-2">
                     <button 
-                        onClick={() => { setStartDate(''); setEndDate(''); setStartTime(''); setEndTime(''); setPersonSearch(''); setBookSearch(''); }}
+                        onClick={() => { setStartDate(''); setEndDate(''); setStartTime(''); setEndTime(''); setPersonSearch(''); setBookSearch(''); setOperatorSearch(''); }}
                         className="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors font-bold text-sm h-[42px]"
                     >
                         Limpar Filtros

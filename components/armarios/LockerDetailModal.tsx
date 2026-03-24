@@ -358,21 +358,24 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
           {locker.status === LockerStatus.AVAILABLE && !showMaintenanceForm && (
             <>
-              <button
-                onClick={() => onStartLoan(locker)}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"
-              >
-                Registrar Empréstimo
-              </button>
+              <button onClick={onClose} className="flex-1 font-black py-4 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-600 transition-all uppercase text-xs tracking-widest">Cancelar</button>
               <button
                 onClick={() => onOpenSchedule(locker)}
                 className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"
               >
                 Agendar
               </button>
+              <button
+                onClick={() => onStartLoan(locker)}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"
+              >
+                Emprestar
+              </button>
             </>
           )}
-          <button onClick={onClose} className="flex-1 font-black py-4 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-600 transition-all uppercase text-xs tracking-widest">Fechar Ficha</button>
+          {locker.status !== LockerStatus.AVAILABLE && (
+            <button onClick={onClose} className="flex-1 font-black py-4 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-600 transition-all uppercase text-xs tracking-widest">Fechar Ficha</button>
+          )}
         </div>
       </div>
     </div>

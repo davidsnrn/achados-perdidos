@@ -1192,7 +1192,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                             <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100">
                                                                 <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Empréstimo</p>
                                                                 <p className="text-[11px] font-bold text-gray-700">
-                                                                    {book.loanDate ? new Date(book.loanDate).toLocaleDateString('pt-BR') : '---'} às {book.loanDate ? new Date(book.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '---'}
+                                                                    {(book.loanDate || viewingLoan.loanDate) ? new Date(book.loanDate || viewingLoan.loanDate).toLocaleDateString('pt-BR') : '---'} às {(book.loanDate || viewingLoan.loanDate) ? new Date(book.loanDate || viewingLoan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '---'}
                                                                 </p>
                                                                 <p className="text-[9px] text-gray-400 mt-1 uppercase">Por: <span className="font-bold text-gray-600">{book.loanedBy || viewingLoan.loanedBy}</span></p>
                                                             </div>
@@ -1201,7 +1201,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                                 <div className="p-2.5 bg-emerald-50/30 rounded-xl border border-emerald-100">
                                                                     <p className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider mb-1">Devolução</p>
                                                                     <p className="text-[11px] font-bold text-emerald-700">
-                                                                        {new Date(book.returnDate).toLocaleDateString('pt-BR')} às {new Date(book.returnDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                                        {new Date(book.returnDate || viewingLoan.returnDate || '').toLocaleDateString('pt-BR')} às {new Date(book.returnDate || viewingLoan.returnDate || '').toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                                                     </p>
                                                                     <p className="text-[9px] text-emerald-500 mt-1 uppercase">Para: <span className="font-bold text-emerald-600">{book.returnedBy || '---'}</span></p>
                                                                 </div>

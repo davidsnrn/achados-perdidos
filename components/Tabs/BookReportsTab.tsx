@@ -245,8 +245,47 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         </div>
     );
 
+    const flattenedReportBooks = useMemo(() => {
+        const result: Array<{
+            loanId: string;
+            loanDate: string;
+            personName: string;
+            personMatricula: string;
+            book: {
+                id: string;
+                title: string;
+                code?: string;
+                series?: string;
+                status?: 'Ativo' | 'Devolvido';
+            };
+            status: string;
+            loanedBy: string;
+            returnDate?: string;
+            returnedBy?: string;
+        }> = [];
+
+        filteredLoans.forEach(loan => {
+            loan.books.forEach(book => {
+                const bookStatus = book.status === 'Devolvido' ? 'Devolvido' : 'Emprestado';
+                result.push({
+                    loanId: loan.id,
+                    loanDate: book.status === 'Devolvido' && book.returnDate ? book.returnDate : loan.loanDate,
+                    personName: loan.personName,
+                    personMatricula: loan.personMatricula,
+                    book: book,
+                    status: bookStatus,
+                    loanedBy: book.status === 'Devolvido' && book.returnedBy ? book.returnedBy : loan.loanedBy,
+                    returnDate: book.returnDate,
+                    returnedBy: book.returnedBy
+                });
+            });
+        });
+
+        return result.sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime());
+    }, [filteredLoans]);
+
     const handleExportPDF = async () => {
-        if (filteredLoans.length === 0) {
+        if (flattenedReportBooks.length === 0) {
             alert("Nenhum dado para exportar.");
             return;
         }
@@ -267,25 +306,25 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
             const periodText = startDate || endDate ? `Período: ${startDate || 'Início'} até ${endDate || 'Fim'}` : "Histórico Geral";
             doc.text(`${periodText} | Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
             
-            const tableData = filteredLoans.map(loan => [
-                new Date(loan.loanDate).toLocaleDateString('pt-BR'),
-                loan.personName,
-                loan.personMatricula || 'N/A',
-                loan.books.map(b => `${b.title} (${b.code || 'S/C'})`).join(', '),
-                loan.status,
-                loan.loanedBy
+            const tableData = flattenedReportBooks.map(item => [
+                new Date(item.loanDate).toLocaleString('pt-BR'),
+                `${item.personName}\n${item.personMatricula || 'N/A'}`,
+                `${item.book.title} (${item.book.code || 'S/C'})`,
+                item.status,
+                item.loanedBy
             ]);
 
             autoTable(doc, {
                 startY: 35,
-                head: [['Data', 'Pessoa', 'Matrícula', 'Livros', 'Status', 'Operador']],
+                head: [['Data', 'Aluno/Pessoa', 'Livro', 'Status', 'Operador']],
                 body: tableData,
                 theme: 'striped',
                 headStyles: { fillColor: [4, 120, 87] }, // IFRN Green
                 styles: { fontSize: 8, cellPadding: 2 },
                 columnStyles: {
-                    0: { cellWidth: 20 },
-                    3: { cellWidth: 60 }
+                    0: { cellWidth: 35 },
+                    1: { cellWidth: 50 },
+                    2: { cellWidth: 60 }
                 }
             });
 
@@ -361,7 +400,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                     </button>
                     <button 
                         onClick={handleExportPDF}
-                        disabled={filteredLoans.length === 0}
+                        disabled={flattenedReportBooks.length === 0}
                         className="px-6 py-2 bg-ifrn-green text-white rounded-xl hover:bg-ifrn-darkGreen transition-colors font-bold text-sm h-[42px] flex items-center gap-2 shadow-md shadow-green-100 disabled:opacity-50 disabled:shadow-none"
                     >
                         <Download size={18} /> Exportar PDF
@@ -374,60 +413,56 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                     <h3 className="font-bold text-gray-800 flex items-center gap-2">
                         <Filter size={18} className="text-ifrn-green" />
                         Resultados do Relatório
-                        {filteredLoans.length > 0 ? (
-                            <span className="ml-2 px-2 py-0.5 bg-ifrn-green/10 text-ifrn-green text-[10px] rounded-full uppercase font-black">{filteredLoans.length} registros</span>
+                        {flattenedReportBooks.length > 0 ? (
+                            <span className="ml-2 px-2 py-0.5 bg-ifrn-green/10 text-ifrn-green text-[10px] rounded-full uppercase font-black">{flattenedReportBooks.length} registros</span>
                         ) : (
                             <span className="ml-2 px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] rounded-full uppercase font-black">Nenhum registro</span>
                         )}
                     </h3>
                 </div>
                 
-                {filteredLoans.length > 0 ? (
+                {flattenedReportBooks.length > 0 ? (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
                                 <tr>
                                     <th className="px-6 py-3 text-left">Data</th>
                                     <th className="px-6 py-3 text-left">Aluno/Pessoa</th>
-                                    <th className="px-6 py-3 text-left">Livros</th>
+                                    <th className="px-6 py-3 text-left">Livro</th>
                                     <th className="px-6 py-3 text-left">Status</th>
                                     <th className="px-6 py-3 text-left">Operador</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {filteredLoans.map(loan => (
-                                    <tr key={loan.id} className="hover:bg-gray-50/80 transition-colors">
+                                {flattenedReportBooks.map((item, index) => (
+                                    <tr key={`${item.loanId}-${item.book.id}-${index}`} className="hover:bg-gray-50/80 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-gray-800">{new Date(loan.loanDate).toLocaleDateString('pt-BR')}</span>
-                                                <span className="text-[10px] text-gray-400">{new Date(loan.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <span className="font-bold text-gray-800">{new Date(item.loanDate).toLocaleDateString('pt-BR')}</span>
+                                                <span className="text-[10px] text-gray-400">{new Date(item.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <p className="font-bold text-gray-900">{loan.personName}</p>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{loan.personMatricula}</p>
+                                            <p className="font-bold text-gray-900">{item.personName}</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{item.personMatricula}</p>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="flex flex-wrap gap-1">
-                                                {loan.books.map(b => (
-                                                    <div key={b.id} className={`flex flex-col text-[9px] px-2 py-1 rounded-lg border ${b.status === 'Devolvido' ? 'bg-emerald-50 text-emerald-600 border-emerald-100 opacity-80' : 'bg-blue-50 text-blue-600 border-blue-100 font-black'}`}>
-                                                        <span className="uppercase">{b.title}</span>
-                                                        <div className="flex items-center gap-1 opacity-70">
-                                                            <span className="text-[8px] font-bold tracking-tighter">{b.code || 'S/C'}</span>
-                                                            {b.series && <span className="text-[7px]">|</span>}
-                                                            <span className="text-[8px] font-medium italic">{b.series}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                            <div className="flex flex-col text-[9px] px-2 py-1 rounded-lg border bg-blue-50 text-blue-600 border-blue-100 font-black w-fit">
+                                                <span className="uppercase text-xs">{item.book.title}</span>
+                                                <div className="flex items-center gap-1 opacity-70">
+                                                    <span className="text-[9px] font-bold tracking-tighter">{item.book.code || 'S/C'}</span>
+                                                    {item.book.series && <span className="text-[8px]">|</span>}
+                                                    <span className="text-[9px] font-medium italic">{item.book.series}</span>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${loan.status === BookLoanStatus.RETURNED ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                                {loan.status}
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${item.status === 'Devolvido' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                {item.status}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium italic">
-                                            {loan.loanedBy}
+                                            {item.loanedBy}
                                         </td>
                                     </tr>
                                 ))}

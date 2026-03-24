@@ -16,10 +16,11 @@ type BookDisplayStyle = 'table' | 'cards';
 export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, adminGlobalCampusId }) => {
     const [activeView, setActiveView] = useState<ReportView>('general');
     const [bookStyle, setBookStyle] = useState<BookDisplayStyle>('table');
-    
     // Filters State
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
+    const [startTime, setStartTime] = useState<string>('');
+    const [endTime, setEndTime] = useState<string>('');
     const [personSearch, setPersonSearch] = useState<string>('');
     const [bookSearch, setBookSearch] = useState<string>('');
     
@@ -45,43 +46,6 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         };
     }, [books, loans]);
 
-    // Unified Filtered Loans
-    const filteredLoans = useMemo(() => {
-        return loans.filter(l => {
-            // Filter by Period
-            if (startDate || endDate) {
-                const loanDateStr = l.loanDate.split('T')[0]; // Get only YYYY-MM-DD
-                
-                if (startDate && loanDateStr < startDate) return false;
-                if (endDate && loanDateStr > endDate) return false;
-            }
-
-            // Filter by Person
-            if (personSearch.trim()) {
-                const terms = personSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-                const name = l.personName.toLowerCase();
-                const matricula = l.personMatricula?.toLowerCase() || '';
-                const matchesPerson = terms.every(term => 
-                    name.includes(term) || matricula.includes(term)
-                );
-                if (!matchesPerson) return false;
-            }
-
-            // Filter by Book
-            if (bookSearch.trim()) {
-                const terms = bookSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-                const matchesBook = terms.every(term => 
-                    l.books.some(b => 
-                        b.title.toLowerCase().includes(term) || 
-                        b.code?.toLowerCase().includes(term)
-                    )
-                );
-                if (!matchesBook) return false;
-            }
-
-            return true;
-        });
-    }, [loans, startDate, endDate, personSearch, bookSearch]);
 
     // Most Borrowed Books
     const mostBorrowed = useMemo(() => {
@@ -264,12 +228,55 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
             returnedBy?: string;
         }> = [];
 
-        filteredLoans.forEach(loan => {
+        loans.forEach(loan => {
             loan.books.forEach(book => {
                 const bookStatus = book.status === 'Devolvido' ? 'Devolvido' : 'Emprestado';
+                const actionDateStr = book.status === 'Devolvido' && book.returnDate ? book.returnDate : loan.loanDate;
+                
+                // Filters
+                const localDate = new Date(actionDateStr);
+
+                if (startDate || endDate) {
+                    const year = localDate.getFullYear();
+                    const month = (localDate.getMonth() + 1).toString().padStart(2, '0');
+                    const day = localDate.getDate().toString().padStart(2, '0');
+                    const dateStr = `${year}-${month}-${day}`;
+
+                    if (startDate && dateStr < startDate) return;
+                    if (endDate && dateStr > endDate) return;
+                }
+                
+                if (startTime || endTime) {
+                    const hours = localDate.getHours().toString().padStart(2, '0');
+                    const minutes = localDate.getMinutes().toString().padStart(2, '0');
+                    const timeStr = `${hours}:${minutes}`;
+
+                    if (startTime && timeStr < startTime) return;
+                    if (endTime && timeStr > endTime) return;
+                }
+
+                if (personSearch.trim()) {
+                    const terms = personSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+                    const name = loan.personName.toLowerCase();
+                    const matricula = loan.personMatricula?.toLowerCase() || '';
+                    const matchesPerson = terms.every(term => 
+                        name.includes(term) || matricula.includes(term)
+                    );
+                    if (!matchesPerson) return;
+                }
+
+                if (bookSearch.trim()) {
+                    const terms = bookSearch.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+                    const matchesBook = terms.every(term => 
+                        book.title.toLowerCase().includes(term) || 
+                        (book.code && book.code.toLowerCase().includes(term))
+                    );
+                    if (!matchesBook) return;
+                }
+
                 result.push({
                     loanId: loan.id,
-                    loanDate: book.status === 'Devolvido' && book.returnDate ? book.returnDate : loan.loanDate,
+                    loanDate: actionDateStr,
                     personName: loan.personName,
                     personMatricula: loan.personMatricula,
                     book: book,
@@ -282,7 +289,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         });
 
         return result.sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime());
-    }, [filteredLoans]);
+    }, [loans, startDate, endDate, startTime, endTime, personSearch, bookSearch]);
 
     const handleExportPDF = async () => {
         if (flattenedReportBooks.length === 0) {
@@ -338,31 +345,61 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
     const renderDetailedView = () => (
         <div className="space-y-6 animate-fade-in-up">
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-                    <div className="w-full">
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Inicial</label>
-                        <div className="relative">
-                            <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                            <input 
-                                type="date" 
-                                value={startDate}
-                                onChange={e => setStartDate(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
-                            />
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-end">
+                    <div className="flex gap-4 w-full">
+                        <div className="w-1/2">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Inicial</label>
+                            <div className="relative">
+                                <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                <input 
+                                    type="date" 
+                                    value={startDate}
+                                    onChange={e => setStartDate(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="w-1/2">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Hora Inicial</label>
+                            <div className="relative">
+                                <Clock className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                <input 
+                                    type="time" 
+                                    value={startTime}
+                                    onChange={e => setStartTime(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                                />
+                            </div>
                         </div>
                     </div>
-                    <div className="w-full">
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Final</label>
-                        <div className="relative">
-                            <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                            <input 
-                                type="date" 
-                                value={endDate}
-                                onChange={e => setEndDate(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
-                            />
+                    
+                    <div className="flex gap-4 w-full">
+                        <div className="w-1/2">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Data Final</label>
+                            <div className="relative">
+                                <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                <input 
+                                    type="date" 
+                                    value={endDate}
+                                    onChange={e => setEndDate(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                                />
+                            </div>
+                        </div>
+                        <div className="w-1/2">
+                            <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Hora Final</label>
+                            <div className="relative">
+                                <Clock className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                <input 
+                                    type="time" 
+                                    value={endTime}
+                                    onChange={e => setEndTime(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-ifrn-green/20 outline-none"
+                                />
+                            </div>
                         </div>
                     </div>
+
                     <div className="w-full">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pessoa (Nome/Matrícula)</label>
                         <div className="relative">
@@ -376,7 +413,8 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                             />
                         </div>
                     </div>
-                    <div className="w-full">
+
+                    <div className="w-full lg:col-span-3">
                         <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Livro (Título/Código)</label>
                         <div className="relative">
                             <BookIcon className="absolute left-3 top-2.5 text-gray-400" size={18} />
@@ -393,7 +431,7 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                 
                 <div className="flex justify-end gap-3 pt-2">
                     <button 
-                        onClick={() => { setStartDate(''); setEndDate(''); setPersonSearch(''); setBookSearch(''); }}
+                        onClick={() => { setStartDate(''); setEndDate(''); setStartTime(''); setEndTime(''); setPersonSearch(''); setBookSearch(''); }}
                         className="px-6 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors font-bold text-sm h-[42px]"
                     >
                         Limpar Filtros

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
 import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord } from "../types";
-import { Locker, LockerStatus, LoanData } from "../types-armarios";
+import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
 // Configuração do Supabase
@@ -772,6 +772,83 @@ export const StorageService = {
       query = query.eq('campus_id', campusId);
     }
     const { error } = await query;
+    if (error) throw error;
+  },
+
+  // Locker Schedules
+  getLockerSchedules: async (campusId?: string): Promise<LockerSchedule[]> => {
+    let query = supabase.from('locker_schedules').select('*').order('scheduled_at', { ascending: false });
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      id: d.id,
+      lockerNumber: d.locker_number,
+      lockerLocation: d.locker_location || '',
+      campusId: d.campus_id,
+      studentName: d.student_name,
+      registrationNumber: d.registration_number,
+      studentClass: d.student_class || '',
+      scheduledBy: d.scheduled_by,
+      scheduledAt: d.scheduled_at,
+      observation: d.observation,
+      status: d.status as LockerScheduleStatus,
+      completedBy: d.completed_by,
+      completedAt: d.completed_at
+    }));
+  },
+
+  saveLockerSchedule: async (schedule: Omit<LockerSchedule, 'id'> & { id?: string }): Promise<LockerSchedule> => {
+    const payload: any = {
+      locker_number: schedule.lockerNumber,
+      locker_location: schedule.lockerLocation,
+      campus_id: schedule.campusId,
+      student_name: schedule.studentName,
+      registration_number: schedule.registrationNumber,
+      student_class: schedule.studentClass,
+      scheduled_by: schedule.scheduledBy,
+      scheduled_at: schedule.scheduledAt,
+      observation: schedule.observation || null,
+      status: schedule.status,
+      completed_by: schedule.completedBy || null,
+      completed_at: schedule.completedAt || null,
+      updated_at: new Date().toISOString()
+    };
+    if (schedule.id) payload.id = schedule.id;
+
+    const { data, error } = await supabase.from('locker_schedules').upsert(payload).select().single();
+    if (error) throw error;
+    return {
+      id: data.id,
+      lockerNumber: data.locker_number,
+      lockerLocation: data.locker_location || '',
+      campusId: data.campus_id,
+      studentName: data.student_name,
+      registrationNumber: data.registration_number,
+      studentClass: data.student_class || '',
+      scheduledBy: data.scheduled_by,
+      scheduledAt: data.scheduled_at,
+      observation: data.observation,
+      status: data.status as LockerScheduleStatus,
+      completedBy: data.completed_by,
+      completedAt: data.completed_at
+    };
+  },
+
+  updateLockerScheduleStatus: async (id: string, status: LockerScheduleStatus, completedBy?: string) => {
+    const payload: any = { status, updated_at: new Date().toISOString() };
+    if (status === LockerScheduleStatus.COMPLETED && completedBy) {
+      payload.completed_by = completedBy;
+      payload.completed_at = new Date().toISOString();
+    }
+    const { error } = await supabase.from('locker_schedules').update(payload).eq('id', id);
+    if (error) throw error;
+  },
+
+  deleteLockerSchedule: async (id: string) => {
+    const { error } = await supabase.from('locker_schedules').delete().eq('id', id);
     if (error) throw error;
   },
 

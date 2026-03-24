@@ -2,7 +2,30 @@
 export enum LockerStatus {
   AVAILABLE = 'Disponível',
   OCCUPIED = 'Ocupado',
-  MAINTENANCE = 'Manutenção'
+  MAINTENANCE = 'Manutenção',
+  SCHEDULED = 'Agendado'
+}
+
+export enum LockerScheduleStatus {
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}
+
+export interface LockerSchedule {
+  id: string;
+  lockerNumber: number;
+  lockerLocation: string;
+  campusId?: string;
+  studentName: string;
+  registrationNumber: string;
+  studentClass: string;
+  scheduledBy: string;
+  scheduledAt: string; // ISO timestamp
+  observation?: string;
+  status: LockerScheduleStatus;
+  completedBy?: string;
+  completedAt?: string; // ISO timestamp
 }
 
 export interface Student {
@@ -48,6 +71,7 @@ export interface Locker {
   maintenanceHistory: MaintenanceData[];
   location: string;
   campus_id?: string;
+  activeScheduleId?: string; // Reference to pending LockerSchedule
 }
 
-export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search' | 'reports' | 'management' | 'export' | 'config';
+export type ViewType = 'dashboard' | 'grid' | 'loan-form' | 'import' | 'search' | 'reports' | 'management' | 'export' | 'config' | 'schedules';

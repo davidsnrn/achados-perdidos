@@ -10,6 +10,7 @@ interface LockerDetailModalProps {
   onUpdateMaintenance: (lockerNumber: number, problem: string) => void;
   onResolveMaintenance: (lockerNumber: number) => void;
   onUpdateObservation: (lockerNumber: number, observation: string) => void;
+  onOpenSchedule: (locker: Locker) => void;
 }
 
 const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
@@ -19,7 +20,8 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   onReturnLocker,
   onUpdateMaintenance,
   onResolveMaintenance,
-  onUpdateObservation
+  onUpdateObservation,
+  onOpenSchedule
 }) => {
   const [isEditingObs, setIsEditingObs] = useState(false);
 
@@ -50,6 +52,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
       case LockerStatus.AVAILABLE: return 'text-green-600 bg-green-50 border-green-200';
       case LockerStatus.OCCUPIED: return 'text-red-600 bg-red-50 border-red-200';
       case LockerStatus.MAINTENANCE: return 'text-orange-600 bg-orange-50 border-orange-200';
+      case LockerStatus.SCHEDULED: return 'text-amber-600 bg-amber-50 border-amber-200';
       default: return 'text-slate-600 bg-slate-50 border-slate-200';
     }
   };
@@ -86,7 +89,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
 
         <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <div className="flex items-center gap-6">
-            <div className={`w-28 h-28 rounded-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ${locker.status === LockerStatus.AVAILABLE ? 'bg-green-600 ring-green-100' : locker.status === LockerStatus.OCCUPIED ? 'bg-red-600 ring-red-100' : 'bg-orange-600 ring-orange-100'}`}>
+            <div className={`w-28 h-28 rounded-3xl flex items-center justify-center text-white text-5xl font-black shadow-2xl ring-4 ${locker.status === LockerStatus.AVAILABLE ? 'bg-green-600 ring-green-100' : locker.status === LockerStatus.OCCUPIED ? 'bg-red-600 ring-red-100' : locker.status === LockerStatus.SCHEDULED ? 'bg-amber-500 ring-amber-100' : 'bg-orange-600 ring-orange-100'}`}>
               {locker.number}
             </div>
             <div className="flex-1">
@@ -354,12 +357,20 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
 
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
           {locker.status === LockerStatus.AVAILABLE && !showMaintenanceForm && (
-            <button
-              onClick={() => onStartLoan(locker)}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"
-            >
-              Iniciar Empréstimo
-            </button>
+            <>
+              <button
+                onClick={() => onStartLoan(locker)}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"
+              >
+                Registrar Empréstimo
+              </button>
+              <button
+                onClick={() => onOpenSchedule(locker)}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-2xl shadow-xl transition-all uppercase text-xs tracking-widest"
+              >
+                Agendar
+              </button>
+            </>
           )}
           <button onClick={onClose} className="flex-1 font-black py-4 rounded-2xl border border-slate-200 bg-white text-slate-400 hover:text-slate-600 transition-all uppercase text-xs tracking-widest">Fechar Ficha</button>
         </div>

@@ -246,6 +246,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [selectedPersonIndex, setSelectedPersonIndex] = useState<number | null>(null);
 
     const [viewingLoan, setViewingLoan] = useState<BookLoan | null>(null);
+    const [editingBookObs, setEditingBookObs] = useState<{ loanId: string, bookId: string, value: string } | null>(null);
     const [expandedBookIdInModal, setExpandedBookIdInModal] = useState<string | null>(null);
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
@@ -324,7 +325,16 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Atualizar empréstimo existente
                 const updatedLoan: BookLoan = {
                     ...existingActiveLoan,
-                    books: [...existingActiveLoan.books, ...selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name }))],
+                    books: [
+                        ...existingActiveLoan.books, 
+                        ...selectedBooks.map(b => ({ 
+                            ...b, 
+                            status: 'Ativo' as const, 
+                            loanDate: now, 
+                            loanedBy: user.name,
+                            observation: (document.getElementById(`book-obs-${b.id}`) as HTMLInputElement)?.value || ''
+                        }))
+                    ],
                     history: [
                         ...(existingActiveLoan.history || []),
                         {
@@ -343,7 +353,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                     id: Math.random().toString(36).substr(2, 9),
                     personName: person.name,
                     personMatricula: person.matricula, // Garantindo o mapeamento da matrícula
-                    books: selectedBooks.map(b => ({ ...b, status: 'Ativo' as const, loanDate: now, loanedBy: user.name })),
+                    books: selectedBooks.map(b => ({ 
+                        ...b, 
+                        status: 'Ativo' as const, 
+                        loanDate: now, 
+                        loanedBy: user.name,
+                        observation: (document.getElementById(`book-obs-${b.id}`) as HTMLInputElement)?.value || ''
+                    })),
                     loanedBy: user.name,
                     loanDate: now,
                     status: BookLoanStatus.ACTIVE,
@@ -413,6 +429,46 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             alert('Devolução registrada com sucesso!');
         } catch (err) {
             alert('Erro ao processar devolução.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSaveBookObservation = async (loanId: string, bookId: string, obs: string) => {
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) return;
+
+        setIsLoading(true);
+        try {
+            const now = new Date().toISOString();
+            const updatedBooks = loan.books.map(b => {
+                if (b.id === bookId) {
+                    return { ...b, observation: obs };
+                }
+                return b;
+            });
+
+            const updatedLoan: BookLoan = {
+                ...loan,
+                books: updatedBooks,
+                history: [
+                    ...(loan.history || []),
+                    {
+                        action: `Observação adicionada ao livro ${loan.books.find(b => b.id === bookId)?.title}: ${obs}`,
+                        user: user.name,
+                        timestamp: now
+                    }
+                ]
+            };
+
+            await StorageService.saveBookLoan(updatedLoan);
+            onUpdate();
+            setEditingBookObs(null);
+            // Update viewingLoan to reflect the change in the UI immediately
+            setViewingLoan(updatedLoan);
+            alert('Observação salva com sucesso!');
+        } catch (err) {
+            alert('Erro ao salvar observação.');
         } finally {
             setIsLoading(false);
         }
@@ -910,14 +966,27 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                         )}
 
                         {selectedBooks.length > 0 && (
-                            <div className="mt-4 flex flex-wrap gap-2">
+                            <div className="mt-4 space-y-2">
+                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Livros Selecionados e Observações Específicas</label>
                                 {selectedBooks.map(b => {
                                     const isMP = b.code?.endsWith('MP');
                                     return (
-                                        <span key={b.id} className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full border ${isMP ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-ifrn-green/10 text-ifrn-darkGreen border-ifrn-green/20'}`}>
-                                            {b.title} <span className="opacity-60 font-medium">({b.code || 'S/C'})</span>
-                                            <button onClick={() => handleRemoveBook(b.id)} className="ml-1 hover:text-red-500 transition-colors"><X size={14} /></button>
-                                        </span>
+                                        <div key={b.id} className={`p-2 rounded-xl border ${isMP ? 'bg-orange-50/30 border-orange-100' : 'bg-gray-50/50 border-gray-100'} flex flex-col gap-2`}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border ${isMP ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-ifrn-green/10 text-ifrn-darkGreen border-ifrn-green/20'}`}>
+                                                        {b.title} <span className="opacity-60 font-medium">({b.code || 'S/C'})</span>
+                                                    </span>
+                                                </div>
+                                                <button onClick={() => handleRemoveBook(b.id)} className="text-gray-400 hover:text-red-500 transition-colors"><X size={14} /></button>
+                                            </div>
+                                            <input 
+                                                id={`book-obs-${b.id}`}
+                                                type="text"
+                                                placeholder="Obs. específica..."
+                                                className="w-full px-2 py-1 text-[11px] bg-white border border-gray-100 rounded-lg focus:ring-1 focus:ring-ifrn-green outline-none"
+                                            />
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -1209,6 +1278,56 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                                 <div className="p-2.5 bg-gray-50/50 rounded-xl border border-gray-100 flex items-center justify-center border-dashed">
                                                                     <p className="text-[9px] text-gray-300 font-black uppercase italic tracking-widest">Em aberto</p>
                                                                 </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Book Observation View/Edit */}
+                                                        <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100">
+                                                            <div className="flex justify-between items-center mb-1.5">
+                                                                <p className="text-[9px] text-amber-600 font-bold uppercase tracking-wider flex items-center gap-1">
+                                                                    <FileText size={10} /> Observação do Item
+                                                                </p>
+                                                                {editingBookObs?.bookId !== book.id && (
+                                                                    <button 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setEditingBookObs({ loanId: viewingLoan.id, bookId: book.id, value: book.observation || '' });
+                                                                        }}
+                                                                        className="text-[9px] font-black uppercase text-amber-700 hover:underline"
+                                                                    >
+                                                                        {book.observation ? 'Editar' : 'Adicionar'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            
+                                                            {editingBookObs?.bookId === book.id ? (
+                                                                <div className="space-y-2" onClick={e => e.stopPropagation()}>
+                                                                    <textarea 
+                                                                        className="w-full p-2 text-xs border border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none h-16 resize-none bg-white"
+                                                                        value={editingBookObs.value}
+                                                                        onChange={e => setEditingBookObs({ ...editingBookObs, value: e.target.value })}
+                                                                        placeholder="Ex: Aluno perdeu exemplar anterior..."
+                                                                        autoFocus
+                                                                    />
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <button 
+                                                                            onClick={() => setEditingBookObs(null)}
+                                                                            className="px-2 py-1 text-[10px] text-gray-500 font-bold hover:bg-gray-100 rounded"
+                                                                        >
+                                                                            Cancelar
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => handleSaveBookObservation(viewingLoan.id, book.id, editingBookObs.value)}
+                                                                            className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold rounded hover:bg-amber-700 transition-colors"
+                                                                        >
+                                                                            Salvar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <p className={`text-xs ${book.observation ? 'text-amber-900 italic' : 'text-amber-400 font-medium'}`}>
+                                                                    {book.observation ? `"${book.observation}"` : 'Nenhuma observação específica para este exemplar.'}
+                                                                </p>
                                                             )}
                                                         </div>
                                                     </div>

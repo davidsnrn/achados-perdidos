@@ -11,7 +11,10 @@ import StudentSearch from '../armarios/StudentSearch';
 import ReportsTab from '../armarios/ReportsTab';
 import LockerManagement from '../armarios/LockerManagement';
 import ExportTab from '../armarios/ExportTab';
-import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet } from 'lucide-react';
+import AgendamentosTab from '../armarios/AgendamentosTab';
+import ScheduleLockerModal from '../armarios/ScheduleLockerModal';
+import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet, Calendar } from 'lucide-react';
+import { LockerSchedule, LockerScheduleStatus } from '../../types-armarios';
 
 interface ArmariosTabProps {
   user: any; // User from Achados system
@@ -30,6 +33,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [lockerSearch, setLockerSearch] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [schedules, setSchedules] = useState<LockerSchedule[]>([]);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user?.level === UserLevel.ADMIN ? adminGlobalCampusId : user?.campus_id) || ''
   );
@@ -46,8 +51,18 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const canViewConfig = isAdmin || isAdvanced;
 
   useEffect(() => {
-    // Escopo inicial gerenciado pelo pai (App.tsx)
-  }, []);
+    loadSchedules();
+  }, [selectedCampusId]);
+
+  const loadSchedules = async () => {
+    try {
+      const activeCampusId = isAdmin ? selectedCampusId : user.campus_id;
+      const data = await StorageService.getLockerSchedules(activeCampusId || undefined);
+      setSchedules(data);
+    } catch (e) {
+      console.error("Erro ao carregar agendamentos:", e);
+    }
+  };
 
   const stats = useMemo(() => {
     return {
@@ -55,6 +70,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       available: lockers.filter(l => l.status === LockerStatus.AVAILABLE).length,
       occupied: lockers.filter(l => l.status === LockerStatus.OCCUPIED).length,
       maintenance: lockers.filter(l => l.status === LockerStatus.MAINTENANCE).length,
+      scheduled: lockers.filter(l => l.status === LockerStatus.SCHEDULED).length,
     };
   }, [lockers]);
 
@@ -318,6 +334,115 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
+  // --- Handlers para Agendamentos ---
+  const handleScheduleLocker = async (newSchedule: Omit<LockerSchedule, 'id'>) => {
+    setLoading(true);
+    try {
+      const saved = await StorageService.saveLockerSchedule(newSchedule);
+      
+      const l = lockers.find(loc => loc.number === newSchedule.lockerNumber);
+      if (l) {
+        const updatedLocker = { 
+          ...l, 
+          status: LockerStatus.SCHEDULED,
+          activeScheduleId: saved.id
+        };
+        await StorageService.updateSingleLocker(updatedLocker);
+      }
+      
+      await loadSchedules();
+      onUpdate();
+      setShowScheduleModal(false);
+      setShowDetail(false);
+    } catch (e) {
+      alert("Erro ao realizar agendamento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEfetivarAgendamento = async (s: LockerSchedule) => {
+    setLoading(true);
+    try {
+      // 1. Criar o empréstimo real
+      const loan: LoanData = {
+        id: Math.random().toString(36).substr(2, 9).toUpperCase(),
+        lockerNumber: s.lockerNumber,
+        physicalLocation: s.lockerLocation,
+        registrationNumber: s.registrationNumber,
+        studentName: s.studentName,
+        studentClass: s.studentClass,
+        loanDate: new Date().toLocaleDateString('en-CA'),
+        loanTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        loanBy: user.name,
+        observation: s.observation || '',
+        campus_id: s.campusId
+      };
+
+      // 2. Atualizar o armário para OCUPADO e anexar o empréstimo
+      const l = lockers.find(loc => loc.number === s.lockerNumber);
+      if (l) {
+        const updatedLocker = {
+          ...l,
+          status: LockerStatus.OCCUPIED,
+          currentLoan: loan,
+          activeScheduleId: undefined
+        };
+        await StorageService.updateSingleLocker(updatedLocker);
+      }
+
+      // 3. Marcar agendamento como concluído
+      await StorageService.updateLockerScheduleStatus(s.id, LockerScheduleStatus.COMPLETED, user.name);
+      
+      await loadSchedules();
+      onUpdate();
+      setCurrentView('dashboard');
+      alert(`Empréstimo efetivado com sucesso para ${s.studentName}!`);
+    } catch (e) {
+      alert("Erro ao efetivar agendamento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelarAgendamento = async (id: string) => {
+    if (!confirm("Deseja realmente cancelar este agendamento? O armário voltará a ficar disponível.")) return;
+    
+    setLoading(true);
+    try {
+      const s = schedules.find(sched => sched.id === id);
+      if (s) {
+        const l = lockers.find(loc => loc.number === s.lockerNumber);
+        if (l && l.status === LockerStatus.SCHEDULED) {
+          const updatedLocker = { ...l, status: LockerStatus.AVAILABLE, activeScheduleId: undefined };
+          await StorageService.updateSingleLocker(updatedLocker);
+        }
+      }
+      
+      await StorageService.updateLockerScheduleStatus(id, LockerScheduleStatus.CANCELLED);
+      await loadSchedules();
+      onUpdate();
+    } catch (e) {
+      alert("Erro ao cancelar agendamento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAgendamento = async (id: string) => {
+    if (!confirm("Deseja excluir permanentemente este registro de agendamento?")) return;
+    
+    setLoading(true);
+    try {
+      await StorageService.deleteLockerSchedule(id);
+      await loadSchedules();
+    } catch (e) {
+      alert("Erro ao excluir agendamento.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResetLayout = async () => {
     if (!isAdmin && !isAdvanced) return;
     if (!confirm("Isso removerá a localização (Bloco/Agrupamento) de TODOS os armários. Os empréstimos e o histórico serão mantidos. Deseja continuar?")) return;
@@ -379,6 +504,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       if (statusFilter === 'disponivel') matchesStatus = l.status === LockerStatus.AVAILABLE;
       else if (statusFilter === 'ocupado') matchesStatus = l.status === LockerStatus.OCCUPIED;
       else if (statusFilter === 'manutencao') matchesStatus = l.status === LockerStatus.MAINTENANCE;
+      else if (statusFilter === 'agendado') matchesStatus = l.status === LockerStatus.SCHEDULED;
 
       if (!matchesStatus) return false;
 
@@ -404,7 +530,9 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
               ? 'bg-green-50 border-green-200 text-green-700'
               : locker.status === LockerStatus.OCCUPIED
                 ? 'bg-red-50 border-red-200 text-red-600'
-                : 'bg-orange-50 border-orange-200 text-orange-600'
+                : locker.status === LockerStatus.SCHEDULED
+                  ? 'bg-amber-50 border-amber-300 text-amber-600'
+                  : 'bg-orange-50 border-orange-200 text-orange-600'
               }`}
           >
             {locker.number}
@@ -472,6 +600,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       <div className="bg-white border-b border-slate-200 flex justify-between items-center p-4">
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           <button onClick={() => setCurrentView('dashboard')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'dashboard' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><LayoutGrid size={14} /> Painel</button>
+          <button onClick={() => setCurrentView('schedules')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'schedules' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Calendar size={14} /> Agendamentos</button>
           <button onClick={() => setCurrentView('reports')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'reports' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileText size={14} /> Relatórios</button>
           {canViewConfig && (
             <button onClick={() => setCurrentView('config')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'config' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Settings size={14} /> Configuração</button>
@@ -517,10 +646,18 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
               <StatCard
                 label="Manutenção"
                 value={stats.maintenance}
-                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth="2" /></svg>}
+                icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeWidth="2" /></svg>}
                 color="bg-orange-500"
                 onClick={() => setStatusFilter('manutencao')}
                 isActive={statusFilter === 'manutencao'}
+              />
+              <StatCard
+                label="Agendados"
+                value={stats.scheduled}
+                icon={<Calendar className="w-5 h-5" />}
+                color="bg-amber-500"
+                onClick={() => setStatusFilter('agendado')}
+                isActive={statusFilter === 'agendado'}
               />
             </div>
 
@@ -580,6 +717,16 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           <ReportsTab lockers={lockers} />
         )}
 
+        {currentView === 'schedules' && (
+          <AgendamentosTab 
+            schedules={schedules} 
+            onEfetivar={handleEfetivarAgendamento} 
+            onCancelar={handleCancelarAgendamento}
+            onExcluir={handleDeleteAgendamento}
+            isLoading={loading}
+          />
+        )}
+
 
         {currentView === 'config' && canViewConfig && (
           <div className="space-y-12">
@@ -628,6 +775,16 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           onUpdateMaintenance={handleUpdateMaintenance}
           onResolveMaintenance={handleResolveMaintenance}
           onUpdateObservation={handleUpdateObservation}
+          onOpenSchedule={(l) => { setSelectedLocker(l); setShowScheduleModal(true); }}
+        />
+      )}
+
+      {showScheduleModal && selectedLocker && (
+        <ScheduleLockerModal
+          locker={selectedLocker}
+          operatorName={user?.name}
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={handleScheduleLocker}
         />
       )}
     </div>

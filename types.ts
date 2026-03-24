@@ -134,6 +134,7 @@ export interface BookLoan {
     loanedBy?: string;
     returnDate?: string;
     returnedBy?: string;
+    observation?: string;
   }[];
   loanedBy: string;
   loanDate: string;

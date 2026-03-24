@@ -236,7 +236,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     loanDate: specificLoanDate || loan.loanDate,
                     loanedBy: bookEntry?.loanedBy || loan.loanedBy
                 };
-            });
+            })
+            .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime());
     };
 
     const resetForm = () => {

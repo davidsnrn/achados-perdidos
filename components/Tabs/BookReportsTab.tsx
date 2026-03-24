@@ -50,11 +50,10 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         return loans.filter(l => {
             // Filter by Period
             if (startDate || endDate) {
-                const loanDate = new Date(l.loanDate);
-                const start = startDate ? new Date(startDate) : new Date(0);
-                const end = endDate ? new Date(endDate) : new Date();
-                if (endDate) end.setHours(23, 59, 59, 999);
-                if (loanDate < start || loanDate > end) return false;
+                const loanDateStr = l.loanDate.split('T')[0]; // Get only YYYY-MM-DD
+                
+                if (startDate && loanDateStr < startDate) return false;
+                if (endDate && loanDateStr > endDate) return false;
             }
 
             // Filter by Person

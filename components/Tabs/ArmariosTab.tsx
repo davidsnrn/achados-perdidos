@@ -13,6 +13,7 @@ import LockerManagement from '../armarios/LockerManagement';
 import ExportTab from '../armarios/ExportTab';
 import AgendamentosTab from '../armarios/AgendamentosTab';
 import ScheduleLockerModal from '../armarios/ScheduleLockerModal';
+import LockerLoanModal from '../armarios/LockerLoanModal';
 import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet, Calendar } from 'lucide-react';
 import { LockerSchedule, LockerScheduleStatus } from '../../types-armarios';
 
@@ -35,6 +36,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [schedules, setSchedules] = useState<LockerSchedule[]>([]);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showLoanModal, setShowLoanModal] = useState(false);
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user?.level === UserLevel.ADMIN ? adminGlobalCampusId : user?.campus_id) || ''
   );
@@ -122,27 +124,29 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   };
 
   const handleStartLoan = (locker: Locker) => {
+    setSelectedLocker(locker);
     setShowDetail(false);
-    setCurrentView('loan-form');
+    setShowLoanModal(true);
   };
 
   const handleLoanSubmit = async (loan: LoanData) => {
-    const updatedLocker = lockers.find(l => l.number === loan.lockerNumber);
-    if (!updatedLocker) return;
-
-    const newLockerData = {
-      ...updatedLocker,
-      status: LockerStatus.OCCUPIED,
-      currentLoan: loan,
-      campus_id: updatedLocker.campus_id || (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id)
-    };
-
     setLoading(true);
     try {
-      await StorageService.updateSingleLocker(newLockerData);
+      const locker = lockers.find(l => l.number === loan.lockerNumber);
+      if (!locker) return;
+
+      const updatedLocker = {
+        ...locker,
+        status: LockerStatus.OCCUPIED,
+        currentLoan: loan,
+        campus_id: locker.campus_id || (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id)
+      };
+
+      await StorageService.updateSingleLocker(updatedLocker);
       onUpdate();
-      setCurrentView('dashboard');
+      setShowLoanModal(false);
       setSelectedLocker(null);
+      alert(`Empréstimo realizado com sucesso para ${loan.studentName}!`);
     } catch (e) {
       alert("Erro ao salvar empréstimo.");
     } finally {
@@ -760,10 +764,6 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
             )}
           </div>
         )}
-
-        {currentView === 'loan-form' && selectedLocker && (
-          <LockerForm selectedLocker={selectedLocker} onSubmit={handleLoanSubmit} onCancel={() => setCurrentView('dashboard')} operatorName={user?.name} />
-        )}
       </div>
 
       {showDetail && selectedLocker && (
@@ -785,6 +785,15 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           operatorName={user?.name}
           onClose={() => setShowScheduleModal(false)}
           onSchedule={handleScheduleLocker}
+        />
+      )}
+
+      {showLoanModal && selectedLocker && (
+        <LockerLoanModal
+          locker={selectedLocker}
+          operatorName={user?.name}
+          onClose={() => setShowLoanModal(false)}
+          onSubmit={handleLoanSubmit}
         />
       )}
     </div>

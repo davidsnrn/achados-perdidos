@@ -9,6 +9,7 @@ import {
   Trash2, 
   AlertCircle, 
   CheckCircle2, 
+  Pencil, 
   Loader2, 
   User as UserIcon, 
   Building2, 
@@ -57,6 +58,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [personSearchResults, setPersonSearchResults] = useState<Person[]>([]);
   const [showPersonDropdown, setShowPersonDropdown] = useState(false);
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   
   const campusId = user.campus_id;
 
@@ -171,26 +173,42 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
     (r.sector && r.sector.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Person Search Logic (simplified for now, ideally debounced)
-  const handlePersonSearch = async (val: string) => {
-    setRecipientMatricula(val);
-    if (val.length >= 3) {
-      const { data } = await supabase
-        .from('people')
-        .select('*')
-        .or(`matricula.ilike.%${val}%,name.ilike.%${val}%`)
-        .limit(5);
-      setPersonSearchResults(data || []);
-      setShowPersonDropdown(true);
+  const [personSearch, setPersonSearch] = useState('');
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+
+  const handlePersonSearch = async (val: string, isTriggered = false) => {
+    setPersonSearch(val);
+    if (isTriggered && val.length >= 2) {
+      setIsSearchingPeople(true);
+      try {
+        const results = await StorageService.searchPeople(val, 5, user.campus_id || undefined);
+        setPersonSearchResults(results);
+        setShowPersonDropdown(results.length > 0);
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setIsSearchingPeople(false);
+      }
     } else {
+      setPersonSearchResults([]);
       setShowPersonDropdown(false);
     }
   };
 
   const selectPerson = (p: Person) => {
+    setSelectedPerson(p);
     setRecipientName(p.name);
     setRecipientMatricula(p.matricula);
+    setPersonSearch('');
+    setPersonSearchResults([]);
     setShowPersonDropdown(false);
+  };
+
+  const clearSelectedPerson = () => {
+    setSelectedPerson(null);
+    setRecipientName('');
+    setRecipientMatricula('');
+    setPersonSearch('');
   };
 
   return (
@@ -344,49 +362,72 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               </tbody>
             </table>
           ) : activeSubTab === 'estoque' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
-              {filteredSupplies.map(supply => (
-                <div key={supply.id} className="group p-6 bg-white border-2 border-gray-100 rounded-[2rem] hover:border-indigo-500 hover:shadow-xl hover:shadow-indigo-50 transition-all duration-300 relative overflow-hidden">
-                  <div className="absolute -right-4 -top-4 p-8 text-gray-50 group-hover:text-indigo-50 transition-colors pointer-events-none">
-                    <Truck size={80} strokeWidth={1} />
-                  </div>
-                  
-                  <div className="relative z-10">
-                    <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
-                      <Layers size={24} />
-                    </div>
-                    <h3 className="text-xl font-black text-gray-800 mb-2 truncate group-hover:text-indigo-700">{supply.name}</h3>
-                    <div className="flex items-end gap-2 mb-6">
-                      <span className={`text-4xl font-black ${supply.quantity <= 5 ? 'text-amber-600' : 'text-indigo-600'}`}>
-                        {supply.quantity}
-                      </span>
-                      <span className="text-sm font-bold text-gray-400 mb-1.5 uppercase">{supply.unit}</span>
-                    </div>
-
-                    {supply.quantity <= 5 && (
-                      <div className="flex items-center gap-2 mb-6 p-2 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold ring-1 ring-amber-100">
-                        <AlertCircle size={14} /> ESTOQUE BAIXO
+            <table className="w-full text-left border-separate border-spacing-y-3">
+              <thead>
+                <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
+                  <th className="px-6 py-4">Item</th>
+                  <th className="px-6 py-4">Quantidade</th>
+                  <th className="px-6 py-4">Unidade</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4 text-center">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSupplies.map(supply => (
+                  <tr key={supply.id} className="group bg-white hover:bg-indigo-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                          <Layers size={20} />
+                        </div>
+                        <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase">
+                          {supply.name}
+                        </div>
                       </div>
-                    )}
-
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => openEditSupply(supply)}
-                        className="flex-1 py-2.5 bg-gray-50 hover:bg-indigo-600 hover:text-white text-gray-600 text-xs font-black rounded-xl transition-all uppercase tracking-wider"
-                      >
-                        Ajustar
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteSupply(supply.id)}
-                        className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className={`text-lg font-black ${supply.quantity <= 5 ? 'text-amber-600' : 'text-indigo-600'}`}>
+                        {supply.quantity}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold uppercase">
+                        {supply.unit}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      {supply.quantity <= 5 ? (
+                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold ring-1 ring-amber-100">
+                          <AlertCircle size={14} /> ESTOQUE BAIXO
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold ring-1 ring-emerald-100">
+                          <CheckCircle2 size={14} /> EM DIA
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-5 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button 
+                          onClick={() => openEditSupply(supply)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                          title="Ajustar estoque"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteSupply(supply.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                          title="Excluir item"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
             <div className="py-20 flex flex-col items-center justify-center gap-4">
               <Printer className="text-gray-200" size={64} />
@@ -427,49 +468,80 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
           </div>
 
           <div className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2 relative">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Matrícula/Busca</label>
-                <input
-                  type="text"
-                  required
-                  value={recipientMatricula}
-                  onChange={e => handlePersonSearch(e.target.value)}
-                  className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-medium"
-                  placeholder="Matrícula..."
-                />
-                
-                {showPersonDropdown && personSearchResults.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-2xl overflow-hidden animate-scale-in">
-                    {personSearchResults.map(p => (
-                      <button
-                        key={p.matricula}
-                        type="button"
-                        onClick={() => selectPerson(p)}
-                        className="w-full px-4 py-3 text-left hover:bg-indigo-50 transition-colors flex items-center gap-3 border-b border-gray-50 last:border-0"
-                      >
-                        <UserIcon size={16} className="text-indigo-400" />
-                        <div>
-                          <p className="text-xs font-black text-gray-900 uppercase">{p.name}</p>
-                          <p className="text-[10px] text-gray-400">{p.matricula} • {p.type}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+            {/* Person Search Section - matching CopyControlTab UI */}
+            <div>
+              <label className="flex items-center gap-2 text-xs font-black text-indigo-500 uppercase tracking-widest mb-2">
+                <UserIcon size={14} /> Solicitante
+              </label>
 
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Nome Completo</label>
-                <input
-                  type="text"
-                  required
-                  value={recipientName}
-                  onChange={e => setRecipientName(e.target.value)}
-                  className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-medium uppercase"
-                  placeholder="Nome do Recebedor..."
-                />
-              </div>
+              {selectedPerson ? (
+                <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-4 animate-fade-in-down shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-indigo-500 shadow-sm border border-indigo-50">
+                      <UserIcon size={20} />
+                    </div>
+                    <div>
+                      <p className="font-black text-indigo-900 text-sm uppercase">{selectedPerson.name}</p>
+                      <p className="text-xs text-indigo-400 font-bold tracking-wider">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearSelectedPerson}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                    title="Remover seleção"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative group">
+                  <input
+                    type="text"
+                    value={personSearch}
+                    onChange={e => handlePersonSearch(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handlePersonSearch(personSearch, true))}
+                    className="w-full bg-gray-50 border-2 border-gray-100/50 rounded-2xl pl-5 pr-14 py-4 text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-bold text-gray-900 placeholder:text-gray-400"
+                    placeholder="Busca por Nome ou Matrícula..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handlePersonSearch(personSearch, true)}
+                    disabled={isSearchingPeople}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm active:scale-95"
+                  >
+                    {isSearchingPeople ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
+                  </button>
+
+                  {showPersonDropdown && personSearchResults.length > 0 && (
+                    <div className="absolute z-[60] w-full mt-2 bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden ring-4 ring-gray-100/50 animate-scale-in">
+                      <div className="p-2 space-y-1">
+                        {personSearchResults.map(p => (
+                          <button
+                            key={p.matricula}
+                            type="button"
+                            onClick={() => selectPerson(p)}
+                            className="w-full p-4 text-left bg-indigo-50/30 hover:bg-indigo-50 rounded-2xl transition-all flex items-center justify-between group/item border border-transparent hover:border-indigo-100 hover:scale-[1.01]"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-400 shadow-sm border border-indigo-50 group-hover/item:text-indigo-600 transition-colors">
+                                <UserIcon size={20} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-black text-indigo-900 uppercase truncate leading-tight mb-0.5">{p.name}</p>
+                                <p className="text-[11px] text-indigo-400 font-black tracking-widest">{p.matricula} <span className="mx-1.5 opacity-30">|</span> {p.type}</p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black text-indigo-500 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm uppercase tracking-tighter opacity-0 group-hover/item:opacity-100 transition-all translate-x-2 group-hover/item:translate-x-0">
+                              Selecionar
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

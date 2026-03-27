@@ -221,7 +221,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
         usuarios: user.permissions?.usuarios ?? (user.level !== UserLevel.STANDARD),
         materiais: user.permissions?.materiais ?? (user.level !== UserLevel.STANDARD),
         copias: user.permissions?.copias ?? false,
-        insumos: (user.level === UserLevel.ADMIN) && (user.permissions?.insumos ?? false),
+        insumos: user.permissions?.insumos ?? (user.level !== UserLevel.STANDARD),
       });
       setFormLevel(user.level);
       setSelectedCampusId(user.campus_id || '');
@@ -360,17 +360,15 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                       ].filter(mod => {
                         // Only show module icons that the currently logged-in admin has access to
                         const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
-                        if (mod.id === 'insumos') return currentUser.level === UserLevel.ADMIN;
+                        if (mod.id === 'insumos') return (currentUser.level === UserLevel.ADMIN || currentUser.level === UserLevel.ADVANCED);
                         if (perm !== undefined) return perm;
                         if (mod.id === 'nadaconsta') return true;
                         return (currentUser.level !== UserLevel.STANDARD);
                       }).map(mod => {
-                        // For insumos: only ADMIN target users can have it active
-                        const hasAccess = mod.id === 'insumos'
-                          ? u.level === UserLevel.ADMIN && Boolean(u.permissions?.insumos)
-                          : (u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
+                        // For modules logic
+                        const hasAccess = u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
                           ? u.permissions[mod.id as keyof typeof u.permissions]
-                          : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && u.level !== UserLevel.STANDARD))));
+                          : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && mod.id !== 'insumos' && u.level !== UserLevel.STANDARD)));
                         return (
                           <div
                             key={mod.id}

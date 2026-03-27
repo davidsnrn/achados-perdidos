@@ -131,10 +131,10 @@ const App: React.FC = () => {
     }
 
     if (mod === 'nadaconsta') return true;
-    if (mod === 'copias') return false;
-    if (mod === 'insumos') return user.level === UserLevel.ADMIN;
+    if ((mod as string) === 'copias') return false;
+    if ((mod as string) !== 'insumos' && (mod as string) !== 'copias' && user.level === UserLevel.STANDARD) return false;
 
-    return user.level !== UserLevel.STANDARD;
+    return true;
   };
 
   // Refresh Data Individual Helpers

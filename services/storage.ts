@@ -418,21 +418,21 @@ export const StorageService = {
   },
 
   importPeople: async (people: Person[]) => {
-    const { data: existing } = await supabase.from('people').select('matricula');
-    const existingMats = new Set(existing?.map(p => p.matricula));
-
-    const toInsert = people.filter(p => !existingMats.has(p.matricula)).map(p => ({
+    const toUpsert = people.map(p => ({
       matricula: p.matricula,
       name: p.name,
       type: p.type,
       campus_id: p.campus_id
     }));
 
-    if (toInsert.length > 0) {
-      const BATCH_SIZE = 1000;
-      for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-        const batch = toInsert.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('people').insert(batch);
+    if (toUpsert.length > 0) {
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
+        const batch = toUpsert.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('people').upsert(batch, {
+          onConflict: 'matricula',
+          ignoreDuplicates: true
+        });
         if (error) {
           console.error("Erro import batch:", error);
           throw error;

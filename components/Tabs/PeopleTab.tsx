@@ -233,12 +233,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
     const newPeople: Person[] = [];
     let processingLog = '';
-
-    const existingMatriculas = new Set(people.map(p => p.matricula.trim()));
-
     let totalInFiles = 0;
-    let duplicatesFound = 0;
-    let newRecords = 0;
 
     try {
       for (const file of selectedFiles) {
@@ -273,6 +268,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         }
 
         let fileCount = 0;
+        const seenInFile = new Set<string>();
 
         for (let i = headerIndex + 1; i < rows.length; i++) {
           const cols = rows[i];
@@ -286,46 +282,36 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           const cleanName = toTitleCase(pName.trim().replace(/^["']|["']$/g, ''));
           const cleanMatricula = pMatricula.trim().replace(/^["']|["']$/g, '');
 
-          // Ignora se for o próprio cabeçalho que se repetiu no meio do arquivo
           if (cleanName.toLowerCase() === 'nome' && cleanMatricula.toLowerCase().includes('matrícula')) continue;
-
           if (cleanName.length < 2 || cleanMatricula.length < 2) continue;
+          if (seenInFile.has(cleanMatricula)) continue;
 
+          seenInFile.add(cleanMatricula);
           totalInFiles++;
-          if (existingMatriculas.has(cleanMatricula)) {
-            duplicatesFound++;
-            continue;
-          }
-
           newPeople.push({
             name: cleanName,
             matricula: cleanMatricula,
             type: detectedType,
             campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
           });
-
-          existingMatriculas.add(cleanMatricula);
-          newRecords++;
           fileCount++;
         }
         processingLog += `✅ ${file.name}: ${fileCount} registros de ${detectedType}.\n`;
       }
 
-      const summary = `Total no arquivo: ${totalInFiles}\nJá cadastrados (ignora): ${duplicatesFound}\nNovos importados: ${newRecords}`;
-
       if (newPeople.length > 0) {
         await StorageService.importPeople(newPeople);
         onUpdate();
-        fetchData(); // Recarregar dados após importação
+        fetchData();
         setSelectedFiles([]);
-        alert(`Importação concluída!\n\n${processingLog}\n${summary}`);
+        alert(`Importação concluída!\n\n${processingLog}\nTotal no arquivo: ${totalInFiles}\n(Matrículas já existentes foram ignoradas automaticamente)`);
       } else {
-        alert(`Nenhum dado novo para importar.\n\n${processingLog}\n${summary}`);
+        alert(`Nenhum dado válido encontrado.\n\n${processingLog}`);
       }
 
     } catch (err) {
       console.error(err);
-      alert('Erro crítico ao processar arquivos.');
+      alert('Erro ao importar: ' + (err as Error).message);
     } finally {
       setIsProcessing(false);
     }

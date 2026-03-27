@@ -369,11 +369,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                         const hasAccess = u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
                           ? u.permissions[mod.id as keyof typeof u.permissions]
                           : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && mod.id !== 'insumos' && u.level !== UserLevel.STANDARD)));
+                        if (!hasAccess) return null;
                         return (
                           <div
                             key={mod.id}
-                            title={`${mod.label}: ${hasAccess ? 'Liberado' : 'Bloqueado'}`}
-                            className={`p-1.5 rounded-lg transition-all ${hasAccess ? 'text-green-600 bg-green-50 shadow-sm border border-green-100' : 'text-gray-300 bg-gray-50 border border-transparent opacity-40'}`}
+                            title={`${mod.label}: Liberado`}
+                            className="p-1.5 rounded-lg transition-all text-green-600 bg-green-50 shadow-sm border border-green-100"
                           >
                             {mod.icon}
                           </div>

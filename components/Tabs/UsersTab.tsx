@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserLevel, Person, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { DEFAULT_PASSWORD } from '../../constants';
-import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer, Truck } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -41,6 +41,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     usuarios: true,
     materiais: true,
     copias: false,
+    insumos: false,
   });
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (currentUser.level === UserLevel.ADMIN ? adminGlobalCampusId : currentUser.campus_id) || ''
@@ -220,6 +221,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
         usuarios: user.permissions?.usuarios ?? (user.level !== UserLevel.STANDARD),
         materiais: user.permissions?.materiais ?? (user.level !== UserLevel.STANDARD),
         copias: user.permissions?.copias ?? false,
+        insumos: (user.level === UserLevel.ADMIN) && (user.permissions?.insumos ?? false),
       });
       setFormLevel(user.level);
       setSelectedCampusId(user.campus_id || '');
@@ -239,6 +241,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
         usuarios: false,
         materiais: false,
         copias: false,
+        insumos: false,
       });
     }
     setPersonSearch('');
@@ -351,17 +354,23 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                         { id: 'nadaconsta', icon: <FileCheck size={14} />, label: 'Nada Consta' },
                         { id: 'materiais', icon: <FileText size={14} />, label: 'Materiais' },
                         { id: 'copias', icon: <Printer size={14} />, label: 'Cópias' },
+                        { id: 'insumos', icon: <Truck size={14} />, label: 'Insumos' },
                         { id: 'pessoas', icon: <UserIcon size={14} />, label: 'Pessoas' },
                         { id: 'usuarios', icon: <UserCog size={14} />, label: 'Usuários' }
                       ].filter(mod => {
+                        // Only show module icons that the currently logged-in admin has access to
                         const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
+                        if (mod.id === 'insumos') return currentUser.level === UserLevel.ADMIN;
                         if (perm !== undefined) return perm;
                         if (mod.id === 'nadaconsta') return true;
                         return (currentUser.level !== UserLevel.STANDARD);
                       }).map(mod => {
-                        const hasAccess = u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
+                        // For insumos: only ADMIN target users can have it active
+                        const hasAccess = mod.id === 'insumos'
+                          ? u.level === UserLevel.ADMIN && Boolean(u.permissions?.insumos)
+                          : (u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
                           ? u.permissions[mod.id as keyof typeof u.permissions]
-                          : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && u.level !== UserLevel.STANDARD)));
+                          : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && u.level !== UserLevel.STANDARD))));
                         return (
                           <div
                             key={mod.id}
@@ -446,7 +455,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                 {searchResultsPeople.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
                     {searchResultsPeople.map(p => (
-                      <div key={p.id} onClick={() => selectPerson(p)} className="p-3 hover:bg-gray-50 cursor-pointer text-sm group">
+                      <div key={p.matricula} onClick={() => selectPerson(p)} className="p-3 hover:bg-gray-50 cursor-pointer text-sm group">
                         <div className="font-bold text-gray-800 group-hover:text-ifrn-green">{p.name}</div>
                         <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
                       </div>
@@ -525,7 +534,8 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                       pessoas: true,
                       usuarios: true,
                       materiais: true,
-                      copias: val === UserLevel.ADMIN
+                      copias: val === UserLevel.ADMIN,
+                      insumos: val === UserLevel.ADMIN
                     });
                   }
                   if (val === UserLevel.ADMIN) {
@@ -549,9 +559,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   { id: 'nadaconsta', label: 'Nada Consta' },
                   { id: 'materiais', label: 'Materiais' },
                   { id: 'copias', label: 'Cópias' },
+                  { id: 'insumos', label: 'Insumos' },
                   { id: 'pessoas', label: 'Pessoas' },
                   { id: 'usuarios', label: 'Usuários' }
                 ].filter(mod => {
+                  // Insumos only visible/editable by admin
+                  if (mod.id === 'insumos') return currentUser.level === UserLevel.ADMIN;
                   const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
                   if (perm !== undefined) return perm;
                   if (mod.id === 'nadaconsta') return true;
@@ -562,12 +575,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                     <button
                       key={module.id}
                       type="button"
-                      disabled={selectedUser?.id === currentUser.id}
+                      disabled={selectedUser?.id === currentUser.id || (module.id === 'insumos' && currentUser.level !== UserLevel.ADMIN)}
                       onClick={() => setPermissions(prev => ({ ...prev, [module.id]: !prev[module.id as keyof typeof prev] }))}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${isActive
                         ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'
                         : 'bg-gray-50 border-gray-100 text-gray-400 opacity-60'
-                        } ${selectedUser?.id === currentUser.id ? 'cursor-not-allowed' : ''}`}
+                        } ${selectedUser?.id === currentUser.id || (module.id === 'insumos' && currentUser.level !== UserLevel.ADMIN) ? 'cursor-not-allowed' : ''}`}
                     >
                       <div className={isActive ? 'text-green-600' : 'text-gray-400'}>
                         {module.id === 'achados' ? <Package size={14} /> :
@@ -576,8 +589,9 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                               module.id === 'nadaconsta' ? <FileCheck size={14} /> :
                                 module.id === 'materiais' ? <FileText size={14} /> :
                                   module.id === 'copias' ? <Printer size={14} /> :
-                                    module.id === 'pessoas' ? <UserIcon size={14} /> :
-                                      <UserCog size={14} />}
+                                    module.id === 'insumos' ? <Truck size={14} /> :
+                                      module.id === 'pessoas' ? <UserIcon size={14} /> :
+                                        <UserCog size={14} />}
                       </div>
                       {module.label}
                       {isActive && <CheckCircle size={12} className="ml-auto" />}

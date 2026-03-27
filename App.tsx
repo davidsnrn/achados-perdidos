@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from './services/storage';
-import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord } from './types';
+import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord } from './types';
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
@@ -16,8 +16,9 @@ const BookReportsTab = React.lazy(() => import('./components/Tabs/BookReportsTab
 const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
 const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
 const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
+const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(module => ({ default: module.InsumosTab })));
 
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3 } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
@@ -44,7 +45,7 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Initialize from sessionStorage
-  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | null>(() => {
+  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | 'insumos' | null>(() => {
     return (sessionStorage.getItem('currentSystem') as any) || null;
   });
 
@@ -80,6 +81,8 @@ const App: React.FC = () => {
   const [materialLoans, setMaterialLoans] = useState<MaterialLoan[]>([]);
   const [copyRecords, setCopyRecords] = useState<CopyRecord[]>([]);
   const [copyConfigs, setCopyConfigs] = useState<CopyConfig[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [supplyRecords, setSupplyRecords] = useState<SupplyRecord[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
 
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
@@ -129,6 +132,7 @@ const App: React.FC = () => {
 
     if (mod === 'nadaconsta') return true;
     if (mod === 'copias') return false;
+    if (mod === 'insumos') return user.level === UserLevel.ADMIN;
 
     return user.level !== UserLevel.STANDARD;
   };
@@ -201,6 +205,18 @@ const App: React.FC = () => {
       const config = await StorageService.getCopyConfig(campusId);
       if (config) setCopyConfigs([config]);
     }
+  }, [user, adminGlobalCampusId]);
+
+  const refreshSupplies = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setSupplies(await StorageService.getSupplies(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshSupplyRecords = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    setSupplyRecords(await StorageService.getSupplyRecords(campusId));
   }, [user, adminGlobalCampusId]);
 
   // Refresh Data Helper (Async) with Timeout
@@ -295,6 +311,23 @@ const App: React.FC = () => {
         setBookLoans([]);
         setBooks([]);
         setBookLoans([]);
+      } else if (currentSystem === 'insumos' || activeTab === 'insumos') {
+        const [fetchedSupplies, fetchedSupplyRecords] = await Promise.all([
+          StorageService.getSupplies(campusId),
+          StorageService.getSupplyRecords(campusId)
+        ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
+        setSupplies(fetchedSupplies);
+        setSupplyRecords(fetchedSupplyRecords);
+        setItems([]);
+        setReports([]);
+        setLockers([]);
+        setBooks([]);
+        setBookLoans([]);
+        setMaterials([]);
+        setMaterialLoans([]);
       } else if (currentSystem === 'copias' || activeTab === 'copias') {
         const [fetchedRecords, fetchedConfig] = await Promise.all([
           StorageService.getCopyRecords(campusId || ''),
@@ -364,6 +397,8 @@ const App: React.FC = () => {
         case 'lockers': refreshLockers(); break;
         case 'materials': refreshMaterials(); break;
         case 'material_loans': refreshMaterialLoans(); break;
+        case 'supplies': refreshSupplies(); break;
+        case 'supply_records': refreshSupplyRecords(); break;
       }
     }, 1000); // 1 second debounce
   }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans]);
@@ -448,7 +483,7 @@ const App: React.FC = () => {
   // Handle module order
   useEffect(() => {
     if (user) {
-      const defaultOrder = ['copias', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
+      const defaultOrder = ['copias', 'insumos', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
       const savedOrder = user.moduleOrder || [];
       // Filtrar apenas módulos que existem (evitar erros se o nome mudar)
       const validSavedOrder = savedOrder.filter(id => defaultOrder.includes(id));
@@ -1007,6 +1042,24 @@ const App: React.FC = () => {
                     setActiveTab('copias');
                     setShowModuleSelector(false);
                   }
+                },
+                insumos: {
+                  id: 'insumos',
+                  label: 'Distribuição de Insumos',
+                  description: 'Gerencie o estoque e registre a entrega definitiva de suprimentos para setores e servidores.',
+                  icon: <Truck size={32} />,
+                  color: 'text-indigo-700',
+                  iconBg: 'bg-gradient-to-br from-indigo-600 to-purple-600',
+                  textColor: 'text-indigo-700',
+                  hoverBorder: 'hover:border-indigo-600',
+                  bgLight: 'bg-indigo-50',
+                  permission: 'insumos',
+                  onSelect: () => {
+                    setCurrentSystem('insumos');
+                    sessionStorage.setItem('currentSystem', 'insumos');
+                    setActiveTab('insumos');
+                    setShowModuleSelector(false);
+                  }
                 }
               };
 
@@ -1396,6 +1449,9 @@ const App: React.FC = () => {
               {currentSystem === 'materiais' && (
                 <button onClick={() => handleMobileNav('materiais')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'materiais' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><LayoutGrid size={20} /> Empréstimos</button>
               )}
+              {currentSystem === 'insumos' && (
+                <button onClick={() => handleMobileNav('insumos')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'insumos' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><Truck size={20} /> Distribuição de Insumos</button>
+              )}
 
               {canConfigure && (
                 <div className="pt-4 mt-2 border-t border-gray-100">
@@ -1507,6 +1563,9 @@ const App: React.FC = () => {
           {currentSystem === 'materiais' && (
             <button onClick={() => setActiveTab('materiais')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'materiais' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><LayoutGrid size={18} /> Empréstimos de Material</button>
           )}
+          {currentSystem === 'insumos' && (
+            <button onClick={() => setActiveTab('insumos')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'insumos' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><Truck size={18} /> Distribuição de Insumos</button>
+          )}
 
         </div>
         <div className="min-h-[400px]">
@@ -1593,6 +1652,12 @@ const App: React.FC = () => {
                     onUpdate={refreshData}
                     campuses={campuses}
                     adminGlobalCampusId={adminGlobalCampusId}
+                  />
+                )}
+                {activeTab === 'insumos' && (
+                  <InsumosTab
+                    user={user}
+                    onRefresh={refreshData}
                   />
                 )}
                 {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}

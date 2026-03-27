@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -1488,5 +1488,100 @@ export const StorageService = {
       lockerLoans: activeLockerLoans.map(l => ({ ...l.current_loan, lockerNumber: l.number })),
       hasPendencies: (bookLoans?.length || 0) > 0 || (materialLoans?.length || 0) > 0 || activeLockerLoans.length > 0
     };
+  },
+
+  // Supply Distribution Methods
+  getSupplies: async (campusId?: string): Promise<Supply[]> => {
+    let query = supabase.from('supplies').select('*').order('name', { ascending: true });
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveSupply: async (supply: Partial<Supply>) => {
+    const payload = {
+      id: supply.id || undefined,
+      campus_id: supply.campus_id,
+      name: supply.name,
+      quantity: supply.quantity || 0,
+      unit: supply.unit,
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('supplies').upsert(payload);
+    if (error) throw error;
+  },
+
+  deleteSupply: async (id: string) => {
+    const { error } = await supabase.from('supplies').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  getSupplyRecords: async (campusId?: string, startDate?: string, endDate?: string): Promise<SupplyRecord[]> => {
+    let query = supabase.from('supply_records').select('*').order('date', { ascending: false });
+    if (campusId) query = query.eq('campus_id', campusId);
+    if (startDate) query = query.gte('date', startDate);
+    if (endDate) query = query.lte('date', endDate);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveSupplyRecord: async (record: Partial<SupplyRecord>) => {
+    // 1. Get current supply to check quantity
+    const { data: supply, error: sError } = await supabase
+      .from('supplies')
+      .select('quantity')
+      .eq('id', record.item_id)
+      .single();
+
+    if (sError) throw sError;
+    if (!supply) throw new Error("Insumo não encontrado.");
+    
+    const newQuantity = supply.quantity - (record.quantity || 0);
+    if (newQuantity < 0) {
+      throw new Error(`Estoque insuficiente. Disponível: ${supply.quantity}`);
+    }
+
+    // 2. Insert record
+    const payload = {
+      id: record.id || undefined,
+      campus_id: record.campus_id,
+      person_name: record.person_name,
+      person_matricula: record.person_matricula,
+      sector: record.sector,
+      item_id: record.item_id,
+      quantity: record.quantity,
+      date: record.date || new Date().toISOString(),
+      operator_id: record.operator_id
+    };
+
+    const { error: rError } = await supabase.from('supply_records').insert(payload);
+    if (rError) throw rError;
+
+    // 3. Update supply quantity
+    const { error: uError } = await supabase
+      .from('supplies')
+      .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+      .eq('id', record.item_id);
+
+    if (uError) throw uError;
+  },
+
+  deleteSupplyRecord: async (id: string, restoreStock: boolean = false) => {
+    if (restoreStock) {
+      const { data: record } = await supabase.from('supply_records').select('*').eq('id', id).single();
+      if (record) {
+        const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', record.item_id).single();
+        if (supply) {
+          await supabase.from('supplies')
+            .update({ quantity: supply.quantity + record.quantity, updated_at: new Date().toISOString() })
+            .eq('id', record.item_id);
+        }
+      }
+    }
+    const { error } = await supabase.from('supply_records').delete().eq('id', id);
+    if (error) throw error;
   }
 };

@@ -45,6 +45,7 @@ export interface User {
     usuarios?: boolean;
     materiais?: boolean;
     copias?: boolean;
+    insumos?: boolean;
   };
   logs?: string[];
   access_logs?: string[];
@@ -166,6 +167,29 @@ export interface CopyRecord {
   person_type?: PersonType; // For statistics and display
   sector: string;
   print_type: 'PROVA' | 'OUTRAS';
+  quantity: number;
+  date: string; // ISO
+  operator_id: string;
+  created_at?: string;
+}
+
+export interface Supply {
+  id: string;
+  campus_id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SupplyRecord {
+  id: string;
+  campus_id: string;
+  person_name: string;
+  person_matricula: string;
+  sector?: string;
+  item_id: string;
   quantity: number;
   date: string; // ISO
   operator_id: string;

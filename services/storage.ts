@@ -1550,6 +1550,7 @@ export const StorageService = {
       campus_id: record.campus_id,
       person_name: record.person_name,
       person_matricula: record.person_matricula,
+      environment: record.environment,
       sector: record.sector,
       item_id: record.item_id,
       quantity: record.quantity,

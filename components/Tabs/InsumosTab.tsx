@@ -49,7 +49,8 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   // Form State - Distribution Record
   const [recipientName, setRecipientName] = useState('');
   const [recipientMatricula, setRecipientMatricula] = useState('');
-  const [recipientSector, setRecipientSector] = useState('');
+  const [recipientEnvironment, setRecipientEnvironment] = useState('');
+  const [deliveryMode, setDeliveryMode] = useState<'pessoa' | 'ambiente'>('pessoa');
   const [selectedItemId, setSelectedItemId] = useState('');
   const [recordQuantity, setRecordQuantity] = useState(1);
   const [recordDate, setRecordDate] = useState(new Date().toISOString().split('T')[0]);
@@ -113,9 +114,9 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
     try {
       await StorageService.saveSupplyRecord({
         campus_id: campusId,
-        person_name: recipientName,
-        person_matricula: recipientMatricula,
-        sector: recipientSector,
+        person_name: deliveryMode === 'pessoa' ? recipientName : undefined,
+        person_matricula: deliveryMode === 'pessoa' ? recipientMatricula : undefined,
+        environment: deliveryMode === 'ambiente' ? recipientEnvironment : undefined,
         item_id: selectedItemId,
         quantity: recordQuantity,
         date: new Date(recordDate).toISOString(),
@@ -149,7 +150,9 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   const resetRecordForm = () => {
     setRecipientName('');
     setRecipientMatricula('');
-    setRecipientSector('');
+    setRecipientEnvironment('');
+    setDeliveryMode('pessoa');
+    setSelectedPerson(null);
     setSelectedItemId('');
     setRecordQuantity(1);
     setRecordDate(new Date().toISOString().split('T')[0]);
@@ -168,8 +171,9 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   );
 
   const filteredRecords = records.filter(r => 
-    r.person_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.person_matricula.includes(searchTerm) ||
+    (r.person_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+     r.person_matricula?.includes(searchTerm) ||
+     r.environment?.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (r.sector && r.sector.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -306,8 +310,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
             <table className="w-full text-left border-separate border-spacing-y-3">
               <thead>
                 <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
-                  <th className="px-6 py-4">Destinatário</th>
-                  <th className="px-6 py-4">Setor</th>
+                  <th className="px-6 py-4">Destinatário / Local</th>
                   <th className="px-6 py-4">Item</th>
                   <th className="px-6 py-4">Qtd</th>
                   <th className="px-6 py-4">Data</th>
@@ -320,18 +323,17 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
                     <td className="px-6 py-5">
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-                          <UserIcon size={20} />
+                          {record.environment ? <Building2 size={20} /> : <UserIcon size={20} />}
                         </div>
                         <div>
-                          <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase">{record.person_name}</div>
-                          <div className="text-xs text-gray-400 font-medium">{record.person_matricula}</div>
+                          <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase">
+                            {record.person_name || record.environment}
+                          </div>
+                          <div className="text-xs text-gray-400 font-medium">
+                            {record.person_matricula || 'DISTR. AMBIENTE'}
+                          </div>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold uppercase">
-                        {record.sector || 'N/A'}
-                      </span>
                     </td>
                     <td className="px-6 py-5">
                       <div className="font-bold text-gray-800">
@@ -468,93 +470,121 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
           </div>
 
           <div className="space-y-5">
-            {/* Person Search Section - matching CopyControlTab UI */}
-            <div>
-              <label className="flex items-center gap-2 text-xs font-black text-indigo-500 uppercase tracking-widest mb-2">
-                <UserIcon size={14} /> Solicitante
-              </label>
-
-              {selectedPerson ? (
-                <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-4 animate-fade-in-down shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-indigo-500 shadow-sm border border-indigo-50">
-                      <UserIcon size={20} />
-                    </div>
-                    <div>
-                      <p className="font-black text-indigo-900 text-sm uppercase">{selectedPerson.name}</p>
-                      <p className="text-xs text-indigo-400 font-bold tracking-wider">{selectedPerson.matricula} • {selectedPerson.type}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearSelectedPerson}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                    title="Remover seleção"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              ) : (
-                <div className="relative group">
-                  <input
-                    type="text"
-                    value={personSearch}
-                    onChange={e => handlePersonSearch(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handlePersonSearch(personSearch, true))}
-                    className="w-full bg-gray-50 border-2 border-gray-100/50 rounded-2xl pl-5 pr-14 py-4 text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-bold text-gray-900 placeholder:text-gray-400"
-                    placeholder="Busca por Nome ou Matrícula..."
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handlePersonSearch(personSearch, true)}
-                    disabled={isSearchingPeople}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm active:scale-95"
-                  >
-                    {isSearchingPeople ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
-                  </button>
-
-                  {showPersonDropdown && personSearchResults.length > 0 && (
-                    <div className="absolute z-[60] w-full mt-2 bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden ring-4 ring-gray-100/50 animate-scale-in">
-                      <div className="p-2 space-y-1">
-                        {personSearchResults.map(p => (
-                          <button
-                            key={p.matricula}
-                            type="button"
-                            onClick={() => selectPerson(p)}
-                            className="w-full p-4 text-left bg-indigo-50/30 hover:bg-indigo-50 rounded-2xl transition-all flex items-center justify-between group/item border border-transparent hover:border-indigo-100 hover:scale-[1.01]"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-400 shadow-sm border border-indigo-50 group-hover/item:text-indigo-600 transition-colors">
-                                <UserIcon size={20} />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-black text-indigo-900 uppercase truncate leading-tight mb-0.5">{p.name}</p>
-                                <p className="text-[11px] text-indigo-400 font-black tracking-widest">{p.matricula} <span className="mx-1.5 opacity-30">|</span> {p.type}</p>
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-black text-indigo-500 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm uppercase tracking-tighter opacity-0 group-hover/item:opacity-100 transition-all translate-x-2 group-hover/item:translate-x-0">
-                              Selecionar
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Delivery Mode Toggle */}
+            <div className="flex p-1 bg-gray-100 rounded-xl mb-2">
+              <button
+                type="button"
+                onClick={() => setDeliveryMode('pessoa')}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
+                  deliveryMode === 'pessoa' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                Pessoa
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeliveryMode('ambiente')}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
+                  deliveryMode === 'ambiente' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                Ambiente/Local
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Setor/Departamento</label>
+            {/* Person Search Section */}
+            {deliveryMode === 'pessoa' ? (
+              <div>
+                <label className="flex items-center gap-2 text-xs font-black text-indigo-500 uppercase tracking-widest mb-2">
+                  <UserIcon size={14} /> Solicitante
+                </label>
+
+                {selectedPerson ? (
+                  <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-4 animate-fade-in-down shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-indigo-500 shadow-sm border border-indigo-50">
+                        <UserIcon size={20} />
+                      </div>
+                      <div>
+                        <p className="font-black text-indigo-900 text-sm uppercase">{selectedPerson.name}</p>
+                        <p className="text-xs text-indigo-400 font-bold tracking-wider">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearSelectedPerson}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      title="Remover seleção"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      value={personSearch}
+                      onChange={e => handlePersonSearch(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handlePersonSearch(personSearch, true))}
+                      className="w-full bg-gray-50 border-2 border-gray-100/50 rounded-2xl pl-5 pr-14 py-4 text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-bold text-gray-900 placeholder:text-gray-400"
+                      placeholder="Busca por Nome ou Matrícula..."
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handlePersonSearch(personSearch, true)}
+                      disabled={isSearchingPeople}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm active:scale-95"
+                    >
+                      {isSearchingPeople ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
+                    </button>
+
+                    {showPersonDropdown && personSearchResults.length > 0 && (
+                      <div className="absolute z-[60] w-full mt-2 bg-white rounded-[2rem] shadow-2xl border border-gray-100 overflow-hidden ring-4 ring-gray-100/50 animate-scale-in">
+                        <div className="p-2 space-y-1">
+                          {personSearchResults.map(p => (
+                            <button
+                              key={p.matricula}
+                              type="button"
+                              onClick={() => selectPerson(p)}
+                              className="w-full p-4 text-left bg-indigo-50/30 hover:bg-indigo-50 rounded-2xl transition-all flex items-center justify-between group/item border border-transparent hover:border-indigo-100 hover:scale-[1.01]"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-400 shadow-sm border border-indigo-50 group-hover/item:text-indigo-600 transition-colors">
+                                  <UserIcon size={20} />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black text-indigo-900 uppercase truncate leading-tight mb-0.5">{p.name}</p>
+                                  <p className="text-[11px] text-indigo-400 font-black tracking-widest">{p.matricula} <span className="mx-1.5 opacity-30">|</span> {p.type}</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-black text-indigo-500 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 shadow-sm uppercase tracking-tighter opacity-0 group-hover/item:opacity-100 transition-all translate-x-2 group-hover/item:translate-x-0">
+                                Selecionar
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2 animate-fade-in-down">
+                <label className="flex items-center gap-2 text-xs font-black text-indigo-500 uppercase tracking-widest mb-1 ml-1">
+                  <Building2 size={14} /> Ambiente/Local
+                </label>
                 <input
                   type="text"
-                  value={recipientSector}
-                  onChange={e => setRecipientSector(e.target.value)}
-                  className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-medium"
-                  placeholder="Ex: Coordenação, Financeiro..."
+                  required
+                  value={recipientEnvironment}
+                  onChange={e => setRecipientEnvironment(e.target.value)}
+                  className="w-full bg-gray-50 border-2 border-gray-100/50 rounded-2xl px-5 py-4 text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-bold text-gray-900"
+                  placeholder="EX: Sala de Aula 10, Biblioteca, Lab 01..."
                 />
               </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-2">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Data</label>
                 <input

@@ -186,8 +186,9 @@ export interface Supply {
 export interface SupplyRecord {
   id: string;
   campus_id: string;
-  person_name: string;
-  person_matricula: string;
+  person_name?: string;
+  person_matricula?: string;
+  environment?: string;
   sector?: string;
   item_id: string;
   quantity: number;

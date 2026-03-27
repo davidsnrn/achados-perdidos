@@ -18,7 +18,6 @@ import {
   Download,
   AlertCircle,
   CheckCircle2,
-  Clock,
   User as UserIcon,
   Building2,
   Table as TableIcon,
@@ -26,7 +25,8 @@ import {
   Save,
   Eye,
   Info,
-  FileDown
+  FileDown,
+  Pencil
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import jsPDF from 'jspdf';
@@ -102,6 +102,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     quantity: 1,
     date: new Date().toISOString()
   });
+  const [editingRecord, setEditingRecord] = useState<CopyRecord | null>(null);
   const [personSearch, setPersonSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Person[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -247,12 +248,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     try {
       await StorageService.saveCopyRecord({
         ...newRecord,
-        date: new Date(selectedDate + "T12:00:00").toISOString(), // Standardize to noon to avoid timezone shift issues
+        id: editingRecord?.id,
+        date: new Date(selectedDate + "T12:00:00").toISOString(),
         campus_id: adminGlobalCampusId || user!.campus_id!,
         operator_id: user!.id
       });
       await onUpdate();
       setIsModalOpen(false);
+      setEditingRecord(null);
       setNewRecord({
         print_type: 'OUTRAS',
         quantity: 1,
@@ -904,10 +907,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           <Calendar size={12} className="text-gray-400" />
                           {new Date(record.date).toLocaleDateString()}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-tighter">
-                          <Clock size={12} />
-                          {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
                       </div>
                     </td>
                     <td className="px-8 py-6">
@@ -921,6 +920,31 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           title="Ver Detalhes"
                         >
                           <Eye size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingRecord(record);
+                            setNewRecord({
+                              print_type: record.print_type,
+                              quantity: record.quantity,
+                              date: record.date,
+                              person_name: record.person_name,
+                              person_matricula: record.person_matricula,
+                              sector: record.sector
+                            });
+                            setSelectedDate(new Date(record.date).toISOString().split('T')[0]);
+                            setSelectedPerson({
+                              name: record.person_name,
+                              matricula: record.person_matricula,
+                              type: record.person_type as any,
+                              campus_id: record.campus_id
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          className="p-2.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
+                          title="Editar todos os registros deste grupo"
+                        >
+                          <Pencil size={18} />
                         </button>
                         <button
                           onClick={() => handleDeleteRecord(group.records.map(r => r.id))}
@@ -967,8 +991,12 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             <div className="mx-auto w-16 h-16 bg-gradient-to-br from-rose-500 to-red-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-200">
               <Printer size={32} className="text-white" />
             </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-2">Novo Registro de Cópia</h3>
-            <p className="text-sm text-gray-500 font-medium">Preencha os dados do solicitante e quantidade</p>
+            <h3 className="text-2xl font-black text-gray-900 mb-2">
+              {editingRecord ? 'Editar Registro de Cópia' : 'Novo Registro de Cópia'}
+            </h3>
+            <p className="text-sm text-gray-500 font-medium">
+              {editingRecord ? 'Atualize os dados do registro' : 'Preencha os dados do solicitante e quantidade'}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
@@ -1133,7 +1161,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                 ) : (
                   <>
-                    <Save size={20} /> Salvar Registro
+                    <Save size={20} /> {editingRecord ? 'Salvar Alterações' : 'Salvar Registro'}
                   </>
                 )}
               </button>
@@ -1312,9 +1340,9 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                     <p className="text-xs text-rose-500 font-bold text-left">{selectedGroup[0].person_matricula}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Data / Hora</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Data do Registro</p>
                     <p className="text-xs font-bold text-gray-700">
-                      {new Date(selectedGroup[0].date).toLocaleDateString()} {new Date(selectedGroup[0].date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(selectedGroup[0].date).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
@@ -1335,9 +1363,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               {record.print_type}
                             </span>
                           </div>
-                          <p className="text-[9px] text-gray-400 font-medium">
-                            {new Date(record.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
@@ -1351,6 +1376,32 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           title="Excluir este item"
                         >
                           <Trash2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingRecord(record);
+                            setNewRecord({
+                              print_type: record.print_type,
+                              quantity: record.quantity,
+                              date: record.date,
+                              person_name: record.person_name,
+                              person_matricula: record.person_matricula,
+                              sector: record.sector
+                            });
+                            setSelectedDate(new Date(record.date).toISOString().split('T')[0]);
+                            setSelectedPerson({
+                              name: record.person_name,
+                              matricula: record.person_matricula,
+                              type: record.person_type as any,
+                              campus_id: record.campus_id
+                            });
+                            setIsDetailsModalOpen(false);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-1.5 text-gray-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                          title="Editar este item"
+                        >
+                          <Pencil size={14} />
                         </button>
                       </div>
                     </div>

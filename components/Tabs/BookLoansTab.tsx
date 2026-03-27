@@ -30,7 +30,7 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn }) => {
         <div className={`transition-colors ${isReturned ? 'bg-white' : 'bg-white hover:bg-gray-50/70'}`}>
             {/* Main Row */}
             <div
-                className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3 cursor-pointer"
+                className="grid grid-cols-[32px_1fr_90px_80px_140px_120px] gap-x-4 items-center px-4 py-3 cursor-pointer"
                 onClick={() => setExpanded(prev => !prev)}
             >
                 {/* Expand chevron */}
@@ -153,7 +153,7 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
         <div className="transition-colors">
             {/* Group Header */}
             <div
-                className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
+                className="grid grid-cols-[32px_1fr_90px_80px_140px_120px] gap-x-4 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
                 onClick={() => setExpanded(prev => !prev)}
             >
                 <span className="text-gray-400 w-5">
@@ -692,13 +692,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 ) : (
                     <>
                         {/* Table Header */}
-                        <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-x-4 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        <div className="grid grid-cols-[32px_1fr_90px_80px_140px_120px] gap-x-4 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                             <span className="w-6" />
                             <span>Aluno</span>
-                            <span className="hidden md:block">Data</span>
+                            <span className="hidden md:block text-right">Data</span>
                             <span className="text-center">Livros</span>
-                            <span className="hidden lg:block">Operador</span>
-                            <span />
+                            <span className="hidden lg:block text-right">Operador</span>
+                            <div className="w-[60px]" />
                         </div>
 
                         {/* Table Rows */}

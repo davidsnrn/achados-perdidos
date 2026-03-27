@@ -131,8 +131,8 @@ const App: React.FC = () => {
     }
 
     if (mod === 'nadaconsta') return true;
-    if ((mod as string) === 'copias') return false;
-    if ((mod as string) !== 'insumos' && (mod as string) !== 'copias' && user.level === UserLevel.STANDARD) return false;
+    if (mod === 'copias' || mod === 'insumos') return false;
+    if (user.level === UserLevel.STANDARD) return false;
 
     return true;
   };

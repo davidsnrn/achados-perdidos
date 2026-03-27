@@ -358,23 +358,30 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                         { id: 'pessoas', icon: <UserIcon size={14} />, label: 'Pessoas' },
                         { id: 'usuarios', icon: <UserCog size={14} />, label: 'Usuários' }
                       ].filter(mod => {
-                        // Only show module icons that the currently logged-in admin has access to
+                        // Check if current user has access to this module
+                        if (currentUser.level === UserLevel.ADMIN) return true;
+
                         const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
-                        if (mod.id === 'insumos') return (currentUser.level === UserLevel.ADMIN || currentUser.level === UserLevel.ADVANCED);
                         if (perm !== undefined) return perm;
+
                         if (mod.id === 'nadaconsta') return true;
+                        if (mod.id === 'copias' || mod.id === 'insumos') return false;
+
                         return (currentUser.level !== UserLevel.STANDARD);
                       }).map(mod => {
                         // For modules logic
                         const hasAccess = u.level === UserLevel.ADMIN || (u.permissions && u.permissions[mod.id as keyof typeof u.permissions] !== undefined
                           ? u.permissions[mod.id as keyof typeof u.permissions]
                           : (mod.id === 'nadaconsta' || (mod.id !== 'copias' && mod.id !== 'insumos' && u.level !== UserLevel.STANDARD)));
-                        if (!hasAccess) return null;
+
                         return (
                           <div
                             key={mod.id}
-                            title={`${mod.label}: Liberado`}
-                            className="p-1.5 rounded-lg transition-all text-green-600 bg-green-50 shadow-sm border border-green-100"
+                            title={`${mod.label}: ${hasAccess ? 'Liberado' : 'Inativo'}`}
+                            className={`p-1.5 rounded-lg transition-all shadow-sm border ${hasAccess
+                              ? 'text-green-600 bg-green-50 border-green-100'
+                              : 'text-gray-300 bg-gray-50 border-gray-100 opacity-60'
+                              }`}
                           >
                             {mod.icon}
                           </div>

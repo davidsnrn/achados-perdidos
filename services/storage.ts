@@ -477,12 +477,11 @@ export const StorageService = {
       const BATCH_SIZE = 500;
       for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
         const batch = toUpsert.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.from('people').upsert(batch, {
-          onConflict: 'matricula',
-          ignoreDuplicates: true
+        const { error } = await supabase.rpc('import_people_bulk', {
+          p_people: batch
         });
         if (error) {
-          console.error("Erro import batch:", error);
+          console.error("Erro import batch via RPC:", error);
           throw error;
         }
       }

@@ -305,7 +305,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         onUpdate();
         fetchData();
         setSelectedFiles([]);
-        alert(`Importação concluída!\n\n${processingLog}\nTotal no arquivo: ${totalInFiles}\n(Matrículas já existentes foram ignoradas automaticamente)`);
+        alert(`Importação concluída!\n\n${processingLog}\nTotal no arquivo: ${totalInFiles}\n(Matrículas já existentes foram atualizadas para este câmpus automaticamente)`);
       } else {
         alert(`Nenhum dado válido encontrado.\n\n${processingLog}`);
       }

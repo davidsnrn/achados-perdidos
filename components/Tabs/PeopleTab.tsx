@@ -180,17 +180,18 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
     const formData = new FormData(e.currentTarget);
     const rawName = formData.get('name') as string;
+    const newMatricula = formData.get('matricula') as string;
 
     const updatedPerson: Person = {
       ...editingPerson,
       name: toTitleCase(rawName),
-      matricula: formData.get('matricula') as string,
+      matricula: newMatricula,
       type: formData.get('type') as PersonType,
-      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : (editingPerson.campus_id || user.campus_id)
     };
 
     try {
-      await StorageService.savePerson(updatedPerson);
+      await StorageService.savePerson(updatedPerson, editingPerson.matricula);
       onUpdate();
       fetchData(); // Recarregar dados após edição
       setShowEditModal(false);
@@ -514,24 +515,58 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         {activeTab === 'manual' && matriculaCheck && (
           <div className="mt-4 animate-in fade-in slide-in-from-top-2">
             {matriculaCheck.person ? (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="text-amber-600" size={20} />
-                  <div>
-                    <p className="text-xs font-bold text-amber-900">Esta matrícula já está cadastrada!</p>
-                    <p className="text-[10px] text-amber-700 font-medium">
-                      Pertence a <strong>{matriculaCheck.person.name}</strong> ({matriculaCheck.person.campuses?.name || 'Câmpus desconhecido'}).
-                    </p>
+              (() => {
+                const isSameCampus = matriculaCheck.person.campus_id === (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id);
+                
+                return (
+                  <div className={`p-3 border rounded-lg flex items-center justify-between gap-4 ${isSameCampus ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                    <div className="flex items-center gap-3">
+                      {isSameCampus ? <AlertTriangle className="text-amber-600" size={20} /> : <HelpCircle className="text-blue-600" size={20} />}
+                      <div>
+                        <p className={`text-xs font-bold ${isSameCampus ? 'text-amber-900' : 'text-blue-900'}`}>
+                          {isSameCampus ? 'Esta matrícula já está cadastrada!' : 'Pessoa encontrada em outro câmpus!'}
+                        </p>
+                        <p className={`text-[10px] font-medium ${isSameCampus ? 'text-amber-700' : 'text-blue-700'}`}>
+                          Pertence a <strong>{matriculaCheck.person.name}</strong> ({matriculaCheck.person.campuses?.name || 'Câmpus desconhecido'}).
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={async () => { 
+                        if (isSameCampus) {
+                          setEditingPerson(matriculaCheck.person); 
+                          setShowEditModal(true); 
+                        } else {
+                          // Import logic
+                          if (confirm(`Deseja importar ${matriculaCheck.person.name} para o câmpus atual?`)) {
+                            setIsLoading(true);
+                            try {
+                              await StorageService.importPersonGlobal(
+                                matriculaCheck.person.matricula,
+                                (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id) || ''
+                              );
+                              alert('Pessoa importada com sucesso!');
+                              setMatricula('');
+                              setName('');
+                              setMatriculaCheck(null);
+                              fetchData();
+                              onUpdate();
+                            } catch (err) {
+                              alert((err as Error).message);
+                            } finally {
+                              setIsLoading(false);
+                            }
+                          }
+                        }
+                      }}
+                      className={`px-3 py-1 text-white text-[10px] font-bold rounded transition-colors ${isSameCampus ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                    >
+                      {isSameCampus ? 'EDITAR EXISTENTE' : 'IMPORTAR PARA ESTE CÂMPUS'}
+                    </button>
                   </div>
-                </div>
-                <button 
-                  type="button" 
-                  onClick={() => { setEditingPerson(matriculaCheck.person); setShowEditModal(true); }}
-                  className="px-3 py-1 bg-amber-600 text-white text-[10px] font-bold rounded hover:bg-amber-700 transition-colors"
-                >
-                  EDITAR EXISTENTE
-                </button>
-              </div>
+                );
+              })()
             ) : matriculaCheck.hasPendencies ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-lg space-y-3">
                 <div className="flex items-center gap-3">

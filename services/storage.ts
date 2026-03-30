@@ -385,15 +385,63 @@ export const StorageService = {
     return [];
   },
 
-  savePerson: async (person: Person) => {
-    const { error } = await supabase.from('people').upsert({
-      matricula: person.matricula,
-      name: person.name,
-      type: person.type,
-      campus_id: person.campus_id
-    }, { onConflict: 'matricula' });
+  savePerson: async (person: Person, oldMatricula?: string) => {
+    if (oldMatricula && oldMatricula !== person.matricula) {
+      // 1. Verificar se a nova matrícula já existe (para evitar conflito de PK)
+      const { data: existing } = await supabase.from('people').select('matricula').eq('matricula', person.matricula).maybeSingle();
+      if (existing) {
+        throw new Error(`A matrícula '${person.matricula}' já está cadastrada para outra pessoa.`);
+      }
 
-    if (error) throw error;
+      // 2. Atualizar a matrícula na tabela principal (PK)
+      const { error: updateError } = await supabase
+        .from('people')
+        .update({
+          matricula: person.matricula,
+          name: person.name,
+          type: person.type,
+          campus_id: person.campus_id
+        })
+        .eq('matricula', oldMatricula);
+
+      if (updateError) throw updateError;
+
+      // 3. Atualizar tabelas relacionadas (Mantendo integridade manual)
+      // Nota: Como não são FKeys formais com ON UPDATE CASCADE, fazemos manualmente.
+      const relatedTables = [
+        { table: 'book_loans', col: 'person_matricula' },
+        { table: 'material_loans', col: 'personMatricula' },
+        { table: 'reports', col: 'person_matricula' },
+        { table: 'copy_records', col: 'person_matricula' },
+        { table: 'supply_records', col: 'person_matricula' },
+        { table: 'locker_schedules', col: 'registration_number' }
+      ];
+
+      for (const { table, col } of relatedTables) {
+        await supabase.from(table).update({ [col]: person.matricula }).eq(col, oldMatricula);
+      }
+
+      // 4. Caso especial: Lockers (JSONB)
+      const { data: lockersToUpdate } = await supabase.from('lockers').select('number, campus_id, current_loan').not('current_loan', 'is', null);
+      if (lockersToUpdate) {
+        for (const l of lockersToUpdate) {
+          if (l.current_loan?.registrationNumber === oldMatricula) {
+            const updatedLoan = { ...l.current_loan, registrationNumber: person.matricula };
+            await supabase.from('lockers').update({ current_loan: updatedLoan }).eq('number', l.number).eq('campus_id', l.campus_id);
+          }
+        }
+      }
+    } else {
+      // Caso normal: Upsert (Cria novo ou atualiza por matrícula)
+      const { error } = await supabase.from('people').upsert({
+        matricula: person.matricula,
+        name: person.name,
+        type: person.type,
+        campus_id: person.campus_id
+      }, { onConflict: 'matricula' });
+
+      if (error) throw error;
+    }
   },
 
   deletePerson: async (matricula: string) => {
@@ -1442,12 +1490,33 @@ export const StorageService = {
   },
 
   checkPersonAndPendencies: async (matricula: string, campusId?: string) => {
-    // 1. Check if person exists in the 'people' table
-    const { data: person } = await supabase
-      .from('people')
-      .select('*, campuses(name)')
-      .eq('matricula', matricula)
-      .maybeSingle();
+    // 1. Check if person exists globally in the 'people' table (bypassing RLS via RPC)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('check_person_exists_global', {
+      p_matricula: matricula
+    });
+
+    if (rpcError) {
+      console.warn("Falling back to direct query on people (likely RLS limited):", rpcError);
+    }
+
+    const globalPerson = rpcData?.[0] ? {
+      matricula: matricula,
+      name: rpcData[0].name,
+      campus_id: rpcData[0].campus_id,
+      type: rpcData[0].type,
+      campuses: { name: rpcData[0].campus_name }
+    } : null;
+
+    // Se o RPC falhar por qualquer motivo (ex: não instalado ainda), tentamos a consulta normal (RLS limitada)
+    let person = globalPerson;
+    if (!person && !rpcError) {
+      const { data } = await supabase
+        .from('people')
+        .select('*, campuses(name)')
+        .eq('matricula', matricula)
+        .maybeSingle();
+      person = data;
+    }
 
     // 2. Check for active book loans
     let bookLoansQuery = supabase
@@ -1583,6 +1652,14 @@ export const StorageService = {
       }
     }
     const { error } = await supabase.from('supply_records').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  importPersonGlobal: async (matricula: string, newCampusId: string) => {
+    const { error } = await supabase.rpc('import_person_to_campus', {
+      p_matricula: matricula,
+      p_new_campus_id: newCampusId
+    });
     if (error) throw error;
   }
 };

@@ -17,6 +17,28 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const imgRef = useRef<HTMLImageElement>(null);
 
+    const constrainPosition = useCallback((x: number, y: number, s: number) => {
+        if (!containerRef.current || !imgRef.current) return { x, y };
+
+        const container = containerRef.current.getBoundingClientRect();
+        const img = imgRef.current;
+
+        // Usar as dimensões originais da imagem (antes da escala)
+        const imgWidth = img.clientWidth;
+        const imgHeight = img.clientHeight;
+
+        // Calcular o deslocamento máximo permitido em ambos os eixos
+        // Note: position.x=0 é o centro, então permitimos deslocar 
+        // metade do "transbordo" para cada lado.
+        const maxX = Math.max(0, (imgWidth * s - container.width) / 2);
+        const maxY = Math.max(0, (imgHeight * s - container.height) / 2);
+
+        return {
+            x: Math.min(Math.max(x, -maxX), maxX),
+            y: Math.min(Math.max(y, -maxY), maxY)
+        };
+    }, []);
+
     const reset = useCallback(() => {
         setScale(1);
         setPosition({ x: 0, y: 0 });
@@ -33,6 +55,11 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
         setScale(prev => Math.min(Math.max(prev + delta, 0.5), 5));
     };
 
+    // Garantir que a imagem está dentro dos limites após mudar o zoom
+    useEffect(() => {
+        setPosition(prev => constrainPosition(prev.x, prev.y, scale));
+    }, [scale, constrainPosition]);
+
     const handleMouseDown = (e: React.MouseEvent) => {
         if (scale <= 1) return;
         setIsDragging(true);
@@ -41,10 +68,9 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
 
     const handleMouseMove = (e: React.MouseEvent) => {
         if (!isDragging) return;
-        setPosition({
-            x: e.clientX - dragStart.x,
-            y: e.clientY - dragStart.y
-        });
+        const newX = e.clientX - dragStart.x;
+        const newY = e.clientY - dragStart.y;
+        setPosition(constrainPosition(newX, newY, scale));
     };
 
     const handleMouseUp = () => {
@@ -84,10 +110,9 @@ export const ImageViewer: React.FC<Props> = ({ src, alt }) => {
         } else if (e.touches.length === 1 && isDragging) {
             // Handling Pan
             const touch = e.touches[0];
-            setPosition({
-                x: touch.clientX - dragStart.x,
-                y: touch.clientY - dragStart.y
-            });
+            const newX = touch.clientX - dragStart.x;
+            const newY = touch.clientY - dragStart.y;
+            setPosition(constrainPosition(newX, newY, scale));
         }
     };
 

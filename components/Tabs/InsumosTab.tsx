@@ -55,6 +55,9 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
   const [restockMode, setRestockMode] = useState<'novo' | 'reposicao'>('novo');
   const [restockHistory, setRestockHistory] = useState<SupplyRestock[]>([]);
 
+  // Bulk new items state
+  const [bulkItems, setBulkItems] = useState([{ name: '', unit: 'Unidade', quantity: 0 }]);
+
   // Form State - Distribution Record
   const [recipientName, setRecipientName] = useState('');
   const [recipientMatricula, setRecipientMatricula] = useState('');
@@ -117,9 +120,9 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
           quantity_added: supplyQuantity,
           operator_id: user.id
         });
-      } else {
+      } else if (editingSupply) {
         await StorageService.saveSupply({
-          id: editingSupply?.id,
+          id: editingSupply.id,
           campus_id: campusId,
           name: supplyName,
           quantity: supplyQuantity,
@@ -127,6 +130,19 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
           low_stock_threshold: supplyThreshold,
           operator_id: user.id
         }, user.name);
+      } else {
+        const validItems = bulkItems.filter(i => i.name.trim() !== '');
+        if (validItems.length === 0) { alert('Preencha ao menos um item'); return; }
+        for (const item of validItems) {
+          await StorageService.saveSupply({
+            campus_id: campusId,
+            name: item.name.trim(),
+            quantity: item.quantity,
+            unit: item.unit,
+            low_stock_threshold: supplyThreshold,
+            operator_id: user.id
+          }, user.name);
+        }
       }
       setShowSupplyModal(false);
       resetSupplyForm();
@@ -183,6 +199,21 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
     }
   };
 
+  const handleBulkItemChange = (index: number, field: string, value: string | number) => {
+    const newItems = [...bulkItems];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setBulkItems(newItems);
+  };
+
+  const addBulkItem = () => {
+    setBulkItems([...bulkItems, { name: '', unit: 'Unidade', quantity: 0 }]);
+  };
+
+  const removeBulkItem = (index: number) => {
+    const newItems = bulkItems.filter((_, i) => i !== index);
+    setBulkItems(newItems);
+  };
+
   const resetSupplyForm = () => {
     setEditingSupply(null);
     setSupplyName('');
@@ -190,6 +221,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
     setSupplyUnit('Unidade');
     setSupplyThreshold(5);
     setSelectedItemId('');
+    setBulkItems([{ name: '', unit: 'Unidade', quantity: 0 }]);
   };
 
   const resetRecordForm = () => {
@@ -1046,6 +1078,89 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                     onChange={e => setSupplyQuantity(Number(e.target.value))}
                     className="w-full bg-indigo-50/50 border-2 border-indigo-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-black text-indigo-600"
                   />
+                </div>
+              </div>
+            ) : !editingSupply ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Itens para Cadastrar</label>
+                </div>
+                {bulkItems.map((item, index) => (
+                  <div key={index} className="flex items-center gap-3 bg-gray-50/50 p-3 rounded-2xl border border-gray-100 relative group/row">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        required
+                        value={item.name}
+                        onChange={e => handleBulkItemChange(index, 'name', e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all font-bold placeholder:text-gray-300"
+                        placeholder="Nome..."
+                      />
+                    </div>
+                    <div className="w-28">
+                      <select
+                        required
+                        value={item.unit}
+                        onChange={e => handleBulkItemChange(index, 'unit', e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-2 py-2.5 text-sm focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all font-bold"
+                      >
+                        <option value="Unidade">Unid</option>
+                        <option value="Caixa">Caixa</option>
+                        <option value="Pacote">Pct</option>
+                        <option value="Resma">Resma</option>
+                        <option value="Kilo">Kilo</option>
+                      </select>
+                    </div>
+                    <div className="w-20">
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        value={item.quantity}
+                        onChange={e => handleBulkItemChange(index, 'quantity', Number(e.target.value))}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-2 py-2.5 text-sm text-center focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all font-black text-indigo-600"
+                        placeholder="Qtd..."
+                      />
+                    </div>
+                    {bulkItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeBulkItem(index)}
+                        className="absolute -right-2 top-1/2 -translate-y-1/2 p-1.5 text-red-400 hover:text-white hover:bg-red-500 rounded-lg transition-all opacity-0 group-hover/row:opacity-100 translate-x-2 group-hover/row:translate-x-0"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                
+                <button
+                  type="button"
+                  onClick={addBulkItem}
+                  className="w-full py-3 border-2 border-dashed border-gray-200 text-gray-500 font-bold rounded-2xl flex items-center justify-center gap-2 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/50 transition-all text-sm"
+                >
+                  <Plus size={18} /> Adicionar outro item
+                </button>
+                
+                <div className="space-y-2 p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
+                  <label className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest mb-1 ml-1">
+                    <AlertCircle size={14} /> Alerta de Estoque Baixo (Global)
+                  </label>
+                  <p className="text-[10px] text-amber-500 font-bold mb-3 ml-1">Aplicado a todos os itens acima:</p>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={supplyThreshold}
+                      onChange={e => setSupplyThreshold(Number(e.target.value))}
+                      className="flex-1 h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <div className="w-16 text-center font-black text-amber-700 bg-white px-2 py-1 rounded-lg border border-amber-200 shadow-sm">
+                      {supplyThreshold}
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : (

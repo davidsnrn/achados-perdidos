@@ -181,6 +181,17 @@ export interface Supply {
   unit: string;
   created_at?: string;
   updated_at?: string;
+  low_stock_threshold?: number;
+}
+
+export interface SupplyRestock {
+  id: string;
+  supply_id: string;
+  campus_id: string;
+  quantity_added: number;
+  date: string;
+  operator_id: string;
+  created_at?: string;
 }
 
 export interface SupplyRecord {

@@ -1,26 +1,27 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from '../../services/storage';
-import { Supply, SupplyRecord, User, UserLevel, Person } from '../../types';
-import { 
-  Truck, 
-  Plus, 
-  Search, 
-  History, 
-  Trash2, 
-  AlertCircle, 
-  CheckCircle2, 
-  Pencil, 
-  Loader2, 
-  User as UserIcon, 
-  Building2, 
-  Hash, 
-  Layers, 
-  Printer, 
+import { Supply, SupplyRecord, User, UserLevel, Person, SupplyRestock } from '../../types';
+import {
+  Truck,
+  Plus,
+  Search,
+  History,
+  Trash2,
+  AlertCircle,
+  CheckCircle2,
+  Pencil,
+  Loader2,
+  User as UserIcon,
+  Building2,
+  Hash,
+  Layers,
+  Printer,
   Download,
   Calendar,
   Filter,
   ArrowRight,
   TrendingDown,
+  ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -31,11 +32,12 @@ interface InsumosTabProps {
 }
 
 export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'distribuicao' | 'estoque' | 'historico'>('distribuicao');
+  const [activeSubTab, setActiveSubTab] = useState<'estoque' | 'historico'>('estoque');
+  const [historyMode, setHistoryMode] = useState<'saida' | 'entrada'>('saida');
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [records, setRecords] = useState<SupplyRecord[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Modals
   const [showSupplyModal, setShowSupplyModal] = useState(false);
   const [showRecordModal, setShowRecordModal] = useState(false);
@@ -45,6 +47,9 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   const [supplyName, setSupplyName] = useState('');
   const [supplyQuantity, setSupplyQuantity] = useState(0);
   const [supplyUnit, setSupplyUnit] = useState('Unidade');
+  const [supplyThreshold, setSupplyThreshold] = useState(5);
+  const [restockMode, setRestockMode] = useState<'novo' | 'reposicao'>('novo');
+  const [restockHistory, setRestockHistory] = useState<SupplyRestock[]>([]);
 
   // Form State - Distribution Record
   const [recipientName, setRecipientName] = useState('');
@@ -57,21 +62,34 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [tempStartDate, setTempStartDate] = useState(startDate);
+  const [tempEndDate, setTempEndDate] = useState(endDate);
+  const [viewDate, setViewDate] = useState(new Date());
   const [personSearchResults, setPersonSearchResults] = useState<Person[]>([]);
   const [showPersonDropdown, setShowPersonDropdown] = useState(false);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
-  
+
   const campusId = user.campus_id;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [sData, rData] = await Promise.all([
+      const [sData, rData, hData] = await Promise.all([
         StorageService.getSupplies(campusId),
-        StorageService.getSupplyRecords(campusId)
+        StorageService.getSupplyRecords(campusId),
+        StorageService.getRestockHistory(campusId)
       ]);
       setSupplies(sData);
       setRecords(rData);
+      setRestockHistory(hData);
     } catch (error) {
       console.error("Erro ao carregar dados de insumos:", error);
     } finally {
@@ -88,18 +106,28 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
     if (!campusId) return;
 
     try {
-      await StorageService.saveSupply({
-        id: editingSupply?.id,
-        campus_id: campusId,
-        name: supplyName,
-        quantity: supplyQuantity,
-        unit: supplyUnit
-      });
+      if (restockMode === 'reposicao' && selectedItemId) {
+        await StorageService.restockSupply({
+          campus_id: campusId,
+          supply_id: selectedItemId,
+          quantity_added: supplyQuantity,
+          operator_id: user.id
+        });
+      } else {
+        await StorageService.saveSupply({
+          id: editingSupply?.id,
+          campus_id: campusId,
+          name: supplyName,
+          quantity: supplyQuantity,
+          unit: supplyUnit,
+          low_stock_threshold: supplyThreshold
+        });
+      }
       setShowSupplyModal(false);
       resetSupplyForm();
       loadData();
-    } catch (error) {
-      alert("Erro ao salvar insumo.");
+    } catch (error: any) {
+      alert(error.message || "Erro ao salvar insumo.");
     }
   };
 
@@ -119,7 +147,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
         environment: deliveryMode === 'ambiente' ? recipientEnvironment : undefined,
         item_id: selectedItemId,
         quantity: recordQuantity,
-        date: new Date(recordDate).toISOString(),
+        date: new Date(recordDate + "T12:00:00").toISOString(),
         operator_id: user.id
       });
       setShowRecordModal(false);
@@ -143,8 +171,10 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   const resetSupplyForm = () => {
     setEditingSupply(null);
     setSupplyName('');
-    setSupplyQuantity(0);
+    setSupplyQuantity(restockMode === 'novo' ? 0 : 1);
     setSupplyUnit('Unidade');
+    setSupplyThreshold(5);
+    setSelectedItemId('');
   };
 
   const resetRecordForm = () => {
@@ -163,19 +193,32 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
     setSupplyName(supply.name);
     setSupplyQuantity(supply.quantity);
     setSupplyUnit(supply.unit);
+    setSupplyThreshold(supply.low_stock_threshold || 5);
+    setRestockMode('novo');
     setShowSupplyModal(true);
   };
 
-  const filteredSupplies = supplies.filter(s => 
+  const filteredSupplies = supplies.filter(s =>
     s.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredRecords = records.filter(r => 
-    (r.person_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     r.person_matricula?.includes(searchTerm) ||
-     r.environment?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (r.sector && r.sector.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredRecords = records.filter(r => {
+    const recordDate = new Date(r.date);
+    const inRange = recordDate >= new Date(startDate + "T00:00:00") && recordDate <= new Date(endDate + "T23:59:59");
+    const matchesSearch = (r.person_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.person_matricula?.includes(searchTerm) ||
+      r.environment?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (r.sector && r.sector.toLowerCase().includes(searchTerm.toLowerCase()));
+    return inRange && matchesSearch;
+  });
+
+  const filteredRestockHistory = restockHistory.filter(h => {
+    const restockDate = new Date(h.date);
+    const inRange = restockDate >= new Date(startDate + "T00:00:00") && restockDate <= new Date(endDate + "T23:59:59");
+    const supply = supplies.find(s => s.id === h.supply_id);
+    const matchesSearch = supply?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return inRange && matchesSearch;
+  });
 
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -230,17 +273,17 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button 
+          <button
             onClick={() => { resetRecordForm(); setShowRecordModal(true); }}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold transition-all shadow-md shadow-indigo-100 hover:-translate-y-0.5"
           >
             <Plus size={20} /> Nova Distribuição
           </button>
-          <button 
+          <button
             onClick={() => { resetSupplyForm(); setShowSupplyModal(true); }}
             className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 px-5 py-3 rounded-xl font-bold transition-all border border-gray-200 shadow-sm hover:shadow-md hover:-translate-y-0.5"
           >
-            <Layers size={20} className="text-indigo-600" /> Gerenciar Estoque
+            <Plus size={20} className="text-indigo-600" /> Cadastrar Insumo
           </button>
         </div>
       </div>
@@ -248,34 +291,22 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
       {/* Sub-Tabs Navigation */}
       <div className="flex p-1.5 bg-gray-100/80 backdrop-blur-sm rounded-2xl mb-8 w-fit border border-gray-200 shadow-inner">
         <button
-          onClick={() => setActiveSubTab('distribuicao')}
-          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-            activeSubTab === 'distribuicao' 
-            ? 'bg-white text-indigo-600 shadow-sm' 
-            : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <TrendingDown size={18} /> Entregas Recentes
-        </button>
-        <button
           onClick={() => setActiveSubTab('estoque')}
-          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-            activeSubTab === 'estoque' 
-            ? 'bg-white text-indigo-600 shadow-sm' 
-            : 'text-gray-500 hover:text-gray-700'
-          }`}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'estoque'
+              ? 'bg-white text-indigo-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+            }`}
         >
           <Truck size={18} /> Consultar Estoque
         </button>
         <button
           onClick={() => setActiveSubTab('historico')}
-          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
-            activeSubTab === 'historico' 
-            ? 'bg-white text-indigo-600 shadow-sm' 
-            : 'text-gray-500 hover:text-gray-700'
-          }`}
+          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'historico'
+              ? 'bg-white text-indigo-600 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+            }`}
         >
-          <History size={18} /> Histórico Completo
+          <History size={18} /> Histórico de Movimentações
         </button>
       </div>
 
@@ -293,10 +324,25 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-gray-100 rounded-2xl outline-none focus:border-indigo-500 transition-all font-medium text-gray-700 placeholder:text-gray-400 group-focus-within:shadow-lg group-focus-within:shadow-indigo-50"
             />
           </div>
-          
-          <div className="flex items-center gap-2 text-sm font-bold text-gray-500 bg-white px-4 py-2 rounded-xl border border-gray-100">
-            <Filter size={16} className="text-indigo-600" /> Filtrar Por Período
-          </div>
+
+          {activeSubTab === 'historico' && (
+            <button
+              onClick={() => {
+                setTempStartDate(startDate);
+                setTempEndDate(endDate);
+                setShowFilterModal(true);
+              }}
+              className="group flex items-center gap-3 text-sm font-bold text-gray-500 bg-white px-5 py-3 rounded-2xl border-2 border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all shadow-sm active:scale-95"
+            >
+              <Filter size={18} className="text-indigo-600 group-hover:scale-110 transition-transform" />
+              <div className="flex flex-col items-start leading-tight">
+                <span className="text-[10px] uppercase tracking-wider text-gray-400">Filtrar por Período</span>
+                <span className="text-gray-700">
+                  {new Date(startDate + "T12:00:00").toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} - {new Date(endDate + "T12:00:00").toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                </span>
+              </div>
+            </button>
+          )}
         </div>
 
         {/* Tab Content */}
@@ -306,63 +352,6 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               <Loader2 className="animate-spin text-indigo-600" size={48} />
               <p className="text-gray-500 font-medium">Carregando informações...</p>
             </div>
-          ) : activeSubTab === 'distribuicao' ? (
-            <table className="w-full text-left border-separate border-spacing-y-3">
-              <thead>
-                <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
-                  <th className="px-6 py-4">Destinatário / Local</th>
-                  <th className="px-6 py-4">Item</th>
-                  <th className="px-6 py-4">Qtd</th>
-                  <th className="px-6 py-4">Data</th>
-                  <th className="px-6 py-4 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRecords.map(record => (
-                  <tr key={record.id} className="group bg-white hover:bg-indigo-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-                          {record.environment ? <Building2 size={20} /> : <UserIcon size={20} />}
-                        </div>
-                        <div>
-                          <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase">
-                            {record.person_name || record.environment}
-                          </div>
-                          <div className="text-xs text-gray-400 font-medium">
-                            {record.person_matricula || 'DISTR. AMBIENTE'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="font-bold text-gray-800">
-                        {supplies.find(s => s.id === record.item_id)?.name || 'Item Excluído'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="w-fit px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm font-black shadow-sm">
-                        {record.quantity}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="text-sm font-medium text-gray-500">
-                        {new Date(record.date).toLocaleDateString('pt-BR')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <button 
-                        onClick={() => { if(confirm("Deseja cancelar esta entrega e restaurar o estoque?")) StorageService.deleteSupplyRecord(record.id, true).then(loadData); }}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                        title="Estornar entrega"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           ) : activeSubTab === 'estoque' ? (
             <table className="w-full text-left border-separate border-spacing-y-3">
               <thead>
@@ -388,7 +377,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
                       </div>
                     </td>
                     <td className="px-6 py-5">
-                      <div className={`text-lg font-black ${supply.quantity <= 5 ? 'text-amber-600' : 'text-indigo-600'}`}>
+                      <div className={`text-lg font-black ${supply.quantity <= (supply.low_stock_threshold || 5) ? 'text-amber-600' : 'text-indigo-600'}`}>
                         {supply.quantity}
                       </div>
                     </td>
@@ -398,26 +387,30 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
                       </span>
                     </td>
                     <td className="px-6 py-5">
-                      {supply.quantity <= 5 ? (
-                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold ring-1 ring-amber-100">
-                          <AlertCircle size={14} /> ESTOQUE BAIXO
+                      {supply.quantity <= 0 ? (
+                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-red-50 text-red-700 rounded-lg text-xs font-bold ring-1 ring-red-100 uppercase">
+                          <AlertCircle size={14} /> Sem Estoque
+                        </div>
+                      ) : supply.quantity <= (supply.low_stock_threshold || 5) ? (
+                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-bold ring-1 ring-amber-100 uppercase">
+                          <AlertCircle size={14} /> Estoque Baixo
                         </div>
                       ) : (
-                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold ring-1 ring-emerald-100">
-                          <CheckCircle2 size={14} /> EM DIA
+                        <div className="flex items-center gap-2 w-fit px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold ring-1 ring-emerald-100 uppercase">
+                          <CheckCircle2 size={14} /> Em Dia
                         </div>
                       )}
                     </td>
                     <td className="px-6 py-5 text-center">
                       <div className="flex justify-center gap-2">
-                        <button 
+                        <button
                           onClick={() => openEditSupply(supply)}
                           className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                           title="Ajustar estoque"
                         >
                           <Pencil size={18} />
                         </button>
-                        <button 
+                        <button
                           onClick={() => handleDeleteSupply(supply.id)}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                           title="Excluir item"
@@ -431,19 +424,162 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               </tbody>
             </table>
           ) : (
-            <div className="py-20 flex flex-col items-center justify-center gap-4">
-              <Printer className="text-gray-200" size={64} />
-              <p className="text-gray-500 font-medium">Relatórios detalhados seguem em implementação.</p>
+            <div className="space-y-8">
+              <div className="flex p-1 bg-gray-50 rounded-2xl w-fit border border-gray-100">
+                <button
+                  onClick={() => setHistoryMode('saida')}
+                  className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${historyMode === 'saida' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Saídas (Entregas)
+                </button>
+                <button
+                  onClick={() => setHistoryMode('entrada')}
+                  className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${historyMode === 'entrada' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  Entradas (Reposição)
+                </button>
+              </div>
+
+              {historyMode === 'saida' ? (
+                <div>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <TrendingDown size={20} />
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Histórico de Distribuições</h3>
+                  </div>
+                  <table className="w-full text-left border-separate border-spacing-y-3">
+                    <thead>
+                      <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
+                        <th className="px-6 py-4">Destinatário / Local</th>
+                        <th className="px-6 py-4">Item</th>
+                        <th className="px-6 py-4">Qtd</th>
+                        <th className="px-6 py-4">Data</th>
+                        <th className="px-6 py-4 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRecords.map(record => (
+                        <tr key={record.id} className="group bg-white hover:bg-indigo-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
+                          <td className="px-6 py-5">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                                {record.environment ? <Building2 size={20} /> : <UserIcon size={20} />}
+                              </div>
+                              <div>
+                                <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase">
+                                  {record.person_name || record.environment}
+                                </div>
+                                <div className="text-xs text-gray-400 font-medium whitespace-nowrap">
+                                  {record.person_matricula || 'DISTR. AMBIENTE'}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="font-bold text-gray-800 uppercase">
+                              {supplies.find(s => s.id === record.item_id)?.name || 'Item Excluído'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="w-fit px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm font-black shadow-sm">
+                              {record.quantity}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="text-sm font-medium text-gray-500">
+                              {new Date(record.date).toLocaleDateString('pt-BR')}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <button
+                              onClick={() => { if (confirm("Deseja cancelar esta entrega e restaurar o estoque?")) StorageService.deleteSupplyRecord(record.id, true).then(loadData); }}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                              title="Estornar entrega"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredRecords.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-20 text-center text-gray-400 font-medium">Nenhuma distribuição registrada.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                      <Plus size={20} />
+                    </div>
+                    <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">Histórico de Entradas</h3>
+                  </div>
+                  <table className="w-full text-left border-separate border-spacing-y-3">
+                    <thead>
+                      <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
+                        <th className="px-6 py-4">Item</th>
+                        <th className="px-6 py-4">Qtd Adicionada</th>
+                        <th className="px-6 py-4">Data</th>
+                        <th className="px-6 py-4 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRestockHistory.map(history => (
+                        <tr key={history.id} className="group bg-white hover:bg-emerald-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
+                          <td className="px-6 py-5">
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                                <Layers size={20} />
+                              </div>
+                              <div className="font-bold text-gray-900 uppercase">
+                                {supplies.find(s => s.id === history.supply_id)?.name || 'Item Excluído'}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="w-fit px-3 py-1 bg-emerald-600 text-white rounded-lg text-sm font-black shadow-sm">
+                              +{history.quantity_added}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="text-sm font-medium text-gray-500">
+                              {new Date(history.date).toLocaleDateString('pt-BR')} {new Date(history.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-center">
+                            <button
+                              onClick={() => { if (confirm("Deseja cancelar esta entrada e remover do estoque?")) StorageService.deleteRestockRecord(history.id, true).then(loadData); }}
+                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                              title="Estornar entrada"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredRestockHistory.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-20 text-center text-gray-400 font-medium">Nenhuma entrada encontrada no período selecionado.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
-          
-          {!loading && ((activeSubTab === 'distribuicao' && filteredRecords.length === 0) || (activeSubTab === 'estoque' && filteredSupplies.length === 0)) && (
+
+          {!loading && ((activeSubTab === 'estoque' && filteredSupplies.length === 0) || (activeSubTab === 'historico' && ((historyMode === 'saida' && filteredRecords.length === 0) || (historyMode === 'entrada' && restockHistory.length === 0)))) && (
             <div className="py-20 flex flex-col items-center justify-center gap-4">
               <div className="p-6 bg-gray-50 rounded-full">
                 <Search className="text-gray-200" size={48} />
               </div>
               <p className="text-gray-500 font-medium text-lg">Nenhum registro encontrado.</p>
-              <button 
+              <button
                 onClick={() => setSearchTerm('')}
                 className="text-indigo-600 font-bold hover:underline"
               >
@@ -454,9 +590,145 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
         </div>
       </div>
 
+      {/* Modal de Filtro de Período */}
+      <Modal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        title=""
+      >
+        <div className="space-y-6 max-w-sm mx-auto">
+          <div className="text-center pb-6 border-b border-gray-100">
+            <div className="mx-auto w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 text-indigo-600">
+              <Calendar size={32} />
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 mb-1">Filtrar Período</h3>
+            <p className="text-sm text-gray-500 font-medium">Selecione o intervalo de datas</p>
+          </div>
+
+          {/* Calendário Customizado */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-6 px-2">
+              <button
+                onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
+                className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-indigo-600"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <div className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(viewDate)}
+              </div>
+              <button
+                onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
+                className="p-2 hover:bg-gray-50 rounded-xl transition-colors text-gray-400 hover:text-indigo-600"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'].map(day => (
+                <div key={day} className="text-[10px] font-black text-gray-400 uppercase text-center pb-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1">
+              {(() => {
+                const days = [];
+                const d = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+                const firstDay = d.getDay();
+                const totalDays = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+
+                // Empty slots for previous month
+                for (let i = 0; i < firstDay; i++) {
+                  days.push(<div key={`empty-${i}`} />);
+                }
+
+                // Days of current month
+                for (let i = 1; i <= totalDays; i++) {
+                  const dayDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), i);
+                  const dayStr = dayDate.toISOString().split('T')[0];
+                  const isStart = tempStartDate === dayStr;
+                  const isEnd = tempEndDate === dayStr;
+                  const isInRange = tempStartDate && tempEndDate && dayStr > tempStartDate && dayStr < tempEndDate;
+
+                  days.push(
+                    <button
+                      key={i}
+                      onClick={() => {
+                        if (!tempStartDate || (tempStartDate && tempEndDate)) {
+                          setTempStartDate(dayStr);
+                          setTempEndDate('');
+                        } else {
+                          if (dayStr < tempStartDate) {
+                            setTempStartDate(dayStr);
+                          } else {
+                            setTempEndDate(dayStr);
+                          }
+                        }
+                      }}
+                      className={`
+                        relative h-10 w-full rounded-xl text-sm font-bold transition-all
+                        ${isStart || isEnd ? 'bg-indigo-600 text-white shadow-md z-10' : ''}
+                        ${isInRange ? 'bg-indigo-50 text-indigo-600 rounded-none' : ''}
+                        ${!isStart && !isEnd && !isInRange ? 'text-gray-600 hover:bg-gray-100' : ''}
+                        ${isStart && tempEndDate ? 'rounded-r-none' : ''}
+                        ${isEnd ? 'rounded-l-none' : ''}
+                      `}
+                    >
+                      {i}
+                    </button>
+                  );
+                }
+                return days;
+              })()}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between text-xs px-2">
+              <div className="flex flex-col">
+                <span className="text-gray-400 font-medium uppercase tracking-wider">Início</span>
+                <span className="font-black text-gray-800">{tempStartDate ? new Date(tempStartDate + "T12:00:00").toLocaleDateString('pt-BR') : '---'}</span>
+              </div>
+              <ArrowRight className="text-indigo-300" size={16} />
+              <div className="flex flex-col text-right">
+                <span className="text-gray-400 font-medium uppercase tracking-wider">Fim</span>
+                <span className="font-black text-gray-800">{tempEndDate ? new Date(tempEndDate + "T12:00:00").toLocaleDateString('pt-BR') : '---'}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const d = new Date();
+                  setTempStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]);
+                  setTempEndDate(new Date().toISOString().split('T')[0]);
+                }}
+                className="flex-1 py-3 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Mês Atual
+              </button>
+              <button
+                disabled={!tempStartDate || !tempEndDate}
+                onClick={() => {
+                  setStartDate(tempStartDate);
+                  setEndDate(tempEndDate);
+                  setShowFilterModal(false);
+                }}
+                className="flex-[2] bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-black transition-all shadow-lg shadow-indigo-100"
+              >
+                APLICAR FILTRO
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {/* Modal Nova Distribuição */}
-      <Modal 
-        isOpen={showRecordModal} 
+      <Modal
+        isOpen={showRecordModal}
         onClose={() => setShowRecordModal(false)}
         title=""
       >
@@ -475,18 +747,16 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               <button
                 type="button"
                 onClick={() => setDeliveryMode('pessoa')}
-                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
-                  deliveryMode === 'pessoa' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
-                }`}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${deliveryMode === 'pessoa' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                  }`}
               >
                 Pessoa
               </button>
               <button
                 type="button"
                 onClick={() => setDeliveryMode('ambiente')}
-                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
-                  deliveryMode === 'ambiente' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
-                }`}
+                className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${deliveryMode === 'ambiente' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                  }`}
               >
                 Ambiente/Local
               </button>
@@ -618,7 +888,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               <div className="space-y-2">
                 <label className="text-xs font-black text-indigo-400 uppercase tracking-widest ml-1">Quantidade a Entregar</label>
                 <div className="flex items-center gap-4">
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setRecordQuantity(q => Math.max(1, q - 1))}
                     className="w-12 h-12 bg-white rounded-xl shadow-sm border border-indigo-100 flex items-center justify-center text-xl font-black text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
@@ -633,7 +903,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
                     onChange={e => setRecordQuantity(Number(e.target.value))}
                     className="flex-1 bg-white border-2 border-indigo-200 rounded-xl px-4 py-3 text-center text-lg font-black text-indigo-900 focus:ring-4 focus:ring-indigo-200/20 focus:border-indigo-500 outline-none transition-all"
                   />
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setRecordQuantity(q => q + 1)}
                     className="w-12 h-12 bg-white rounded-xl shadow-sm border border-indigo-100 flex items-center justify-center text-xl font-black text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all"
@@ -663,7 +933,6 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
         </form>
       </Modal>
 
-      {/* Modal Gerenciar Estoque */}
       <Modal isOpen={showSupplyModal} onClose={() => setShowSupplyModal(false)} title="">
         <form onSubmit={handleSaveSupply} className="space-y-6">
           <div className="text-center pb-6 border-b border-gray-100">
@@ -671,67 +940,144 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
               <Layers size={32} className="text-white" />
             </div>
             <h3 className="text-2xl font-black text-gray-900 mb-1">
-              {editingSupply ? 'Ajustar Estoque' : 'Novo Insumo'}
+              {editingSupply ? 'Editar Item' : restockMode === 'reposicao' ? 'Reposição de Estoque' : 'Novo Insumo'}
             </h3>
             <p className="text-sm text-gray-500 font-medium">Cadastre ou ajuste materiais para distribuição</p>
           </div>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Item</label>
-              <input
-                type="text"
-                required
-                value={supplyName}
-                onChange={e => setSupplyName(e.target.value)}
-                className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-bold placeholder:text-gray-300"
-                placeholder="Ex: Resma, Piloto, Papel A4..."
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Unidade</label>
-                <select
-                  required
-                  value={supplyUnit}
-                  onChange={e => setSupplyUnit(e.target.value)}
-                  className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-bold"
+            {/* Restock Mode Toggle - Only for new registrations */}
+            {!editingSupply && (
+              <div className="flex p-1 bg-gray-100 rounded-xl mb-4">
+                <button
+                  type="button"
+                  onClick={() => { setRestockMode('novo'); resetSupplyForm(); }}
+                  className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${restockMode === 'novo' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                    }`}
                 >
-                  <option value="Unidade">Unidade</option>
-                  <option value="Caixa">Caixa</option>
-                  <option value="Pacote">Pacote</option>
-                  <option value="Resma">Resma</option>
-                  <option value="Kilo">Kilo</option>
-                </select>
+                  Novo Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRestockMode('reposicao'); resetSupplyForm(); }}
+                  className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${restockMode === 'reposicao' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                >
+                  Reposição
+                </button>
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Quantidade</label>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  value={supplyQuantity}
-                  onChange={e => setSupplyQuantity(Number(e.target.value))}
-                  className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-black text-indigo-600"
-                />
+            )}
+
+            {restockMode === 'reposicao' ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Selecionar Item Existente</label>
+                  <select
+                    required
+                    value={selectedItemId}
+                    onChange={e => setSelectedItemId(e.target.value)}
+                    className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-bold text-indigo-900"
+                  >
+                    <option value="">Selecione um item...</option>
+                    {supplies.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.quantity} {s.unit} atuais)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Quantidade Adicionada</label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    value={supplyQuantity}
+                    onChange={e => setSupplyQuantity(Number(e.target.value))}
+                    className="w-full bg-indigo-50/50 border-2 border-indigo-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-black text-indigo-600"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Nome do Item</label>
+                  <input
+                    type="text"
+                    required
+                    value={supplyName}
+                    onChange={e => setSupplyName(e.target.value)}
+                    className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-bold placeholder:text-gray-300"
+                    placeholder="Ex: Resma, Piloto, Apagador..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Unidade</label>
+                    <select
+                      required
+                      value={supplyUnit}
+                      onChange={e => setSupplyUnit(e.target.value)}
+                      className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-bold"
+                    >
+                      <option value="Unidade">Unidade</option>
+                      <option value="Caixa">Caixa</option>
+                      <option value="Pacote">Pacote</option>
+                      <option value="Resma">Resma</option>
+                      <option value="Kilo">Kilo</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Estoque Atual</label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={supplyQuantity}
+                      onChange={e => setSupplyQuantity(Number(e.target.value))}
+                      className="w-full bg-gray-50/50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-indigo-50 focus:border-indigo-500 outline-none transition-all font-black text-indigo-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 p-4 bg-amber-50/50 rounded-2xl border border-amber-100">
+                  <label className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest mb-1 ml-1">
+                    <AlertCircle size={14} /> Alerta de Estoque Baixo
+                  </label>
+                  <p className="text-[10px] text-amber-500 font-bold mb-3 ml-1">Considere estoque baixo quando for menor ou igual a:</p>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={supplyThreshold}
+                      onChange={e => setSupplyThreshold(Number(e.target.value))}
+                      className="flex-1 h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <div className="w-16 text-center font-black text-amber-700 bg-white px-2 py-1 rounded-lg border border-amber-200 shadow-sm">
+                      {supplyThreshold}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => setShowSupplyModal(false)}
               className="flex-1 px-4 py-4 bg-gray-100 text-gray-500 font-black rounded-2xl hover:bg-gray-200 transition-all uppercase text-xs tracking-widest"
             >
               Cancelar
             </button>
-            <button 
+            <button
               type="submit"
               className="flex-[2] px-4 py-4 bg-indigo-600 text-white font-black rounded-2xl hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all uppercase text-xs tracking-widest"
             >
-              Salvar Insumo
+              {restockMode === 'reposicao' ? 'Adicionar Estoque' : 'Salvar Insumo'}
             </button>
           </div>
         </form>

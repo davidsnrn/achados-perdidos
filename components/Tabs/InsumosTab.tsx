@@ -121,7 +121,8 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
           name: supplyName,
           quantity: supplyQuantity,
           unit: supplyUnit,
-          low_stock_threshold: supplyThreshold
+          low_stock_threshold: supplyThreshold,
+          operator_id: user.id
         });
       }
       setShowSupplyModal(false);
@@ -523,17 +524,20 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                     <thead>
                       <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
                         <th className="px-6 py-4">Item</th>
+                        <th className="px-6 py-4">Tipo</th>
                         <th className="px-6 py-4">Qtd Adicionada</th>
                         <th className="px-6 py-4">Data</th>
                         <th className="px-6 py-4 text-center">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredRestockHistory.map(history => (
+                      {filteredRestockHistory.map(history => {
+                        const isInitial = history.note === 'Estoque Inicial';
+                        return (
                         <tr key={history.id} className="group bg-white hover:bg-emerald-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
                           <td className="px-6 py-5">
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isInitial ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                 <Layers size={20} />
                               </div>
                               <div className="font-bold text-gray-900 uppercase">
@@ -542,7 +546,18 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="w-fit px-3 py-1 bg-emerald-600 text-white rounded-lg text-sm font-black shadow-sm">
+                            {isInitial ? (
+                              <span className="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-black ring-1 ring-blue-100 uppercase tracking-wide">
+                                Estoque Inicial
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-black ring-1 ring-emerald-100 uppercase tracking-wide">
+                                Reposição
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${isInitial ? 'bg-blue-600' : 'bg-emerald-600'}`}>
                               +{history.quantity_added}
                             </div>
                           </td>
@@ -561,14 +576,16 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                       {filteredRestockHistory.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-20 text-center text-gray-400 font-medium">Nenhuma entrada encontrada no período selecionado.</td>
+                          <td colSpan={5} className="py-20 text-center text-gray-400 font-medium">Nenhuma entrada encontrada no período selecionado.</td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+
                 </div>
               )}
             </div>

@@ -182,6 +182,7 @@ export interface Supply {
   created_at?: string;
   updated_at?: string;
   low_stock_threshold?: number;
+  operator_id?: string;
 }
 
 export interface SupplyRestock {
@@ -191,6 +192,7 @@ export interface SupplyRestock {
   quantity_added: number;
   date: string;
   operator_id: string;
+  note?: string;
   created_at?: string;
 }
 

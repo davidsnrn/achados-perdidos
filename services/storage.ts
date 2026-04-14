@@ -1568,6 +1568,7 @@ export const StorageService = {
   },
 
   saveSupply: async (supply: Partial<Supply>) => {
+    const isNew = !supply.id;
     const payload = {
       id: supply.id || undefined,
       campus_id: supply.campus_id,
@@ -1577,8 +1578,20 @@ export const StorageService = {
       low_stock_threshold: supply.low_stock_threshold,
       updated_at: new Date().toISOString()
     };
-    const { error } = await supabase.from('supplies').upsert(payload);
+    const { data: upserted, error } = await supabase.from('supplies').upsert(payload).select().single();
     if (error) throw error;
+
+    // Register initial stock as a restock history entry when creating a new supply with quantity > 0
+    if (isNew && (supply.quantity || 0) > 0 && upserted) {
+      await supabase.from('supply_restock_history').insert({
+        supply_id: upserted.id,
+        campus_id: supply.campus_id,
+        quantity_added: supply.quantity,
+        operator_id: supply.operator_id || null,
+        date: new Date().toISOString(),
+        note: 'Estoque Inicial'
+      });
+    }
   },
 
   deleteSupply: async (id: string) => {

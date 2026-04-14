@@ -29,9 +29,10 @@ import { Modal } from '../ui/Modal';
 interface InsumosTabProps {
   user: User;
   onRefresh?: () => void;
+  adminGlobalCampusId?: string | null;
 }
 
-export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
+export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusId }) => {
   const [activeSubTab, setActiveSubTab] = useState<'estoque' | 'historico'>('estoque');
   const [historyMode, setHistoryMode] = useState<'saida' | 'entrada'>('saida');
   const [supplies, setSupplies] = useState<Supply[]>([]);
@@ -77,7 +78,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user }) => {
   const [showPersonDropdown, setShowPersonDropdown] = useState(false);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
-  const campusId = user.campus_id;
+  const campusId = adminGlobalCampusId || user.campus_id;
 
   const loadData = useCallback(async () => {
     setLoading(true);

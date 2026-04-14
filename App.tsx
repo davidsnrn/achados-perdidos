@@ -1658,6 +1658,7 @@ const App: React.FC = () => {
                   <InsumosTab
                     user={user}
                     onRefresh={refreshData}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
                 {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}

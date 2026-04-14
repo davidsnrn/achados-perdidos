@@ -288,6 +288,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     setCurrentPage(1);
   }, [searchTerm, dateFilter, activeSubTab]);
 
+  // Ajusta a ordenação inicial baseada na aba ativa
+  React.useEffect(() => {
+    if (activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) {
+      setSortConfig({ key: 'returnedDate', direction: 'desc' });
+    } else {
+      setSortConfig({ key: 'id', direction: 'desc' });
+    }
+  }, [activeSubTab]);
+
   const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;

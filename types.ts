@@ -193,6 +193,8 @@ export interface SupplyRestock {
   date: string;
   operator_id: string;
   note?: string;
+  cancelled_at?: string;
+  cancelled_by?: string;
   created_at?: string;
 }
 
@@ -207,5 +209,7 @@ export interface SupplyRecord {
   quantity: number;
   date: string; // ISO
   operator_id: string;
+  cancelled_at?: string;
+  cancelled_by?: string;
   created_at?: string;
 }

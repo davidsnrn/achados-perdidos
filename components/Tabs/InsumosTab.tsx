@@ -22,7 +22,10 @@ import {
   ArrowRight,
   TrendingDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  XCircle,
+  RotateCcw,
+  Sliders
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
@@ -123,7 +126,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
           unit: supplyUnit,
           low_stock_threshold: supplyThreshold,
           operator_id: user.id
-        });
+        }, user.name);
       }
       setShowSupplyModal(false);
       resetSupplyForm();
@@ -160,13 +163,23 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
     }
   };
 
-  const handleDeleteSupply = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este item do estoque?")) return;
+  const handleCancelRecord = async (record: SupplyRecord) => {
+    if (!confirm("Deseja realmente cancelar esta entrega? O estoque será restaurado.")) return;
     try {
-      await StorageService.deleteSupply(id);
+      await StorageService.cancelSupplyRecord(record.id, user.name);
       loadData();
-    } catch (error) {
-      alert("Erro ao excluir insumo.");
+    } catch (error: any) {
+      alert(error.message || "Erro ao cancelar registro.");
+    }
+  };
+
+  const handleCancelRestock = async (restock: SupplyRestock) => {
+    if (!confirm("Deseja realmente cancelar esta entrada? A quantidade será removida do estoque.")) return;
+    try {
+      await StorageService.cancelRestockRecord(restock.id, user.name);
+      loadData();
+    } catch (error: any) {
+      alert(error.message || "Erro ao cancelar entrada.");
     }
   };
 
@@ -407,17 +420,10 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={() => openEditSupply(supply)}
-                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                          title="Ajustar estoque"
+                          className="p-2.5 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-xl transition-all shadow-sm border border-indigo-100 bg-white"
+                          title="Ajustar"
                         >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSupply(supply.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                          title="Excluir item"
-                        >
-                          <Trash2 size={18} />
+                          <Sliders size={20} />
                         </button>
                       </div>
                     </td>
@@ -463,44 +469,56 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                     <tbody>
                       {filteredRecords.map(record => (
                         <tr key={record.id} className="group bg-white hover:bg-indigo-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
-                          <td className="px-6 py-5">
+                          <td className={`px-6 py-5 ${record.cancelled_at ? 'opacity-50' : ''}`}>
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform ${record.cancelled_at ? 'bg-gray-100' : 'bg-indigo-50'}`}>
                                 {record.environment ? <Building2 size={20} /> : <UserIcon size={20} />}
                               </div>
                               <div>
-                                <div className="font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase">
+                                <div className={`font-bold text-gray-900 group-hover:text-indigo-700 transition-colors uppercase ${record.cancelled_at ? 'line-through' : ''}`}>
                                   {record.person_name || record.environment}
                                 </div>
                                 <div className="text-xs text-gray-400 font-medium whitespace-nowrap">
                                   {record.person_matricula || 'DISTR. AMBIENTE'}
                                 </div>
+                                {record.cancelled_at && (
+                                  <div className="text-[10px] text-red-500 font-bold mt-1 bg-red-50 px-2 py-0.5 rounded-md w-fit ring-1 ring-red-100 uppercase">
+                                    Cancelado por: {record.cancelled_by}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-5">
-                            <div className="font-bold text-gray-800 uppercase">
+                          <td className={`px-6 py-5 ${record.cancelled_at ? 'opacity-50' : ''}`}>
+                            <div className={`font-bold text-gray-800 uppercase ${record.cancelled_at ? 'line-through' : ''}`}>
                               {supplies.find(s => s.id === record.item_id)?.name || 'Item Excluído'}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
-                            <div className="w-fit px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm font-black shadow-sm">
+                          <td className={`px-6 py-5 ${record.cancelled_at ? 'opacity-50' : ''}`}>
+                            <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${record.cancelled_at ? 'bg-gray-400' : 'bg-indigo-600'}`}>
                               {record.quantity}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className={`px-6 py-5 ${record.cancelled_at ? 'opacity-50' : ''}`}>
                             <div className="text-sm font-medium text-gray-500">
                               {new Date(record.date).toLocaleDateString('pt-BR')}
                             </div>
                           </td>
                           <td className="px-6 py-5 text-center">
-                            <button
-                              onClick={() => { if (confirm("Deseja cancelar esta entrega e restaurar o estoque?")) StorageService.deleteSupplyRecord(record.id, true).then(loadData); }}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                              title="Estornar entrega"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {!record.cancelled_at && (
+                              <button
+                                onClick={() => handleCancelRecord(record)}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="Cancelar entrega"
+                              >
+                                <XCircle size={18} />
+                              </button>
+                            )}
+                            {record.cancelled_at && (
+                               <div className="text-red-500 opacity-60">
+                                 <XCircle size={18} className="mx-auto" />
+                               </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -535,45 +553,59 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                         const isInitial = history.note === 'Estoque Inicial';
                         return (
                         <tr key={history.id} className="group bg-white hover:bg-emerald-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
-                          <td className="px-6 py-5">
+                          <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
                             <div className="flex items-center gap-4">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${isInitial ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${history.cancelled_at ? 'bg-gray-100 text-gray-400' : isInitial ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                                 <Layers size={20} />
                               </div>
-                              <div className="font-bold text-gray-900 uppercase">
-                                {supplies.find(s => s.id === history.supply_id)?.name || 'Item Excluído'}
+                              <div>
+                                <div className={`font-bold text-gray-900 uppercase ${history.cancelled_at ? 'line-through' : ''}`}>
+                                  {supplies.find(s => s.id === history.supply_id)?.name || 'Item Excluído'}
+                                </div>
+                                {history.cancelled_at && (
+                                  <div className="text-[10px] text-red-500 font-bold mt-1 bg-red-50 px-2 py-0.5 rounded-md w-fit ring-1 ring-red-100 uppercase">
+                                    Cancelado por: {history.cancelled_by}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
                             {isInitial ? (
-                              <span className="inline-flex items-center px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-black ring-1 ring-blue-100 uppercase tracking-wide">
+                              <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black ring-1 uppercase tracking-wide ${history.cancelled_at ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-blue-50 text-blue-700 ring-blue-100'}`}>
                                 Estoque Inicial
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-black ring-1 ring-emerald-100 uppercase tracking-wide">
-                                Reposição
+                              <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black ring-1 uppercase tracking-wide ${history.cancelled_at ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-100'}`}>
+                                {history.note?.includes('Ajuste') ? 'Ajuste' : 'Reposição'}
                               </span>
                             )}
                           </td>
-                          <td className="px-6 py-5">
-                            <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${isInitial ? 'bg-blue-600' : 'bg-emerald-600'}`}>
-                              +{history.quantity_added}
+                          <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
+                            <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${history.cancelled_at ? 'bg-gray-400' : history.quantity_added >= 0 ? (isInitial ? 'bg-blue-600' : 'bg-emerald-600') : 'bg-red-500'}`}>
+                              {history.quantity_added >= 0 ? `+${history.quantity_added}` : history.quantity_added}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
                             <div className="text-sm font-medium text-gray-500">
                               {new Date(history.date).toLocaleDateString('pt-BR')} {new Date(history.date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                             </div>
                           </td>
                           <td className="px-6 py-5 text-center">
-                            <button
-                              onClick={() => { if (confirm("Deseja cancelar esta entrada e remover do estoque?")) StorageService.deleteRestockRecord(history.id, true).then(loadData); }}
-                              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                              title="Estornar entrada"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                            {!history.cancelled_at && (
+                              <button
+                                onClick={() => handleCancelRestock(history)}
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="Cancelar entrada"
+                              >
+                                <XCircle size={18} />
+                              </button>
+                            )}
+                            {history.cancelled_at && (
+                               <div className="text-red-500 opacity-60">
+                                 <XCircle size={18} className="mx-auto" />
+                               </div>
+                            )}
                           </td>
                         </tr>
                         );

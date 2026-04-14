@@ -1567,8 +1567,30 @@ export const StorageService = {
     return data || [];
   },
 
-  saveSupply: async (supply: Partial<Supply>) => {
+  saveSupply: async (supply: Partial<Supply>, operator_name?: string) => {
     const isNew = !supply.id;
+
+    // Se estiver editando, verifica se a quantidade mudou para registrar o ajuste no histórico
+    if (!isNew && supply.id) {
+      const { data: existing } = await supabase
+        .from('supplies')
+        .select('quantity')
+        .eq('id', supply.id)
+        .single();
+
+      if (existing && existing.quantity !== supply.quantity) {
+        const delta = (supply.quantity || 0) - existing.quantity;
+        await supabase.from('supply_restock_history').insert({
+          supply_id: supply.id,
+          campus_id: supply.campus_id,
+          quantity_added: delta,
+          operator_id: supply.operator_id || null,
+          date: new Date().toISOString(),
+          note: delta > 0 ? `Ajuste de Estoque (+${delta})` : `Ajuste de Estoque (${delta})`
+        });
+      }
+    }
+
     const payload = {
       id: supply.id || undefined,
       campus_id: supply.campus_id,
@@ -1652,19 +1674,24 @@ export const StorageService = {
     if (uError) throw uError;
   },
 
-  deleteSupplyRecord: async (id: string, restoreStock: boolean = false) => {
-    if (restoreStock) {
-      const { data: record } = await supabase.from('supply_records').select('*').eq('id', id).single();
-      if (record) {
-        const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', record.item_id).single();
-        if (supply) {
-          await supabase.from('supplies')
-            .update({ quantity: supply.quantity + record.quantity, updated_at: new Date().toISOString() })
-            .eq('id', record.item_id);
-        }
-      }
+  cancelSupplyRecord: async (id: string, operatorName: string) => {
+    // 1. Get record
+    const { data: record } = await supabase.from('supply_records').select('*').eq('id', id).single();
+    if (!record || record.cancelled_at) return;
+
+    // 2. Restore stock
+    const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', record.item_id).single();
+    if (supply) {
+      await supabase.from('supplies')
+        .update({ quantity: supply.quantity + record.quantity, updated_at: new Date().toISOString() })
+        .eq('id', record.item_id);
     }
-    const { error } = await supabase.from('supply_records').delete().eq('id', id);
+
+    // 3. Update record with cancellation info
+    const { error } = await supabase.from('supply_records').update({
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: operatorName
+    }).eq('id', id);
     if (error) throw error;
   },
 
@@ -1716,20 +1743,53 @@ export const StorageService = {
     return (data as SupplyRestock[]) || [];
   },
 
-  deleteRestockRecord: async (id: string, restoreStock: boolean = false) => {
-    if (restoreStock) {
-      const { data: record } = await supabase.from('supply_restock_history').select('*').eq('id', id).single();
-      if (record) {
-        const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', record.supply_id).single();
-        if (supply) {
-          const newQuantity = Math.max(0, supply.quantity - record.quantity_added);
-          await supabase.from('supplies')
-            .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-            .eq('id', record.supply_id);
-        }
-      }
+  cancelRestockRecord: async (id: string, operatorName: string) => {
+    // 1. Get record
+    const { data: record } = await supabase.from('supply_restock_history').select('*').eq('id', id).single();
+    if (!record || record.cancelled_at) return;
+
+    // 2. Restore stock (reverse the restock)
+    const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', record.supply_id).single();
+    if (supply) {
+      const newQuantity = Math.max(0, supply.quantity - record.quantity_added);
+      await supabase.from('supplies')
+        .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+        .eq('id', record.supply_id);
     }
-    const { error } = await supabase.from('supply_restock_history').delete().eq('id', id);
+
+    // 3. Update record with cancellation info
+    const { error } = await supabase.from('supply_restock_history').update({
+      cancelled_at: new Date().toISOString(),
+      cancelled_by: operatorName
+    }).eq('id', id);
     if (error) throw error;
+  },
+
+  adjustSupplyQuantity: async (supplyId: string, campusId: string, newTotal: number, operatorId: string, operatorName: string) => {
+    // 1. Get current supply
+    const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', supplyId).single();
+    if (!supply) throw new Error("Insumo não encontrado.");
+
+    const currentQuantity = supply.quantity || 0;
+    const delta = newTotal - currentQuantity;
+    if (delta === 0) return;
+
+    // 2. Insert into history as adjustment
+    const { error: hError } = await supabase.from('supply_restock_history').insert({
+      supply_id: supplyId,
+      campus_id: campusId,
+      quantity_added: delta,
+      operator_id: operatorId,
+      date: new Date().toISOString(),
+      note: delta > 0 ? `Ajuste de Estoque (+${delta})` : `Ajuste de Estoque (${delta})`
+    });
+    if (hError) throw hError;
+
+    // 3. Update supply quantity
+    const { error: uError } = await supabase.from('supplies').update({
+      quantity: newTotal,
+      updated_at: new Date().toISOString()
+    }).eq('id', supplyId);
+    if (uError) throw uError;
   }
 };

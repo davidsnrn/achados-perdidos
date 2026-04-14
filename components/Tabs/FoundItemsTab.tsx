@@ -21,6 +21,8 @@ type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'date
 export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses, adminGlobalCampusId }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
+  const [recipientSearch, setRecipientSearch] = useState('');
+  const [operatorSearch, setOperatorSearch] = useState('');
   const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [hasSearchedPeople, setHasSearchedPeople] = useState(false);
@@ -256,9 +258,19 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
         }
       }
 
-      return matchesStatus && matchesSearch && matchesDate;
+      const matchesRecipient = !recipientSearch || (
+        item.returnedTo && normalizeText(item.returnedTo).includes(normalizeText(recipientSearch))
+      );
+
+      const matchesOperator = !operatorSearch || (
+        item.history && item.history.some(log => 
+          log.user && normalizeText(log.user).includes(normalizeText(operatorSearch))
+        )
+      );
+
+      return matchesStatus && matchesSearch && matchesDate && matchesRecipient && matchesOperator;
     });
-  }, [items, activeSubTab, searchTerm, dateFilter, startDate, endDate]);
+  }, [items, activeSubTab, searchTerm, dateFilter, startDate, endDate, recipientSearch, operatorSearch]);
 
   const sortedItems = useMemo(() => {
     const sorted = [...filteredItems];
@@ -286,7 +298,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   // Reset pagination when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, dateFilter, activeSubTab]);
+  }, [searchTerm, dateFilter, activeSubTab, recipientSearch, operatorSearch]);
 
   // Ajusta a ordenação inicial baseada na aba ativa
   React.useEffect(() => {
@@ -294,6 +306,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       setSortConfig({ key: 'returnedDate', direction: 'desc' });
     } else {
       setSortConfig({ key: 'id', direction: 'desc' });
+    }
+  }, [activeSubTab]);
+
+  // Limpa filtros específicos ao trocar de aba se não estiver na aba Devolvido
+  React.useEffect(() => {
+    if (activeSubTab !== ItemStatus.RETURNED) {
+      setRecipientSearch('');
+      setOperatorSearch('');
     }
   }, [activeSubTab]);
 
@@ -694,6 +714,32 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {activeSubTab === ItemStatus.RETURNED && (
+            <div className="relative flex-1 md:max-w-[200px]">
+              <UserIcon className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Quem retirou..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ifrn-green focus:border-transparent outline-none text-sm"
+                value={recipientSearch}
+                onChange={e => setRecipientSearch(e.target.value)}
+              />
+            </div>
+          )}
+
+          {activeSubTab === ItemStatus.RETURNED && (
+            <div className="relative flex-1 md:max-w-[200px]">
+              <History className="absolute left-3 top-2.5 text-gray-400" size={18} />
+              <input
+                type="text"
+                placeholder="Quem devolveu..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-ifrn-green focus:border-transparent outline-none text-sm"
+                value={operatorSearch}
+                onChange={e => setOperatorSearch(e.target.value)}
+              />
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
             <Calendar size={16} className="text-gray-500 ml-2" />

@@ -1611,7 +1611,7 @@ export const StorageService = {
         quantity_added: supply.quantity,
         operator_id: supply.operator_id || null,
         date: new Date().toISOString(),
-        note: 'Estoque Inicial'
+        note: 'Entrada'
       });
     }
   },

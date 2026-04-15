@@ -476,7 +476,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                   onClick={() => setHistoryMode('entrada')}
                   className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${historyMode === 'entrada' ? 'bg-white text-indigo-600 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
                 >
-                  Entradas (Reposição)
+                  Entradas
                 </button>
               </div>
 
@@ -587,7 +587,10 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                         <tr key={history.id} className="group bg-white hover:bg-emerald-50/30 transition-all duration-300 rounded-2xl shadow-sm border border-gray-100 animate-fade-in-up">
                           <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
                             <div className="flex items-center gap-4">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${history.cancelled_at ? 'bg-gray-100 text-gray-400' : isInitial ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                                history.cancelled_at ? 'bg-gray-100 text-gray-400' : 
+                                history.note?.includes('Ajuste') ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600'
+                              }`}>
                                 <Layers size={20} />
                               </div>
                               <div>
@@ -603,18 +606,22 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                             </div>
                           </td>
                           <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
-                            {isInitial ? (
-                              <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black ring-1 uppercase tracking-wide ${history.cancelled_at ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-blue-50 text-blue-700 ring-blue-100'}`}>
-                                Estoque Inicial
+                            {history.note?.includes('Ajuste') ? (
+                              <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black ring-1 uppercase tracking-wide ${history.cancelled_at ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-amber-50 text-amber-700 ring-amber-100'}`}>
+                                Ajuste
                               </span>
                             ) : (
-                              <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black ring-1 uppercase tracking-wide ${history.cancelled_at ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-100'}`}>
-                                {history.note?.includes('Ajuste') ? 'Ajuste' : 'Reposição'}
+                              <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-black ring-1 uppercase tracking-wide ${history.cancelled_at ? 'bg-gray-100 text-gray-400 ring-gray-200' : 'bg-blue-50 text-blue-700 ring-blue-100'}`}>
+                                Entrada
                               </span>
                             )}
                           </td>
                           <td className={`px-6 py-5 ${history.cancelled_at ? 'opacity-50' : ''}`}>
-                            <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${history.cancelled_at ? 'bg-gray-400' : history.quantity_added >= 0 ? (isInitial ? 'bg-blue-600' : 'bg-emerald-600') : 'bg-red-500'}`}>
+                            <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${
+                              history.cancelled_at ? 'bg-gray-400' : 
+                              history.quantity_added < 0 ? 'bg-red-500' :
+                              history.note?.includes('Ajuste') ? 'bg-emerald-600' : 'bg-blue-600'
+                            }`}>
                               {history.quantity_added >= 0 ? `+${history.quantity_added}` : history.quantity_added}
                             </div>
                           </td>
@@ -1022,7 +1029,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
               <Layers size={32} className="text-white" />
             </div>
             <h3 className="text-2xl font-black text-gray-900 mb-1">
-              {editingSupply ? 'Editar Item' : restockMode === 'reposicao' ? 'Reposição de Estoque' : 'Novo Insumo'}
+              {editingSupply ? 'Editar Item' : restockMode === 'reposicao' ? 'Entrada de Estoque' : 'Novo Insumo'}
             </h3>
             <p className="text-sm text-gray-500 font-medium">Cadastre ou ajuste materiais para distribuição</p>
           </div>
@@ -1045,7 +1052,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                   className={`flex-1 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${restockMode === 'reposicao' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
                     }`}
                 >
-                  Reposição
+                  Entrada
                 </button>
               </div>
             )}

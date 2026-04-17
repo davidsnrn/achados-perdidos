@@ -221,7 +221,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
         usuarios: user.permissions?.usuarios ?? (user.level !== UserLevel.STANDARD),
         materiais: user.permissions?.materiais ?? (user.level !== UserLevel.STANDARD),
         copias: user.permissions?.copias ?? false,
-        insumos: user.permissions?.insumos ?? (user.level !== UserLevel.STANDARD),
+        insumos: user.permissions?.insumos ?? false,
       });
       setFormLevel(user.level);
       setSelectedCampusId(user.campus_id || '');

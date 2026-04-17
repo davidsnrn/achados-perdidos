@@ -6,10 +6,10 @@ interface LockerDetailModalProps {
   locker: Locker;
   onClose: () => void;
   onStartLoan: (locker: Locker) => void;
-  onReturnLocker: (lockerNumber: number) => void;
-  onUpdateMaintenance: (lockerNumber: number, problem: string) => void;
-  onResolveMaintenance: (lockerNumber: number) => void;
-  onUpdateObservation: (lockerNumber: number, observation: string) => void;
+  onReturnLocker: (lockerNumber: string) => void;
+  onUpdateMaintenance: (lockerNumber: string, problem: string) => void;
+  onResolveMaintenance: (lockerNumber: string) => void;
+  onUpdateObservation: (lockerNumber: string, observation: string) => void;
   onOpenSchedule: (locker: Locker) => void;
 }
 

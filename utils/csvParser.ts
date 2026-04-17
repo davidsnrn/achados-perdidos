@@ -55,8 +55,8 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
     }
   }
 
-  const lockersMap: Record<number, Locker> = {};
-  let lastSeenLockerNumber: number | null = null;
+  const lockersMap: Record<string, Locker> = {};
+  let lastSeenLockerNumber: string | null = null;
 
   const formatRegistration = (reg: string) => {
     if (!reg) return "";
@@ -111,30 +111,30 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
     let loanDateStr = parts[6]?.trim() || '';
     let returnDateStr = parts[7]?.trim() || '';
 
-    if (rawNumber === "" && !isNaN(parseInt(location))) {
+    if (rawNumber === "" && location && !isNaN(parseInt(location))) {
       rawNumber = location;
       location = "";
     }
 
-    let lockerNum = parseInt(rawNumber);
+    let lockerId = rawNumber;
 
-    // Sanity check: se o número for gigantesco (>1M), provavelmente é uma matrícula ignorada ou erro de coluna
-    if (!isNaN(lockerNum) && lockerNum > 1000000) {
+    if (lockerId === "") {
+      if (lastSeenLockerNumber !== null) lockerId = lastSeenLockerNumber;
+      else continue;
+    } else {
+      lastSeenLockerNumber = lockerId;
+    }
+
+    // Sanity check: se for uma matrícula (longa e numérica), provavelmente é um erro de coluna
+    if (lockerId.length > 10 && !isNaN(parseInt(lockerId))) {
       continue;
     }
 
-    if (isNaN(lockerNum)) {
-      if (lastSeenLockerNumber !== null) lockerNum = lastSeenLockerNumber;
-      else continue;
-    } else {
-      lastSeenLockerNumber = lockerNum;
-    }
-
-    if (!lockersMap[lockerNum]) {
-      lockersMap[lockerNum] = {
-        number: lockerNum,
+    if (!lockersMap[lockerId]) {
+      lockersMap[lockerId] = {
+        number: lockerId,
         status: LockerStatus.AVAILABLE,
-        location: location || (lockerNum <= 200 ? 'Bloco Principal' : 'Bloco Anexo'),
+        location: location || (parseInt(lockerId) <= 200 ? 'Bloco Principal' : 'Bloco Anexo'),
         loanHistory: [],
         maintenanceHistory: [],
         currentLoan: undefined
@@ -144,8 +144,8 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
     if (name || regNumber) {
       const loan: LoanData = {
         id: Math.random().toString(36).substr(2, 9).toUpperCase(),
-        lockerNumber: lockerNum,
-        physicalLocation: location || lockersMap[lockerNum].location,
+        lockerNumber: lockerId,
+        physicalLocation: location || lockersMap[lockerId].location,
         registrationNumber: regNumber,
         studentName: name,
         studentClass: studentClass,
@@ -155,14 +155,14 @@ export const parseIFRNCSV = (csvText: string): Locker[] => {
       };
 
       const isCurrent = !returnDateStr || returnDateStr.trim() === "" || returnDateStr.toLowerCase().includes('aberto');
-      if (isCurrent && !lockersMap[lockerNum].currentLoan) {
-        lockersMap[lockerNum].currentLoan = loan;
-        lockersMap[lockerNum].status = LockerStatus.OCCUPIED;
+      if (isCurrent && !lockersMap[lockerId].currentLoan) {
+        lockersMap[lockerId].currentLoan = loan;
+        lockersMap[lockerId].status = LockerStatus.OCCUPIED;
       } else {
-        lockersMap[lockerNum].loanHistory.push(loan);
+        lockersMap[lockerId].loanHistory.push(loan);
       }
     }
   }
 
-  return Object.values(lockersMap).sort((a, b) => a.number - b.number);
+  return Object.values(lockersMap).sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: 'base' }));
 };

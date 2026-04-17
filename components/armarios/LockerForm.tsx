@@ -21,7 +21,7 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
 
   const [formData, setFormData] = useState<Partial<LoanData>>({
     id: Math.floor(1000 + Math.random() * 9000).toString(),
-    lockerNumber: selectedLocker?.number || 0,
+    lockerNumber: selectedLocker?.number || '',
     physicalLocation: selectedLocker?.location || '',
     registrationNumber: '',
     studentName: '',

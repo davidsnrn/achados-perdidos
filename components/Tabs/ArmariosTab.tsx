@@ -154,7 +154,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
-  const handleReturnLocker = async (lockerNumber: number) => {
+  const handleReturnLocker = async (lockerNumber: string) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l || !l.currentLoan) return;
 
@@ -185,7 +185,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
-  const handleUpdateObservation = async (lockerNumber: number, newObservation: string) => {
+  const handleUpdateObservation = async (lockerNumber: string, newObservation: string) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l || !l.currentLoan) return;
 
@@ -202,7 +202,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
-  const handleChangeLocker = async (oldNumber: number, newNumber: number) => {
+  const handleChangeLocker = async (oldNumber: string, newNumber: string) => {
     const oldLocker = lockers.find(l => l.number === oldNumber);
     const targetLocker = lockers.find(l => l.number === newNumber);
 
@@ -263,7 +263,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
-  const handleUpdateMaintenance = async (lockerNumber: number, problem: string) => {
+  const handleUpdateMaintenance = async (lockerNumber: string, problem: string) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l) return;
 
@@ -291,7 +291,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
-  const handleResolveMaintenance = async (lockerNumber: number) => {
+  const handleResolveMaintenance = async (lockerNumber: string) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l || !l.maintenanceRecord) return;
 
@@ -526,7 +526,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
 
     return (
       <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 animate-fade-in pb-4">
-        {subset.sort((a, b) => a.number - b.number).map(locker => (
+        {subset.sort((a, b) => a.number.localeCompare(b.number, undefined, { numeric: true, sensitivity: 'base' })).map(locker => (
           <button
             key={locker.number}
             onClick={() => handleLockerClick(locker)}
@@ -582,9 +582,9 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     return Object.entries(grouped).map(([blockName, groups]) => ({
       name: blockName,
       sections: Object.entries(groups).map(([groupName, groupLockers]) => {
-        const numbers = groupLockers.map(l => l.number);
-        const min = Math.min(...numbers);
-        const max = Math.max(...numbers);
+        const numbers = groupLockers.map(l => l.number).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        const min = numbers[0];
+        const max = numbers[numbers.length - 1];
         return {
           id: `${blockName}-${groupName}`,
           title: groupName,

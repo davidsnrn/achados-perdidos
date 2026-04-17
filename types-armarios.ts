@@ -14,7 +14,7 @@ export enum LockerScheduleStatus {
 
 export interface LockerSchedule {
   id: string;
-  lockerNumber: number;
+  lockerNumber: string;
   lockerLocation: string;
   campusId?: string;
   studentName: string;
@@ -38,7 +38,7 @@ export interface Student {
 
 export interface LoanData {
   id: string; // Identificação
-  lockerNumber: number; // Número do Armário
+  lockerNumber: string; // Número do Armário
   physicalLocation: string; // Localização Física
   registrationNumber: string; // Matrícula
   studentName: string; // Nome do Aluno
@@ -63,7 +63,7 @@ export interface MaintenanceData {
 }
 
 export interface Locker {
-  number: number;
+  number: string;
   status: LockerStatus;
   currentLoan?: LoanData;
   maintenanceRecord?: MaintenanceData;

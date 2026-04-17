@@ -8,7 +8,7 @@ interface ReportsTabProps {
 }
 
 interface ReportEntry {
-    lockerNumber: number;
+    lockerNumber: string;
     registration: string;
     studentName: string;
     studentClass: string;
@@ -149,9 +149,9 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                                 const lockerNum = word.substring(1);
                                 const isExact = group.segment.includes(`${word} `);
                                 if (isExact) {
-                                    return entry.lockerNumber.toString() === lockerNum;
+                                    return entry.lockerNumber === lockerNum;
                                 }
-                                return entry.lockerNumber.toString().includes(lockerNum);
+                                return entry.lockerNumber.includes(lockerNum);
                             }
                             return normalizedEntryStr.includes(word);
                         })

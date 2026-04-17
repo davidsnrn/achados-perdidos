@@ -13,13 +13,14 @@ interface LockerManagementProps {
 interface RegistrationRow {
     blockName: string;
     groupName: string;
+    prefix: string;
     startNumber: number;
     endNumber: number;
 }
 
 const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset, onDeleteEmpty, existingLockers }) => {
     const [rows, setRows] = useState<RegistrationRow[]>([
-        { blockName: '', groupName: '', startNumber: 1, endNumber: 40 }
+        { blockName: '', groupName: '', prefix: '', startNumber: 1, endNumber: 40 }
     ]);
 
     const suggestBlocks = useMemo(() => {
@@ -39,6 +40,7 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
         setRows([...rows, {
             blockName: lastRow.blockName,
             groupName: lastRow.groupName,
+            prefix: lastRow.prefix,
             startNumber: lastRow.endNumber + 1,
             endNumber: lastRow.endNumber + 40
         }]);
@@ -60,8 +62,8 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
         const allNewLockers: Locker[] = [];
 
         for (const row of rows) {
-            if (!row.blockName.trim() || !row.groupName.trim()) {
-                alert('Por favor, preencha o Bloco e o Agrupamento em todas as linhas.');
+            if (!row.blockName.trim()) {
+                alert('Por favor, preencha o Bloco em todas as linhas.');
                 return;
             }
 
@@ -70,10 +72,11 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
                 return;
             }
 
-            const location = `${row.blockName} - ${row.groupName}`;
+            const location = row.groupName.trim() ? `${row.blockName} - ${row.groupName}` : row.blockName;
 
             for (let i = row.startNumber; i <= row.endNumber; i++) {
-                const existing = existingLockers.find(l => l.number === i);
+                const lockerId = `${row.prefix}${i}`;
+                const existing = existingLockers.find(l => l.number === lockerId);
 
                 if (existing) {
                     allNewLockers.push({
@@ -82,7 +85,7 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
                     });
                 } else {
                     allNewLockers.push({
-                        number: i,
+                        number: lockerId,
                         status: LockerStatus.AVAILABLE,
                         location: location,
                         loanHistory: [],
@@ -95,7 +98,7 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
         const count = allNewLockers.length;
         if (confirm(`Deseja gerar/atualizar ${count} armários no total?`)) {
             onGenerate(allNewLockers);
-            setRows([{ blockName: '', groupName: '', startNumber: 1, endNumber: 40 }]);
+            setRows([{ blockName: '', groupName: '', prefix: '', startNumber: 1, endNumber: 40 }]);
         }
     };
 
@@ -137,6 +140,19 @@ const LockerManagement: React.FC<LockerManagementProps> = ({ onGenerate, onReset
                                         value={row.groupName}
                                         onChange={(e) => updateRow(index, 'groupName', e.target.value)}
                                         className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800 transition-all"
+                                    />
+                                </div>
+
+                                <div className="w-24 space-y-2">
+                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                        <Hash size={10} /> Prefixo
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: A"
+                                        value={row.prefix}
+                                        onChange={(e) => updateRow(index, 'prefix', e.target.value.toUpperCase())}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-slate-800 transition-all uppercase"
                                     />
                                 </div>
 

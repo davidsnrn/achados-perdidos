@@ -108,7 +108,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
               {locker.status === LockerStatus.OCCUPIED && locker.currentLoan ? (
                 <div className="grid grid-cols-2 gap-y-4 gap-x-6">
                   <div className="col-span-1">
-                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Aluno Responsável</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Aluno / Servidor</p>
                     <p className="text-sm font-black text-slate-800 uppercase">{locker.currentLoan.studentName}</p>
                   </div>
                   <div className="col-span-1">

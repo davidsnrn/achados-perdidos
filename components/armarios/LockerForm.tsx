@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Locker, Student, LoanData } from '../../types-armarios';
 import { StorageService } from '../../services/storage';
-import { PersonType } from '../../types';
+
 import { Loader2 } from 'lucide-react';
 
 
@@ -55,12 +55,11 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
         const campusId = selectedLocker?.campus_id;
         const results = await StorageService.searchPeople(query, 10, campusId);
         setSearchResults(results
-          .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({
             registration: p.matricula,
             name: p.name,
             course: '',
-            situation: 'Matriculado',
+            situation: 'Ativo',
             email: ''
           } as Student))
           .slice(0, 8)
@@ -117,7 +116,7 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Campo de busca inteligente antes de tudo */}
         <div className="relative" ref={dropdownRef}>
-          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Buscar Aluno (Nome ou Matrícula)</label>
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Buscar Aluno / Servidor (Nome ou Matrícula)</label>
           <div className="relative flex gap-2">
             <div className="relative flex-1">
               <input
@@ -177,7 +176,7 @@ const LockerForm: React.FC<LockerFormProps> = ({ selectedLocker, onSubmit, onCan
           )}
           {studentSearch.length >= 2 && !isSearching && searchResults.length === 0 && showSearchDropdown && (
             <div className="absolute top-full mt-2 w-full bg-white border border-slate-100 rounded-3xl p-4 text-center text-xs text-slate-400 font-bold italic shadow-2xl z-50 animate-slide-up">
-              Nenhum aluno encontrado
+              Nenhuma pessoa encontrada
             </div>
           )}
         </div>

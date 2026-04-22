@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Locker, Student, LockerScheduleStatus, LockerSchedule } from '../../types-armarios';
-import { PersonType } from '../../types';
+
 import { StorageService } from '../../services/storage';
 import { X, Search, Loader2, Calendar, User, BookOpen, AlertCircle } from 'lucide-react';
 
@@ -39,12 +39,11 @@ const ScheduleLockerModal: React.FC<ScheduleLockerModalProps> = ({
       try {
         const results = await StorageService.searchPeople(val, 5, locker.campus_id);
         setSearchResults(results
-          .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({
             registration: p.matricula,
             name: p.name,
             course: '',
-            situation: 'Matriculado',
+            situation: 'Ativo',
             email: ''
           } as Student))
         );
@@ -120,7 +119,7 @@ const ScheduleLockerModal: React.FC<ScheduleLockerModalProps> = ({
 
           <div className="space-y-4">
             <div className="relative">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">1. Buscar Aluno (Nome ou Matrícula)</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">1. Buscar Aluno / Servidor (Nome ou Matrícula)</label>
               <div className="relative">
                 <input
                   ref={searchInputRef}
@@ -199,7 +198,7 @@ const ScheduleLockerModal: React.FC<ScheduleLockerModalProps> = ({
               <textarea
                 rows={3}
                 className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 text-sm font-medium focus:border-amber-500 outline-none resize-none transition-all shadow-inner placeholder:text-slate-300"
-                placeholder="Ex: Aluno virá buscar no final do dia..."
+                placeholder="Ex: Solicitante virá buscar no final do dia..."
                 value={observation}
                 onChange={(e) => setObservation(e.target.value)}
               />

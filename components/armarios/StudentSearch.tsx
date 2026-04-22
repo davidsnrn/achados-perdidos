@@ -61,12 +61,11 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
         const campusId = lockers.length > 0 ? lockers[0].campus_id : undefined;
         const results = await StorageService.searchPeople(val, 10, campusId);
         setSearchResults(results
-          .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({
             registration: p.matricula,
             name: p.name,
             course: '',
-            situation: 'Matriculado',
+            situation: 'Ativo',
             email: ''
           } as Student))
           .slice(0, 10)
@@ -114,8 +113,8 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
       <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100">
-        <h2 className="text-3xl font-black text-slate-800 mb-6 tracking-tight">Consulta de Aluno</h2>
-        <p className="text-slate-500 mb-8 font-medium">Pesquise por partes do nome, matrícula ou curso.</p>
+        <h2 className="text-3xl font-black text-slate-800 mb-6 tracking-tight">Consulta de Aluno / Servidor</h2>
+        <p className="text-slate-500 mb-8 font-medium">Pesquise por partes do nome ou matrícula.</p>
         <div className="relative">
           <textarea
             ref={textareaRef}
@@ -178,7 +177,7 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
                           <div className="flex justify-between items-start">
                             <div>
                               <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">Armário #{loan.lockerNumber}</p>
-                              <p className="text-sm font-black text-red-800 uppercase">Chave em posse do aluno</p>
+                              <p className="text-sm font-black text-red-800 uppercase">Chave em posse do solicitante</p>
                             </div>
                             <button
                               onClick={() => openUpdateModal(loan)}
@@ -256,7 +255,7 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
               <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <svg className="w-10 h-10 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
               </div>
-              <p className="text-slate-400 font-black uppercase tracking-[0.2em]">Nenhum aluno encontrado</p>
+              <p className="text-slate-400 font-black uppercase tracking-[0.2em]">Nenhuma pessoa encontrada</p>
               <p className="text-slate-300 text-xs font-bold mt-2">Tente buscar por termos diferentes ou verifique a matrícula.</p>
             </div>
           )

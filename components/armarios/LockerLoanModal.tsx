@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { X, User, BookOpen, Clock, Loader2, Search, Calendar, FileText } from 'lucide-react';
 import { Locker, Student, LoanData } from '../../types-armarios';
 import { StorageService } from '../../services/storage';
-import { PersonType } from '../../types';
+
 
 interface LockerLoanModalProps {
   locker: Locker;
@@ -55,12 +55,11 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
       try {
         const results = await StorageService.searchPeople(query, 10, locker.campus_id);
         const students = results
-          .filter(p => p.type === PersonType.STUDENT)
           .map(p => ({
             registration: p.matricula,
             name: p.name,
             course: '',
-            situation: 'Matriculado',
+            situation: 'Ativo',
             email: ''
           } as Student));
         setSearchResults(students);
@@ -132,7 +131,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
               <Clock size={20} />
             </div>
             <p className="text-green-700 text-[11px] font-bold uppercase leading-relaxed tracking-wide">
-              O empréstimo ocupará o armário imediatamente. O aluno deve estar presente para receber a chave.
+              O empréstimo ocupará o armário imediatamente. O solicitante deve estar presente para receber a chave.
             </p>
           </div>
 
@@ -140,7 +139,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
             {/* Busca de Aluno */}
             <div className="relative" ref={dropdownRef}>
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 mb-2 block">
-                1. Buscar Aluno (Nome ou Matrícula)
+                1. Buscar Aluno/Servidor (Nome ou Matrícula)
               </label>
               <div className="relative group">
                 <input
@@ -180,7 +179,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
                     </button>
                   ))}
                   {searchResults.length === 0 && !isSearching && (
-                    <div className="p-4 text-center text-slate-400 font-bold text-xs italic">Nenhum aluno encontrado</div>
+                    <div className="p-4 text-center text-slate-400 font-bold text-xs italic">Nenhuma pessoa encontrada</div>
                   )}
                 </div>
               )}
@@ -231,7 +230,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
                 <textarea
                   name="observation"
                   rows={3}
-                  placeholder="Ex: Aluno pegou chave extra, condição da porta..."
+                  placeholder="Ex: Solicitante pegou chave extra, condição da porta..."
                   className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl p-5 text-slate-800 font-medium focus:border-green-500 focus:bg-white outline-none transition-all shadow-inner resize-none"
                   value={formData.observation}
                   onChange={handleInputChange}

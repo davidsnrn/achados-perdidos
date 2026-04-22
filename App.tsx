@@ -801,47 +801,48 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-gray-100 to-gray-200 p-6">
         <div className="max-w-7xl w-full">
-          <div className="mb-16 animate-fade-in-down flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-gray-200/50 pb-8">
-            <div className="flex flex-col gap-6">
+          <div className="mb-16 animate-fade-in-down border-b border-gray-200/50 pb-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
               <div className="px-4">
-                <IfrnLogo 
-                  className="scale-110 sm:scale-125 drop-shadow-sm origin-left" 
-                  campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} 
+                <IfrnLogo
+                  className="scale-110 sm:scale-125 drop-shadow-sm origin-left"
+                  campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')}
                 />
               </div>
-              {/* Cabeçalho do Seletor de Módulos */}
-              <div className="px-4 space-y-2">
-                <h2 className="text-3xl sm:text-4xl font-black text-gray-800 tracking-tight leading-tight">
-                  Olá, <span className="text-ifrn-green">{user.name.split(' ')[0]}</span>.
-                </h2>
-                <p className="text-base sm:text-lg text-gray-500 font-medium">
-                  Selecione o sistema que deseja gerenciar.
-                </p>
-              </div>
-            </div>
 
-            {user.level === UserLevel.ADMIN && (
-              <div className="w-full md:w-80 space-y-3 px-4 animate-fade-in-right">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <Building2 size={14} /> Visualizar Câmpus
-                </label>
-                <div className="relative group">
-                  <select
-                    value={adminGlobalCampusId || ''}
-                    onChange={e => setAdminGlobalCampusId(e.target.value || null)}
-                    className="w-full bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold rounded-2xl px-4 py-3.5 focus:ring-4 focus:ring-ifrn-green/10 focus:border-ifrn-green outline-none transition-all cursor-pointer shadow-sm hover:border-gray-300 appearance-none"
-                  >
-                    <option value="">🌎 Todos os Câmpus</option>
-                    {campuses.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
-                    <ChevronDown size={20} />
+              {user.level === UserLevel.ADMIN && (
+                <div className="w-full md:w-80 space-y-3 px-4 animate-fade-in-right">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Building2 size={14} /> Visualizar Câmpus
+                  </label>
+                  <div className="relative group">
+                    <select
+                      value={adminGlobalCampusId || ''}
+                      onChange={e => setAdminGlobalCampusId(e.target.value || null)}
+                      className="w-full bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold rounded-2xl px-4 py-3.5 focus:ring-4 focus:ring-ifrn-green/10 focus:border-ifrn-green outline-none transition-all cursor-pointer shadow-sm hover:border-gray-300 appearance-none"
+                    >
+                      <option value="">🌎 Todos os Câmpus</option>
+                      {campuses.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
+                      <ChevronDown size={20} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Saudação Centralizada */}
+            <div className="px-4 space-y-2 text-center animate-fade-in-up">
+              <h2 className="text-3xl sm:text-4xl font-black text-gray-800 tracking-tight leading-tight">
+                Olá, <span className="text-ifrn-green">{user.name.split(' ')[0]}</span>.
+              </h2>
+              <p className="text-base sm:text-lg text-gray-500 font-medium">
+                Selecione o sistema que deseja gerenciar.
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 px-4">

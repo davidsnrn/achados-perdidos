@@ -569,8 +569,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   { id: 'pessoas', label: 'Pessoas' },
                   { id: 'usuarios', label: 'Usuários' }
                 ].filter(mod => {
-                  // Insumos only visible/editable by admin
-                  if (mod.id === 'insumos') return currentUser.level === UserLevel.ADMIN;
+                  // Insumos and Copias visible for Admin or those with explicit permission
+                  if (mod.id === 'insumos' || mod.id === 'copias') {
+                    if (currentUser.level === UserLevel.ADMIN) return true;
+                    return !!currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
+                  }
+                  
                   const perm = currentUser.permissions?.[mod.id as keyof typeof currentUser.permissions];
                   if (perm !== undefined) return perm;
                   if (mod.id === 'nadaconsta') return true;
@@ -581,7 +585,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                     <button
                       key={module.id}
                       type="button"
-                      disabled={selectedUser?.id === currentUser.id || (module.id === 'insumos' && currentUser.level !== UserLevel.ADMIN)}
+                      disabled={selectedUser?.id === currentUser.id || ((module.id === 'insumos' || module.id === 'copias') && currentUser.level !== UserLevel.ADMIN && !currentUser.permissions?.[module.id as keyof typeof currentUser.permissions])}
                       onClick={() => setPermissions(prev => ({ ...prev, [module.id]: !prev[module.id as keyof typeof prev] }))}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${isActive
                         ? 'bg-green-50 border-green-200 text-green-700 shadow-sm'

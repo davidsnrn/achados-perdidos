@@ -587,13 +587,6 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                 {activeView === 'detailed' && renderDetailedView()}
             </main>
 
-            {/* Print/Export Floating Badge */}
-            <div className="fixed bottom-8 right-8 z-50 animate-bounce cursor-pointer group">
-                <div className="bg-ifrn-green text-white p-4 rounded-full shadow-2xl shadow-green-400 flex items-center gap-3 group-hover:scale-110 transition-transform">
-                    <BarChart3 size={24} />
-                    <span className="hidden group-hover:inline pr-2 font-black text-xs uppercase tracking-widest">Painel de Analytcs</span>
-                </div>
-            </div>
         </div>
     );
 };

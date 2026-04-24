@@ -397,22 +397,15 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
   React.useEffect(() => {
     fetchData();
-  }, [currentPage, filterType, selectedCampusId]);
+  }, [currentPage, filterType, selectedCampusId, search]);
 
   // Trigger search manually
   const handleSearchTrigger = () => {
+    setSearch(searchInput);
     if (currentPage !== 1) {
       setCurrentPage(1);
-    } else {
-      fetchData();
     }
-    setSearch(searchInput);
   };
-
-  // Sync search state ONLY when it actually changes (triggered by handleSearchTrigger)
-  React.useEffect(() => {
-    fetchData();
-  }, [search]);
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 

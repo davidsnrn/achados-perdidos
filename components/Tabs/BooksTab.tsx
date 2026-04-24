@@ -388,13 +388,14 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         setIsLoanLoading(true);
         try {
             const now = new Date().toISOString();
-            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: 'Ativo' | 'Devolvido'; loanDate: string }[] = selectedLoanBooks.map(b => ({
+            const booksToAdd: { id: string; title: string; code?: string; series?: string; status: 'Ativo' | 'Devolvido'; loanDate: string; loanedBy: string }[] = selectedLoanBooks.map(b => ({
                 id: b.id,
                 title: b.title,
                 code: b.code,
                 series: b.series,
                 status: 'Ativo' as const,
-                loanDate: now
+                loanDate: now,
+                loanedBy: user.name
             }));
 
             let totalLentCount = 0;
@@ -425,7 +426,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     await StorageService.saveBookLoan({
                         ...existing,
-                        books: [...existing.books, ...finalBooksToAdd.map(b => ({ ...b, loanDate: now }))],
+                        books: [...existing.books, ...finalBooksToAdd.map(b => ({ ...b, loanDate: now, loanedBy: user.name }))],
                         history: [
                             ...(existing.history || []),
                             ...finalBooksToAdd.map(b => ({

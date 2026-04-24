@@ -235,6 +235,11 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     const newPeople: Person[] = [];
     let processingLog = '';
     let totalInFiles = 0;
+    
+    // Contadores por tipo
+    let totalAlunos = 0;
+    let totalServidores = 0;
+    let totalExternos = 0;
 
     try {
       for (const file of selectedFiles) {
@@ -247,12 +252,11 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         });
 
         if (headerIndex === -1) {
-          processingLog += `❌ ${file.name}: Cabeçalho não encontrado (necessário 'Nome' e 'Matrícula'). Ignorado.\n`;
+          processingLog += `❌ ${file.name}: Cabeçalho não encontrado.\n`;
           continue;
         }
 
         const colsHeader = rows[headerIndex].map(c => c.trim().toLowerCase().replace(/^["']|["']$/g, ''));
-
         const idxNome = colsHeader.indexOf('nome');
         const idxMatricula = colsHeader.findIndex(c => c.includes('matrícula'));
 
@@ -289,6 +293,12 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
           seenInFile.add(cleanMatricula);
           totalInFiles++;
+          
+          // Incrementar contadores por tipo
+          if (detectedType === PersonType.STUDENT) totalAlunos++;
+          else if (detectedType === PersonType.SERVER) totalServidores++;
+          else totalExternos++;
+
           newPeople.push({
             name: cleanName,
             matricula: cleanMatricula,
@@ -301,11 +311,28 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       }
 
       if (newPeople.length > 0) {
-        await StorageService.importPeople(newPeople);
+        const stats = await StorageService.importPeople(newPeople);
         onUpdate();
         fetchData();
         setSelectedFiles([]);
-        alert(`Importação concluída!\n\n${processingLog}\nTotal no arquivo: ${totalInFiles}\n(Matrículas já existentes foram atualizadas para este câmpus automaticamente)`);
+        
+        const summary = [
+          `Importação concluída!`,
+          ``,
+          `${processingLog}`,
+          `--- RESUMO ---`,
+          `Total no(s) arquivo(s): ${totalInFiles}`,
+          `Alunos: ${totalAlunos}`,
+          `Servidores: ${totalServidores}`,
+          totalExternos > 0 ? `Externos: ${totalExternos}` : '',
+          ``,
+          `Adicionados (Novos): ${stats.inserted}`,
+          `Atualizados: ${stats.updated}`,
+          ``,
+          `(Matrículas já existentes foram atualizadas para este câmpus automaticamente)`
+        ].filter(Boolean).join('\n');
+
+        alert(summary);
       } else {
         alert(`Nenhum dado válido encontrado.\n\n${processingLog}`);
       }

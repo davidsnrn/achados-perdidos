@@ -466,6 +466,9 @@ export const StorageService = {
   },
 
   importPeople: async (people: Person[]) => {
+    let totalInserted = 0;
+    let totalUpdated = 0;
+
     const toUpsert = people.map(p => ({
       matricula: p.matricula,
       name: p.name,
@@ -477,15 +480,20 @@ export const StorageService = {
       const BATCH_SIZE = 500;
       for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
         const batch = toUpsert.slice(i, i + BATCH_SIZE);
-        const { error } = await supabase.rpc('import_people_bulk', {
+        const { data, error } = await supabase.rpc('import_people_bulk', {
           p_people: batch
         });
         if (error) {
           console.error("Erro import batch via RPC:", error);
           throw error;
         }
+        if (data && data.length > 0) {
+          totalInserted += data[0].inserted_count || 0;
+          totalUpdated += data[0].updated_count || 0;
+        }
       }
     }
+    return { inserted: totalInserted, updated: totalUpdated };
   },
 
   // Items

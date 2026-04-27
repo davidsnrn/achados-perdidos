@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel, PersonType } from '../../types';
 import { Search, Calendar, User as UserIcon, Book as BookIcon, TrendingUp, CheckCircle, AlertCircle, FileText, LayoutGrid, List, ChevronRight, Download, BarChart3, Filter, Clock } from 'lucide-react';
 
@@ -24,6 +24,16 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
     const [personSearch, setPersonSearch] = useState<string>('');
     const [bookSearch, setBookSearch] = useState<string>('');
     const [operatorSearch, setOperatorSearch] = useState<string>('');
+    
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 30;
+
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [startDate, endDate, startTime, endTime, personSearch, bookSearch, operatorSearch]);
+
     
     // Base stats
     const stats = useMemo(() => {
@@ -486,52 +496,120 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                 </div>
                 
                 {flattenedReportBooks.length > 0 ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
-                                <tr>
-                                    <th className="px-6 py-3 text-left">Data</th>
-                                    <th className="px-6 py-3 text-left">Aluno/Pessoa</th>
-                                    <th className="px-6 py-3 text-left">Livro</th>
-                                    <th className="px-6 py-3 text-left">Status</th>
-                                    <th className="px-6 py-3 text-left">Operador</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {flattenedReportBooks.map((item, index) => (
-                                    <tr key={`${item.loanId}-${item.book.id}-${index}`} className="hover:bg-gray-50/80 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-gray-800">{new Date(item.loanDate).toLocaleDateString('pt-BR')}</span>
-                                                <span className="text-[10px] text-gray-400">{new Date(item.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <p className="font-bold text-gray-900">{item.personName}</p>
-                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{item.personMatricula}</p>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-col text-[9px] px-2 py-1 rounded-lg border bg-blue-50 text-blue-600 border-blue-100 font-black w-fit">
-                                                <span className="uppercase text-xs">{item.book.title}</span>
-                                                <div className="flex items-center gap-1 opacity-70">
-                                                    <span className="text-[9px] font-bold tracking-tighter">{item.book.code || 'S/C'}</span>
-                                                    {item.book.series && <span className="text-[8px]">|</span>}
-                                                    <span className="text-[9px] font-medium italic">{item.book.series}</span>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${item.status === 'Devolvido' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium italic">
-                                            {item.loanedBy}
-                                        </td>
+                    <div className="flex flex-col">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left">Data</th>
+                                        <th className="px-6 py-3 text-left">Aluno/Pessoa</th>
+                                        <th className="px-6 py-3 text-left">Livro</th>
+                                        <th className="px-6 py-3 text-left">Status</th>
+                                        <th className="px-6 py-3 text-left">Operador</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {flattenedReportBooks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item, index) => (
+                                        <tr key={`${item.loanId}-${item.book.id}-${index}`} className="hover:bg-gray-50/80 transition-colors">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-gray-800">{new Date(item.loanDate).toLocaleDateString('pt-BR')}</span>
+                                                    <span className="text-[10px] text-gray-400">{new Date(item.loanDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <p className="font-bold text-gray-900">{item.personName}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">{item.personMatricula}</p>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col text-[9px] px-2 py-1 rounded-lg border bg-blue-50 text-blue-600 border-blue-100 font-black w-fit">
+                                                    <span className="uppercase text-xs">{item.book.title}</span>
+                                                    <div className="flex items-center gap-1 opacity-70">
+                                                        <span className="text-[9px] font-bold tracking-tighter">{item.book.code || 'S/C'}</span>
+                                                        {item.book.series && <span className="text-[8px]">|</span>}
+                                                        <span className="text-[9px] font-medium italic">{item.book.series}</span>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${item.status === 'Devolvido' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                                                    {item.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium italic">
+                                                {item.loanedBy}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination Controls */}
+                        {flattenedReportBooks.length > itemsPerPage && (
+                            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                                    Mostrando <span className="text-gray-900">{Math.min((currentPage * itemsPerPage) - itemsPerPage + 1, flattenedReportBooks.length)} - {Math.min(currentPage * itemsPerPage, flattenedReportBooks.length)}</span> de <span className="text-gray-900">{flattenedReportBooks.length}</span> registros
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        disabled={currentPage === 1}
+                                        onClick={() => {
+                                            setCurrentPage(prev => Math.max(1, prev - 1));
+                                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-[10px] font-black uppercase tracking-widest disabled:opacity-30 hover:bg-white transition-colors text-gray-600"
+                                    >
+                                        Anterior
+                                    </button>
+                                    
+                                    {/* Page Numbers */}
+                                    <div className="flex items-center gap-1 mx-2">
+                                        {[...Array(Math.ceil(flattenedReportBooks.length / itemsPerPage))].map((_, i) => {
+                                            const pageNum = i + 1;
+                                            const totalPages = Math.ceil(flattenedReportBooks.length / itemsPerPage);
+                                            
+                                            // Show first, last, and pages around current
+                                            if (
+                                                pageNum === 1 || 
+                                                pageNum === totalPages || 
+                                                (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                            ) {
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => {
+                                                            setCurrentPage(pageNum);
+                                                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                                                        }}
+                                                        className={`w-8 h-8 rounded-lg text-[10px] font-black transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-500'}`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            }
+                                            
+                                            if (pageNum === 2 || pageNum === totalPages - 1) {
+                                                return <span key={pageNum} className="text-gray-300 px-1 text-[10px]">...</span>;
+                                            }
+                                            
+                                            return null;
+                                        })}
+                                    </div>
+
+                                    <button
+                                        disabled={currentPage >= Math.ceil(flattenedReportBooks.length / itemsPerPage)}
+                                        onClick={() => {
+                                            setCurrentPage(prev => Math.min(Math.ceil(flattenedReportBooks.length / itemsPerPage), prev + 1));
+                                            window.scrollTo({ top: 400, behavior: 'smooth' });
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg border border-gray-200 text-[10px] font-black uppercase tracking-widest disabled:opacity-30 hover:bg-white transition-colors text-gray-600"
+                                    >
+                                        Próximo
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="px-6 py-16 text-center">

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Person, PersonType, User, UserLevel, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2, ShieldAlert, BookOpen, Package, Lock as LockIcon, CheckCircle2, Search } from 'lucide-react';
+import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2, ShieldAlert, BookOpen, Package, Lock as LockIcon, CheckCircle2, Search, Users } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -60,6 +60,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       setSelectedCampusId(adminGlobalCampusId || '');
     }
   }, [adminGlobalCampusId, user.level]);
+  const [showManualForm, setShowManualForm] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [selectedDeleteCampuses, setSelectedDeleteCampuses] = useState<string[]>([]);
@@ -80,6 +81,10 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
   };
 
   const parseCSV = (text: string): string[][] => {
+    // Detectar delimitador (, ou ;)
+    const firstLine = text.split('\n')[0];
+    const delimiter = firstLine.includes(';') ? ';' : ',';
+
     const rows: string[][] = [];
     let currentRow: string[] = [];
     let currentField = '';
@@ -96,7 +101,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (char === ';' && !inQuotes) {
+      } else if (char === delimiter && !inQuotes) {
         currentRow.push(currentField);
         currentField = '';
       } else if ((char === '\n' || char === '\r') && !inQuotes) {
@@ -413,277 +418,251 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
   return (
     <div className="space-y-6">
-      {/* Top Navigation & Actions Bar */}
-      <div className="flex items-center border-b border-gray-200">
-        <div className="flex gap-4 items-center">
-          <button
-            onClick={() => setActiveTab('manual')}
-            className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'manual' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
+      {/* Barra Superior de Ações e Busca */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+          {/* Busca Alinhada à Esquerda */}
+          <div className="relative flex items-center w-full md:w-80 group">
+            <div className="absolute left-3 text-gray-400 group-focus-within:text-ifrn-green transition-colors">
+              <Search size={18} />
+            </div>
+            <input
+              className="w-full text-sm border-2 border-gray-100 rounded-xl pl-10 pr-4 py-2.5 focus:border-ifrn-green focus:bg-white outline-none transition-all bg-gray-50/50 font-medium"
+              placeholder="Pesquisar por nome ou matrícula..."
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearchTrigger()}
+            />
+            <button
+              onClick={handleSearchTrigger}
+              className="absolute right-2 bg-ifrn-green text-white p-1.5 rounded-lg hover:bg-ifrn-darkGreen transition-colors shadow-sm"
+              title="Pesquisar"
+            >
+              <Search size={14} />
+            </button>
+          </div>
+
+          <select
+            className="w-full md:w-auto text-sm border-2 border-gray-100 rounded-xl px-3 py-2.5 focus:border-ifrn-green outline-none bg-gray-50/50 font-bold text-gray-600"
+            value={filterType}
+            onChange={e => setFilterType(e.target.value as any)}
           >
-            Cadastro Manual
+            <option value="ALL">Todos os Vínculos</option>
+            {Object.values(PersonType).map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <button
+            onClick={() => { setActiveTab('manual'); setShowManualForm(true); }}
+            className="flex-1 md:flex-none px-4 py-2.5 bg-ifrn-green text-white rounded-xl hover:bg-ifrn-darkGreen font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-95"
+          >
+            <UserPlus size={18} /> + Individual
           </button>
+          
           <button
-            onClick={() => setActiveTab('import')}
-            className={`pb-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'import' ? 'border-ifrn-green text-ifrn-green' : 'border-transparent text-gray-500'}`}
+            onClick={() => { setActiveTab('import'); setShowManualForm(true); }}
+            className="px-4 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 font-bold text-sm flex items-center justify-center gap-2 transition-all border border-blue-200"
           >
-            Importar CSV
+            <Upload size={18} /> Em Lote (CSV)
           </button>
 
           {canDeleteAll && (
             <button
               onClick={() => setShowDeleteAllModal(true)}
-              className="mb-1.5 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
-              title="Excluir todas as pessoas cadastradas"
+              className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+              title="Limpar Cadastro"
             >
-              <Trash2 size={18} />
+              <Trash2 size={20} />
             </button>
           )}
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        {activeTab === 'manual' ? (
-          <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="w-full md:w-48 relative">
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Matrícula</label>
-              <div className="relative">
-                <input required value={matricula} onChange={e => setMatricula(e.target.value)} className={`w-full border rounded-lg p-2.5 text-sm ${matriculaCheck?.person ? 'border-amber-400 bg-amber-50' : matriculaCheck?.hasPendencies ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} placeholder="202..." />
-                {isCheckingMatricula && <Loader2 size={14} className="animate-spin absolute right-3 top-3 text-ifrn-green" />}
-              </div>
-            </div>
-            <div className="flex-1 w-full">
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Nome Completo</label>
-              <input required value={name} onChange={e => setName(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm" placeholder="Nome..." />
-            </div>
-            <div className="w-full md:w-40">
-              <label className="block text-xs font-semibold text-gray-500 mb-1">Vínculo</label>
-              <select value={type} onChange={e => setType(e.target.value as PersonType)} className="w-full border rounded-lg p-2.5 text-sm bg-white">
-                <option value={PersonType.STUDENT}>Aluno</option>
-                <option value={PersonType.SERVER}>Servidor</option>
-                <option value={PersonType.EXTERNAL}>Externo</option>
-              </select>
-            </div>
-            <button type="submit" disabled={isLoading || isCheckingMatricula} className="w-full md:w-auto px-6 py-2.5 bg-ifrn-darkGreen text-white rounded-lg hover:bg-emerald-900 flex items-center justify-center gap-2">
-              {isLoading ? <Loader2 className="animate-spin" size={18} /> : <><UserPlus size={18} /> Salvar</>}
-            </button>
-          </form>
-        ) : (
-          <div className="flex flex-col gap-6 items-center">
-            {/* Upload UI unchanged */}
-            <div className="w-full max-w-xl text-center">
-              <div className="mb-6 bg-blue-50 text-blue-800 p-4 rounded-lg text-sm flex items-start gap-3 text-left">
-                <HelpCircle className="flex-shrink-0 mt-0.5" size={18} />
+      {/* Modal de Cadastro / Importação (Oculto por padrão) */}
+      <Modal 
+        isOpen={showManualForm} 
+        onClose={() => { setShowManualForm(false); setMatriculaCheck(null); }} 
+        title={activeTab === 'manual' ? 'Cadastro Individual' : 'Cadastro em Lote (CSV)'}
+      >
+        <div className="space-y-6">
+          {activeTab === 'manual' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Matrícula</label>
+                  <div className="relative">
+                    <input 
+                      required 
+                      value={matricula} 
+                      onChange={e => setMatricula(e.target.value)} 
+                      className={`w-full border-2 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all ${matriculaCheck?.person ? 'border-amber-400 bg-amber-50' : matriculaCheck?.hasPendencies ? 'border-red-400 bg-red-50' : 'border-gray-100'}`} 
+                      placeholder="Ex: 2023..." 
+                    />
+                    {isCheckingMatricula && <Loader2 size={16} className="animate-spin absolute right-3 top-3.5 text-ifrn-green" />}
+                  </div>
+                </div>
                 <div>
-                  <p className="font-bold mb-1">Detecção Automática</p>
-                  <p>O sistema identifica automaticamente se o arquivo é de <strong>Aluno</strong> ou <strong>Servidor</strong>. Envie arquivos CSV.</p>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Vínculo</label>
+                  <select 
+                    value={type} 
+                    onChange={e => setType(e.target.value as PersonType)} 
+                    className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm bg-white focus:border-ifrn-green outline-none"
+                  >
+                    <option value={PersonType.STUDENT}>Aluno</option>
+                    <option value={PersonType.SERVER}>Servidor</option>
+                    <option value={PersonType.EXTERNAL}>Externo</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Nome Completo</label>
+                  <input 
+                    required 
+                    value={name} 
+                    onChange={e => setName(e.target.value)} 
+                    className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all" 
+                    placeholder="Nome completo..." 
+                  />
                 </div>
               </div>
 
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept=".csv"
-                multiple
-                onChange={handleFileChange}
-              />
-
-              <button
-                onClick={handleSelectFiles}
-                className="w-full md:w-auto px-8 py-4 border-2 border-dashed border-ifrn-green bg-green-50 hover:bg-green-100 text-ifrn-darkGreen rounded-xl font-medium transition-all flex flex-col items-center gap-2 mx-auto"
-              >
-                <Upload size={32} />
-                <span>Selecione arquivo(s)</span>
-              </button>
-            </div>
-
-            {selectedFiles.length > 0 && (
-              <div className="w-full max-w-xl space-y-3">
-                <h4 className="font-semibold text-gray-700 text-sm border-b pb-2">Arquivos na fila ({selectedFiles.length}):</h4>
-                <div className="grid grid-cols-1 gap-2">
-                  {selectedFiles.map((file, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <FileText size={20} className="text-gray-400 flex-shrink-0" />
-                        <div className="flex flex-col overflow-hidden">
-                          <span className="text-sm text-gray-700 truncate font-medium">{file.name}</span>
-                          <span className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</span>
+              {/* Feedback de Verificação dentro do Modal */}
+              {matriculaCheck && (
+                <div className="animate-in fade-in slide-in-from-top-2">
+                  {matriculaCheck.person ? (
+                    (() => {
+                      const isSameCampus = matriculaCheck.person.campus_id === (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id);
+                      return (
+                        <div className={`p-4 border-2 rounded-xl flex items-center justify-between gap-4 ${isSameCampus ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                          <div className="flex items-center gap-3">
+                            {isSameCampus ? <AlertTriangle className="text-amber-600" size={24} /> : <HelpCircle className="text-blue-600" size={24} />}
+                            <div>
+                              <p className={`text-sm font-black ${isSameCampus ? 'text-amber-900' : 'text-blue-900'}`}>
+                                {isSameCampus ? 'MATRÍCULA JÁ EXISTE!' : 'PESSOA EM OUTRO CÂMPUS!'}
+                              </p>
+                              <p className={`text-xs font-medium ${isSameCampus ? 'text-amber-700' : 'text-blue-700'}`}>
+                                Pertence a <strong>{matriculaCheck.person.name}</strong>.
+                              </p>
+                            </div>
+                          </div>
                         </div>
+                      );
+                    })()
+                  ) : matriculaCheck.hasPendencies ? (
+                    <div className="p-4 bg-red-50 border-2 border-red-200 rounded-xl space-y-3">
+                      <div className="flex items-center gap-3">
+                        <ShieldAlert className="text-red-600" size={24} />
+                        <p className="text-xs font-black text-red-900 uppercase">Pendências Encontradas!</p>
                       </div>
-                      <button onClick={() => removeFile(idx)} className="text-gray-400 hover:text-red-500 ml-2 p-1">
-                        <X size={16} />
-                      </button>
+                      <p className="text-[10px] text-red-700 font-bold">Esta matrícula possui registros pendentes (Livros, Materiais ou Armários) que serão vinculados ao cadastro.</p>
                     </div>
-                  ))}
+                  ) : (
+                    <div className="p-3 bg-emerald-50 border-2 border-emerald-100 rounded-xl flex items-center gap-2">
+                       <CheckCircle2 className="text-emerald-500" size={18} />
+                       <span className="text-xs font-bold text-emerald-700">Matrícula disponível para cadastro.</span>
+                    </div>
+                  )}
                 </div>
+              )}
 
-                <div className="pt-4">
+              {user.level === UserLevel.ADMIN && (
+                <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-xl space-y-2">
+                  <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Câmpus do Cadastro</label>
+                  <select
+                    value={selectedCampusId}
+                    onChange={e => setSelectedCampusId(e.target.value)}
+                    className="w-full border border-amber-200 rounded-lg p-2 text-sm bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                  >
+                    <option value="">Selecione um Câmpus...</option>
+                    {campuses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setShowManualForm(false)} 
+                  className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isLoading || isCheckingMatricula} 
+                  className="flex-[2] py-3 bg-ifrn-green text-white rounded-xl hover:bg-ifrn-darkGreen font-bold shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isLoading ? <Loader2 className="animate-spin" size={20} /> : <><UserPlus size={20} /> Confirmar Cadastro</>}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-blue-50 text-blue-800 p-5 rounded-2xl text-sm flex flex-col gap-4 border border-blue-100 shadow-inner">
+                <div className="flex items-center gap-2">
+                  <div className="bg-blue-600 text-white p-1 rounded-lg">
+                    <HelpCircle size={18} />
+                  </div>
+                  <p className="font-black uppercase text-[10px] tracking-widest">Configuração do Arquivo</p>
+                </div>
+                
+                <div className="space-y-3 text-xs leading-relaxed">
+                  <p>
+                    Para garantir que os nomes e acentos fiquem corretos, ao salvar no Excel, escolha a opção:<br/>
+                    <strong className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[11px] inline-block mt-2 shadow-sm">
+                      CSV UTF-8 (Delimitado por vírgulas) (*.csv)
+                    </strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-3xl p-10 bg-gray-50/50 hover:bg-white hover:border-ifrn-green/30 transition-all cursor-pointer group" onClick={handleSelectFiles}>
+                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" multiple onChange={handleFileChange} />
+                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-ifrn-green mb-4 group-hover:scale-110 transition-transform">
+                  <Upload size={32} />
+                </div>
+                <p className="font-black text-gray-700">Clique para selecionar arquivos</p>
+                <p className="text-xs text-gray-400 mt-1">Formatos aceitos: .csv</p>
+              </div>
+
+              {selectedFiles.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Arquivos selecionados ({selectedFiles.length})</p>
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                    {selectedFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <FileText size={18} className="text-blue-500" />
+                          <span className="text-sm font-bold text-gray-700 truncate max-w-[200px]">{file.name}</span>
+                        </div>
+                        <button onClick={() => removeFile(idx)} className="text-gray-400 hover:text-red-500 p-1"><X size={16} /></button>
+                      </div>
+                    ))}
+                  </div>
                   <button
                     onClick={processImport}
                     disabled={isProcessing}
-                    className="w-full px-8 py-3 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-wait"
+                    className="w-full py-4 bg-ifrn-green text-white rounded-2xl hover:bg-ifrn-darkGreen font-black shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {isProcessing ? 'Processando...' : <><CheckCircle size={18} /> Importar</>}
+                    {isProcessing ? 'Processando...' : <><CheckCircle size={20} /> Iniciar Importação</>}
                   </button>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Feedback de Verificação de Matrícula */}
-        {activeTab === 'manual' && matriculaCheck && (
-          <div className="mt-4 animate-in fade-in slide-in-from-top-2">
-            {matriculaCheck.person ? (
-              (() => {
-                const isSameCampus = matriculaCheck.person.campus_id === (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id);
-                
-                return (
-                  <div className={`p-3 border rounded-lg flex items-center justify-between gap-4 ${isSameCampus ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
-                    <div className="flex items-center gap-3">
-                      {isSameCampus ? <AlertTriangle className="text-amber-600" size={20} /> : <HelpCircle className="text-blue-600" size={20} />}
-                      <div>
-                        <p className={`text-xs font-bold ${isSameCampus ? 'text-amber-900' : 'text-blue-900'}`}>
-                          {isSameCampus ? 'Esta matrícula já está cadastrada!' : 'Pessoa encontrada em outro câmpus!'}
-                        </p>
-                        <p className={`text-[10px] font-medium ${isSameCampus ? 'text-amber-700' : 'text-blue-700'}`}>
-                          Pertence a <strong>{matriculaCheck.person.name}</strong> ({matriculaCheck.person.campuses?.name || 'Câmpus desconhecido'}).
-                        </p>
-                      </div>
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={async () => { 
-                        if (isSameCampus) {
-                          setEditingPerson(matriculaCheck.person); 
-                          setShowEditModal(true); 
-                        } else {
-                          // Import logic
-                          if (confirm(`Deseja importar ${matriculaCheck.person.name} para o câmpus atual?`)) {
-                            setIsLoading(true);
-                            try {
-                              await StorageService.importPersonGlobal(
-                                matriculaCheck.person.matricula,
-                                (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id) || ''
-                              );
-                              alert('Pessoa importada com sucesso!');
-                              setMatricula('');
-                              setName('');
-                              setMatriculaCheck(null);
-                              fetchData();
-                              onUpdate();
-                            } catch (err) {
-                              alert((err as Error).message);
-                            } finally {
-                              setIsLoading(false);
-                            }
-                          }
-                        }
-                      }}
-                      className={`px-3 py-1 text-white text-[10px] font-bold rounded transition-colors ${isSameCampus ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-                    >
-                      {isSameCampus ? 'EDITAR EXISTENTE' : 'IMPORTAR PARA ESTE CÂMPUS'}
-                    </button>
-                  </div>
-                );
-              })()
-            ) : matriculaCheck.hasPendencies ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg space-y-3">
-                <div className="flex items-center gap-3">
-                  <ShieldAlert className="text-red-600" size={20} />
-                  <div>
-                    <p className="text-xs font-black text-red-900 uppercase tracking-tight">Pendências Encontradas!</p>
-                    <p className="text-[10px] text-red-700 font-medium italic">
-                      Esta matrícula possui registros pendentes no sistema, embora não esteja na lista de pessoas.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {matriculaCheck.bookLoans.length > 0 && (
-                    <div className="bg-white/60 p-2 rounded border border-red-100 flex items-center gap-2">
-                      <BookOpen size={14} className="text-red-500" />
-                      <span className="text-[10px] font-bold text-red-800">{matriculaCheck.bookLoans.length} empréstimo(s) de livro</span>
-                    </div>
-                  )}
-                  {matriculaCheck.materialLoans.length > 0 && (
-                    <div className="bg-white/60 p-2 rounded border border-red-100 flex items-center gap-2">
-                      <Package size={14} className="text-red-500" />
-                      <span className="text-[10px] font-bold text-red-800">{matriculaCheck.materialLoans.length} material(is) pendente(s)</span>
-                    </div>
-                  )}
-                  {matriculaCheck.lockerLoans.length > 0 && (
-                    <div className="bg-white/60 p-2 rounded border border-red-100 flex items-center gap-2">
-                      <LockIcon size={14} className="text-red-500" />
-                      <span className="text-[10px] font-bold text-red-800">Armário nº {matriculaCheck.lockerLoans[0].lockerNumber} ocupado</span>
-                    </div>
-                  )}
-                </div>
-                <p className="text-[9px] text-red-500 font-bold uppercase animate-pulse">
-                  * Ao cadastrar esta pessoa, as pendências serão vinculadas automaticamente a ela.
-                </p>
-              </div>
-            ) : matricula.length >= 3 && !isCheckingMatricula && (
-              <div className="p-2 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center gap-2">
-                 <CheckCircle2 className="text-emerald-500" size={16} />
-                 <span className="text-[10px] font-bold text-emerald-700">Matrícula disponível e sem pendências vinculadas.</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {user.level === UserLevel.ADMIN && (
-          <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg flex flex-col md:flex-row items-center gap-4">
-            <label className="text-xs font-bold text-amber-800 uppercase whitespace-nowrap">Câmpus Alvo</label>
-            <select
-              value={selectedCampusId}
-              onChange={e => setSelectedCampusId(e.target.value)}
-              className="w-full border rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-amber-500 outline-none"
-              required
-            >
-              <option value="">Selecione um Câmpus...</option>
-              {campuses.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <p className="text-[10px] text-amber-700 italic">Administrador: Esta seleção define o campus para cadastros manuais e importações CSV.</p>
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-4">
-        {/* Layout Reorganizado: Título acima, filtros à direita */}
-        <div className="flex flex-col gap-4">
-          <h3 className="font-bold text-gray-700 text-lg">Pessoas Cadastradas ({totalCount})</h3>
-
-          <div className="flex flex-col md:flex-row justify-end items-center gap-3">
-            <div className="flex gap-2 w-full md:w-auto">
-              <select
-                className="text-sm border rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-ifrn-green outline-none"
-                value={filterType}
-                onChange={e => setFilterType(e.target.value as any)}
-              >
-                <option value="ALL">Todos</option>
-                {Object.values(PersonType).map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <div className="relative flex items-center w-full md:w-64">
-                <input
-                  className="text-sm border rounded-l-lg px-3 py-1.5 w-full focus:ring-2 focus:ring-ifrn-green outline-none h-[38px]"
-                  placeholder="Buscar (nome, matrícula)..."
-                  value={searchInput}
-                  onChange={e => setSearchInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSearchTrigger()}
-                />
-                <button
-                  onClick={handleSearchTrigger}
-                  className="bg-ifrn-green text-white px-3 py-1.5 rounded-r-lg hover:bg-ifrn-darkGreen transition-colors flex items-center justify-center h-[38px] border border-l-0 border-ifrn-green"
-                  title="Pesquisar"
-                >
-                  <Search size={16} />
-                </button>
-              </div>
+              )}
             </div>
-          </div>
+          )}
+        </div>
+      </Modal>
+
+      <div className="space-y-4 pt-2">
+        <div className="flex justify-between items-center">
+          <h3 className="font-black text-gray-800 text-xl tracking-tight flex items-center gap-2">
+             <Users className="text-ifrn-green" size={24} />
+             Pessoas Cadastradas
+             <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-md ml-2 font-mono">#{totalCount}</span>
+          </h3>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

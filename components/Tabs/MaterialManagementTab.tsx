@@ -983,53 +983,16 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
                             </div>
                         ) : (
-                            <div className="space-y-3">
-                                {/* Filtro de Tipo de Pessoa */}
-                                <div className="flex bg-white/50 p-1 rounded-xl border border-blue-100">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPersonTypeFilter('ALL');
-                                            if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'ALL').then(res => setSearchResultsPeople(res));
-                                            }
-                                        }}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-blue-600 text-white shadow-md' : 'text-blue-400 hover:bg-blue-50'}`}
-                                    >
-                                        <Users size={14} /> Todos
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPersonTypeFilter('Aluno');
-                                            if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Aluno').then(res => setSearchResultsPeople(res));
-                                            }
-                                        }}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-blue-600 text-white shadow-md' : 'text-blue-400 hover:bg-blue-50'}`}
-                                    >
-                                        <GraduationCap size={14} /> Alunos
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setPersonTypeFilter('Servidor');
-                                            if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Servidor').then(res => setSearchResultsPeople(res));
-                                            }
-                                        }}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-blue-600 text-white shadow-md' : 'text-blue-400 hover:bg-blue-50'}`}
-                                    >
-                                        <UserCog size={14} /> Servidores
-                                    </button>
-                                </div>
-
-                                <div className="relative flex gap-2">
-                                <div className="relative flex-1">
+                            <div className="space-y-4 pt-2">
+                                {/* Campo de Busca Principal */}
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <Search size={20} className="text-blue-400 group-focus-within:text-blue-600 transition-colors" />
+                                    </div>
                                     <input
                                         type="text"
-                                        className="w-full border-2 border-blue-100 rounded-xl p-3 pr-12 text-sm outline-none focus:border-blue-500 focus:bg-white transition-all font-medium bg-white/80"
-                                        placeholder="Digite o nome ou matrícula..."
+                                        className="w-full border-2 border-blue-100 rounded-2xl p-4 pl-12 text-base outline-none focus:border-blue-600 focus:bg-white transition-all font-bold bg-white shadow-md placeholder:font-normal placeholder:text-blue-300 ring-4 ring-blue-50/50"
+                                        placeholder="BUSCAR PESSOA (Nome ou Matrícula)..."
                                         value={personSearch}
                                         onChange={e => {
                                             setPersonSearch(e.target.value);
@@ -1063,62 +1026,97 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     <button
                                         type="button"
                                         onClick={() => handlePersonSearch()}
-                                        className="absolute right-3 top-2.5 p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all group shadow-sm"
-                                        title="Buscar"
+                                        className="absolute right-3 top-2.5 p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all group shadow-sm"
                                     >
-                                        {isSearchingPeople ? (
-                                            <Loader2 size={18} className="animate-spin" />
-                                        ) : (
-                                            <Search size={18} className="group-hover:scale-110 transition-transform" />
-                                        )}
+                                        {isSearchingPeople ? <Loader2 size={20} className="animate-spin" /> : <Search size={20} />}
                                     </button>
-                                </div>
-                                {searchResultsPeople.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-100 rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-gray-50 p-1">
-                                        {searchResultsPeople.map((p, index) => (
-                                            <div
-                                                key={p.matricula}
-                                                onClick={() => { 
-                                                    setSelectedPerson(p); 
-                                                    setPersonSearch(''); 
-                                                    setSearchResultsPeople([]); 
-                                                    setHasSearchedPeople(false);
-                                                }}
-                                                className={`p-4 rounded-lg cursor-pointer text-sm group transition-all flex justify-between items-center ${
-                                                    index === selectedResultIndex 
-                                                    ? 'bg-blue-50 border-l-4 border-blue-500 shadow-sm' 
-                                                    : 'hover:bg-blue-50/50 border-l-4 border-transparent'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${index === selectedResultIndex ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
-                                                        <UserIcon size={14} />
-                                                    </div>
-                                                    <div>
-                                                        <div className={`font-bold ${index === selectedResultIndex ? 'text-blue-700' : 'text-gray-800'}`}>
-                                                            {p.name}
+
+                                    {/* Resultados da Busca */}
+                                    {searchResultsPeople.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-200 rounded-2xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-gray-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {searchResultsPeople.map((p, index) => (
+                                                <div
+                                                    key={p.matricula}
+                                                    onClick={() => { 
+                                                        setSelectedPerson(p); 
+                                                        setPersonSearch(''); 
+                                                        setSearchResultsPeople([]); 
+                                                        setHasSearchedPeople(false);
+                                                    }}
+                                                    className={`p-4 rounded-xl cursor-pointer text-sm group transition-all flex justify-between items-center ${
+                                                        index === selectedResultIndex 
+                                                        ? 'bg-blue-600 text-white shadow-lg scale-[1.01]' 
+                                                        : 'hover:bg-blue-50 text-gray-700'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${index === selectedResultIndex ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                                                            <UserIcon size={18} />
                                                         </div>
-                                                        <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
+                                                        <div>
+                                                            <div className="font-black text-base">{p.name}</div>
+                                                            <div className={`text-xs ${index === selectedResultIndex ? 'text-blue-100' : 'text-gray-500'}`}>{p.matricula} • {p.type}</div>
+                                                        </div>
                                                     </div>
+                                                    {index === selectedResultIndex && (
+                                                        <div className="text-[10px] font-black bg-white/20 px-2 py-1 rounded-md">
+                                                            ENTER
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {index === selectedResultIndex && (
-                                                    <div className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-1 rounded-md animate-pulse">
-                                                        ENTER PARA SELECIONAR
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {hasSearchedPeople && searchResultsPeople.length === 0 && !isSearchingPeople && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-100 rounded-xl p-6 text-center shadow-xl animate-fadeIn">
-                                        <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                            <Search size={20} className="text-blue-300" />
+                                            ))}
                                         </div>
-                                        <p className="text-xs text-blue-500 font-bold">Nenhuma pessoa encontrada</p>
-                                        <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">Verifique o nome ou matrícula e tente novamente</p>
-                                    </div>
-                                )}
+                                    )}
+
+                                    {hasSearchedPeople && searchResultsPeople.length === 0 && !isSearchingPeople && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-100 rounded-2xl p-8 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+                                            <div className="bg-red-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <Search size={24} className="text-red-300" />
+                                            </div>
+                                            <p className="text-sm text-gray-800 font-black">NÃO ENCONTRADO!</p>
+                                            <p className="text-xs text-gray-500 mt-1 uppercase tracking-tight">Verifique se o nome está correto antes de tentar cadastrar</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Filtros Secundários */}
+                                <div className="flex bg-white/50 p-1 rounded-xl border border-blue-100/50 backdrop-blur-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('ALL');
+                                            if (personSearch.trim().length >= 2) {
+                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'ALL').then(res => setSearchResultsPeople(res));
+                                            }
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
+                                    >
+                                        <Users size={14} /> Todos
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('Aluno');
+                                            if (personSearch.trim().length >= 2) {
+                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Aluno').then(res => setSearchResultsPeople(res));
+                                            }
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
+                                    >
+                                        <GraduationCap size={14} /> Alunos
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setPersonTypeFilter('Servidor');
+                                            if (personSearch.trim().length >= 2) {
+                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Servidor').then(res => setSearchResultsPeople(res));
+                                            }
+                                        }}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
+                                    >
+                                        <UserCog size={14} /> Servidores
+                                    </button>
                                 </div>
                             </div>
                         )}

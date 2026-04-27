@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -960,9 +960,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 setShowMaterialDropdown(false);
             }} title="Novo Empréstimo">
                 <form onSubmit={handleLoanSubmit} className="space-y-6">
-                    <div>
+                    <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-100 shadow-sm space-y-3">
                         <div className="flex justify-between items-center mb-1">
-                            <label className="block text-xs font-bold text-gray-500 uppercase">Pessoa</label>
+                            <label className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider">
+                                <UserIcon size={14} /> Pessoa (Quem está pegando)
+                            </label>
                             {isSearchingPeople && (
                                 <div className="flex items-center gap-1 text-[10px] text-indigo-500 font-bold animate-pulse">
                                     <Loader2 size={10} className="animate-spin" /> Buscando...
@@ -970,17 +972,20 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             )}
                         </div>
                         {selectedPerson ? (
-                            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-center gap-4">
-                                <div className="flex-1">
-                                    <p className="font-bold text-indigo-900">{selectedPerson.name}</p>
-                                    <p className="text-xs text-indigo-700">{selectedPerson.matricula}</p>
+                            <div className="bg-white border border-blue-200 rounded-xl p-4 flex items-center gap-4 shadow-sm">
+                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                                    <UserIcon size={20} />
                                 </div>
-                                <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="text-xs text-red-500 font-bold underline">Alterar</button>
+                                <div className="flex-1">
+                                    <p className="font-bold text-blue-900 leading-tight">{selectedPerson.name}</p>
+                                    <p className="text-xs text-blue-600 font-medium">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                                </div>
+                                <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 {/* Filtro de Tipo de Pessoa */}
-                                <div className="flex bg-gray-100 p-1 rounded-xl">
+                                <div className="flex bg-white/50 p-1 rounded-xl border border-blue-100">
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -989,7 +994,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'ALL').then(res => setSearchResultsPeople(res));
                                             }
                                         }}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-blue-600 text-white shadow-md' : 'text-blue-400 hover:bg-blue-50'}`}
                                     >
                                         <Users size={14} /> Todos
                                     </button>
@@ -1001,7 +1006,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Aluno').then(res => setSearchResultsPeople(res));
                                             }
                                         }}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-blue-600 text-white shadow-md' : 'text-blue-400 hover:bg-blue-50'}`}
                                     >
                                         <GraduationCap size={14} /> Alunos
                                     </button>
@@ -1013,7 +1018,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Servidor').then(res => setSearchResultsPeople(res));
                                             }
                                         }}
-                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                        className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-blue-600 text-white shadow-md' : 'text-blue-400 hover:bg-blue-50'}`}
                                     >
                                         <UserCog size={14} /> Servidores
                                     </button>
@@ -1023,8 +1028,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <div className="relative flex-1">
                                     <input
                                         type="text"
-                                        className="w-full border-2 border-gray-100 rounded-xl p-3 pr-12 text-sm outline-none focus:border-indigo-500 transition-all font-medium"
-                                        placeholder="Buscar pessoa..."
+                                        className="w-full border-2 border-blue-100 rounded-xl p-3 pr-12 text-sm outline-none focus:border-blue-500 focus:bg-white transition-all font-medium bg-white/80"
+                                        placeholder="Digite o nome ou matrícula..."
                                         value={personSearch}
                                         onChange={e => {
                                             setPersonSearch(e.target.value);
@@ -1058,7 +1063,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     <button
                                         type="button"
                                         onClick={() => handlePersonSearch()}
-                                        className="absolute right-3 top-2.5 p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all group"
+                                        className="absolute right-3 top-2.5 p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all group shadow-sm"
                                         title="Buscar"
                                     >
                                         {isSearchingPeople ? (
@@ -1069,7 +1074,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     </button>
                                 </div>
                                 {searchResultsPeople.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-50 p-1">
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-100 rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y divide-gray-50 p-1">
                                         {searchResultsPeople.map((p, index) => (
                                             <div
                                                 key={p.matricula}
@@ -1081,18 +1086,23 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 }}
                                                 className={`p-4 rounded-lg cursor-pointer text-sm group transition-all flex justify-between items-center ${
                                                     index === selectedResultIndex 
-                                                    ? 'bg-emerald-50 border-l-4 border-emerald-500 shadow-sm' 
-                                                    : 'hover:bg-emerald-50/50 border-l-4 border-transparent'
+                                                    ? 'bg-blue-50 border-l-4 border-blue-500 shadow-sm' 
+                                                    : 'hover:bg-blue-50/50 border-l-4 border-transparent'
                                                 }`}
                                             >
-                                                <div>
-                                                    <div className={`font-bold ${index === selectedResultIndex ? 'text-emerald-700' : 'text-gray-800'}`}>
-                                                        {p.name}
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${index === selectedResultIndex ? 'bg-blue-200 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                                                        <UserIcon size={14} />
                                                     </div>
-                                                    <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
+                                                    <div>
+                                                        <div className={`font-bold ${index === selectedResultIndex ? 'text-blue-700' : 'text-gray-800'}`}>
+                                                            {p.name}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">{p.matricula} • {p.type}</div>
+                                                    </div>
                                                 </div>
                                                 {index === selectedResultIndex && (
-                                                    <div className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded-md animate-pulse">
+                                                    <div className="text-[10px] font-black text-blue-600 bg-blue-100 px-2 py-1 rounded-md animate-pulse">
                                                         ENTER PARA SELECIONAR
                                                     </div>
                                                 )}
@@ -1101,69 +1111,17 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     </div>
                                 )}
                                 {hasSearchedPeople && searchResultsPeople.length === 0 && !isSearchingPeople && (
-                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-slate-100 rounded-xl p-6 text-center shadow-xl animate-fadeIn">
-                                        <div className="bg-slate-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                            <Search size={20} className="text-slate-300" />
+                                    <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-100 rounded-xl p-6 text-center shadow-xl animate-fadeIn">
+                                        <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <Search size={20} className="text-blue-300" />
                                         </div>
-                                        <p className="text-xs text-slate-500 font-bold">Nenhuma pessoa encontrada</p>
-                                        <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-tight">Verifique o nome ou matrícula e tente novamente</p>
+                                        <p className="text-xs text-blue-500 font-bold">Nenhuma pessoa encontrada</p>
+                                        <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">Verifique o nome ou matrícula e tente novamente</p>
                                     </div>
                                 )}
                                 </div>
                             </div>
                         )}
-                    </div>
-
-                    <div className="relative">
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Materiais Disponíveis</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                className="w-full border-2 border-gray-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-500"
-                                placeholder="Pesquisar material disponível..."
-                                value={materialSearch}
-                                onChange={e => {
-                                    setMaterialSearch(e.target.value);
-                                    setShowMaterialDropdown(true);
-                                }}
-                                onFocus={() => setShowMaterialDropdown(true)}
-                            />
-                            <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-
-                            {showMaterialDropdown && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-10"
-                                        onClick={() => setShowMaterialDropdown(false)}
-                                    />
-                                    <div className="absolute z-20 w-full mt-2 bg-white border rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y">
-                                        {filteredMaterialsForLoan.length > 0 ? (
-                                            filteredMaterialsForLoan.map(m => (
-                                                <div
-                                                    key={m.id}
-                                                    onClick={() => {
-                                                        setSelectedMaterials([...selectedMaterials, m]);
-                                                        setMaterialSearch('');
-                                                        setShowMaterialDropdown(false);
-                                                    }}
-                                                    className="p-4 hover:bg-indigo-50 cursor-pointer flex justify-between items-center"
-                                                >
-                                                    <div>
-                                                        <div className="font-bold text-gray-800">{m.name}</div>
-                                                        <div className="text-xs text-indigo-600 font-mono">#{stripPrefix(m.code)}</div>
-                                                    </div>
-                                                    <Plus size={16} className="text-indigo-400" />
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="p-4 text-center text-gray-400 text-xs italic">
-                                                Nenhum material disponível encontrado
-                                            </div>
-                                        )}
-                                    </div>
-                                </>
-                            )}
-                        </div>
                     </div>
 
                     {selectedMaterials.length > 0 && (
@@ -1188,6 +1146,66 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             </div>
                         </div>
                     )}
+
+                    <div className="p-4 bg-amber-50/40 rounded-2xl border border-amber-100 shadow-sm space-y-3 relative">
+                        <label className="flex items-center gap-2 text-xs font-bold text-amber-700 uppercase tracking-wider mb-1">
+                            <Package size={14} /> Material (O que está levando)
+                        </label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                className="w-full border-2 border-amber-100 rounded-xl p-3 pl-10 text-sm outline-none focus:border-amber-500 focus:bg-white transition-all bg-white/80 font-medium"
+                                placeholder="Digite o nome do material ou código..."
+                                value={materialSearch}
+                                onChange={e => {
+                                    setMaterialSearch(e.target.value);
+                                    setShowMaterialDropdown(true);
+                                }}
+                                onFocus={() => setShowMaterialDropdown(true)}
+                            />
+                            <Package className="absolute left-3 top-3.5 text-amber-400" size={18} />
+
+                            {showMaterialDropdown && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-10"
+                                        onClick={() => setShowMaterialDropdown(false)}
+                                    />
+                                    <div className="absolute z-20 w-full mt-2 bg-white border border-amber-100 rounded-xl shadow-2xl max-h-56 overflow-y-auto divide-y p-1">
+                                        {filteredMaterialsForLoan.length > 0 ? (
+                                            filteredMaterialsForLoan.map(m => (
+                                                <div
+                                                    key={m.id}
+                                                    onClick={() => {
+                                                        setSelectedMaterials([...selectedMaterials, m]);
+                                                        setMaterialSearch('');
+                                                        setShowMaterialDropdown(false);
+                                                    }}
+                                                    className="p-4 rounded-lg hover:bg-amber-50 cursor-pointer flex justify-between items-center group transition-all"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform">
+                                                            <Package size={14} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-gray-800 group-hover:text-amber-700">{m.name}</div>
+                                                            <div className="text-xs text-amber-600 font-mono font-bold tracking-tighter">#{stripPrefix(m.code)}</div>
+                                                        </div>
+                                                    </div>
+                                                    <Plus size={16} className="text-amber-400 group-hover:rotate-90 transition-transform" />
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="p-8 text-center text-gray-400">
+                                                <Package size={24} className="mx-auto mb-2 opacity-20" />
+                                                <p className="text-xs italic">Nenhum material disponível encontrado</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
 
                     {user.level === UserLevel.ADMIN && (
                         <div>

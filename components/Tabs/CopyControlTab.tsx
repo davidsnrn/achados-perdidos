@@ -63,6 +63,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     endMonth: new Date().getMonth(),
     endYear: new Date().getFullYear()
   });
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'PROVA' | 'OUTRAS' | 'SERVIDOR' | 'ALUNO'>('ALL');
 
   // Period Logic
   const startDayConfig = config?.start_day || 13;
@@ -140,9 +141,15 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         record.person_matricula.includes(appliedSearchTerm) ||
         record.sector?.toLowerCase().includes(appliedSearchTerm.toLowerCase());
 
-      return isInPeriod && matchesSearch;
+      const matchesFilter = activeFilter === 'ALL' ||
+        (activeFilter === 'PROVA' && record.print_type === 'PROVA') ||
+        (activeFilter === 'OUTRAS' && record.print_type === 'OUTRAS') ||
+        (activeFilter === 'SERVIDOR' && record.person_type === PersonType.SERVER) ||
+        (activeFilter === 'ALUNO' && record.person_type === PersonType.STUDENT);
+
+      return isInPeriod && matchesSearch && matchesFilter;
     });
-  }, [records, periodRange, appliedSearchTerm]);
+  }, [records, periodRange, appliedSearchTerm, activeFilter]);
 
   // Totals
   const totals = useMemo(() => {
@@ -707,9 +714,12 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
 
         {/* Dash Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mt-10">
-          <div className="bg-gradient-to-br from-rose-50 to-white p-6 rounded-[2rem] border border-rose-100 shadow-sm transition-all hover:shadow-md group">
+          <button
+            onClick={() => setActiveFilter(prev => prev === 'PROVA' ? 'ALL' : 'PROVA')}
+            className={`bg-gradient-to-br from-rose-50 to-white p-6 rounded-[2rem] border-2 shadow-sm transition-all hover:shadow-md group text-left ${activeFilter === 'PROVA' ? 'border-rose-500 scale-105 shadow-rose-100' : 'border-rose-100 hover:border-rose-200'}`}
+          >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-white text-rose-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+              <div className="p-3 bg-white text-rose-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform border border-rose-50">
                 <FileText size={24} />
               </div>
               <span className="text-[10px] font-black tracking-widest text-rose-300 uppercase">Provas</span>
@@ -718,11 +728,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <h3 className="text-4xl font-black text-gray-900">{totals.prova}</h3>
               <p className="text-xs font-bold text-gray-400">Total em provas</p>
             </div>
-          </div>
+          </button>
 
-          <div className="bg-gradient-to-br from-amber-50 to-white p-6 rounded-[2rem] border border-amber-100 shadow-sm transition-all hover:shadow-md group">
+          <button
+            onClick={() => setActiveFilter(prev => prev === 'OUTRAS' ? 'ALL' : 'OUTRAS')}
+            className={`bg-gradient-to-br from-amber-50 to-white p-6 rounded-[2rem] border-2 shadow-sm transition-all hover:shadow-md group text-left ${activeFilter === 'OUTRAS' ? 'border-amber-500 scale-105 shadow-amber-100' : 'border-amber-100 hover:border-amber-200'}`}
+          >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-white text-amber-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+              <div className="p-3 bg-white text-amber-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform border border-amber-50">
                 <PieChart size={24} />
               </div>
               <span className="text-[10px] font-black tracking-widest text-amber-300 uppercase">Outras</span>
@@ -731,11 +744,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <h3 className="text-4xl font-black text-gray-900">{totals.outras}</h3>
               <p className="text-xs font-bold text-gray-400">Apostilas e outros</p>
             </div>
-          </div>
+          </button>
 
-          <div className="bg-gradient-to-br from-emerald-50 to-white p-6 rounded-[2rem] border border-emerald-100 shadow-sm transition-all hover:shadow-md group">
+          <button
+            onClick={() => setActiveFilter(prev => prev === 'SERVIDOR' ? 'ALL' : 'SERVIDOR')}
+            className={`bg-gradient-to-br from-emerald-50 to-white p-6 rounded-[2rem] border-2 shadow-sm transition-all hover:shadow-md group text-left ${activeFilter === 'SERVIDOR' ? 'border-emerald-500 scale-105 shadow-emerald-100' : 'border-emerald-100 hover:border-emerald-200'}`}
+          >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-white text-emerald-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+              <div className="p-3 bg-white text-emerald-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform border border-emerald-50">
                 <Building2 size={24} />
               </div>
               <span className="text-[10px] font-black tracking-widest text-emerald-300 uppercase">Servidores</span>
@@ -744,11 +760,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <h3 className="text-4xl font-black text-gray-900">{totals.servidor}</h3>
               <p className="text-xs font-bold text-gray-400">Cópias de servidores</p>
             </div>
-          </div>
+          </button>
 
-          <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-[2rem] border border-blue-100 shadow-sm transition-all hover:shadow-md group">
+          <button
+            onClick={() => setActiveFilter(prev => prev === 'ALUNO' ? 'ALL' : 'ALUNO')}
+            className={`bg-gradient-to-br from-blue-50 to-white p-6 rounded-[2rem] border-2 shadow-sm transition-all hover:shadow-md group text-left ${activeFilter === 'ALUNO' ? 'border-blue-500 scale-105 shadow-blue-100' : 'border-blue-100 hover:border-blue-200'}`}
+          >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform">
+              <div className="p-3 bg-white text-blue-600 rounded-2xl shadow-sm group-hover:scale-110 transition-transform border border-blue-50">
                 <UserIcon size={24} />
               </div>
               <span className="text-[10px] font-black tracking-widest text-blue-300 uppercase">Alunos</span>
@@ -757,10 +776,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <h3 className="text-4xl font-black text-gray-900">{totals.aluno}</h3>
               <p className="text-xs font-bold text-gray-400">Cópias de alunos</p>
             </div>
-          </div>
+          </button>
 
 
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-[2rem] shadow-xl shadow-gray-200 group relative overflow-hidden">
+          <button
+            onClick={() => setActiveFilter('ALL')}
+            className={`bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-[2rem] shadow-xl transition-all group relative overflow-hidden text-left border-2 ${activeFilter === 'ALL' ? 'border-rose-500 scale-105' : 'border-transparent shadow-gray-200'}`}
+          >
             <div className="absolute top-0 right-0 p-4 opacity-5">
               <TrendingUp size={120} />
             </div>
@@ -774,7 +796,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <h3 className="text-4xl font-black text-white">{totals.total}</h3>
               <p className="text-xs font-bold text-white/50">Geral no período</p>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 

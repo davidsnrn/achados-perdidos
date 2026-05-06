@@ -905,7 +905,16 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase">
                           <Calendar size={12} className="text-gray-400" />
-                          {new Date(record.date).toLocaleDateString()}
+                          {(() => {
+                            const dates = group.records.map(r => new Date(r.date).getTime());
+                            const minDate = new Date(Math.min(...dates));
+                            const maxDate = new Date(Math.max(...dates));
+                            
+                            if (minDate.toLocaleDateString() === maxDate.toLocaleDateString()) {
+                              return minDate.toLocaleDateString();
+                            }
+                            return `${minDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} - ${maxDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+                          })()}
                         </div>
                       </div>
                     </td>
@@ -1340,7 +1349,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                     <p className="text-xs text-rose-500 font-bold text-left">{selectedGroup[0].person_matricula}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Data do Registro</p>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Última Impressão</p>
                     <p className="text-xs font-bold text-gray-700">
                       {new Date(selectedGroup[0].date).toLocaleDateString()}
                     </p>
@@ -1363,6 +1372,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               {record.print_type}
                             </span>
                           </div>
+                          <p className="text-[10px] text-gray-400 font-bold mt-0.5 flex items-center gap-1">
+                            <Calendar size={10} className="text-rose-400" />
+                            {new Date(record.date).toLocaleDateString('pt-BR')}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">

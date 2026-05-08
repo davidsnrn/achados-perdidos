@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, Quote } from 'lucide-react';
+import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -716,7 +716,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                         <div className="space-y-3">
                           <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-1">Justificativa / Descrição</p>
                           <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 relative">
-                            <Quote size={20} className="absolute -top-3 -right-3 text-red-100 rotate-180" />
+                            <MessageSquare size={20} className="absolute -top-3 -right-3 text-red-100 rotate-180" />
                             <p className="text-sm text-gray-700 leading-relaxed font-bold italic">
                               "{n.justification}"
                             </p>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from './services/storage';
-import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord } from './types';
+import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, StudentNotification } from './types';
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
@@ -17,6 +17,7 @@ const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab')
 const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
 const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
 const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(module => ({ default: module.InsumosTab })));
+const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
 
 import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
@@ -45,7 +46,7 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Initialize from sessionStorage
-  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | 'insumos' | null>(() => {
+  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | 'insumos' | 'notificacoes' | null>(() => {
     return (sessionStorage.getItem('currentSystem') as any) || null;
   });
 
@@ -76,6 +77,8 @@ const App: React.FC = () => {
   const [copyConfigs, setCopyConfigs] = useState<CopyConfig[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [supplyRecords, setSupplyRecords] = useState<SupplyRecord[]>([]);
+  const [notifications, setNotifications] = useState<StudentNotification[]>([]);
+  const [notificationTypes, setNotificationTypes] = useState<NotificationType[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
 
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
@@ -124,7 +127,7 @@ const App: React.FC = () => {
     }
 
     if (mod === 'nadaconsta') return true;
-    if (mod === 'copias' || mod === 'insumos') return false;
+    if (mod === 'copias' || mod === 'insumos' || mod === 'notificacoes') return false;
     if (user.level === UserLevel.STANDARD) return false;
 
     return true;
@@ -210,6 +213,17 @@ const App: React.FC = () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     setSupplyRecords(await StorageService.getSupplyRecords(campusId));
+  }, [user, adminGlobalCampusId]);
+
+  const refreshNotifications = useCallback(async () => {
+    if (!user) return;
+    const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    const [notifs, types] = await Promise.all([
+      StorageService.getNotifications(campusId),
+      StorageService.getNotificationTypes(campusId)
+    ]);
+    setNotifications(notifs);
+    setNotificationTypes(types);
   }, [user, adminGlobalCampusId]);
 
   // Refresh Data Helper (Async) with Timeout
@@ -302,8 +316,6 @@ const App: React.FC = () => {
         setLockers([]);
         setBooks([]);
         setBookLoans([]);
-        setBooks([]);
-        setBookLoans([]);
       } else if (currentSystem === 'insumos' || activeTab === 'insumos') {
         const [fetchedSupplies, fetchedSupplyRecords] = await Promise.all([
           StorageService.getSupplies(campusId),
@@ -314,6 +326,23 @@ const App: React.FC = () => {
 
         setSupplies(fetchedSupplies);
         setSupplyRecords(fetchedSupplyRecords);
+        setItems([]);
+        setReports([]);
+        setLockers([]);
+        setBooks([]);
+        setBookLoans([]);
+        setMaterials([]);
+        setMaterialLoans([]);
+      } else if (currentSystem === 'notificacoes' || activeTab === 'notificacoes') {
+        const [fetchedNotifications, fetchedTypes] = await Promise.all([
+          StorageService.getNotifications(campusId),
+          StorageService.getNotificationTypes(campusId)
+        ]);
+
+        if (fetchId !== lastFetchIdRef.current) return;
+
+        setNotifications(fetchedNotifications);
+        setNotificationTypes(fetchedTypes);
         setItems([]);
         setReports([]);
         setLockers([]);
@@ -392,9 +421,10 @@ const App: React.FC = () => {
         case 'material_loans': refreshMaterialLoans(); break;
         case 'supplies': refreshSupplies(); break;
         case 'supply_records': refreshSupplyRecords(); break;
+        case 'student_notifications': refreshNotifications(); break;
       }
     }, 1000); // 1 second debounce
-  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans]);
+  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans, refreshNotifications]);
 
   // 0. Setup Realtime Listeners
   useEffect(() => {
@@ -474,7 +504,7 @@ const App: React.FC = () => {
   // Handle module order
   useEffect(() => {
     if (user) {
-      const defaultOrder = ['copias', 'insumos', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
+      const defaultOrder = ['copias', 'insumos', 'notificacoes', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
       const savedOrder = user.moduleOrder || [];
       // Filtrar apenas módulos que existem (evitar erros se o nome mudar)
       const validSavedOrder = savedOrder.filter(id => defaultOrder.includes(id));
@@ -1009,6 +1039,24 @@ const App: React.FC = () => {
                     setActiveTab('insumos');
                     setShowModuleSelector(false);
                   }
+                },
+                notificacoes: {
+                  id: 'notificacoes',
+                  label: 'Notificação de Alunos',
+                  description: 'Registre e acompanhe ocorrências disciplinares e notificações de alunos.',
+                  icon: <ShieldAlert size={32} />,
+                  color: 'text-red-700',
+                  iconBg: 'bg-gradient-to-br from-red-600 to-orange-700',
+                  textColor: 'text-red-700',
+                  hoverBorder: 'hover:border-red-600',
+                  bgLight: 'bg-red-50',
+                  permission: 'notificacoes',
+                  onSelect: () => {
+                    setCurrentSystem('notificacoes');
+                    sessionStorage.setItem('currentSystem', 'notificacoes');
+                    setActiveTab('notificacoes');
+                    setShowModuleSelector(false);
+                  }
                 }
               };
 
@@ -1254,6 +1302,9 @@ const App: React.FC = () => {
               {currentSystem === 'insumos' && (
                 <button onClick={() => handleMobileNav('insumos')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'insumos' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><Truck size={20} /> Distribuição de Insumos</button>
               )}
+              {currentSystem === 'notificacoes' && (
+                <button onClick={() => handleMobileNav('notificacoes')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'notificacoes' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><ShieldAlert size={20} /> Notificação de Alunos</button>
+              )}
 
               {canConfigure && (
                 <div className="pt-4 mt-2 border-t border-gray-100">
@@ -1352,6 +1403,12 @@ const App: React.FC = () => {
           {currentSystem === 'insumos' && (
             <button onClick={() => setActiveTab('insumos')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'insumos' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><Truck size={18} /> Distribuição de Insumos</button>
           )}
+          {currentSystem === 'copias' && (
+            <button onClick={() => setActiveTab('copias')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'copias' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><Printer size={18} /> Controle de Cópias</button>
+          )}
+          {currentSystem === 'notificacoes' && (
+            <button onClick={() => setActiveTab('notificacoes')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'notificacoes' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ShieldAlert size={18} /> Notificação de Alunos</button>
+          )}
 
         </div>
         <div className="min-h-[400px]">
@@ -1444,6 +1501,16 @@ const App: React.FC = () => {
                   <InsumosTab
                     user={user}
                     onRefresh={refreshData}
+                    adminGlobalCampusId={adminGlobalCampusId}
+                  />
+                )}
+                {activeTab === 'notificacoes' && (
+                  <NotificationsTab
+                    notifications={notifications}
+                    notificationTypes={notificationTypes}
+                    user={user}
+                    onUpdate={refreshNotifications}
+                    campuses={campuses}
                     adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}

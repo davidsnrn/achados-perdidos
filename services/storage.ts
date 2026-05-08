@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -1799,5 +1799,98 @@ export const StorageService = {
       updated_at: new Date().toISOString()
     }).eq('id', supplyId);
     if (uError) throw uError;
-  }
+  },
+
+  // Student Notifications
+  getNotifications: async (campusId?: string): Promise<StudentNotification[]> => {
+    let query = supabase
+      .from('student_notifications')
+      .select('*, notification_types(*)')
+      .order('date', { ascending: false })
+      .order('time', { ascending: false });
+    if (campusId) query = query.eq('campus_id', campusId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data || []).map((d: any) => ({
+      id: d.id,
+      campus_id: d.campus_id,
+      date: d.date,
+      time: d.time,
+      student_matricula: d.student_matricula,
+      student_name: d.student_name,
+      period: d.period,
+      class_name: d.class_name,
+      notification_type_ids: d.notification_type_ids || [],
+      selected_subtypes: d.selected_subtypes || [],
+      justification: d.justification,
+      teacher_referral: d.teacher_referral,
+      teacher_name: d.teacher_name,
+      operator_id: d.operator_id,
+      created_at: d.created_at
+    }));
+  },
+
+  saveNotification: async (notification: Partial<StudentNotification>) => {
+    const payload: any = {
+      id: notification.id || undefined,
+      campus_id: notification.campus_id,
+      date: notification.date,
+      time: notification.time,
+      student_matricula: notification.student_matricula,
+      student_name: notification.student_name,
+      period: notification.period,
+      class_name: notification.class_name,
+      notification_type_ids: notification.notification_type_ids || [],
+      selected_subtypes: notification.selected_subtypes || [],
+      justification: notification.justification,
+      teacher_referral: notification.teacher_referral,
+      teacher_name: notification.teacher_name,
+      operator_id: notification.operator_id
+    };
+
+    const { error } = await supabase.from('student_notifications').upsert(payload);
+    if (error) throw error;
+  },
+
+  deleteNotification: async (id: string) => {
+    const { error } = await supabase.from('student_notifications').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // Notification Types
+  getNotificationTypes: async (campusId?: string): Promise<NotificationType[]> => {
+    let query = supabase
+      .from('notification_types')
+      .select('*')
+      .order('name', { ascending: true });
+    if (campusId) query = query.eq('campus_id', campusId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map((d: any) => ({
+      ...d,
+      subtypes: d.subtypes || []
+    }));
+  },
+
+  saveNotificationType: async (type: Partial<NotificationType>) => {
+    const payload: any = {
+      name: type.name,
+      color: type.color || 'red',
+      etep_threshold: type.etep_threshold ?? 3,
+      subtypes: type.subtypes || [],
+      campus_id: type.campus_id || null,
+    };
+    if (type.id) payload.id = type.id;
+
+    const { error } = await supabase.from('notification_types').upsert(payload);
+    if (error) throw error;
+  },
+
+  deleteNotificationType: async (id: string) => {
+    const { error } = await supabase.from('notification_types').delete().eq('id', id);
+    if (error) throw error;
+  },
 };

@@ -46,6 +46,7 @@ export interface User {
     materiais?: boolean;
     copias?: boolean;
     insumos?: boolean;
+    notificacoes?: boolean;
   };
   logs?: string[];
   access_logs?: string[];
@@ -195,6 +196,34 @@ export interface SupplyRestock {
   note?: string;
   cancelled_at?: string;
   cancelled_by?: string;
+  created_at?: string;
+}
+
+export interface NotificationType {
+  id: string;
+  campus_id?: string;
+  name: string;
+  color: string;
+  etep_threshold: number;
+  subtypes?: string[];
+  created_at?: string;
+}
+
+export interface StudentNotification {
+  id: string;
+  campus_id: string;
+  date: string;
+  time: string;
+  student_matricula: string;
+  student_name: string;
+  period?: string;
+  class_name?: string;
+  notification_type_ids?: string[];
+  selected_subtypes?: string[];
+  justification?: string;
+  teacher_referral: boolean;
+  teacher_name?: string;
+  operator_id: string;
   created_at?: string;
 }
 

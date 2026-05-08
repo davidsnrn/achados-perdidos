@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil } from 'lucide-react';
+import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, Quote } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
 import { Modal } from '../ui/Modal';

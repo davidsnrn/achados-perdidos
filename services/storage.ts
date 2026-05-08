@@ -1833,7 +1833,7 @@ export const StorageService = {
   },
 
   saveNotification: async (notification: Partial<StudentNotification>) => {
-    const payload: any = {
+    const payload = {
       id: notification.id || undefined,
       campus_id: notification.campus_id,
       date: notification.date,
@@ -1843,6 +1843,7 @@ export const StorageService = {
       period: notification.period,
       class_name: notification.class_name,
       notification_type_ids: notification.notification_type_ids || [],
+      notification_type_id: notification.notification_type_ids?.[0] || null, // Backward compatibility
       selected_subtypes: notification.selected_subtypes || [],
       justification: notification.justification,
       teacher_referral: notification.teacher_referral,

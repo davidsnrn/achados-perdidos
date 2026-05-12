@@ -191,19 +191,22 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         for (const code of shorthandParts) {
           const parsed = parseShorthand(code);
           if (parsed) {
-            parsed.periods.forEach(p => {
-              const slot = timeSlots.find(ts => ts.id === p);
-              allPromises.push(StorageService.saveTeacherSchedule({
-                campus_id: currentCampusId,
-                teacher_name: teacherName,
-                class_name: row.class_name,
-                subject: row.subject,
-                day_of_week: parsed.day - 1,
-                period: p,
-                start_time: slot?.time.split(' - ')[0] || '',
-                end_time: slot?.time.split(' - ')[1] || ''
-              }));
-            });
+            const startSlot = timeSlots.find(ts => ts.id === parsed.periods[0]);
+            const endSlot = timeSlots.find(ts => ts.id === parsed.periods[parsed.periods.length - 1]);
+
+            allPromises.push(StorageService.saveTeacherSchedule({
+              id: '', // New record
+              campus_id: currentCampusId,
+              teacher_name: teacherName,
+              class_name: row.class_name,
+              subject: row.subject,
+              day_of_week: parsed.day - 1,
+              period: parsed.periods[0],
+              periods: parsed.periods,
+              shorthand: code,
+              start_time: startSlot?.time.split(' - ')[0] || '',
+              end_time: endSlot?.time.split(' - ')[1] || ''
+            }));
           }
         }
       }
@@ -645,7 +648,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                           teacherSchedules.forEach(s => {
                             const key = `${s.class_name}|||${s.subject}`;
                             if (!groupedRows[key]) groupedRows[key] = [];
-                            groupedRows[key].push(getShorthandFrom(s.day_of_week, s.period));
+                            groupedRows[key].push(s.shorthand || getShorthandFrom(s.day_of_week, s.period));
                           });
 
                           const rows = Object.entries(groupedRows).map(([key, shorthands]) => {
@@ -690,7 +693,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       }, {} as Record<string, TeacherSchedule[]>)
                     ).map(([key, group]) => {
                       const [className, subject] = key.split('|||');
-                      const shorthands = Array.from(new Set(group.map(s => getShorthandFrom(s.day_of_week, s.period)))).join(', ');
+                      const shorthands = Array.from(new Set(group.map(s => s.shorthand || getShorthandFrom(s.day_of_week, s.period)))).join(', ');
                       
                       return (
                         <div key={key} className="p-3 bg-gray-50 rounded-2xl">
@@ -736,7 +739,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                         const schedule = schedules.find(s => 
                           s.class_name === className && 
                           s.day_of_week === dayNum && 
-                          s.period === slot.id
+                          (s.periods?.includes(slot.id) || s.period === slot.id)
                         );
 
                         if (!schedule) return <td key={className} className="p-2 bg-gray-50/30 rounded-2xl border border-dashed border-gray-100"></td>;
@@ -901,7 +904,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Disciplina</label>
                         <input 
                           type="text"
-                          required
                           className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm"
                           placeholder="Ex: Matemática II"
                           value={row.subject}

@@ -248,10 +248,12 @@ export interface TeacherSchedule {
   id: string;
   campus_id: string;
   class_name: string;
-  subject: string;
+  subject?: string;
   teacher_name: string;
   day_of_week: number; // 0-6 (0=Dom, 1=Seg...)
-  period: number; // 1-16
+  period: number; // Primeiro período ou principal
+  periods: number[]; // Lista de todos os períodos (ex: [5, 6] para 6M56)
+  shorthand?: string; // String original (ex: 2M12)
   start_time: string;
   end_time: string;
   room?: string;

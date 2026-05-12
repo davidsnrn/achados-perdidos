@@ -1913,6 +1913,8 @@ export const StorageService = {
       teacher_name: schedule.teacher_name,
       day_of_week: schedule.day_of_week,
       period: schedule.period,
+      periods: schedule.periods,
+      shorthand: schedule.shorthand,
       start_time: schedule.start_time,
       end_time: schedule.end_time,
       room: schedule.room

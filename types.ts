@@ -47,6 +47,7 @@ export interface User {
     copias?: boolean;
     insumos?: boolean;
     notificacoes?: boolean;
+    frequencia?: boolean;
   };
   logs?: string[];
   access_logs?: string[];
@@ -240,5 +241,37 @@ export interface SupplyRecord {
   operator_id: string;
   cancelled_at?: string;
   cancelled_by?: string;
+  created_at?: string;
+}
+
+export interface TeacherSchedule {
+  id: string;
+  campus_id: string;
+  class_name: string;
+  subject: string;
+  teacher_name: string;
+  day_of_week: number; // 0-6 (0=Dom, 1=Seg...)
+  period: number; // 1-16
+  start_time: string;
+  end_time: string;
+  room?: string;
+  created_at?: string;
+}
+
+export interface TeacherAttendance {
+  id: string;
+  campus_id: string;
+  schedule_id: string;
+  date: string; // ISO date
+  status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO';
+  substitute_name?: string;
+  observation?: string;
+  operator_id: string;
+  created_at?: string;
+}
+export interface TeacherClass {
+  id?: string;
+  campus_id: string;
+  name: string;
   created_at?: string;
 }

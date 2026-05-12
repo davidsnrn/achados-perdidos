@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -1894,4 +1894,86 @@ export const StorageService = {
     const { error } = await supabase.from('notification_types').delete().eq('id', id);
     if (error) throw error;
   },
+
+  // Teacher Attendance & Schedules
+  getTeacherSchedules: async (campusId?: string): Promise<TeacherSchedule[]> => {
+    let query = supabase.from('teacher_schedules').select('*').order('class_name', { ascending: true }).order('period', { ascending: true });
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveTeacherSchedule: async (schedule: TeacherSchedule) => {
+    const { error } = await supabase.from('teacher_schedules').upsert({
+      id: schedule.id || undefined,
+      campus_id: schedule.campus_id,
+      class_name: schedule.class_name,
+      subject: schedule.subject,
+      teacher_name: schedule.teacher_name,
+      day_of_week: schedule.day_of_week,
+      period: schedule.period,
+      start_time: schedule.start_time,
+      end_time: schedule.end_time,
+      room: schedule.room
+    });
+    if (error) throw error;
+  },
+
+  deleteTeacherSchedule: async (id: string) => {
+    const { error } = await supabase.from('teacher_schedules').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  getTeacherAttendance: async (campusId: string | undefined, date: string): Promise<TeacherAttendance[]> => {
+    let query = supabase.from('teacher_attendance').select('*').eq('date', date);
+    if (campusId) query = query.eq('campus_id', campusId);
+    
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveTeacherAttendance: async (attendance: TeacherAttendance) => {
+    const { error } = await supabase.from('teacher_attendance').upsert({
+      id: attendance.id || undefined,
+      campus_id: attendance.campus_id,
+      schedule_id: attendance.schedule_id,
+      date: attendance.date,
+      status: attendance.status,
+      substitute_name: attendance.substitute_name,
+      observation: attendance.observation,
+      operator_id: attendance.operator_id
+    }, { onConflict: 'schedule_id, date' });
+    if (error) throw error;
+  },
+
+  deleteTeacherAttendance: async (id: string) => {
+    const { error } = await supabase.from('teacher_attendance').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // Teacher Classes
+  getTeacherClasses: async (campusId?: string): Promise<TeacherClass[]> => {
+    let query = supabase.from('teacher_classes').select('*');
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query.order('name');
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveTeacherClass: async (teacherClass: TeacherClass) => {
+    const { data, error } = await supabase
+      .from('teacher_classes')
+      .upsert(teacherClass, { onConflict: 'campus_id,name' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deleteTeacherClass: async (id: string) => {
+    const { error } = await supabase.from('teacher_classes').delete().eq('id', id);
+    if (error) throw error;
+  }
 };

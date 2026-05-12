@@ -18,6 +18,7 @@ const MaterialManagementTab = React.lazy(() => import('./components/Tabs/Materia
 const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
 const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(module => ({ default: module.InsumosTab })));
 const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
+const TeacherAttendanceTab = React.lazy(() => import('./components/Tabs/TeacherAttendanceTab').then(module => ({ default: module.TeacherAttendanceTab })));
 
 import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
@@ -46,7 +47,7 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Initialize from sessionStorage
-  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | 'insumos' | 'notificacoes' | null>(() => {
+  const [currentSystem, setCurrentSystem] = useState<'achados' | 'armarios' | 'livros' | 'nadaconsta' | 'materiais' | 'copias' | 'insumos' | 'notificacoes' | 'frequencia' | null>(() => {
     return (sessionStorage.getItem('currentSystem') as any) || null;
   });
 
@@ -127,7 +128,7 @@ const App: React.FC = () => {
     }
 
     if (mod === 'nadaconsta') return true;
-    if (mod === 'copias' || mod === 'insumos' || mod === 'notificacoes') return false;
+    if (mod === 'copias' || mod === 'insumos' || mod === 'notificacoes' || mod === 'frequencia') return false;
     if (user.level === UserLevel.STANDARD) return false;
 
     return true;
@@ -422,6 +423,8 @@ const App: React.FC = () => {
         case 'supplies': refreshSupplies(); break;
         case 'supply_records': refreshSupplyRecords(); break;
         case 'student_notifications': refreshNotifications(); break;
+        case 'teacher_schedules':
+        case 'teacher_attendance': refreshData(); break;
       }
     }, 1000); // 1 second debounce
   }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans, refreshNotifications]);
@@ -504,7 +507,7 @@ const App: React.FC = () => {
   // Handle module order
   useEffect(() => {
     if (user) {
-      const defaultOrder = ['copias', 'insumos', 'notificacoes', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
+      const defaultOrder = ['frequencia', 'copias', 'insumos', 'notificacoes', 'achados', 'armarios', 'livros', 'nadaconsta', 'materiais', 'pessoas', 'usuarios'];
       const savedOrder = user.moduleOrder || [];
       // Filtrar apenas módulos que existem (evitar erros se o nome mudar)
       const validSavedOrder = savedOrder.filter(id => defaultOrder.includes(id));
@@ -1057,6 +1060,24 @@ const App: React.FC = () => {
                     setActiveTab('notificacoes');
                     setShowModuleSelector(false);
                   }
+                },
+                frequencia: {
+                  id: 'frequencia',
+                  label: 'Frequência de Professores',
+                  description: 'Verifique a presença de professores nas salas e registre substituições ou horários vagos.',
+                  icon: <ClipboardList size={32} />,
+                  color: 'text-indigo-800',
+                  iconBg: 'bg-gradient-to-br from-indigo-700 to-blue-900',
+                  textColor: 'text-indigo-800',
+                  hoverBorder: 'hover:border-indigo-700',
+                  bgLight: 'bg-indigo-50',
+                  permission: 'frequencia',
+                  onSelect: () => {
+                    setCurrentSystem('frequencia');
+                    sessionStorage.setItem('currentSystem', 'frequencia');
+                    setActiveTab('frequencia');
+                    setShowModuleSelector(false);
+                  }
                 }
               };
 
@@ -1409,6 +1430,9 @@ const App: React.FC = () => {
           {currentSystem === 'notificacoes' && (
             <button onClick={() => setActiveTab('notificacoes')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'notificacoes' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ShieldAlert size={18} /> Notificação de Alunos</button>
           )}
+          {currentSystem === 'frequencia' && (
+            <button onClick={() => setActiveTab('frequencia')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'frequencia' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ClipboardList size={18} /> Frequência de Professores</button>
+          )}
 
         </div>
         <div className="min-h-[400px]">
@@ -1510,6 +1534,13 @@ const App: React.FC = () => {
                     notificationTypes={notificationTypes}
                     user={user}
                     onUpdate={refreshNotifications}
+                    campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
+                  />
+                )}
+                {activeTab === 'frequencia' && (
+                  <TeacherAttendanceTab
+                    user={user}
                     campuses={campuses}
                     adminGlobalCampusId={adminGlobalCampusId}
                   />

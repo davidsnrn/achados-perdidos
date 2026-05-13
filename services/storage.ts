@@ -1977,5 +1977,18 @@ export const StorageService = {
   deleteTeacherClass: async (id: string) => {
     const { error } = await supabase.from('teacher_classes').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  getTeacherAttendanceByDateRange: async (campusId: string | undefined, startDate: string, endDate: string): Promise<TeacherAttendance[]> => {
+    let query = supabase
+      .from('teacher_attendance')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: false });
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
   }
 };

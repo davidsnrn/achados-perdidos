@@ -113,9 +113,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isClassSelectionOpen]);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [schedulesData, attendanceData, classesData, usersData] = await Promise.all([
         StorageService.getTeacherSchedules(currentCampusId || undefined),
         StorageService.getTeacherAttendance(currentCampusId || undefined, selectedDate),
@@ -211,10 +211,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         operator_id: user.id
       };
       
+      // Atualização otimista do estado local
+      setAttendances(prev => {
+        const filtered = prev.filter(a => !(a.schedule_id === scheduleId && a.date === selectedDate));
+        return [...filtered, attendance];
+      });
+
       await StorageService.saveTeacherAttendance(attendance);
-      await loadData();
+      await loadData(true); // Recarrega em segundo plano
     } catch (error) {
-      alert('Erro ao salvar frequência');
+      console.error('Erro ao salvar frequência:', error);
+      alert('Erro ao salvar frequência. Verifique sua conexão.');
+      await loadData(true); // Tenta sincronizar novamente em caso de erro
     }
   };
   const handleSaveSchedule = async (e: React.FormEvent) => {

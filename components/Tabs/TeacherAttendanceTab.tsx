@@ -4,7 +4,7 @@ import {
   User, BookOpen, MapPin, Clock, CheckCircle2, 
   XCircle, UserPlus, AlertCircle, Save, Trash2,
   ChevronRight, ArrowLeft, Loader2, MoreVertical,
-  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown
+  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass } from '../../types';
@@ -78,12 +78,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     });
   };
 
-  const getSortIcon = (field: string) => {
+
+
+  const getSortIcon = (field: string, isPrint = false) => {
+    if (isPrint) return null;
     const sort = reportSorts.find(s => s.field === field);
     const isPrimary = reportSorts[0].field === field;
-    if (!sort) return <div className="w-4 h-4" />;
+    if (!sort) return <div className="w-4 h-4 no-print" />;
     return (
-      <div className={`transition-all ${isPrimary ? 'text-indigo-600' : 'text-gray-300'}`}>
+      <div className={`transition-all no-print ${isPrimary ? 'text-indigo-600' : 'text-gray-300'}`}>
         {sort.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </div>
     );
@@ -189,6 +192,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     } finally {
       setReportLoading(false);
     }
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const parseShorthand = (code: string): { day: number, periods: number[] } | null => {
@@ -524,8 +531,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     className="pl-9 pr-4 py-2 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-medium outline-none focus:border-indigo-400" />
                 </div>
                 <button onClick={loadReport}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors">
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors no-print">
                   <Search size={16} /> Buscar
+                </button>
+                <button onClick={handlePrint}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-100 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all no-print">
+                  <Printer size={16} /> Imprimir
                 </button>
               </div>
             )}
@@ -700,7 +711,21 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             const totalSubstituido = filtered.filter(a => a.status === 'SUBSTITUIDO').length;
             const totalVago = filtered.filter(a => a.status === 'VAGO').length;
             return (
-              <div className="space-y-6">
+              <div className="space-y-6 print-section">
+                {/* Cabeçalho de Impressão (Formal) */}
+                <div className="hidden print:block border-b-4 border-gray-800 pb-4 mb-6">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <div className="text-2xl font-black text-gray-900 mb-1">IFRN - NOVA CRUZ</div>
+                      <div className="text-lg font-bold text-gray-600 uppercase tracking-widest">Relatório de Frequência de Professores</div>
+                    </div>
+                    <div className="text-right text-xs font-bold text-gray-500 space-y-1">
+                      <div>Período: {new Date(reportStartDate + 'T12:00:00').toLocaleDateString('pt-BR')} até {new Date(reportEndDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                      <div>Emissão: {new Date().toLocaleString('pt-BR')}</div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Summary cards */}
                 <div className="grid grid-cols-3 gap-4">
                   <div className="bg-green-50 border-2 border-green-100 rounded-2xl p-5 text-center">
@@ -1426,6 +1451,75 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
         </div>
       </Modal>
+
+      <style>{`
+        @media print {
+          /* Esconder tudo por padrão */
+          body * {
+            visibility: hidden;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Mostrar apenas a seção de impressão e seus filhos */
+          .print-section, .print-section * {
+            visibility: visible;
+            opacity: 1 !important;
+            transform: none !important;
+          }
+          
+          /* Posicionar a seção de impressão no topo da página */
+          .print-section {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+
+          /* Ajustes de tabela para impressão */
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          
+          th, td {
+            border: 1px solid #ddd !important;
+            padding: 8px !important;
+            color: black !important;
+            background: white !important;
+          }
+
+          /* Garantir que cores de fundo apareçam (como os badges de status e cards) */
+          .bg-green-100, .bg-green-50 { background-color: #dcfce7 !important; }
+          .bg-yellow-100, .bg-yellow-50 { background-color: #fef9c3 !important; }
+          .bg-red-100, .bg-red-50 { background-color: #fee2e2 !important; }
+          
+          /* Garantir bordas nas tabelas e cards */
+          .border-green-100 { border-color: #bbf7d0 !important; }
+          .border-yellow-100 { border-color: #fef08a !important; }
+          .border-red-100 { border-color: #fecaca !important; }
+          .border-gray-100 { border-color: #f3f4f6 !important; }
+          
+          th {
+            background-color: #f9fafb !important;
+            border-bottom: 2px solid #333 !important;
+          }
+
+          /* Forçar cores de texto */
+          .text-green-700 { color: #15803d !important; }
+          .text-yellow-700 { color: #a16207 !important; }
+          .text-red-700 { color: #b91c1c !important; }
+          .text-indigo-600 { color: #4f46e5 !important; }
+
+          /* Ocultar elementos específicos dentro da seção de impressão que não queremos */
+          .no-print {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

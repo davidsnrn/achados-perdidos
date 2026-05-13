@@ -4,7 +4,7 @@ import {
   User, BookOpen, MapPin, Clock, CheckCircle2, 
   XCircle, UserPlus, AlertCircle, Save, Trash2,
   ChevronRight, ArrowLeft, Loader2, MoreVertical,
-  GraduationCap, X, Pencil, BarChart2
+  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass } from '../../types';
@@ -57,6 +57,37 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [isClassSelectionOpen, setIsClassSelectionOpen] = useState(false);
   const [classSearch, setClassSearch] = useState('');
   const classSelectionRef = useRef<HTMLDivElement>(null);
+  const [reportSorts, setReportSorts] = useState<{ field: string, direction: 'asc' | 'desc' }[]>([
+    { field: 'date', direction: 'asc' },
+    { field: 'class', direction: 'asc' },
+    { field: 'time', direction: 'asc' }
+  ]);
+
+  const toggleSort = (field: string) => {
+    setReportSorts(prev => {
+      const existingIndex = prev.findIndex(s => s.field === field);
+      if (existingIndex === 0) {
+        // Toggle direction if it's already the primary sort
+        return [{ field, direction: prev[0].direction === 'asc' ? 'desc' : 'asc' }, ...prev.slice(1)];
+      }
+      
+      // Move to front and set as primary
+      const newSort = { field, direction: 'asc' as const };
+      const filtered = prev.filter(s => s.field !== field);
+      return [newSort, ...filtered];
+    });
+  };
+
+  const getSortIcon = (field: string) => {
+    const sort = reportSorts.find(s => s.field === field);
+    const isPrimary = reportSorts[0].field === field;
+    if (!sort) return <div className="w-4 h-4" />;
+    return (
+      <div className={`transition-all ${isPrimary ? 'text-indigo-600' : 'text-gray-300'}`}>
+        {sort.direction === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </div>
+    );
+  };
 
   // Time slots mapping (IFRN Standard)
   const timeSlots = [
@@ -700,36 +731,90 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       <table className="w-full">
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-100">
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Data</th>
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Professor</th>
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Turma</th>
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Disciplina</th>
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Horário</th>
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="text-left p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Registrado por</th>
+                            {[
+                              { label: 'Data', field: 'date' },
+                              { label: 'Professor', field: 'teacher' },
+                              { label: 'Turma', field: 'class' },
+                              { label: 'Disciplina', field: 'subject' },
+                              { label: 'Horário', field: 'time' },
+                              { label: 'Status', field: 'status' },
+                              { label: 'Registrado por', field: 'operator' }
+                            ].map(col => (
+                              <th 
+                                key={col.field}
+                                onClick={() => toggleSort(col.field)}
+                                className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
+                              >
+                                <div className="flex items-center gap-1">
+                                  {col.label}
+                                  {getSortIcon(col.field)}
+                                </div>
+                              </th>
+                            ))}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                          {filtered.map((att, i) => {
-                            const sched = schedules.find(s => s.id === att.schedule_id);
-                            const slot = timeSlots.find(ts => ts.id === sched?.period);
-                            const dateFormatted = new Date(att.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
-                            return (
-                              <tr key={i} className="hover:bg-gray-50 transition-colors">
-                                <td className="p-4 text-sm font-bold text-gray-700 whitespace-nowrap">{dateFormatted}</td>
-                                <td className="p-4 text-sm font-bold text-gray-900">{sched?.teacher_name || '—'}</td>
-                                <td className="p-4 text-sm font-bold text-indigo-600">{sched?.class_name || '—'}</td>
-                                <td className="p-4 text-sm text-gray-600">{sched?.subject || '—'}</td>
-                                <td className="p-4 text-xs font-mono text-gray-500">{slot?.time || '—'}</td>
-                                <td className="p-4">
-                                  {att.status === 'PRESENTE' && <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-black"><CheckCircle2 size={12} /> Presente</span>}
-                                  {att.status === 'SUBSTITUIDO' && <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-black"><UserPlus size={12} /> {att.substitute_name || 'Substituído'}</span>}
-                                  {att.status === 'VAGO' && <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black"><XCircle size={12} /> Vago{att.observation ? ` — ${att.observation}` : ''}</span>}
-                                </td>
-                                <td className="p-4 text-xs text-gray-500 font-bold">{usersMap[att.operator_id] || att.operator_id}</td>
-                              </tr>
-                            );
-                          })}
+                          {(() => {
+                            const sorted = [...filtered].sort((a, b) => {
+                              for (const sort of reportSorts) {
+                                const schedA = schedules.find(s => s.id === a.schedule_id);
+                                const schedB = schedules.find(s => s.id === b.schedule_id);
+                                const slotA = timeSlots.find(ts => ts.id === schedA?.period);
+                                const slotB = timeSlots.find(ts => ts.id === schedB?.period);
+                                
+                                let valA: any = '';
+                                let valB: any = '';
+                                
+                                if (sort.field === 'date') {
+                                  valA = a.date;
+                                  valB = b.date;
+                                } else if (sort.field === 'teacher') {
+                                  valA = schedA?.teacher_name || '';
+                                  valB = schedB?.teacher_name || '';
+                                } else if (sort.field === 'class') {
+                                  valA = schedA?.class_name || '';
+                                  valB = schedB?.class_name || '';
+                                } else if (sort.field === 'subject') {
+                                  valA = schedA?.subject || '';
+                                  valB = schedB?.subject || '';
+                                } else if (sort.field === 'time') {
+                                  valA = slotA?.id || 0;
+                                  valB = slotB?.id || 0;
+                                } else if (sort.field === 'status') {
+                                  valA = a.status;
+                                  valB = b.status;
+                                } else if (sort.field === 'operator') {
+                                  valA = usersMap[a.operator_id] || a.operator_id;
+                                  valB = usersMap[b.operator_id] || b.operator_id;
+                                }
+
+                                if (valA < valB) return sort.direction === 'asc' ? -1 : 1;
+                                if (valA > valB) return sort.direction === 'asc' ? 1 : -1;
+                              }
+                              return 0;
+                            });
+
+                            return sorted.map((att, i) => {
+                              const sched = schedules.find(s => s.id === att.schedule_id);
+                              const slot = timeSlots.find(ts => ts.id === sched?.period);
+                              const dateFormatted = new Date(att.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+                              return (
+                                <tr key={i} className="hover:bg-gray-50 transition-colors">
+                                  <td className="p-4 text-sm font-bold text-gray-700 whitespace-nowrap">{dateFormatted}</td>
+                                  <td className="p-4 text-sm font-bold text-gray-900">{sched?.teacher_name || '—'}</td>
+                                  <td className="p-4 text-sm font-bold text-indigo-600">{sched?.class_name || '—'}</td>
+                                  <td className="p-4 text-sm text-gray-600">{sched?.subject || '—'}</td>
+                                  <td className="p-4 text-xs font-mono text-gray-500">{slot?.time || '—'}</td>
+                                  <td className="p-4">
+                                    {att.status === 'PRESENTE' && <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-black"><CheckCircle2 size={12} /> Presente</span>}
+                                    {att.status === 'SUBSTITUIDO' && <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-black"><UserPlus size={12} /> {att.substitute_name || 'Substituído'}</span>}
+                                    {att.status === 'VAGO' && <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-black"><XCircle size={12} /> Vago{att.observation ? ` — ${att.observation}` : ''}</span>}
+                                  </td>
+                                  <td className="p-4 text-xs text-gray-500 font-bold">{usersMap[att.operator_id] || att.operator_id}</td>
+                                </tr>
+                              );
+                            });
+                          })()}
                         </tbody>
                       </table>
                     </div>

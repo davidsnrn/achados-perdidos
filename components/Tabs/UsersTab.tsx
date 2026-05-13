@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserLevel, Person, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { DEFAULT_PASSWORD } from '../../constants';
-import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer, Truck, ShieldAlert } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer, Truck, ShieldAlert, ClipboardList } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {

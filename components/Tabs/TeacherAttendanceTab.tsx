@@ -57,6 +57,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [isClassSelectionOpen, setIsClassSelectionOpen] = useState(false);
   const [classSearch, setClassSearch] = useState('');
   const classSelectionRef = useRef<HTMLDivElement>(null);
+  const classSearchInputRef = useRef<HTMLInputElement>(null);
   const [reportSorts, setReportSorts] = useState<{ field: string, direction: 'asc' | 'desc' }[]>([
     { field: 'date', direction: 'asc' },
     { field: 'class', direction: 'asc' },
@@ -131,6 +132,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   useEffect(() => {
     if (activeSubTab === 'relatorio') loadReport();
   }, [activeSubTab, reportStartDate, reportEndDate, currentCampusId]);
+
+  // Focus search input when class selection opens
+  useEffect(() => {
+    if (isClassSelectionOpen) {
+      setTimeout(() => {
+        classSearchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isClassSelectionOpen]);
 
   // Click outside listener for class selection dropdown
   useEffect(() => {
@@ -246,7 +256,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         status,
         substitute_name: extra?.substitute_name,
         observation: extra?.observation,
-        operator_id: user.id
+        operator_id: user.id,
+        id: getAttendanceFor(scheduleId)?.id || ''
       };
       
       // Atualização otimista do estado local
@@ -261,6 +272,31 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       console.error('Erro ao salvar frequência:', error);
       alert('Erro ao salvar frequência. Verifique sua conexão.');
       await loadData(true); // Tenta sincronizar novamente em caso de erro
+    }
+  };
+
+  const handleToggleAttendance = async (scheduleId: string, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
+    const attendance = getAttendanceFor(scheduleId);
+    
+    // Se clicar no status que já está ativo, limpamos o registro
+    if (attendance && attendance.status === status) {
+      if (!confirm('Deseja limpar este registro de frequência?')) return;
+      
+      try {
+        // Atualização otimista
+        setAttendances(prev => prev.filter(a => a.schedule_id !== scheduleId || a.date !== selectedDate));
+        
+        if (attendance.id) {
+          await StorageService.deleteTeacherAttendance(attendance.id);
+        }
+        await loadData(true);
+      } catch (error) {
+        console.error('Erro ao limpar frequência:', error);
+        await loadData(true);
+      }
+    } else {
+      // Caso contrário, salvamos normalmente
+      handleSaveAttendance(scheduleId, status, extra);
     }
   };
   const handleSaveSchedule = async (e: React.FormEvent) => {
@@ -626,6 +662,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                                 <input 
                                   type="text"
+                                  ref={classSearchInputRef}
                                   placeholder="Filtrar turmas..."
                                   value={classSearch}
                                   onChange={e => setClassSearch(e.target.value)}
@@ -1134,22 +1171,26 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                                   <div className="flex gap-0.5 mt-2">
                                     <button 
-                                      onClick={() => handleSaveAttendance(schedule.id!, 'PRESENTE', { observation: '' })}
-                                      title="Presente"
+                                      onClick={() => handleToggleAttendance(schedule.id!, 'PRESENTE', { observation: '' })}
+                                      title={attendance?.status === 'PRESENTE' ? "Limpar Registro" : "Presente"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        attendance?.status === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
+                                        attendance?.status === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
                                       }`}
                                     >
                                       <CheckCircle2 size={16} />
                                     </button>
                                     <button 
                                       onClick={() => {
-                                        setSelectedScheduleForReplacement(schedule.id!);
-                                        setIsReplacementModalOpen(true);
+                                        if (attendance?.status === 'SUBSTITUIDO') {
+                                          handleToggleAttendance(schedule.id!, 'SUBSTITUIDO');
+                                        } else {
+                                          setSelectedScheduleForReplacement(schedule.id!);
+                                          setIsReplacementModalOpen(true);
+                                        }
                                       }}
-                                      title="Substituído"
+                                      title={attendance?.status === 'SUBSTITUIDO' ? "Limpar Registro" : "Substituído"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        attendance?.status === 'SUBSTITUIDO' ? 'bg-yellow-500 border-yellow-500 text-white' : 'bg-white border-gray-100 text-gray-400 hover:border-yellow-300 hover:text-yellow-600'
+                                        attendance?.status === 'SUBSTITUIDO' ? 'bg-yellow-500 border-yellow-500 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-yellow-300 hover:text-yellow-600'
                                       }`}
                                     >
                                       <UserPlus size={16} />
@@ -1157,15 +1198,21 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     <button 
                                       onClick={() => {
                                         if (attendance?.status === 'VAGO') {
-                                          const obs = prompt('Observação (opcional):', attendance?.observation || '');
-                                          if (obs !== null) handleSaveAttendance(schedule.id!, 'VAGO', { observation: obs });
+                                          // Se clicar de novo, perguntamos se quer limpar ou editar observação
+                                          const choice = confirm('Pressione OK para LIMPAR o registro ou Cancelar para apenas EDITAR a observação.');
+                                          if (choice) {
+                                            handleToggleAttendance(schedule.id!, 'VAGO');
+                                          } else {
+                                            const obs = prompt('Editar Observação:', attendance?.observation || '');
+                                            if (obs !== null) handleSaveAttendance(schedule.id!, 'VAGO', { observation: obs });
+                                          }
                                         } else {
                                           handleSaveAttendance(schedule.id!, 'VAGO', { observation: '' });
                                         }
                                       }}
-                                      title={attendance?.status === 'VAGO' ? "Editar Observação" : "Vago / Ausente"}
+                                      title={attendance?.status === 'VAGO' ? "Limpar / Editar" : "Vago / Ausente"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        attendance?.status === 'VAGO' ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-gray-100 text-gray-400 hover:border-red-300 hover:text-red-600'
+                                        attendance?.status === 'VAGO' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-red-300 hover:text-red-600'
                                       }`}
                                     >
                                       <XCircle size={16} />

@@ -40,6 +40,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [bulkClassText, setBulkClassText] = useState('');
   const [originalTeacherName, setOriginalTeacherName] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSearchingTeacher, setIsSearchingTeacher] = useState(false);
+  const [teacherSearchResults, setTeacherSearchResults] = useState<Person[]>([]);
+  const [showTeacherResults, setShowTeacherResults] = useState(false);
   const [isReplacementModalOpen, setIsReplacementModalOpen] = useState(false);
   const [selectedScheduleForReplacement, setSelectedScheduleForReplacement] = useState<string | null>(null);
   const [searchTeacherReplacement, setSearchTeacherReplacement] = useState('');
@@ -58,6 +61,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [classSearch, setClassSearch] = useState('');
   const classSelectionRef = useRef<HTMLDivElement>(null);
   const classSearchInputRef = useRef<HTMLInputElement>(null);
+  const teacherSearchRef = useRef<HTMLDivElement>(null);
   const [reportSorts, setReportSorts] = useState<{ field: string, direction: 'asc' | 'desc' }[]>([
     { field: 'date', direction: 'asc' },
     { field: 'class', direction: 'asc' },
@@ -148,14 +152,17 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       if (classSelectionRef.current && !classSelectionRef.current.contains(event.target as Node)) {
         setIsClassSelectionOpen(false);
       }
+      if (teacherSearchRef.current && !teacherSearchRef.current.contains(event.target as Node)) {
+        setShowTeacherResults(false);
+      }
     }
-    if (isClassSelectionOpen) {
+    if (isClassSelectionOpen || showTeacherResults) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isClassSelectionOpen]);
+  }, [isClassSelectionOpen, showTeacherResults]);
 
   const loadData = async (silent = false) => {
     try {
@@ -297,6 +304,22 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     } else {
       // Caso contrário, salvamos normalmente
       handleSaveAttendance(scheduleId, status, extra);
+    }
+  };
+
+  const handleTeacherSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!teacherName || teacherName.trim().length < 2) return;
+
+    setIsSearchingTeacher(true);
+    setShowTeacherResults(true);
+    try {
+      const results = await StorageService.searchPeople(teacherName, 20, currentCampusId || undefined, 'Servidor');
+      setTeacherSearchResults(results);
+    } catch (error) {
+      console.error('Erro ao buscar professor:', error);
+    } finally {
+      setIsSearchingTeacher(false);
     }
   };
   const handleSaveSchedule = async (e: React.FormEvent) => {
@@ -473,7 +496,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               <ClipboardList size={32} className="text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-gray-900 tracking-tight">Frequência de Professores</h1>
+              <h1 className="text-3xl font-black text-gray-900 tracking-tight">Frequência de Docentes</h1>
               <p className="text-gray-500 font-medium">Controle e verificação diária de presença docente</p>
             </div>
           </div>
@@ -496,7 +519,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 onClick={() => setActiveSubTab('horarios')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'horarios' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
-                Professores
+                Docentes
               </button>
               <button 
                 onClick={() => setActiveSubTab('turmas')}
@@ -754,7 +777,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <div className="flex justify-between items-end">
                     <div>
                       <div className="text-2xl font-black text-gray-900 mb-1">IFRN - NOVA CRUZ</div>
-                      <div className="text-lg font-bold text-gray-600 uppercase tracking-widest">Relatório de Frequência de Professores</div>
+                      <div className="text-lg font-bold text-gray-600 uppercase tracking-widest">Relatório de Frequência de Docentes</div>
                     </div>
                     <div className="text-right text-xs font-bold text-gray-500 space-y-1">
                       <div>Período: {new Date(reportStartDate + 'T12:00:00').toLocaleDateString('pt-BR')} até {new Date(reportEndDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
@@ -1245,7 +1268,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       <Modal 
         isOpen={isScheduleModalOpen} 
         onClose={() => setIsScheduleModalOpen(false)}
-        title="Cadastrar Professor e Horários"
+        title="Cadastrar Docente e Horários"
       >
         <form onSubmit={handleSaveSchedule} className="p-8">
           {!currentCampusId && (
@@ -1258,17 +1281,80 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           )}
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Professor(a)</label>
-              <div className="relative">
+              <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Docente</label>
+              <div className="relative" ref={teacherSearchRef}>
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                 <input 
                   type="text"
                   required
-                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-indigo-500 focus:ring-0 transition-all outline-none"
-                  placeholder="Nome do docente"
+                  className="w-full pl-12 pr-12 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-indigo-500 focus:ring-0 transition-all outline-none"
+                  placeholder="Busque pelo nome ou matrícula..."
                   value={teacherName}
-                  onChange={(e) => setTeacherName(e.target.value)}
+                  onChange={(e) => {
+                    setTeacherName(e.target.value);
+                    if (e.target.value.length < 2) setShowTeacherResults(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      // Se os resultados estiverem abertos e houver resultados, selecionamos o primeiro
+                      if (showTeacherResults && teacherSearchResults.length > 0) {
+                        setTeacherName(teacherSearchResults[0].name);
+                        setShowTeacherResults(false);
+                      } else {
+                        // Caso contrário, realizamos a busca
+                        handleTeacherSearch();
+                      }
+                    }
+                  }}
                 />
+                <button 
+                  type="button"
+                  onClick={() => handleTeacherSearch()}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
+                >
+                  {isSearchingTeacher ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+                </button>
+
+                {/* Dropdown de Resultados */}
+                {showTeacherResults && teacherName.length >= 2 && (
+                  <div className="absolute left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 max-h-[240px] overflow-y-auto custom-scrollbar">
+                    {isSearchingTeacher ? (
+                      <div className="p-8 text-center text-gray-400">
+                        <Loader2 className="animate-spin mx-auto mb-2" size={24} />
+                        <span className="text-sm font-bold">Buscando servidores...</span>
+                      </div>
+                    ) : teacherSearchResults.length > 0 ? (
+                      <div className="p-2">
+                        {teacherSearchResults.map((person) => (
+                          <button
+                            key={person.matricula}
+                            type="button"
+                            onClick={() => {
+                              setTeacherName(person.name);
+                              setShowTeacherResults(false);
+                            }}
+                            className="w-full text-left p-3 hover:bg-indigo-50 rounded-xl transition-all flex items-center justify-between group"
+                          >
+                            <div>
+                              <div className="text-sm font-bold text-gray-800 group-hover:text-indigo-700">{person.name}</div>
+                              <div className="text-[10px] text-gray-400 font-bold uppercase">{person.matricula}</div>
+                            </div>
+                            <div className="text-[10px] bg-gray-100 text-gray-500 px-2 py-1 rounded-md group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors font-black">
+                              {person.type}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center">
+                        <User className="mx-auto text-gray-200 mb-2" size={32} />
+                        <p className="text-sm text-gray-500 font-bold">Nenhum servidor encontrado</p>
+                        <p className="text-[10px] text-gray-400">Certifique-se de que o servidor está cadastrado</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

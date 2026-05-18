@@ -1234,7 +1234,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                             if (obs !== null) handleSaveAttendance(schedule.id!, slot.id, 'VAGO', { observation: obs });
                                           }
                                         } else {
-                                          handleSaveAttendance(schedule.id!, slot.id, 'VAGO', { observation: '' });
+                                          const obs = prompt('Observação (Opcional):', '');
+                                          if (obs !== null) {
+                                            handleSaveAttendance(schedule.id!, slot.id, 'VAGO', { observation: obs });
+                                          }
                                         }
                                       }}
                                       title={attendance?.status === 'VAGO' ? "Limpar / Editar" : "Vago / Ausente"}

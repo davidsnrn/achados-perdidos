@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -1941,12 +1941,13 @@ export const StorageService = {
       id: attendance.id || undefined,
       campus_id: attendance.campus_id,
       schedule_id: attendance.schedule_id,
+      period: attendance.period,
       date: attendance.date,
       status: attendance.status,
       substitute_name: attendance.substitute_name,
       observation: attendance.observation,
       operator_id: attendance.operator_id
-    }, { onConflict: 'schedule_id, date' });
+    }, { onConflict: 'schedule_id, date, period' });
     if (error) throw error;
   },
 

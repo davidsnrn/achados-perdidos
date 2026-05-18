@@ -264,6 +264,7 @@ export interface TeacherAttendance {
   id: string;
   campus_id: string;
   schedule_id: string;
+  period: number;
   date: string; // ISO date
   status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO';
   substitute_name?: string;

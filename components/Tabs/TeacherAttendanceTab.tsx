@@ -45,6 +45,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [showTeacherResults, setShowTeacherResults] = useState(false);
   const [isReplacementModalOpen, setIsReplacementModalOpen] = useState(false);
   const [selectedScheduleForReplacement, setSelectedScheduleForReplacement] = useState<string | null>(null);
+  const [selectedPeriodForReplacement, setSelectedPeriodForReplacement] = useState<number | null>(null);
   const [searchTeacherReplacement, setSearchTeacherReplacement] = useState('');
 
   // Report states
@@ -251,7 +252,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
-  const handleSaveAttendance = async (scheduleId: string, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
+  const handleSaveAttendance = async (scheduleId: string, period: number, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
     try {
       const schedule = schedules.find(s => s.id === scheduleId);
       if (!schedule) return;
@@ -259,17 +260,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       const attendance: TeacherAttendance = {
         campus_id: schedule.campus_id,
         schedule_id: scheduleId,
+        period,
         date: selectedDate,
         status,
         substitute_name: extra?.substitute_name,
         observation: extra?.observation,
         operator_id: user.id,
-        id: getAttendanceFor(scheduleId)?.id || ''
+        id: getAttendanceFor(scheduleId, period)?.id || ''
       };
       
       // Atualização otimista do estado local
       setAttendances(prev => {
-        const filtered = prev.filter(a => !(a.schedule_id === scheduleId && a.date === selectedDate));
+        const filtered = prev.filter(a => !(a.schedule_id === scheduleId && a.period === period && a.date === selectedDate));
         return [...filtered, attendance];
       });
 
@@ -282,8 +284,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
-  const handleToggleAttendance = async (scheduleId: string, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
-    const attendance = getAttendanceFor(scheduleId);
+  const handleToggleAttendance = async (scheduleId: string, period: number, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
+    const attendance = getAttendanceFor(scheduleId, period);
     
     // Se clicar no status que já está ativo, limpamos o registro
     if (attendance && attendance.status === status) {
@@ -291,7 +293,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       
       try {
         // Atualização otimista
-        setAttendances(prev => prev.filter(a => a.schedule_id !== scheduleId || a.date !== selectedDate));
+        setAttendances(prev => prev.filter(a => !(a.schedule_id === scheduleId && a.period === period && a.date === selectedDate)));
         
         if (attendance.id) {
           await StorageService.deleteTeacherAttendance(attendance.id);
@@ -303,7 +305,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       }
     } else {
       // Caso contrário, salvamos normalmente
-      handleSaveAttendance(scheduleId, status, extra);
+      handleSaveAttendance(scheduleId, period, status, extra);
     }
   };
 
@@ -439,7 +441,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   };
 
   // Helper to get attendance for a schedule
-  const getAttendanceFor = (scheduleId: string) => attendances.find(a => a.schedule_id === scheduleId);
+  const getAttendanceFor = (scheduleId: string, period?: number) => 
+    attendances.find(a => a.schedule_id === scheduleId && (period === undefined || a.period === period));
 
   // Helper to convert internal period/day back to shorthand code (IFRN)
   const getShorthandFrom = (day: number, period: number): string => {
@@ -844,8 +847,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               for (const sort of reportSorts) {
                                 const schedA = schedules.find(s => s.id === a.schedule_id);
                                 const schedB = schedules.find(s => s.id === b.schedule_id);
-                                const slotA = timeSlots.find(ts => ts.id === schedA?.period);
-                                const slotB = timeSlots.find(ts => ts.id === schedB?.period);
+                                const slotA = timeSlots.find(ts => ts.id === (a.period || schedA?.period));
+                                const slotB = timeSlots.find(ts => ts.id === (b.period || schedB?.period));
                                 
                                 let valA: any = '';
                                 let valB: any = '';
@@ -881,7 +884,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                             return sorted.map((att, i) => {
                               const sched = schedules.find(s => s.id === att.schedule_id);
-                              const slot = timeSlots.find(ts => ts.id === sched?.period);
+                              const slot = timeSlots.find(ts => ts.id === (att.period || sched?.period));
                               const dateFormatted = new Date(att.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
                               return (
                                 <tr key={i} className="hover:bg-gray-50 transition-colors">
@@ -1160,7 +1163,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                             if (!schedule) return <td key={className} className="p-2 bg-gray-50/30 rounded-2xl border border-dashed border-gray-100"></td>;
 
-                            const attendance = getAttendanceFor(schedule.id!);
+                            const attendance = getAttendanceFor(schedule.id!, slot.id);
                             
                             return (
                               <td key={className} className="p-2">
@@ -1194,7 +1197,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                                   <div className="flex gap-0.5 mt-2">
                                     <button 
-                                      onClick={() => handleToggleAttendance(schedule.id!, 'PRESENTE', { observation: '' })}
+                                      onClick={() => handleToggleAttendance(schedule.id!, slot.id, 'PRESENTE', { observation: '' })}
                                       title={attendance?.status === 'PRESENTE' ? "Limpar Registro" : "Presente"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
                                         attendance?.status === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
@@ -1205,9 +1208,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     <button 
                                       onClick={() => {
                                         if (attendance?.status === 'SUBSTITUIDO') {
-                                          handleToggleAttendance(schedule.id!, 'SUBSTITUIDO');
+                                          handleToggleAttendance(schedule.id!, slot.id, 'SUBSTITUIDO');
                                         } else {
                                           setSelectedScheduleForReplacement(schedule.id!);
+                                          setSelectedPeriodForReplacement(slot.id);
                                           setIsReplacementModalOpen(true);
                                         }
                                       }}
@@ -1224,13 +1228,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                           // Se clicar de novo, perguntamos se quer limpar ou editar observação
                                           const choice = confirm('Pressione OK para LIMPAR o registro ou Cancelar para apenas EDITAR a observação.');
                                           if (choice) {
-                                            handleToggleAttendance(schedule.id!, 'VAGO');
+                                            handleToggleAttendance(schedule.id!, slot.id, 'VAGO');
                                           } else {
                                             const obs = prompt('Editar Observação:', attendance?.observation || '');
-                                            if (obs !== null) handleSaveAttendance(schedule.id!, 'VAGO', { observation: obs });
+                                            if (obs !== null) handleSaveAttendance(schedule.id!, slot.id, 'VAGO', { observation: obs });
                                           }
                                         } else {
-                                          handleSaveAttendance(schedule.id!, 'VAGO', { observation: '' });
+                                          handleSaveAttendance(schedule.id!, slot.id, 'VAGO', { observation: '' });
                                         }
                                       }}
                                       title={attendance?.status === 'VAGO' ? "Limpar / Editar" : "Vago / Ausente"}
@@ -1563,13 +1567,14 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <button
                   key={name}
                   onClick={() => {
-                    if (selectedScheduleForReplacement) {
-                      handleSaveAttendance(selectedScheduleForReplacement, 'SUBSTITUIDO', { 
+                    if (selectedScheduleForReplacement && selectedPeriodForReplacement !== null) {
+                      handleSaveAttendance(selectedScheduleForReplacement, selectedPeriodForReplacement, 'SUBSTITUIDO', { 
                         substitute_name: name,
                         observation: '' // Limpa o "Sem aula" ao substituir
                       });
                       setIsReplacementModalOpen(false);
                       setSearchTeacherReplacement('');
+                      setSelectedPeriodForReplacement(null);
                     }
                   }}
                   className="w-full text-left p-4 hover:bg-indigo-50 rounded-2xl border-2 border-transparent hover:border-indigo-100 transition-all group"

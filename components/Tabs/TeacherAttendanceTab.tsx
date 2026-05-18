@@ -7,7 +7,7 @@ import {
   GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass } from '../../types';
+import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel } from '../../types';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -43,10 +43,20 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [isSearchingTeacher, setIsSearchingTeacher] = useState(false);
   const [teacherSearchResults, setTeacherSearchResults] = useState<Person[]>([]);
   const [showTeacherResults, setShowTeacherResults] = useState(false);
+  const [shorthandCode, setShorthandCode] = useState('');
   const [isReplacementModalOpen, setIsReplacementModalOpen] = useState(false);
   const [selectedScheduleForReplacement, setSelectedScheduleForReplacement] = useState<string | null>(null);
   const [selectedPeriodForReplacement, setSelectedPeriodForReplacement] = useState<number | null>(null);
   const [searchTeacherReplacement, setSearchTeacherReplacement] = useState('');
+
+  // Grade Edit Mode
+  const [isGradeEditMode, setIsGradeEditMode] = useState(false);
+  const [gradeEditCell, setGradeEditCell] = useState<{ day: number; slotId: number } | null>(null);
+  const [gradeCellTeacher, setGradeCellTeacher] = useState('');
+  const [gradeCellSubject, setGradeCellSubject] = useState('');
+  const [gradeSelectedSlots, setGradeSelectedSlots] = useState<{ day: number; slotId: number }[]>([]);
+  const [gradeTeacherSearch, setGradeTeacherSearch] = useState('');
+  const [allServers, setAllServers] = useState<Person[]>([]);
 
   // Report states
   const [usersMap, setUsersMap] = useState<Record<string, string>>({});
@@ -126,7 +136,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     { id: 6, label: 'Sex' },
   ];
 
-  const isGlobalAdmin = user.role === 'admin' || user.role === 'advanced_global';
+  const isGlobalAdmin = user.level === UserLevel.ADMIN;
   const currentCampusId = isGlobalAdmin ? adminGlobalCampusId : (adminGlobalCampusId || user.campus_id);
   const currentDayOfWeek = new Date(selectedDate).getUTCDay() + 1;
 
@@ -440,6 +450,63 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
+  const handleSaveGradeCell = async () => {
+    if (!gradeCellTeacher.trim() || gradeSelectedSlots.length === 0 || !currentCampusId || !selectedClass) return;
+
+    const base: Record<string, number> = { 'M': 0, 'T': 6, 'N': 12 };
+
+    try {
+      setIsSaving(true);
+      const promises = gradeSelectedSlots.map(({ day, slotId }) => {
+        const slot = timeSlots.find(ts => ts.id === slotId);
+        if (!slot) return Promise.resolve();
+        const relativePeriod = slotId - base[slot.shift];
+        const shorthand = `${day}${slot.shift}${relativePeriod}`;
+        return StorageService.saveTeacherSchedule({
+          id: '',
+          campus_id: currentCampusId,
+          teacher_name: gradeCellTeacher.trim(),
+          class_name: selectedClass,
+          subject: gradeCellSubject.trim(),
+          day_of_week: day - 1,
+          period: slotId,
+          periods: [slotId],
+          shorthand,
+          start_time: slot.time.split(' - ')[0],
+          end_time: slot.time.split(' - ')[1]
+        });
+      });
+      await Promise.all(promises);
+      setGradeEditCell(null);
+      setGradeSelectedSlots([]);
+      setGradeCellTeacher('');
+      setGradeCellSubject('');
+      setGradeTeacherSearch('');
+      await loadData(true);
+    } catch (err) {
+      alert('Erro ao salvar. Verifique sua conexão.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openGradeEditModal = async (day: number, slotId: number) => {
+    setGradeEditCell({ day, slotId });
+    setGradeSelectedSlots([{ day, slotId }]);
+    setGradeCellTeacher('');
+    setGradeCellSubject('');
+    setGradeTeacherSearch('');
+    // Load all servers if not already loaded
+    if (allServers.length === 0) {
+      try {
+        const results = await StorageService.getPeoplePaginated(1, 2000, currentCampusId || undefined, 'Servidor');
+        setAllServers(results);
+      } catch (err) {
+        console.error("Erro ao carregar servidores:", err);
+      }
+    }
+  };
+
   // Helper to get attendance for a schedule
   const getAttendanceFor = (scheduleId: string, period?: number) => 
     attendances.find(a => a.schedule_id === scheduleId && (period === undefined || a.period === period));
@@ -464,7 +531,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const displaySchedules = schedules.filter(s => {
     const matchesSearch = s.teacher_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           s.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          s.subject.toLowerCase().includes(searchTerm.toLowerCase());
+                          (s.subject || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     if (activeSubTab === 'verificacao') {
       const dateObj = new Date(selectedDate);
@@ -954,9 +1021,24 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           /* GRID VIEW */
           <div className="bg-white rounded-3xl p-4 shadow-xl border border-gray-100 overflow-x-auto">
             <div className="min-w-[1000px]">
-              <div className="text-center mb-6">
-                <h2 className="text-4xl font-black text-gray-900">{selectedClass || "Selecione uma turma"}</h2>
-                <p className="text-gray-400 text-sm mt-1">Horário Semanal de Aulas</p>
+              <div className="flex items-center justify-center gap-4 mb-6 relative">
+                <div className="text-center">
+                  <h2 className="text-4xl font-black text-gray-900">{selectedClass || "Selecione uma turma"}</h2>
+                  <p className="text-gray-400 text-sm mt-1">{isGradeEditMode ? 'Clique em uma célula para adicionar um professor' : 'Horário Semanal de Aulas'}</p>
+                </div>
+                {selectedClass && (
+                  <button
+                    onClick={() => setIsGradeEditMode(v => !v)}
+                    className={`absolute right-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                      isGradeEditMode
+                        ? 'bg-green-100 text-green-700 border-2 border-green-200 hover:bg-green-200'
+                        : 'bg-indigo-50 text-indigo-700 border-2 border-indigo-100 hover:bg-indigo-100'
+                    }`}
+                  >
+                    {isGradeEditMode ? <CheckCircle2 size={16} /> : <Pencil size={16} />}
+                    {isGradeEditMode ? 'Concluir Edição' : 'Editar Grade'}
+                  </button>
+                )}
               </div>
               
               <table className="w-full border-separate border-spacing-1">
@@ -993,12 +1075,37 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               s.period === slot.id
                             );
 
+                            const isEditable = isGradeEditMode && !schedule;
+
                             return (
-                              <td key={`${day.id}-${slot.id}`} className="p-1 border border-gray-100 rounded-2xl bg-white/50 min-h-[80px] w-[180px]">
+                              <td
+                                key={`${day.id}-${slot.id}`}
+                                className={`p-1 border border-gray-100 rounded-2xl min-h-[80px] w-[180px] transition-all ${
+                                  isEditable ? 'cursor-pointer bg-indigo-50/30 hover:bg-indigo-100/50 hover:border-indigo-300' : 'bg-white/50'
+                                }`}
+                                onClick={() => {
+                                  if (isEditable) {
+                                    openGradeEditModal(day.id, slot.id);
+                                  }
+                                }}
+                              >
                                 {schedule ? (
-                                  <div className="h-full bg-indigo-50 border-2 border-indigo-100 rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300">
+                                  <div className="h-full bg-indigo-50 border-2 border-indigo-100 rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300 relative group/cell">
                                     <div className="text-[11px] font-black text-indigo-700 uppercase leading-tight mb-1">{schedule.subject}</div>
                                     <div className="text-[10px] font-bold text-gray-500 truncate">{schedule.teacher_name}</div>
+                                    {isGradeEditMode && (
+                                      <button
+                                        onClick={e => { e.stopPropagation(); handleDeleteSchedule(schedule.id!); }}
+                                        className="absolute top-1 right-1 p-1 rounded-lg bg-red-50 text-red-400 opacity-0 group-hover/cell:opacity-100 hover:bg-red-100 transition-all"
+                                        title="Remover"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : isEditable ? (
+                                  <div className="h-full min-h-[60px] flex items-center justify-center rounded-2xl border-2 border-dashed border-indigo-200">
+                                    <Plus size={20} className="text-indigo-300" />
                                   </div>
                                 ) : (
                                   <div className="h-full min-h-[60px] border border-dashed border-gray-50 rounded-2xl"></div>
@@ -1592,6 +1699,202 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
         </div>
       </Modal>
+
+      {/* Modal: Adicionar Professor na Grade (multi-slot) */}
+      {gradeEditCell && (() => {
+        // All empty slots for this class (to allow multi-selection)
+        const availableSlots = timeSlots.map(slot => {
+          return daysOfWeek.map(day => {
+            const occupied = schedules.some(
+              s => s.class_name === selectedClass && s.day_of_week === day.id - 1 && s.period === slot.id
+            );
+            return { day, slot, occupied };
+          });
+        }).flat();
+
+        const isSlotSelected = (day: number, slotId: number) =>
+          gradeSelectedSlots.some(s => s.day === day && s.slotId === slotId);
+
+        const toggleSlot = (day: number, slotId: number, occupied: boolean) => {
+          if (occupied) return;
+          if (isSlotSelected(day, slotId)) {
+            setGradeSelectedSlots(prev => prev.filter(s => !(s.day === day && s.slotId === slotId)));
+          } else {
+            setGradeSelectedSlots(prev => [...prev, { day, slotId }]);
+          }
+        };
+
+        // Combine servers from DB + teachers already in schedules
+        const scheduledTeachers = Array.from(new Set(schedules.map(s => s.teacher_name)));
+        const serverNames = allServers.map(p => p.name);
+        const allNames = Array.from(new Set([...scheduledTeachers, ...serverNames])).sort();
+        const filteredNames = allNames.filter(n =>
+          !gradeTeacherSearch || n.toLowerCase().includes(gradeTeacherSearch.toLowerCase())
+        );
+
+        return (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
+            onClick={() => setGradeEditCell(null)}
+          >
+            <div
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-6 flex items-start justify-between shrink-0">
+                <div>
+                  <h3 className="text-white font-black text-xl leading-tight">Adicionar Professor — {selectedClass}</h3>
+                  <p className="text-indigo-200 text-sm mt-1 font-medium">
+                    {gradeSelectedSlots.length === 0
+                      ? 'Selecione ao menos um horário na grade'
+                      : `${gradeSelectedSlots.length} horário(s) selecionado(s)`}
+                  </p>
+                </div>
+                <button onClick={() => setGradeEditCell(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                  <X size={20} className="text-white" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1">
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  {/* LEFT: teacher + subject */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Nome do Professor *</label>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={gradeCellTeacher}
+                        onChange={e => { setGradeCellTeacher(e.target.value); setGradeTeacherSearch(e.target.value); }}
+                        placeholder="Digite para buscar..."
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">
+                        Disciplina <span className="text-gray-300 font-medium normal-case">(opcional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={gradeCellSubject}
+                        onChange={e => setGradeCellSubject(e.target.value)}
+                        placeholder="Ex: Matemática..."
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Server list */}
+                    <div>
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-wider mb-2">
+                        Servidores ({filteredNames.length})
+                      </p>
+                      <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                        {filteredNames.length === 0 ? (
+                          <p className="text-sm text-gray-400 text-center py-4">Nenhum resultado</p>
+                        ) : filteredNames.map(name => (
+                          <button
+                            key={name}
+                            type="button"
+                            onClick={() => { setGradeCellTeacher(name); setGradeTeacherSearch(name); }}
+                            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-3 ${
+                              gradeCellTeacher === name
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-50 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700'
+                            }`}
+                          >
+                            <User size={13} className={gradeCellTeacher === name ? 'text-white' : 'text-gray-400'} />
+                            <span className="truncate">{name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT: slot multi-select grid */}
+                  <div>
+                    <p className="text-xs font-black text-gray-500 uppercase tracking-wider mb-3">Horários <span className="text-gray-300 font-medium normal-case">(selecione vários)</span></p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-separate border-spacing-0.5 text-[11px]">
+                        <thead>
+                          <tr>
+                            <th className="py-1 text-gray-400 font-black text-left pl-1">Aula</th>
+                            {daysOfWeek.map(d => (
+                              <th key={d.id} className="py-1 text-indigo-600 font-black text-center">{d.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {['M', 'T', 'N'].map(shift => (
+                            <React.Fragment key={shift}>
+                              <tr>
+                                <td colSpan={6} className="pt-2 pb-0.5 pl-1">
+                                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    {shift === 'M' ? 'Manhã' : shift === 'T' ? 'Tarde' : 'Noite'}
+                                  </span>
+                                </td>
+                              </tr>
+                              {timeSlots.filter(s => s.shift === shift).map(slot => (
+                                <tr key={slot.id}>
+                                  <td className="pr-1 text-gray-500 font-bold whitespace-nowrap pl-1">{slot.label}º</td>
+                                  {daysOfWeek.map(day => {
+                                    const occ = availableSlots.find(a => a.day.id === day.id && a.slot.id === slot.id);
+                                    const occupied = occ?.occupied ?? false;
+                                    const selected = isSlotSelected(day.id, slot.id);
+                                    return (
+                                      <td key={day.id} className="text-center">
+                                        <button
+                                          type="button"
+                                          disabled={occupied}
+                                          onClick={() => toggleSlot(day.id, slot.id, occupied)}
+                                          className={`w-7 h-7 rounded-lg border-2 text-[10px] font-black transition-all ${
+                                            occupied
+                                              ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
+                                              : selected
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-400 hover:border-indigo-400 hover:text-indigo-600'
+                                          }`}
+                                          title={occupied ? 'Já preenchido' : selected ? 'Desmarcar' : 'Selecionar'}
+                                        >
+                                          {occupied ? '–' : selected ? '✓' : ''}
+                                        </button>
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-3 p-6 pt-0 shrink-0">
+                <button
+                  onClick={() => setGradeEditCell(null)}
+                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-2xl font-black hover:bg-gray-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSaveGradeCell}
+                  disabled={isSaving || !gradeCellTeacher.trim() || gradeSelectedSlots.length === 0}
+                  className="flex-[2] px-4 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : <CheckCircle2 size={18} />}
+                  Salvar {gradeSelectedSlots.length > 0 ? `${gradeSelectedSlots.length} horário(s)` : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <style>{`
         @media print {

@@ -18,12 +18,17 @@ interface Props {
 
 export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlobalCampusId }) => {
   // States
+  const isUserStandard = user.level === UserLevel.STANDARD;
   const [schedules, setSchedules] = useState<TeacherSchedule[]>([]);
   const [attendances, setAttendances] = useState<TeacherAttendance[]>([]);
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeSubTab, setActiveSubTab] = useState<'verificacao' | 'horarios' | 'grade' | 'turmas' | 'relatorio'>('verificacao');
+  const [activeSubTab, setActiveSubTab] = useState<'verificacao' | 'horarios' | 'grade' | 'turmas' | 'relatorio'>(
+    isUserStandard ? 'grade' : 'verificacao'
+  );
+  const [collapsedTeachers, setCollapsedTeachers] = useState<Record<string, boolean>>({});
+  const [allExpanded, setAllExpanded] = useState(false);
   const [scheduleRows, setScheduleRows] = useState<{ class_name: string, subject: string, shorthand: string }[]>([
     { class_name: '', subject: '', shorthand: '' }
   ]);
@@ -63,6 +68,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [gradeSelectedSlots, setGradeSelectedSlots] = useState<{ day: number; slotId: number }[]>([]);
   const [gradeTeacherSearch, setGradeTeacherSearch] = useState('');
   const [allServers, setAllServers] = useState<Person[]>([]);
+  const [editingSchedulesInGrid, setEditingSchedulesInGrid] = useState<TeacherSchedule[]>([]);
 
   // Report states
   const [usersMap, setUsersMap] = useState<Record<string, string>>({});
@@ -180,6 +186,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isClassSelectionOpen, showTeacherResults]);
+
+  // Global keydown event listener to close active modals using Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setGradeEditCell(null);
+        setEditingSchedulesInGrid([]);
+        setGradeSelectedSlots([]);
+        setGradeCellTeacher('');
+        setGradeCellSubject('');
+        setGradeTeacherSearch('');
+        setIsScheduleModalOpen(false);
+        setIsClassModalOpen(false);
+        setIsEditClassModalOpen(false);
+        setIsReplacementModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const loadData = async (silent = false) => {
     try {
@@ -507,6 +535,29 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
     try {
       setIsSaving(true);
+
+      // Se estiver editando, realiza a validação de presença e exclui os antigos antes de salvar
+      if (editingSchedulesInGrid.length > 0) {
+        let hasLinkedAttendance = false;
+        for (const s of editingSchedulesInGrid) {
+          const hasAttendance = await StorageService.hasTeacherAttendance(s.id!);
+          if (hasAttendance) {
+            hasLinkedAttendance = true;
+            break;
+          }
+        }
+        if (hasLinkedAttendance) {
+          alert("Não é possível alterar este horário pois existem registros de presença vinculados a ele.");
+          setIsSaving(false);
+          return;
+        }
+
+        // Exclui os registros anteriores
+        for (const s of editingSchedulesInGrid) {
+          await StorageService.deleteTeacherSchedule(s.id!);
+        }
+      }
+
       const matchedClass = classes.find(c => c.name === selectedClass);
       const promises = gradeSelectedSlots.map(({ day, slotId }) => {
         const slot = timeSlots.find(ts => ts.id === slotId);
@@ -530,6 +581,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       });
       await Promise.all(promises);
       setGradeEditCell(null);
+      setEditingSchedulesInGrid([]);
       setGradeSelectedSlots([]);
       setGradeCellTeacher('');
       setGradeCellSubject('');
@@ -548,6 +600,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     setGradeCellTeacher('');
     setGradeCellSubject('');
     setGradeTeacherSearch('');
+    setEditingSchedulesInGrid([]);
     // Load all servers if not already loaded
     if (allServers.length === 0) {
       try {
@@ -557,6 +610,49 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         console.error("Erro ao carregar servidores:", err);
       }
     }
+  };
+
+  const openGradeEditModalForEdit = async (schedule: TeacherSchedule) => {
+    // Encontra todos os horários deste docente para a mesma turma e disciplina no campus atual
+    const matchingSchedules = schedules.filter(s => 
+      s.teacher_name === schedule.teacher_name && 
+      s.class_name === selectedClass && 
+      s.subject === schedule.subject &&
+      s.campus_id === currentCampusId
+    );
+
+    setEditingSchedulesInGrid(matchingSchedules);
+    setGradeEditCell({ day: schedule.day_of_week + 1, slotId: schedule.period });
+    
+    // Define os slots selecionados como todos os slots destes horários que estamos editando
+    const slots = matchingSchedules.map(s => ({
+      day: s.day_of_week + 1,
+      slotId: s.period
+    }));
+    setGradeSelectedSlots(slots);
+    
+    setGradeCellTeacher(schedule.teacher_name);
+    setGradeCellSubject(schedule.subject || '');
+    setGradeTeacherSearch(schedule.teacher_name);
+
+    // Carrega servidores se necessário
+    if (allServers.length === 0) {
+      try {
+        const results = await StorageService.getPeoplePaginated(1, 2000, currentCampusId || undefined, 'Servidor');
+        setAllServers(results);
+      } catch (err) {
+        console.error("Erro ao carregar servidores:", err);
+      }
+    }
+  };
+
+  const closeGradeEditModal = () => {
+    setGradeEditCell(null);
+    setEditingSchedulesInGrid([]);
+    setGradeSelectedSlots([]);
+    setGradeCellTeacher('');
+    setGradeCellSubject('');
+    setGradeTeacherSearch('');
   };
 
   // Helper to get attendance for a schedule
@@ -577,6 +673,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     const relativePeriod = period - baseMapping[shift];
     
     return `${dayCode}${shift}${relativePeriod}`;
+  };
+
+  const toggleTeacherCollapse = (name: string) => {
+    setCollapsedTeachers(prev => {
+      const updated = { ...prev, [name]: !prev[name] };
+      const teacherNames = Object.keys(teacherGroups);
+      if (teacherNames.length > 0) {
+        const allAreExpanded = teacherNames.every(tName => !!updated[tName]);
+        setAllExpanded(allAreExpanded);
+      }
+      return updated;
+    });
   };
 
   // Filtered schedules for the list
@@ -625,12 +733,14 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
-              <button 
-                onClick={() => setActiveSubTab('verificacao')}
-                className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'verificacao' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Verificação
-              </button>
+              {!isUserStandard && (
+                <button 
+                  onClick={() => setActiveSubTab('verificacao')}
+                  className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'verificacao' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  Verificação
+                </button>
+              )}
               <button 
                 onClick={() => setActiveSubTab('grade')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'grade' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -679,6 +789,26 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   className="w-full pl-11 pr-4 py-3 bg-gray-50/50 border-2 border-gray-100 rounded-xl text-sm focus:ring-4 focus:ring-indigo-100 focus:border-indigo-500 outline-none transition-all font-medium"
                 />
               </div>
+            )}
+
+            {activeSubTab === 'horarios' && (
+              <button
+                onClick={() => {
+                  const nextExpanded = !allExpanded;
+                  setAllExpanded(nextExpanded);
+                  const updated: Record<string, boolean> = {};
+                  if (nextExpanded) {
+                    Object.keys(teacherGroups).forEach(name => {
+                      updated[name] = true;
+                    });
+                  }
+                  setCollapsedTeachers(updated);
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 rounded-xl font-bold text-xs transition-all border border-indigo-100 shadow-sm active:scale-95"
+              >
+                {allExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {allExpanded ? 'Recolher Todos' : 'Expandir Todos'}
+              </button>
             )}
 
             {activeSubTab === 'relatorio' && (
@@ -848,7 +978,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             )}
           </div>
 
-          {activeSubTab === 'horarios' && (
+          {activeSubTab === 'horarios' && !isUserStandard && (
             <button 
               onClick={() => { 
                 setTeacherName(''); 
@@ -863,7 +993,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             </button>
           )}
 
-          {activeSubTab === 'turmas' && (
+          {activeSubTab === 'turmas' && !isUserStandard && (
             <button 
               onClick={() => { setBulkClassText(''); setIsClassModalOpen(true); }}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 active:translate-y-0"
@@ -1067,27 +1197,29 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 items-center opacity-65 md:opacity-0 group-hover:opacity-100 transition-all duration-200">
-                    <button 
-                      onClick={() => {
-                        setEditingClass(c);
-                        setEditClassName(c.name);
-                        setEditClassRoom(c.room || '');
-                        setIsEditClassModalOpen(true);
-                      }}
-                      className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                      title="Editar Turma"
-                    >
-                      <Pencil size={20} />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteClass(c.id!)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      title="Excluir Turma"
-                    >
-                      <Trash2 size={20} />
-                    </button>
-                  </div>
+                  {!isUserStandard && (
+                    <div className="flex gap-1 items-center opacity-65 md:opacity-0 group-hover:opacity-100 transition-all duration-200">
+                      <button 
+                        onClick={() => {
+                          setEditingClass(c);
+                          setEditClassName(c.name);
+                          setEditClassRoom(c.room || '');
+                          setIsEditClassModalOpen(true);
+                        }}
+                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                        title="Editar Turma"
+                      >
+                        <Pencil size={20} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClass(c.id!)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        title="Excluir Turma"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -1138,16 +1270,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             <span className="text-xs font-black uppercase tracking-wider">
                               {matchedClassObj?.room ? `${matchedClassObj.room}` : 'Sem Local definido'}
                             </span>
-                            <button
-                              onClick={() => {
-                                setTempRoomValue(matchedClassObj?.room || '');
-                                setIsEditingRoomInline(true);
-                              }}
-                              className="p-1 hover:bg-indigo-100/50 rounded-lg transition-all ml-1 text-indigo-400 hover:text-indigo-600"
-                              title="Alterar Local da Turma"
-                            >
-                              <Pencil size={12} />
-                            </button>
+                            {!isUserStandard && (
+                              <button
+                                onClick={() => {
+                                  setTempRoomValue(matchedClassObj?.room || '');
+                                  setIsEditingRoomInline(true);
+                                }}
+                                className="p-1 hover:bg-indigo-100/50 rounded-lg transition-all ml-1 text-indigo-400 hover:text-indigo-600"
+                                title="Alterar Local da Turma"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1155,7 +1289,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   })()}
                   <p className="text-gray-400 text-sm mt-1">{isGradeEditMode ? 'Clique em uma célula para adicionar um professor' : 'Horário Semanal de Aulas'}</p>
                 </div>
-                {selectedClass && (
+                {selectedClass && !isUserStandard && (
                   <button
                     onClick={() => setIsGradeEditMode(v => !v)}
                     className={`absolute right-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
@@ -1224,11 +1358,14 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     <div className="text-[10px] font-bold text-gray-500 truncate">{schedule.teacher_name}</div>
                                     {isGradeEditMode && (
                                       <button
-                                        onClick={e => { e.stopPropagation(); handleDeleteSchedule(schedule.id!); }}
-                                        className="absolute top-1 right-1 p-1 rounded-lg bg-red-50 text-red-400 opacity-0 group-hover/cell:opacity-100 hover:bg-red-100 transition-all"
-                                        title="Remover"
+                                        onClick={e => {
+                                          e.stopPropagation();
+                                          openGradeEditModalForEdit(schedule);
+                                        }}
+                                        className="absolute top-1 right-1 p-1 rounded-lg bg-indigo-50 text-indigo-600 opacity-0 group-hover/cell:opacity-100 hover:bg-indigo-100 transition-all border border-indigo-100"
+                                        title="Editar Horários"
                                       >
-                                        <X size={12} />
+                                        <Pencil size={12} />
                                       </button>
                                     )}
                                   </div>
@@ -1268,91 +1405,128 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </button>
               </div>
             ) : (
-              Object.entries(teacherGroups).map(([name, teacherSchedules]) => (
-                <div key={name} className="bg-white rounded-[32px] p-6 shadow-sm border-2 border-gray-100 hover:border-indigo-200 transition-all group relative overflow-hidden">
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
-                        <User size={24} />
-                      </div>
-                      <div>
-                        <h3 className="font-black text-gray-900 text-lg leading-tight">{name}</h3>
-                        <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider">{teacherSchedules.length} {teacherSchedules.length === 1 ? 'Horário' : 'Horários'}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button 
-                        onClick={() => {
-                          setTeacherName(name);
-                          setOriginalTeacherName(name);
-                          
-                          // Group by class and subject for cleaner rows
-                          const groupedRows: Record<string, string[]> = {};
-                          teacherSchedules.forEach(s => {
-                            const key = `${s.class_name}|||${s.subject}`;
-                            if (!groupedRows[key]) groupedRows[key] = [];
-                            groupedRows[key].push(s.shorthand || getShorthandFrom(s.day_of_week, s.period));
-                          });
-
-                          const rows = Object.entries(groupedRows).map(([key, shorthands]) => {
-                            const [class_name, subject] = key.split('|||');
-                            return {
-                              class_name,
-                              subject,
-                              shorthand: Array.from(new Set(shorthands)).join(', ')
-                            };
-                          });
-                          
-                          setScheduleRows(rows);
-                          setIsScheduleModalOpen(true);
-                        }}
-                        className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                      >
-                        <Pencil size={20} />
-                      </button>
-                      <button 
-                        onClick={async () => {
-                          if (confirm(`Excluir todos os ${teacherSchedules.length} horários de ${name}?`)) {
-                            for (const s of teacherSchedules) {
-                              await StorageService.deleteTeacherSchedule(s.id!);
-                            }
-                            await loadData();
-                          }
-                        }}
-                        className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {Object.entries(
-                      teacherSchedules.reduce((acc, s) => {
-                        const key = `${s.class_name}|||${s.subject}`;
-                        if (!acc[key]) acc[key] = [];
-                        acc[key].push(s);
-                        return acc;
-                      }, {} as Record<string, TeacherSchedule[]>)
-                    ).map(([key, group]) => {
-                      const [className, subject] = key.split('|||');
-                      const shorthands = Array.from(new Set(group.map(s => s.shorthand || getShorthandFrom(s.day_of_week, s.period)))).join(', ');
-                      
-                      return (
-                        <div key={key} className="p-3 bg-gray-50 rounded-2xl">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="font-black text-indigo-600 text-xs uppercase tracking-wider">{className}</span>
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-white px-2 py-0.5 rounded-md border border-gray-100 shadow-sm">
-                              {shorthands}
-                            </span>
+              Object.entries(teacherGroups).map(([name, teacherSchedules]) => {
+                const isExpanded = !!collapsedTeachers[name];
+                return (
+                  <div key={name} className="bg-white rounded-[32px] p-6 shadow-sm border-2 border-gray-100 hover:border-indigo-200 transition-all group relative overflow-hidden flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-6">
+                        <div 
+                          onClick={() => toggleTeacherCollapse(name)}
+                          className="flex items-center gap-4 cursor-pointer select-none group/title"
+                        >
+                          <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm group-hover/title:bg-indigo-100 transition-all">
+                            <User size={24} />
                           </div>
-                          <div className="text-sm font-bold text-gray-700">{subject}</div>
+                          <div>
+                            <h3 className="font-black text-gray-900 text-lg leading-tight group-hover/title:text-indigo-600 transition-colors flex items-center gap-1.5">
+                              {name}
+                              {isExpanded ? (
+                                <ChevronUp size={16} className="text-gray-400 group-hover/title:text-indigo-500 transition-colors animate-in fade-in" />
+                              ) : (
+                                <ChevronDown size={16} className="text-gray-400 group-hover/title:text-indigo-500 transition-colors animate-in fade-in" />
+                              )}
+                            </h3>
+                            <p className="text-xs text-indigo-500 font-bold uppercase tracking-wider">{teacherSchedules.length} {teacherSchedules.length === 1 ? 'Horário' : 'Horários'}</p>
+                          </div>
                         </div>
-                      );
-                    })}
+                        {!isUserStandard && (
+                          <div className="flex gap-1">
+                            <button 
+                              onClick={() => {
+                                setTeacherName(name);
+                                setOriginalTeacherName(name);
+                                
+                                // Group by class and subject for cleaner rows
+                                const groupedRows: Record<string, string[]> = {};
+                                teacherSchedules.forEach(s => {
+                                  const key = `${s.class_name}|||${s.subject}`;
+                                  if (!groupedRows[key]) groupedRows[key] = [];
+                                  groupedRows[key].push(s.shorthand || getShorthandFrom(s.day_of_week, s.period));
+                                });
+
+                                const rows = Object.entries(groupedRows).map(([key, shorthands]) => {
+                                  const [class_name, subject] = key.split('|||');
+                                  return {
+                                    class_name,
+                                    subject,
+                                    shorthand: Array.from(new Set(shorthands)).join(', ')
+                                  };
+                                });
+                                
+                                setScheduleRows(rows);
+                                setIsScheduleModalOpen(true);
+                              }}
+                              className="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                              title="Editar Professor"
+                            >
+                              <Pencil size={20} />
+                            </button>
+                            <button 
+                              onClick={async () => {
+                                // Check linked attendances
+                                const scheduleIds = teacherSchedules.map(s => s.id!).filter(Boolean);
+                                let hasLinkedAttendance = false;
+                                for (const sId of scheduleIds) {
+                                  const hasAttendance = await StorageService.hasTeacherAttendance(sId);
+                                  if (hasAttendance) {
+                                    hasLinkedAttendance = true;
+                                    break;
+                                  }
+                                }
+
+                                if (hasLinkedAttendance) {
+                                  alert("Não é possível excluir este horário pois existem registros de presença vinculados a ele.");
+                                  return;
+                                }
+
+                                if (confirm(`Excluir todos os ${teacherSchedules.length} horários de ${name}?`)) {
+                                  for (const s of teacherSchedules) {
+                                    await StorageService.deleteTeacherSchedule(s.id!);
+                                  }
+                                  await loadData();
+                                }
+                              }}
+                              className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                              title="Excluir Professor"
+                            >
+                              <Trash2 size={20} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {isExpanded && (
+                        <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                          {Object.entries(
+                            teacherSchedules.reduce((acc, s) => {
+                              const key = `${s.class_name}|||${s.subject}`;
+                              if (!acc[key]) acc[key] = [];
+                              acc[key].push(s);
+                              return acc;
+                            }, {} as Record<string, TeacherSchedule[]>)
+                          ).map(([key, group]) => {
+                            const [className, subject] = key.split('|||');
+                            const shorthands = Array.from(new Set(group.map(s => s.shorthand || getShorthandFrom(s.day_of_week, s.period)))).join(', ');
+                            
+                            return (
+                              <div key={key} className="p-3 bg-gray-50 rounded-2xl hover:bg-gray-100/50 transition-colors">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="font-black text-indigo-600 text-xs uppercase tracking-wider">{className}</span>
+                                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter bg-white px-2 py-0.5 rounded-md border border-gray-100 shadow-sm">
+                                    {shorthands}
+                                  </span>
+                                </div>
+                                <div className="text-sm font-bold text-gray-700">{subject}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         ) : (
@@ -1913,7 +2087,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         const availableSlots = timeSlots.map(slot => {
           return daysOfWeek.map(day => {
             const occupied = schedules.some(
-              s => s.class_name === selectedClass && s.day_of_week === day.id - 1 && s.period === slot.id
+              s => s.class_name === selectedClass && 
+                   s.day_of_week === day.id - 1 && 
+                   s.period === slot.id &&
+                   !editingSchedulesInGrid.some(es => es.id === s.id)
             );
             return { day, slot, occupied };
           });
@@ -1942,23 +2119,23 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         return (
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
-            onClick={() => setGradeEditCell(null)}
           >
             <div
               className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
-              onClick={e => e.stopPropagation()}
             >
               {/* Header */}
               <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-6 flex items-start justify-between shrink-0">
                 <div>
-                  <h3 className="text-white font-black text-xl leading-tight">Adicionar Professor — {selectedClass}</h3>
+                  <h3 className="text-white font-black text-xl leading-tight">
+                    {editingSchedulesInGrid.length > 0 ? 'Editar Professor' : 'Adicionar Professor'} — {selectedClass}
+                  </h3>
                   <p className="text-indigo-200 text-sm mt-1 font-medium">
                     {gradeSelectedSlots.length === 0
                       ? 'Selecione ao menos um horário na grade'
                       : `${gradeSelectedSlots.length} horário(s) selecionado(s)`}
                   </p>
                 </div>
-                <button onClick={() => setGradeEditCell(null)} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
+                <button onClick={closeGradeEditModal} className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors">
                   <X size={20} className="text-white" />
                 </button>
               </div>
@@ -2084,7 +2261,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               {/* Footer */}
               <div className="flex gap-3 p-6 pt-0 shrink-0">
                 <button
-                  onClick={() => setGradeEditCell(null)}
+                  onClick={closeGradeEditModal}
                   className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-2xl font-black hover:bg-gray-200 transition-all"
                 >
                   Cancelar

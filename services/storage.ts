@@ -2005,5 +2005,15 @@ export const StorageService = {
     const { data, error } = await query;
     if (error) throw error;
     return data || [];
+  },
+
+  hasTeacherAttendance: async (scheduleId: string): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('teacher_attendance')
+      .select('id')
+      .eq('schedule_id', scheduleId)
+      .limit(1);
+    if (error) throw error;
+    return !!(data && data.length > 0);
   }
 };

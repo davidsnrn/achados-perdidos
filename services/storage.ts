@@ -1966,13 +1966,27 @@ export const StorageService = {
   },
 
   saveTeacherClass: async (teacherClass: TeacherClass) => {
-    const { data, error } = await supabase
-      .from('teacher_classes')
-      .upsert(teacherClass, { onConflict: 'campus_id,name' })
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    if (teacherClass.id) {
+      const { data, error } = await supabase
+        .from('teacher_classes')
+        .update({
+          name: teacherClass.name,
+          room: teacherClass.room || null
+        })
+        .eq('id', teacherClass.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    } else {
+      const { data, error } = await supabase
+        .from('teacher_classes')
+        .upsert(teacherClass, { onConflict: 'campus_id,name' })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
   },
 
   deleteTeacherClass: async (id: string) => {

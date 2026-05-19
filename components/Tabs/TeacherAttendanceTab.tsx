@@ -4,7 +4,7 @@ import {
   User, BookOpen, MapPin, Clock, CheckCircle2, 
   XCircle, UserPlus, AlertCircle, Save, Trash2,
   ChevronRight, ArrowLeft, Loader2, MoreVertical,
-  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer
+  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer, Check
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel } from '../../types';
@@ -27,6 +27,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [scheduleRows, setScheduleRows] = useState<{ class_name: string, subject: string, shorthand: string }[]>([
     { class_name: '', subject: '', shorthand: '' }
   ]);
+  const [isEditingRoomInline, setIsEditingRoomInline] = useState(false);
+  const [tempRoomValue, setTempRoomValue] = useState('');
   const [teacherName, setTeacherName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('');
@@ -38,6 +40,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Partial<TeacherSchedule> | null>(null);
   const [bulkClassText, setBulkClassText] = useState('');
+  const [editingClass, setEditingClass] = useState<TeacherClass | null>(null);
+  const [editClassName, setEditClassName] = useState('');
+  const [editClassRoom, setEditClassRoom] = useState('');
+  const [isEditClassModalOpen, setIsEditClassModalOpen] = useState(false);
   const [originalTeacherName, setOriginalTeacherName] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSearchingTeacher, setIsSearchingTeacher] = useState(false);
@@ -358,6 +364,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         
         // Split shorthand by comma to support multiple codes in one field
         const shorthandParts = row.shorthand.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const matchedClass = classes.find(c => c.name === row.class_name);
+        const resolvedRoom = matchedClass?.room || '';
         
         for (const code of shorthandParts) {
           const parsed = parseShorthand(code);
@@ -376,7 +384,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               periods: parsed.periods,
               shorthand: code,
               start_time: startSlot?.time.split(' - ')[0] || '',
-              end_time: endSlot?.time.split(' - ')[1] || ''
+              end_time: endSlot?.time.split(' - ')[1] || '',
+              room: resolvedRoom || undefined
             }));
           }
         }
@@ -450,6 +459,47 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
+  const handleSaveEditClass = async () => {
+    if (!editingClass || !editClassName.trim()) return;
+    try {
+      setIsSaving(true);
+      await StorageService.saveTeacherClass({
+        ...editingClass,
+        name: editClassName.trim(),
+        room: editClassRoom.trim() || undefined
+      });
+      setIsEditClassModalOpen(false);
+      setEditingClass(null);
+      setEditClassName('');
+      setEditClassRoom('');
+      await loadData();
+    } catch (error) {
+      console.error('Error saving edited class:', error);
+      alert('Erro ao salvar alterações da turma. Verifique se o nome já existe.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveRoomInline = async () => {
+    const matchedClassObj = classes.find(c => c.name === selectedClass);
+    if (!matchedClassObj) return;
+    try {
+      setIsSaving(true);
+      await StorageService.saveTeacherClass({
+        ...matchedClassObj,
+        room: tempRoomValue.trim() || undefined
+      });
+      setIsEditingRoomInline(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error saving edited room inline:', error);
+      alert('Erro ao salvar local da turma.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSaveGradeCell = async () => {
     if (!gradeCellTeacher.trim() || gradeSelectedSlots.length === 0 || !currentCampusId || !selectedClass) return;
 
@@ -457,6 +507,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
     try {
       setIsSaving(true);
+      const matchedClass = classes.find(c => c.name === selectedClass);
       const promises = gradeSelectedSlots.map(({ day, slotId }) => {
         const slot = timeSlots.find(ts => ts.id === slotId);
         if (!slot) return Promise.resolve();
@@ -473,7 +524,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           periods: [slotId],
           shorthand,
           start_time: slot.time.split(' - ')[0],
-          end_time: slot.time.split(' - ')[1]
+          end_time: slot.time.split(' - ')[1],
+          room: matchedClass?.room || undefined
         });
       });
       await Promise.all(promises);
@@ -801,7 +853,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               onClick={() => { 
                 setTeacherName(''); 
                 setOriginalTeacherName(null);
-                setScheduleRows([{ class_name: '', subject: '', shorthand: '' }]); 
+                setScheduleRows([{ class_name: '', subject: '', shorthand: '', room: '' }]); 
                 setIsScheduleModalOpen(true); 
               }}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 active:translate-y-0"
@@ -1004,15 +1056,38 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     </div>
                     <div>
                       <h3 className="font-black text-gray-900 text-lg">{c.name}</h3>
-                      <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Turma</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Turma</p>
+                        {c.room && (
+                          <>
+                            <span className="text-xs text-gray-300">•</span>
+                            <span className="text-xs text-indigo-600 font-semibold px-2 py-0.5 bg-indigo-50 rounded-full">{c.room}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => handleDeleteClass(c.id!)}
-                    className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                  >
-                    <Trash2 size={20} />
-                  </button>
+                  <div className="flex gap-1 items-center opacity-65 md:opacity-0 group-hover:opacity-100 transition-all duration-200">
+                    <button 
+                      onClick={() => {
+                        setEditingClass(c);
+                        setEditClassName(c.name);
+                        setEditClassRoom(c.room || '');
+                        setIsEditClassModalOpen(true);
+                      }}
+                      className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                      title="Editar Turma"
+                    >
+                      <Pencil size={20} />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClass(c.id!)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      title="Excluir Turma"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -1024,6 +1099,60 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               <div className="flex items-center justify-center gap-4 mb-6 relative">
                 <div className="text-center">
                   <h2 className="text-4xl font-black text-gray-900">{selectedClass || "Selecione uma turma"}</h2>
+                  {selectedClass && (() => {
+                    const matchedClassObj = classes.find(c => c.name === selectedClass);
+                    return (
+                      <div className="flex items-center justify-center gap-2 mt-2">
+                        {isEditingRoomInline ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={tempRoomValue}
+                              onChange={(e) => setTempRoomValue(e.target.value)}
+                              placeholder="Cadastrar Local (Ex: Lab 3, Sala 102)"
+                              className="px-4 py-1.5 text-sm border-2 border-indigo-200 rounded-xl focus:border-indigo-500 focus:outline-none bg-white shadow-inner font-bold text-gray-800 w-64 text-center animate-in zoom-in-95 duration-200"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveRoomInline();
+                                if (e.key === 'Escape') setIsEditingRoomInline(false);
+                              }}
+                            />
+                            <button
+                              onClick={handleSaveRoomInline}
+                              className="p-1.5 bg-green-50 hover:bg-green-100 text-green-600 rounded-xl transition-all border border-green-200"
+                              title="Salvar"
+                            >
+                              <CheckCircle2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => setIsEditingRoomInline(false)}
+                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all border border-red-200"
+                              title="Cancelar"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-indigo-600 bg-indigo-50/50 px-4 py-1.5 rounded-full border border-indigo-100/80 shadow-sm transition-all hover:bg-indigo-50">
+                            <MapPin size={14} className="text-indigo-500 animate-pulse" />
+                            <span className="text-xs font-black uppercase tracking-wider">
+                              {matchedClassObj?.room ? `${matchedClassObj.room}` : 'Sem Local definido'}
+                            </span>
+                            <button
+                              onClick={() => {
+                                setTempRoomValue(matchedClassObj?.room || '');
+                                setIsEditingRoomInline(true);
+                              }}
+                              className="p-1 hover:bg-indigo-100/50 rounded-lg transition-all ml-1 text-indigo-400 hover:text-indigo-600"
+                              title="Alterar Local da Turma"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <p className="text-gray-400 text-sm mt-1">{isGradeEditMode ? 'Clique em uma célula para adicionar um professor' : 'Horário Semanal de Aulas'}</p>
                 </div>
                 {selectedClass && (
@@ -1503,7 +1632,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Turma</label>
                         <select 
                           required
-                          className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm"
+                          className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm font-bold text-gray-800"
                           value={row.class_name}
                           onChange={(e) => {
                             const newRows = [...scheduleRows];
@@ -1533,22 +1662,24 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Código de Horário (Ex: 2T12)</label>
-                      <input 
-                        type="text"
-                        required
-                        name={`shorthand-${index}`}
-                        autoComplete="off"
-                        className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm font-mono uppercase"
-                        placeholder="Ex: 2T12, 3M34"
-                        value={row.shorthand}
-                        onChange={(e) => {
-                          const newRows = [...scheduleRows];
-                          newRows[index].shorthand = e.target.value;
-                          setScheduleRows(newRows);
-                        }}
-                      />
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Código de Horário (Ex: 2T12, 3M34)</label>
+                        <input 
+                          type="text"
+                          required
+                          name={`shorthand-${index}`}
+                          autoComplete="off"
+                          className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm font-mono uppercase font-bold text-gray-800"
+                          placeholder="Ex: 2T12, 3M34, 4M56"
+                          value={row.shorthand}
+                          onChange={(e) => {
+                            const newRows = [...scheduleRows];
+                            newRows[index].shorthand = e.target.value;
+                            setScheduleRows(newRows);
+                          }}
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1643,6 +1774,82 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
                   Cadastrar Turmas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Class Modal */}
+      {isEditClassModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="bg-gradient-to-r from-indigo-600 to-blue-700 p-8 text-white flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-black mb-1">Editar Turma</h2>
+                <p className="text-indigo-100 font-medium">Altere as informações da turma ou cadastre a sala de aula</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsEditClassModalOpen(false);
+                  setEditingClass(null);
+                }}
+                className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Nome da Turma</label>
+                <div className="relative">
+                  <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input 
+                    type="text"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 outline-none transition-all font-bold text-gray-800"
+                    placeholder="Ex: ADM1M"
+                    value={editClassName}
+                    onChange={e => setEditClassName(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Local / Sala de Aula (Opcional)</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                  <input 
+                    type="text"
+                    className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 outline-none transition-all font-bold text-gray-800"
+                    placeholder="Ex: Lab de Informática, Sala 102, etc."
+                    value={editClassRoom}
+                    onChange={e => setEditClassRoom(e.target.value)}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-2 font-bold uppercase tracking-wider">
+                  Dica: Definir o local ajuda os alunos e servidores a se localizarem na grade horária.
+                </p>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button 
+                  onClick={() => {
+                    setIsEditClassModalOpen(false);
+                    setEditingClass(null);
+                  }}
+                  className="flex-1 px-6 py-4 bg-gray-100 text-gray-700 rounded-2xl font-black hover:bg-gray-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleSaveEditClass}
+                  disabled={isSaving || !editClassName.trim()}
+                  className="flex-[2] px-6 py-4 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
+                  Salvar Alterações
                 </button>
               </div>
             </div>

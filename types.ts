@@ -276,5 +276,6 @@ export interface TeacherClass {
   id?: string;
   campus_id: string;
   name: string;
+  room?: string;
   created_at?: string;
 }

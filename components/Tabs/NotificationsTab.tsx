@@ -563,6 +563,65 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           <div className="space-y-6 pt-6 border-t border-gray-100">
             <div className="space-y-4">
               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <ShieldAlert size={14} /> Observações Rápidas (Infrações Comuns)
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.out_of_hours ? 'bg-amber-50/50 border-amber-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.out_of_hours || false}
+                    onChange={e => setFormData({ ...formData, out_of_hours: e.target.checked })}
+                    className="w-5 h-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <span className={`text-xs font-black uppercase tracking-tight ${formData.out_of_hours ? 'text-amber-800' : 'text-gray-500'}`}>Fora do Horário</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Fora do período de aula</span>
+                  </div>
+                </label>
+
+                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.mobile_use ? 'bg-red-50/50 border-red-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.mobile_use || false}
+                    onChange={e => setFormData({ ...formData, mobile_use: e.target.checked })}
+                    className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <span className={`text-xs font-black uppercase tracking-tight ${formData.mobile_use ? 'text-red-800' : 'text-gray-500'}`}>Uso de Celular</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Uso indevido de aparelho</span>
+                  </div>
+                </label>
+
+                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.no_uniform ? 'bg-slate-50/50 border-slate-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.no_uniform || false}
+                    onChange={e => setFormData({ ...formData, no_uniform: e.target.checked })}
+                    className="w-5 h-5 rounded border-gray-300 text-slate-600 focus:ring-slate-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <span className={`text-xs font-black uppercase tracking-tight ${formData.no_uniform ? 'text-slate-800' : 'text-gray-500'}`}>Sem Uniforme</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Ausência de farda</span>
+                  </div>
+                </label>
+
+                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.no_sneakers ? 'bg-zinc-50/50 border-zinc-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.no_sneakers || false}
+                    onChange={e => setFormData({ ...formData, no_sneakers: e.target.checked })}
+                    className="w-5 h-5 rounded border-gray-300 text-zinc-600 focus:ring-zinc-500 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <span className={`text-xs font-black uppercase tracking-tight ${formData.no_sneakers ? 'text-zinc-800' : 'text-gray-500'}`}>Sem Tênis</span>
+                    <span className="text-[9px] text-gray-400 font-medium">Sem calçado adequado</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                 <FileText size={14} /> Detalhes e Justificativa
               </h4>
               <textarea
@@ -709,6 +768,32 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                               </div>
                             );
                           })}
+
+                          {/* Observações Rápidas Badges */}
+                          {(n.out_of_hours || n.mobile_use || n.no_uniform || n.no_sneakers) && (
+                            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 border-dashed animate-fade-in">
+                              {n.out_of_hours && (
+                                <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
+                                  Fora do Horário
+                                </span>
+                              )}
+                              {n.mobile_use && (
+                                <span className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
+                                  Uso de Celular
+                                </span>
+                              )}
+                              {n.no_uniform && (
+                                <span className="px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
+                                  Sem Uniforme
+                                </span>
+                              )}
+                              {n.no_sneakers && (
+                                <span className="px-3 py-1.5 bg-zinc-50 text-zinc-700 border border-zinc-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
+                                  Sem Tênis
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 

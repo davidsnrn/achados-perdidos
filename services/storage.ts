@@ -1828,6 +1828,10 @@ export const StorageService = {
       teacher_referral: d.teacher_referral,
       teacher_name: d.teacher_name,
       operator_id: d.operator_id,
+      out_of_hours: d.out_of_hours,
+      mobile_use: d.mobile_use,
+      no_uniform: d.no_uniform,
+      no_sneakers: d.no_sneakers,
       created_at: d.created_at
     }));
   },
@@ -1848,7 +1852,11 @@ export const StorageService = {
       justification: notification.justification,
       teacher_referral: notification.teacher_referral,
       teacher_name: notification.teacher_name,
-      operator_id: notification.operator_id
+      operator_id: notification.operator_id,
+      out_of_hours: notification.out_of_hours || false,
+      mobile_use: notification.mobile_use || false,
+      no_uniform: notification.no_uniform || false,
+      no_sneakers: notification.no_sneakers || false
     };
 
     const { error } = await supabase.from('student_notifications').upsert(payload);

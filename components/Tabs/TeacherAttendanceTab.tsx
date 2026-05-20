@@ -360,7 +360,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         date: planned.date,
         status: planned.status,
         substitute_name: planned.substitute_name,
-        observation: planned.observation || 'Ausência programada',
+        observation: planned.observation || 'Ausência informada',
         operator_id: planned.operator_id,
         is_planned: true
       } as any;
@@ -419,7 +419,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         if (savedAttendance.id) {
           await StorageService.deleteTeacherReposicaoByAttendance(savedAttendance.id);
         }
-        // Exclui também a reposição da ausência programada se ela foi sobreposta com presença real
+        // Exclui também a reposição da ausência informada se ela foi sobreposta com presença real
         const planned = plannedAbsences.find(pa => pa.schedule_id === scheduleId && pa.period === period && pa.date === selectedDate);
         if (planned && planned.id) {
           await StorageService.deleteTeacherReposicaoByPlannedAbsence(planned.id);
@@ -451,7 +451,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             await StorageService.deleteTeacherAttendance(effective.id);
             await StorageService.deleteTeacherReposicaoByAttendance(effective.id);
           } else if (effective.is_planned && effective.planned_absence_id) {
-            // Se for ausência programada, salvamos um registro real de PRESENTE para sobrepor
+            // Se for ausência informada, salvamos um registro real de PRESENTE para sobrepor
             const schedule = schedules.find(s => s.id === scheduleId);
             if (schedule) {
               const presentAttendance: TeacherAttendance = {
@@ -721,7 +721,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
   const handleSaveAbsence = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!absenceForm.date || !absenceForm.teacher_name || !absenceForm.status || absenceForm.selected_schedules.length === 0) {
+    if (!absenceForm.date || !absenceForm.teacher_name || absenceForm.selected_schedules.length === 0) {
       alert("Preencha todos os campos obrigatórios e selecione ao menos uma aula.");
       return;
     }
@@ -739,8 +739,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           teacher_name: schedule.teacher_name,
           period: schedule.period,
           date: absenceForm.date,
-          status: absenceForm.status,
-          substitute_name: absenceForm.status === 'SUBSTITUIDO' ? absenceForm.substitute_name : undefined,
+          status: 'VAGO',
           observation: absenceForm.observation,
           operator_id: user.id
         });
@@ -769,7 +768,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       await loadData();
     } catch (err: any) {
       console.error(err);
-      alert(`Erro ao salvar ausência programada: ${err?.message || err?.details || JSON.stringify(err)}`);
+      alert(`Erro ao salvar ausência informada: ${err?.message || err?.details || JSON.stringify(err)}`);
     } finally {
       setIsSaving(false);
     }
@@ -1689,8 +1688,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
               <div>
-                <h2 className="text-xl font-black text-gray-900">Ausências Programadas</h2>
-                <p className="text-sm text-gray-500 font-medium">Gerencie as ausências futuras e substituições</p>
+                <h2 className="text-xl font-black text-gray-900">Ausências Informadas</h2>
+                <p className="text-sm text-gray-500 font-medium">Gerencie as ausências informadas</p>
               </div>
               <button 
                 onClick={() => {
@@ -1707,7 +1706,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
               >
                 <Plus size={18} />
-                Agendar Ausência
+                Informar Ausência
               </button>
             </div>
             
@@ -1717,8 +1716,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
                     <Calendar size={32} />
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900">Nenhuma ausência programada</h3>
-                  <p className="text-gray-500">Clique no botão acima para agendar uma nova ausência.</p>
+                  <h3 className="text-lg font-bold text-gray-900">Nenhuma ausência informada</h3>
+                  <p className="text-gray-500">Clique no botão acima para informar uma nova ausência.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1727,9 +1726,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       <tr className="border-b-2 border-gray-100 bg-gray-50/50">
                         <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Data</th>
                         <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Professor</th>
-                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Período</th>
-                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Substituto</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Turma / Disciplina</th>
                         <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider w-16"></th>
                       </tr>
                     </thead>
@@ -1739,21 +1736,23 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                         const slot = timeSlots.find(ts => ts.id === pa.period);
                         return (
                           <tr key={pa.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                            <td className="p-4 font-bold text-gray-900">{new Date(pa.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
-                            <td className="p-4 font-bold text-gray-900">{schedule?.teacher_name || 'Desconhecido'}</td>
-                            <td className="p-4 text-sm font-medium text-gray-500">{slot?.time} ({slot?.shift})</td>
                             <td className="p-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                pa.status === 'SUBSTITUIDO' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                              }`}>
-                                {pa.status}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-gray-900">{new Date(pa.date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                <span className="text-xs text-gray-400 font-medium">{slot?.time || '-'}</span>
+                              </div>
                             </td>
-                            <td className="p-4 font-bold text-gray-700">{pa.substitute_name || '-'}</td>
+                            <td className="p-4 font-bold text-gray-900">{schedule?.teacher_name || pa.teacher_name || 'Desconhecido'}</td>
+                            <td className="p-4">
+                              <div className="flex flex-col">
+                                <span className="font-bold text-gray-900">{schedule?.class_name || '-'}</span>
+                                <span className="text-xs text-gray-400 font-medium">{schedule?.subject || '-'}</span>
+                              </div>
+                            </td>
                             <td className="p-4">
                               <button 
                                 onClick={async () => {
-                                  if (confirm('Deseja excluir esta ausência programada?')) {
+                                  if (confirm('Deseja excluir esta ausência informada?')) {
                                     try {
                                       await StorageService.deleteTeacherPlannedAbsence(pa.id!);
                                       await StorageService.deleteTeacherReposicaoByPlannedAbsence(pa.id!);
@@ -2108,7 +2107,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                                     {attendance?.is_planned && (
                                       <div className="mt-1 p-1 bg-indigo-50 rounded-md text-[8px] text-indigo-700 font-bold uppercase tracking-wider text-center">
-                                        Ausência Programada
+                                        Ausência Informada
                                       </div>
                                     )}
                                   </div>
@@ -2539,11 +2538,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         </div>
       )}
       {/* Modal Seleção de Professor Substituto */}
-      {/* Modal: Agendar Ausência Programada */}
+      {/* Modal: Informar Ausência */}
       <Modal
         isOpen={isAbsenceModalOpen}
         onClose={() => setIsAbsenceModalOpen(false)}
-        title="Agendar Ausência"
+        title="Informar Ausência"
       >
         <form onSubmit={handleSaveAbsence} className="p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2642,41 +2641,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               </div>
             );
           })()}
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Status da Ausência *</label>
-              <div className="flex gap-4">
-                <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-2xl border-2 cursor-pointer transition-all ${absenceForm.status === 'VAGO' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-100 text-gray-500 hover:bg-gray-50'}`}>
-                  <input type="radio" name="absenceStatus" value="VAGO" checked={absenceForm.status === 'VAGO'} onChange={() => setAbsenceForm({...absenceForm, status: 'VAGO', substitute_name: ''})} className="hidden" />
-                  <span className="font-bold text-sm">Falta / Vago</span>
-                </label>
-                <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-2xl border-2 cursor-pointer transition-all ${absenceForm.status === 'SUBSTITUIDO' ? 'border-yellow-500 bg-yellow-50 text-yellow-700' : 'border-gray-100 text-gray-500 hover:bg-gray-50'}`}>
-                  <input type="radio" name="absenceStatus" value="SUBSTITUIDO" checked={absenceForm.status === 'SUBSTITUIDO'} onChange={() => setAbsenceForm({...absenceForm, status: 'SUBSTITUIDO'})} className="hidden" />
-                  <span className="font-bold text-sm">Substituído</span>
-                </label>
-              </div>
-            </div>
-            
-            {absenceForm.status === 'SUBSTITUIDO' && (
-              <div>
-                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Professor Substituto *</label>
-                <div className="relative">
-                  <select
-                    required
-                    value={absenceForm.substitute_name}
-                    onChange={e => setAbsenceForm({ ...absenceForm, substitute_name: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                  >
-                    <option value="">Selecione o substituto...</option>
-                    {allServers.sort((a,b) => a.name.localeCompare(b.name)).map(server => (
-                      <option key={server.matricula} value={server.name}>{server.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
 
           <div>
             <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>

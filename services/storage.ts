@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -1936,8 +1936,8 @@ export const StorageService = {
     return data || [];
   },
 
-  saveTeacherAttendance: async (attendance: TeacherAttendance) => {
-    const { error } = await supabase.from('teacher_attendance').upsert({
+  saveTeacherAttendance: async (attendance: TeacherAttendance): Promise<TeacherAttendance> => {
+    const { data, error } = await supabase.from('teacher_attendance').upsert({
       id: attendance.id || undefined,
       campus_id: attendance.campus_id,
       schedule_id: attendance.schedule_id,
@@ -1947,8 +1947,9 @@ export const StorageService = {
       substitute_name: attendance.substitute_name,
       observation: attendance.observation,
       operator_id: attendance.operator_id
-    }, { onConflict: 'schedule_id, date, period' });
+    }, { onConflict: 'schedule_id, date, period' }).select().single();
     if (error) throw error;
+    return data;
   },
 
   deleteTeacherAttendance: async (id: string) => {
@@ -2015,5 +2016,104 @@ export const StorageService = {
       .limit(1);
     if (error) throw error;
     return !!(data && data.length > 0);
+  },
+
+  // Teacher Planned Absences
+  getTeacherPlannedAbsences: async (campusId?: string): Promise<TeacherPlannedAbsence[]> => {
+    let query = supabase.from('teacher_planned_absences').select('*');
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query.order('date', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  getTeacherPlannedAbsencesByDateRange: async (campusId: string | undefined, startDate: string, endDate: string): Promise<TeacherPlannedAbsence[]> => {
+    let query = supabase
+      .from('teacher_planned_absences')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true });
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveTeacherPlannedAbsence: async (absence: TeacherPlannedAbsence): Promise<TeacherPlannedAbsence> => {
+    const payload: any = {
+      campus_id: absence.campus_id,
+      teacher_name: absence.teacher_name,
+      date: absence.date,
+      schedule_id: absence.schedule_id,
+      period: absence.period,
+      status: absence.status,
+      substitute_name: absence.substitute_name || null,
+      observation: absence.observation || null,
+      operator_id: absence.operator_id
+    };
+    payload.id = absence.id || crypto.randomUUID();
+    if (!absence.id) {
+      payload.created_at = new Date().toISOString();
+    }
+
+    const { data, error } = await supabase.from('teacher_planned_absences').upsert(payload, { onConflict: 'id' }).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  deleteTeacherPlannedAbsence: async (id: string) => {
+    const { error } = await supabase.from('teacher_planned_absences').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // Teacher Reposições
+  getTeacherReposicoes: async (campusId?: string): Promise<TeacherReposicao[]> => {
+    let query = supabase.from('teacher_reposicoes').select('*');
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query.order('date', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveTeacherReposicao: async (reposicao: TeacherReposicao) => {
+    const payload: any = {
+      campus_id: reposicao.campus_id,
+      attendance_id: reposicao.attendance_id || null,
+      planned_absence_id: reposicao.planned_absence_id || null,
+      schedule_id: reposicao.schedule_id,
+      date: reposicao.date,
+      period: reposicao.period,
+      teacher_name: reposicao.teacher_name,
+      class_name: reposicao.class_name,
+      subject: reposicao.subject,
+      status: reposicao.status,
+      makeup_date: reposicao.makeup_date || null,
+      makeup_period: reposicao.makeup_period || null,
+      observation: reposicao.observation || null,
+      operator_id: reposicao.operator_id
+    };
+    payload.id = reposicao.id || crypto.randomUUID();
+    if (!reposicao.id) {
+      payload.created_at = new Date().toISOString();
+    }
+
+    const { error } = await supabase.from('teacher_reposicoes').upsert(payload);
+    if (error) throw error;
+  },
+
+  deleteTeacherReposicao: async (id: string) => {
+    const { error } = await supabase.from('teacher_reposicoes').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  deleteTeacherReposicaoByAttendance: async (attendanceId: string) => {
+    const { error } = await supabase.from('teacher_reposicoes').delete().eq('attendance_id', attendanceId);
+    if (error) throw error;
+  },
+
+  deleteTeacherReposicaoByPlannedAbsence: async (plannedAbsenceId: string) => {
+    const { error } = await supabase.from('teacher_reposicoes').delete().eq('planned_absence_id', plannedAbsenceId);
+    if (error) throw error;
   }
 };

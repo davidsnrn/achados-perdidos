@@ -279,3 +279,36 @@ export interface TeacherClass {
   room?: string;
   created_at?: string;
 }
+
+export interface TeacherPlannedAbsence {
+  id?: string;
+  campus_id: string;
+  teacher_name: string;
+  date: string;
+  schedule_id: string;
+  period: number;
+  status: 'VAGO' | 'SUBSTITUIDO';
+  substitute_name?: string;
+  observation?: string;
+  operator_id: string;
+  created_at?: string;
+}
+
+export interface TeacherReposicao {
+  id?: string;
+  campus_id: string;
+  attendance_id?: string;
+  planned_absence_id?: string;
+  schedule_id: string;
+  date: string;
+  period: number;
+  teacher_name: string;
+  class_name: string;
+  subject: string;
+  status: 'PENDENTE' | 'CONCLUIDO';
+  makeup_date?: string;
+  makeup_period?: number;
+  observation?: string;
+  operator_id: string;
+  created_at?: string;
+}

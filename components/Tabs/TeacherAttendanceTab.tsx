@@ -7,7 +7,7 @@ import {
   GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer, Check
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel } from '../../types';
+import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel, TeacherPlannedAbsence, TeacherReposicao } from '../../types';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -21,10 +21,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const isUserStandard = user.level === UserLevel.STANDARD;
   const [schedules, setSchedules] = useState<TeacherSchedule[]>([]);
   const [attendances, setAttendances] = useState<TeacherAttendance[]>([]);
+  const [plannedAbsences, setPlannedAbsences] = useState<TeacherPlannedAbsence[]>([]);
+  const [reposicoes, setReposicoes] = useState<TeacherReposicao[]>([]);
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeSubTab, setActiveSubTab] = useState<'verificacao' | 'horarios' | 'grade' | 'turmas' | 'relatorio'>(
+  const [gradeWeekDate, setGradeWeekDate] = useState(new Date().toISOString().split('T')[0]);
+  const [activeSubTab, setActiveSubTab] = useState<'verificacao' | 'horarios' | 'grade' | 'turmas' | 'relatorio' | 'ausencias' | 'reposicoes'>(
     isUserStandard ? 'grade' : 'verificacao'
   );
   const [collapsedTeachers, setCollapsedTeachers] = useState<Record<string, boolean>>({});
@@ -43,6 +46,24 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   // Modal States
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
+  const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
+  const [absenceForm, setAbsenceForm] = useState<{
+    date: string;
+    teacher_name: string;
+    status: 'VAGO' | 'SUBSTITUIDO';
+    substitute_name: string;
+    observation: string;
+    selected_schedules: string[];
+  }>({
+    date: '',
+    teacher_name: '',
+    status: 'VAGO',
+    substitute_name: '',
+    observation: '',
+    selected_schedules: []
+  });
+  const [isReposicaoModalOpen, setIsReposicaoModalOpen] = useState(false);
+  const [editingReposicao, setEditingReposicao] = useState<TeacherReposicao | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<Partial<TeacherSchedule> | null>(null);
   const [bulkClassText, setBulkClassText] = useState('');
   const [editingClass, setEditingClass] = useState<TeacherClass | null>(null);
@@ -152,6 +173,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const currentCampusId = isGlobalAdmin ? adminGlobalCampusId : (adminGlobalCampusId || user.campus_id);
   const currentDayOfWeek = new Date(selectedDate).getUTCDay() + 1;
 
+  const getWeekRange = (dateStr: string) => {
+    const date = new Date(dateStr + 'T12:00:00');
+    const day = date.getDay();
+    const diffToMonday = date.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(date.setDate(diffToMonday));
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+    
+    return {
+      start: monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      end: friday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      startDate: monday,
+      endDate: friday
+    };
+  };
+
+  const changeWeek = (offset: number) => {
+    const d = new Date(gradeWeekDate + 'T12:00:00');
+    d.setDate(d.getDate() + (offset * 7));
+    setGradeWeekDate(d.toISOString().split('T')[0]);
+  };
+
   useEffect(() => {
     loadData();
   }, [currentCampusId, selectedDate]);
@@ -212,15 +255,19 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const loadData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const [schedulesData, attendanceData, classesData, usersData] = await Promise.all([
+      const [schedulesData, attendanceData, classesData, usersData, plannedAbsencesData, reposicoesData] = await Promise.all([
         StorageService.getTeacherSchedules(currentCampusId || undefined),
         StorageService.getTeacherAttendance(currentCampusId || undefined, selectedDate),
         StorageService.getTeacherClasses(currentCampusId || undefined),
-        StorageService.getUsers()
+        StorageService.getUsers(),
+        StorageService.getTeacherPlannedAbsences(currentCampusId || undefined),
+        StorageService.getTeacherReposicoes(currentCampusId || undefined)
       ]);
       setSchedules(schedulesData);
       setAttendances(attendanceData);
       setClasses(classesData);
+      setPlannedAbsences(plannedAbsencesData);
+      setReposicoes(reposicoesData);
 
       const map: Record<string, string> = {};
       usersData.forEach((u: any) => { if (u.id) map[u.id] = u.name; });
@@ -296,10 +343,37 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
+  // Helper to get effective attendance (checking real attendances first, then planned absences)
+  const getEffectiveAttendance = (scheduleId: string, period: number, date: string) => {
+    const real = attendances.find(a => a.schedule_id === scheduleId && a.period === period && a.date === date);
+    if (real) return real;
+
+    const planned = plannedAbsences.find(pa => pa.schedule_id === scheduleId && pa.period === period && pa.date === date);
+    if (planned) {
+      return {
+        id: undefined,
+        planned_absence_id: planned.id,
+        campus_id: planned.campus_id,
+        schedule_id: planned.schedule_id,
+        period: planned.period,
+        date: planned.date,
+        status: planned.status,
+        substitute_name: planned.substitute_name,
+        observation: planned.observation || 'Ausência programada',
+        operator_id: planned.operator_id,
+        is_planned: true
+      } as any;
+    }
+    return undefined;
+  };
+
   const handleSaveAttendance = async (scheduleId: string, period: number, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
     try {
       const schedule = schedules.find(s => s.id === scheduleId);
       if (!schedule) return;
+
+      const currentEffective = getEffectiveAttendance(scheduleId, period, selectedDate);
+      const attendanceId = currentEffective && !currentEffective.is_planned ? currentEffective.id : '';
 
       const attendance: TeacherAttendance = {
         campus_id: schedule.campus_id,
@@ -310,7 +384,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         substitute_name: extra?.substitute_name,
         observation: extra?.observation,
         operator_id: user.id,
-        id: getAttendanceFor(scheduleId, period)?.id || ''
+        id: attendanceId || ''
       };
       
       // Atualização otimista do estado local
@@ -319,7 +393,38 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         return [...filtered, attendance];
       });
 
-      await StorageService.saveTeacherAttendance(attendance);
+      const savedAttendance = await StorageService.saveTeacherAttendance(attendance);
+
+      // Regra 2: Reposição deve ser gerada automaticamente sempre que for falta ou substituído
+      if (status === 'VAGO' || status === 'SUBSTITUIDO') {
+        const existingReposicao = reposicoes.find(r => r.attendance_id === savedAttendance.id);
+        if (!existingReposicao) {
+          const newReposicao: TeacherReposicao = {
+            campus_id: schedule.campus_id,
+            attendance_id: savedAttendance.id,
+            schedule_id: scheduleId,
+            date: selectedDate,
+            period: period,
+            teacher_name: schedule.teacher_name,
+            class_name: schedule.class_name,
+            subject: schedule.subject || '',
+            status: 'PENDENTE',
+            operator_id: user.id
+          };
+          await StorageService.saveTeacherReposicao(newReposicao);
+        }
+      } else {
+        // Se mudou para PRESENTE, exclui reposições vinculadas à frequência
+        if (savedAttendance.id) {
+          await StorageService.deleteTeacherReposicaoByAttendance(savedAttendance.id);
+        }
+        // Exclui também a reposição da ausência programada se ela foi sobreposta com presença real
+        const planned = plannedAbsences.find(pa => pa.schedule_id === scheduleId && pa.period === period && pa.date === selectedDate);
+        if (planned && planned.id) {
+          await StorageService.deleteTeacherReposicaoByPlannedAbsence(planned.id);
+        }
+      }
+
       await loadData(true); // Recarrega em segundo plano
     } catch (error) {
       console.error('Erro ao salvar frequência:', error);
@@ -329,18 +434,37 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   };
 
   const handleToggleAttendance = async (scheduleId: string, period: number, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
-    const attendance = getAttendanceFor(scheduleId, period);
+    const effective = getEffectiveAttendance(scheduleId, period, selectedDate);
+    const displayStatus = effective?.status || 'PRESENTE';
     
-    // Se clicar no status que já está ativo, limpamos o registro
-    if (attendance && attendance.status === status) {
-      if (!confirm('Deseja limpar este registro de frequência?')) return;
+    // Se clicar no status que já está ativo (ou se for PRESENTE e não tiver registro, o que significa que já é implicitamente PRESENTE)
+    if (displayStatus === status) {
+      if (!confirm('Deseja limpar este registro de frequência e reverter para Presente?')) return;
       
       try {
         // Atualização otimista
         setAttendances(prev => prev.filter(a => !(a.schedule_id === scheduleId && a.period === period && a.date === selectedDate)));
         
-        if (attendance.id) {
-          await StorageService.deleteTeacherAttendance(attendance.id);
+        if (effective) {
+          if (!effective.is_planned && effective.id) {
+            await StorageService.deleteTeacherAttendance(effective.id);
+            await StorageService.deleteTeacherReposicaoByAttendance(effective.id);
+          } else if (effective.is_planned && effective.planned_absence_id) {
+            // Se for ausência programada, salvamos um registro real de PRESENTE para sobrepor
+            const schedule = schedules.find(s => s.id === scheduleId);
+            if (schedule) {
+              const presentAttendance: TeacherAttendance = {
+                campus_id: schedule.campus_id,
+                schedule_id: scheduleId,
+                period,
+                date: selectedDate,
+                status: 'PRESENTE',
+                operator_id: user.id
+              };
+              const saved = await StorageService.saveTeacherAttendance(presentAttendance);
+              await StorageService.deleteTeacherReposicaoByPlannedAbsence(effective.planned_absence_id);
+            }
+          }
         }
         await loadData(true);
       } catch (error) {
@@ -594,6 +718,86 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
+  const handleSaveAbsence = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!absenceForm.date || !absenceForm.teacher_name || !absenceForm.status || absenceForm.selected_schedules.length === 0) {
+      alert("Preencha todos os campos obrigatórios e selecione ao menos uma aula.");
+      return;
+    }
+    
+    try {
+      setIsSaving(true);
+      
+      const promises = absenceForm.selected_schedules.map(async (scheduleId) => {
+        const schedule = schedules.find(s => s.id === scheduleId);
+        if (!schedule) return;
+
+        const savedAbsence = await StorageService.saveTeacherPlannedAbsence({
+          campus_id: currentCampusId || '',
+          schedule_id: schedule.id!,
+          teacher_name: schedule.teacher_name,
+          period: schedule.period,
+          date: absenceForm.date,
+          status: absenceForm.status,
+          substitute_name: absenceForm.status === 'SUBSTITUIDO' ? absenceForm.substitute_name : undefined,
+          observation: absenceForm.observation,
+          operator_id: user.id
+        });
+
+        // Vincula a reposição
+        await StorageService.saveTeacherReposicao({
+          campus_id: currentCampusId || '',
+          planned_absence_id: savedAbsence.id,
+          schedule_id: schedule.id!,
+          date: absenceForm.date,
+          period: schedule.period,
+          teacher_name: schedule.teacher_name,
+          class_name: schedule.class_name,
+          subject: schedule.subject || '',
+          status: 'PENDENTE',
+          operator_id: user.id
+        });
+      });
+
+      await Promise.all(promises);
+
+      setIsAbsenceModalOpen(false);
+      setAbsenceForm({
+        date: '', teacher_name: '', status: 'VAGO', substitute_name: '', observation: '', selected_schedules: []
+      });
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao salvar ausência programada: ${err?.message || err?.details || JSON.stringify(err)}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveReposicao = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingReposicao?.makeup_date || !editingReposicao.makeup_period) {
+      alert("Informe a data e o período da reposição");
+      return;
+    }
+    try {
+      setIsSaving(true);
+      await StorageService.saveTeacherReposicao({
+        ...editingReposicao,
+        status: 'CONCLUIDO'
+      });
+      setIsReposicaoModalOpen(false);
+      setEditingReposicao(null);
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao confirmar reposição");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
   const openGradeEditModal = async (day: number, slotId: number) => {
     setGradeEditCell({ day, slotId });
     setGradeSelectedSlots([{ day, slotId }]);
@@ -734,12 +938,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
               {!isUserStandard && (
-                <button 
-                  onClick={() => setActiveSubTab('verificacao')}
-                  className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'verificacao' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                >
-                  Verificação
-                </button>
+                <>
+                  <button 
+                    onClick={() => setActiveSubTab('verificacao')}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'verificacao' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Verificação
+                  </button>
+                  <button 
+                    onClick={() => setActiveSubTab('ausencias')}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'ausencias' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    <Calendar size={14} />
+                    Ausências
+                  </button>
+                  <button 
+                    onClick={() => setActiveSubTab('reposicoes')}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'reposicoes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    <ClipboardList size={14} />
+                    Reposições
+                  </button>
+                </>
               )}
               <button 
                 onClick={() => setActiveSubTab('grade')}
@@ -830,7 +1050,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <select value={reportStatusFilter} onChange={e => setReportStatusFilter(e.target.value as any)}
                     className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-6">
                     <option value="">Todos os status</option>
-                    <option value="PRESENTE">Presente</option>
                     <option value="SUBSTITUIDO">Substituído</option>
                     <option value="VAGO">Vago / Ausente</option>
                   </select>
@@ -1014,12 +1233,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           /* RELATÓRIO VIEW */
           (() => {
             const filtered = reportAttendances.filter(a => {
+              if (a.status === 'PRESENTE') return false; // Filter out PRESENTE entirely
               const sched = schedules.find(s => s.id === a.schedule_id);
               const matchesStatus = !reportStatusFilter || a.status === reportStatusFilter;
               const matchesTeacher = !reportTeacherSearch || (sched?.teacher_name || '').toLowerCase().includes(reportTeacherSearch.toLowerCase());
               return matchesStatus && matchesTeacher;
             });
-            const totalPresente = filtered.filter(a => a.status === 'PRESENTE').length;
             const totalSubstituido = filtered.filter(a => a.status === 'SUBSTITUIDO').length;
             const totalVago = filtered.filter(a => a.status === 'VAGO').length;
             return (
@@ -1039,11 +1258,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </div>
 
                 {/* Summary cards */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-green-50 border-2 border-green-100 rounded-2xl p-5 text-center">
-                    <div className="text-3xl font-black text-green-600 mb-1">{totalPresente}</div>
-                    <div className="text-sm font-bold text-green-700">Presentes</div>
-                  </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="bg-yellow-50 border-2 border-yellow-100 rounded-2xl p-5 text-center">
                     <div className="text-3xl font-black text-yellow-600 mb-1">{totalSubstituido}</div>
                     <div className="text-sm font-bold text-yellow-700">Substituídos</div>
@@ -1228,7 +1443,27 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           /* GRID VIEW */
           <div className="bg-white rounded-3xl p-4 shadow-xl border border-gray-100 overflow-x-auto">
             <div className="min-w-[1000px]">
-              <div className="flex items-center justify-center gap-4 mb-6 relative">
+              <div className="flex flex-col items-center justify-center gap-4 mb-6 relative">
+                <div className="flex items-center gap-4 bg-indigo-50 px-6 py-2 rounded-2xl border-2 border-indigo-100">
+                  <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-indigo-100 rounded-xl transition-colors text-indigo-700">
+                    <ArrowLeft size={20} />
+                  </button>
+                  <div className="text-center">
+                    <div className="text-sm font-bold text-indigo-900">
+                      Semana de {getWeekRange(gradeWeekDate).start} a {getWeekRange(gradeWeekDate).end}
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    const today = new Date().toISOString().split('T')[0];
+                    setGradeWeekDate(today);
+                  }} className="text-xs font-bold text-indigo-600 hover:underline">
+                    Hoje
+                  </button>
+                  <button onClick={() => changeWeek(1)} className="p-2 hover:bg-indigo-100 rounded-xl transition-colors text-indigo-700">
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+                
                 <div className="text-center">
                   <h2 className="text-4xl font-black text-gray-900">{selectedClass || "Selecione uma turma"}</h2>
                   {selectedClass && (() => {
@@ -1339,6 +1574,33 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             );
 
                             const isEditable = isGradeEditMode && !schedule;
+                            
+                            // Determinar a data exata da célula na semana selecionada
+                            const { startDate } = getWeekRange(gradeWeekDate);
+                            const cellDateObj = new Date(startDate);
+                            // startDate é sempre Segunda-feira (day.id = 2)
+                            // day.id varia de 2 (Seg) a 6 (Sex)
+                            cellDateObj.setDate(cellDateObj.getDate() + (day.id - 2));
+                            const cellDateStr = cellDateObj.toISOString().split('T')[0];
+                            
+                            // Pegar a situação efetiva do professor para essa célula
+                            const effective = schedule ? getEffectiveAttendance(schedule.id!, slot.id, cellDateStr) : null;
+                            const status = effective?.status || 'PRESENTE'; // default to presence
+
+                            let cellStyle = "bg-indigo-50 border-2 border-indigo-100 text-indigo-700";
+                            let cellText = schedule?.teacher_name;
+                            let subText = schedule?.subject;
+
+                            if (!isGradeEditMode && schedule) {
+                              if (status === 'VAGO') {
+                                cellStyle = "bg-red-50 border-2 border-red-200 text-red-700";
+                                cellText = `${schedule.teacher_name} - Ausente`;
+                              } else if (status === 'SUBSTITUIDO') {
+                                cellStyle = "bg-yellow-50 border-2 border-yellow-200 text-yellow-800";
+                                cellText = `Substituto: ${effective?.substitute_name || 'Desconhecido'}`;
+                                subText = schedule.teacher_name;
+                              }
+                            }
 
                             return (
                               <td
@@ -1353,16 +1615,16 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                 }}
                               >
                                 {schedule ? (
-                                  <div className="h-full bg-indigo-50 border-2 border-indigo-100 rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300 relative group/cell">
-                                    <div className="text-[11px] font-black text-indigo-700 uppercase leading-tight mb-1">{schedule.subject}</div>
-                                    <div className="text-[10px] font-bold text-gray-500 truncate">{schedule.teacher_name}</div>
+                                  <div className={`h-full rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300 relative group/cell ${cellStyle}`}>
+                                    <div className="text-[11px] font-black uppercase leading-tight mb-1 opacity-80">{subText}</div>
+                                    <div className="text-[10px] font-bold truncate">{cellText}</div>
                                     {isGradeEditMode && (
                                       <button
                                         onClick={e => {
                                           e.stopPropagation();
                                           openGradeEditModalForEdit(schedule);
                                         }}
-                                        className="absolute top-1 right-1 p-1 rounded-lg bg-indigo-50 text-indigo-600 opacity-0 group-hover/cell:opacity-100 hover:bg-indigo-100 transition-all border border-indigo-100"
+                                        className="absolute top-1 right-1 p-1 rounded-lg bg-white/50 text-indigo-600 opacity-0 group-hover/cell:opacity-100 hover:bg-white transition-all shadow-sm"
                                         title="Editar Horários"
                                       >
                                         <Pencil size={12} />
@@ -1385,6 +1647,185 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        ) : activeSubTab === 'ausencias' ? (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+              <div>
+                <h2 className="text-xl font-black text-gray-900">Ausências Programadas</h2>
+                <p className="text-sm text-gray-500 font-medium">Gerencie as ausências futuras e substituições</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setAbsenceForm({
+                    date: selectedDate,
+                    teacher_name: '',
+                    status: 'VAGO',
+                    substitute_name: '',
+                    observation: '',
+                    selected_schedules: []
+                  });
+                  setIsAbsenceModalOpen(true);
+                }}
+                className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <Plus size={18} />
+                Agendar Ausência
+              </button>
+            </div>
+            
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              {plannedAbsences.length === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                    <Calendar size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Nenhuma ausência programada</h3>
+                  <p className="text-gray-500">Clique no botão acima para agendar uma nova ausência.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b-2 border-gray-100 bg-gray-50/50">
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Data</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Professor</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Período</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Substituto</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider w-16"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {plannedAbsences.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(pa => {
+                        const schedule = schedules.find(s => s.id === pa.schedule_id);
+                        const slot = timeSlots.find(ts => ts.id === pa.period);
+                        return (
+                          <tr key={pa.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                            <td className="p-4 font-bold text-gray-900">{new Date(pa.date + 'T12:00:00').toLocaleDateString('pt-BR')}</td>
+                            <td className="p-4 font-bold text-gray-900">{schedule?.teacher_name || 'Desconhecido'}</td>
+                            <td className="p-4 text-sm font-medium text-gray-500">{slot?.time} ({slot?.shift})</td>
+                            <td className="p-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                pa.status === 'SUBSTITUIDO' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                              }`}>
+                                {pa.status}
+                              </span>
+                            </td>
+                            <td className="p-4 font-bold text-gray-700">{pa.substitute_name || '-'}</td>
+                            <td className="p-4">
+                              <button 
+                                onClick={async () => {
+                                  if (confirm('Deseja excluir esta ausência programada?')) {
+                                    try {
+                                      await StorageService.deleteTeacherPlannedAbsence(pa.id!);
+                                      await StorageService.deleteTeacherReposicaoByPlannedAbsence(pa.id!);
+                                      loadData(true);
+                                    } catch (err) {
+                                      console.error(err);
+                                    }
+                                  }
+                                }}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeSubTab === 'reposicoes' ? (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+              <div>
+                <h2 className="text-xl font-black text-gray-900">Aulas a Repor</h2>
+                <p className="text-sm text-gray-500 font-medium">Acompanhe as aulas que precisam de reposição</p>
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              {reposicoes.length === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+                    <CheckCircle2 size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Tudo em dia!</h3>
+                  <p className="text-gray-500">Não há reposições pendentes no momento.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b-2 border-gray-100 bg-gray-50/50">
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Origem</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Professor</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Turma / Disc</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider">Reposição</th>
+                        <th className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider w-32">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reposicoes.sort((a, b) => {
+                        if (a.status !== b.status) return a.status === 'PENDENTE' ? -1 : 1;
+                        return new Date(b.date).getTime() - new Date(a.date).getTime();
+                      }).filter(r => !searchTerm || r.teacher_name.toLowerCase().includes(searchTerm.toLowerCase())).map(r => {
+                        const originalSlot = timeSlots.find(ts => ts.id === r.period);
+                        return (
+                          <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                            <td className="p-4">
+                              <div className="font-bold text-gray-900">{new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                              <div className="text-xs text-gray-500 font-medium">{originalSlot?.time}</div>
+                            </td>
+                            <td className="p-4 font-bold text-gray-900">{r.teacher_name}</td>
+                            <td className="p-4">
+                              <div className="font-bold text-gray-900">{r.class_name}</div>
+                              <div className="text-xs text-gray-500 font-medium">{r.subject}</div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                r.status === 'CONCLUIDO' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                              }`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              {r.makeup_date ? (
+                                <div>
+                                  <div className="font-bold text-green-700">{new Date(r.makeup_date + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                                  <div className="text-xs text-green-600 font-medium">Período: {r.makeup_period}</div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 font-medium">-</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {r.status === 'PENDENTE' && (
+                                <button 
+                                  onClick={() => {
+                                    setEditingReposicao(r);
+                                    setIsReposicaoModalOpen(true);
+                                  }}
+                                  className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
+                                >
+                                  Confirmar
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         ) : activeSubTab === 'horarios' ? (
@@ -1573,34 +2014,41 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                             if (!schedule) return <td key={className} className="p-2 bg-gray-50/30 rounded-2xl border border-dashed border-gray-100"></td>;
 
-                            const attendance = getAttendanceFor(schedule.id!, slot.id);
+                            const attendance = getEffectiveAttendance(schedule.id!, slot.id, selectedDate);
+                            const displayStatus = attendance?.status || 'PRESENTE';
                             
                             return (
                               <td key={className} className="p-2">
                                 <div className={`h-full rounded-2xl p-3 border-2 transition-all flex flex-col justify-between min-h-[130px] ${
-                                  attendance?.status === 'PRESENTE' ? 'bg-green-50 border-green-200 shadow-sm' :
-                                  attendance?.status === 'SUBSTITUIDO' ? 'bg-yellow-50 border-yellow-200 shadow-sm' :
-                                  attendance?.status === 'VAGO' ? 'bg-red-50 border-red-200 shadow-sm' :
+                                  displayStatus === 'PRESENTE' ? 'bg-green-50 border-green-200 shadow-sm' :
+                                  displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-50 border-yellow-200 shadow-sm' :
+                                  displayStatus === 'VAGO' ? 'bg-red-50 border-red-200 shadow-sm' :
                                   'bg-white border-gray-100 hover:border-indigo-200'
                                 }`}>
                                   <div>
                                     <div className="text-xs font-black text-indigo-600 uppercase mb-1 truncate">
-                                      {attendance?.status === 'SUBSTITUIDO' ? (
+                                      {displayStatus === 'SUBSTITUIDO' ? (
                                         <span className="text-yellow-700">SUBSTITUÍDO POR:</span>
                                       ) : schedule.teacher_name}
                                     </div>
                                     
-                                    {attendance?.status === 'SUBSTITUIDO' ? (
+                                    {displayStatus === 'SUBSTITUIDO' ? (
                                       <div className="text-sm font-black text-yellow-800 uppercase truncate">
-                                        {attendance.substitute_name}
+                                        {attendance?.substitute_name}
                                       </div>
                                     ) : (
                                       <div className="text-[10px] font-bold text-gray-400 uppercase truncate">{schedule.subject}</div>
                                     )}
                                     
-                                    {attendance?.status === 'VAGO' && attendance?.observation && (
+                                    {displayStatus === 'VAGO' && attendance?.observation && (
                                       <div className="mt-1 p-1 bg-red-100/50 rounded-md text-[8px] text-red-700 font-bold flex items-center gap-0.5">
                                         <AlertCircle size={8} /> {attendance.observation}
+                                      </div>
+                                    )}
+
+                                    {attendance?.is_planned && (
+                                      <div className="mt-1 p-1 bg-indigo-50 rounded-md text-[8px] text-indigo-700 font-bold uppercase tracking-wider text-center">
+                                        Ausência Programada
                                       </div>
                                     )}
                                   </div>
@@ -1608,16 +2056,16 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                   <div className="flex gap-0.5 mt-2">
                                     <button 
                                       onClick={() => handleToggleAttendance(schedule.id!, slot.id, 'PRESENTE', { observation: '' })}
-                                      title={attendance?.status === 'PRESENTE' ? "Limpar Registro" : "Presente"}
+                                      title={displayStatus === 'PRESENTE' ? "Limpar Registro" : "Presente"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        attendance?.status === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
+                                        displayStatus === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
                                       }`}
                                     >
                                       <CheckCircle2 size={16} />
                                     </button>
                                     <button 
                                       onClick={() => {
-                                        if (attendance?.status === 'SUBSTITUIDO') {
+                                        if (displayStatus === 'SUBSTITUIDO') {
                                           handleToggleAttendance(schedule.id!, slot.id, 'SUBSTITUIDO');
                                         } else {
                                           setSelectedScheduleForReplacement(schedule.id!);
@@ -1625,16 +2073,16 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                           setIsReplacementModalOpen(true);
                                         }
                                       }}
-                                      title={attendance?.status === 'SUBSTITUIDO' ? "Limpar Registro" : "Substituído"}
+                                      title={displayStatus === 'SUBSTITUIDO' ? "Limpar Registro" : "Substituído"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        attendance?.status === 'SUBSTITUIDO' ? 'bg-yellow-500 border-yellow-500 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-yellow-300 hover:text-yellow-600'
+                                        displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-500 border-yellow-500 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-yellow-300 hover:text-yellow-600'
                                       }`}
                                     >
                                       <UserPlus size={16} />
                                     </button>
                                     <button 
                                       onClick={() => {
-                                        if (attendance?.status === 'VAGO') {
+                                        if (displayStatus === 'VAGO') {
                                           // Se clicar de novo, perguntamos se quer limpar ou editar observação
                                           const choice = confirm('Pressione OK para LIMPAR o registro ou Cancelar para apenas EDITAR a observação.');
                                           if (choice) {
@@ -1650,9 +2098,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                           }
                                         }
                                       }}
-                                      title={attendance?.status === 'VAGO' ? "Limpar / Editar" : "Vago / Ausente"}
+                                      title={displayStatus === 'VAGO' ? "Limpar / Editar" : "Vago / Ausente"}
                                       className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        attendance?.status === 'VAGO' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-red-300 hover:text-red-600'
+                                        displayStatus === 'VAGO' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-red-300 hover:text-red-600'
                                       }`}
                                     >
                                       <XCircle size={16} />
@@ -2031,6 +2479,251 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         </div>
       )}
       {/* Modal Seleção de Professor Substituto */}
+      {/* Modal: Agendar Ausência Programada */}
+      <Modal
+        isOpen={isAbsenceModalOpen}
+        onClose={() => setIsAbsenceModalOpen(false)}
+        title="Agendar Ausência"
+      >
+        <form onSubmit={handleSaveAbsence} className="p-8 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Ausência *</label>
+              <input 
+                type="date"
+                required
+                value={absenceForm.date}
+                onChange={e => setAbsenceForm({ ...absenceForm, date: e.target.value, selected_schedules: [] })}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Professor Ausente *</label>
+              <select
+                required
+                value={absenceForm.teacher_name}
+                onChange={e => setAbsenceForm({ ...absenceForm, teacher_name: e.target.value, selected_schedules: [] })}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+              >
+                <option value="">Selecione o professor...</option>
+                {Array.from(new Set(schedules
+                  .filter(s => {
+                    if (!absenceForm.date) return true;
+                    const dateObj = new Date(absenceForm.date + 'T12:00:00');
+                    return s.day_of_week === dateObj.getDay();
+                  })
+                  .map(s => s.teacher_name)))
+                  .sort((a, b) => a.localeCompare(b))
+                  .map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))
+                }
+              </select>
+            </div>
+          </div>
+
+          {absenceForm.teacher_name && absenceForm.date && (() => {
+            const dateObj = new Date(absenceForm.date + 'T12:00:00');
+            const targetDay = dateObj.getDay();
+
+            const teacherSchedules = schedules
+              .filter(s => s.teacher_name === absenceForm.teacher_name && s.day_of_week === targetDay)
+              .sort((a, b) => a.period - b.period);
+
+            if (teacherSchedules.length === 0) return null;
+
+            return (
+              <div className="bg-indigo-50 p-4 rounded-2xl border-2 border-indigo-100">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-xs font-black text-indigo-800 uppercase tracking-wider">Aulas do Dia</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (absenceForm.selected_schedules.length === teacherSchedules.length) {
+                        setAbsenceForm({ ...absenceForm, selected_schedules: [] });
+                      } else {
+                        setAbsenceForm({ ...absenceForm, selected_schedules: teacherSchedules.map(s => s.id!) });
+                      }
+                    }}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                  >
+                    {absenceForm.selected_schedules.length === teacherSchedules.length ? 'Desmarcar Todas' : 'Selecionar Todas'}
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {teacherSchedules.map(s => {
+                    const slot = timeSlots.find(ts => ts.id === s.period);
+                    const isSelected = absenceForm.selected_schedules.includes(s.id!);
+                    return (
+                      <label key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-white shadow-sm' : 'border-indigo-100/50 hover:bg-indigo-100/30'}`}>
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-indigo-200'}`}>
+                          {isSelected && <Check size={14} className="text-white" />}
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAbsenceForm({ ...absenceForm, selected_schedules: [...absenceForm.selected_schedules, s.id!] });
+                            } else {
+                              setAbsenceForm({ ...absenceForm, selected_schedules: absenceForm.selected_schedules.filter(id => id !== s.id) });
+                            }
+                          }}
+                        />
+                        <div className="flex-1">
+                          <div className="font-bold text-gray-900 text-sm">{s.class_name} <span className="text-gray-500 font-medium ml-1">({slot?.time})</span></div>
+                          <div className="text-xs text-indigo-600 font-medium">{s.subject}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Status da Ausência *</label>
+              <div className="flex gap-4">
+                <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-2xl border-2 cursor-pointer transition-all ${absenceForm.status === 'VAGO' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-100 text-gray-500 hover:bg-gray-50'}`}>
+                  <input type="radio" name="absenceStatus" value="VAGO" checked={absenceForm.status === 'VAGO'} onChange={() => setAbsenceForm({...absenceForm, status: 'VAGO', substitute_name: ''})} className="hidden" />
+                  <span className="font-bold text-sm">Falta / Vago</span>
+                </label>
+                <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-2xl border-2 cursor-pointer transition-all ${absenceForm.status === 'SUBSTITUIDO' ? 'border-yellow-500 bg-yellow-50 text-yellow-700' : 'border-gray-100 text-gray-500 hover:bg-gray-50'}`}>
+                  <input type="radio" name="absenceStatus" value="SUBSTITUIDO" checked={absenceForm.status === 'SUBSTITUIDO'} onChange={() => setAbsenceForm({...absenceForm, status: 'SUBSTITUIDO'})} className="hidden" />
+                  <span className="font-bold text-sm">Substituído</span>
+                </label>
+              </div>
+            </div>
+            
+            {absenceForm.status === 'SUBSTITUIDO' && (
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Professor Substituto *</label>
+                <div className="relative">
+                  <select
+                    required
+                    value={absenceForm.substitute_name}
+                    onChange={e => setAbsenceForm({ ...absenceForm, substitute_name: e.target.value })}
+                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+                  >
+                    <option value="">Selecione o substituto...</option>
+                    {allServers.sort((a,b) => a.name.localeCompare(b.name)).map(server => (
+                      <option key={server.id} value={server.name}>{server.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>
+            <input 
+              type="text"
+              value={absenceForm.observation}
+              onChange={e => setAbsenceForm({ ...absenceForm, observation: e.target.value })}
+              placeholder="Ex: Atestado médico, participação em evento..."
+              className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-medium text-gray-900 focus:border-indigo-500 outline-none transition-all"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setIsAbsenceModalOpen(false)}
+              className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving || absenceForm.selected_schedules.length === 0}
+              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
+              Salvar
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal: Confirmar Reposição */}
+      <Modal
+        isOpen={isReposicaoModalOpen}
+        onClose={() => setIsReposicaoModalOpen(false)}
+        title="Confirmar Reposição"
+      >
+        <form onSubmit={handleSaveReposicao} className="p-8 space-y-6">
+          <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100 mb-6">
+            <h4 className="font-black text-indigo-900">{editingReposicao?.teacher_name}</h4>
+            <p className="text-sm text-indigo-700 mt-1">
+              Turma: <span className="font-bold">{editingReposicao?.class_name}</span> | Disc: <span className="font-bold">{editingReposicao?.subject}</span>
+            </p>
+            <p className="text-xs font-medium text-indigo-500 mt-2">
+              Reposição referente à aula original do dia {editingReposicao?.date ? new Date(editingReposicao.date + 'T12:00:00').toLocaleDateString('pt-BR') : ''}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Reposição *</label>
+              <input 
+                type="date"
+                required
+                value={editingReposicao?.makeup_date || ''}
+                onChange={e => setEditingReposicao(prev => prev ? { ...prev, makeup_date: e.target.value } : null)}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Período *</label>
+              <select
+                required
+                value={editingReposicao?.makeup_period || ''}
+                onChange={e => setEditingReposicao(prev => prev ? { ...prev, makeup_period: Number(e.target.value) } : null)}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+              >
+                <option value="">Selecione...</option>
+                {timeSlots.map(slot => (
+                  <option key={slot.id} value={slot.id}>{slot.time} ({slot.shift})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>
+            <input 
+              type="text"
+              value={editingReposicao?.observation || ''}
+              onChange={e => setEditingReposicao(prev => prev ? { ...prev, observation: e.target.value } : null)}
+              placeholder="Ex: Aula dada em laboratório..."
+              className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-medium text-gray-900 focus:border-indigo-500 outline-none transition-all"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setIsReposicaoModalOpen(false)}
+              className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
+              Confirmar Reposição
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <Modal
         isOpen={isReplacementModalOpen}
         onClose={() => setIsReplacementModalOpen(false)}

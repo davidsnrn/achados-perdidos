@@ -2053,9 +2053,7 @@ export const StorageService = {
       operator_id: absence.operator_id
     };
     payload.id = absence.id || crypto.randomUUID();
-    if (!absence.id) {
-      payload.created_at = new Date().toISOString();
-    }
+    payload.created_at = absence.created_at || new Date().toISOString();
 
     const { data, error } = await supabase.from('teacher_planned_absences').upsert(payload, { onConflict: 'id' }).select().single();
     if (error) throw error;
@@ -2094,9 +2092,7 @@ export const StorageService = {
       operator_id: reposicao.operator_id
     };
     payload.id = reposicao.id || crypto.randomUUID();
-    if (!reposicao.id) {
-      payload.created_at = new Date().toISOString();
-    }
+    payload.created_at = reposicao.created_at || new Date().toISOString();
 
     const { error } = await supabase.from('teacher_reposicoes').upsert(payload);
     if (error) throw error;

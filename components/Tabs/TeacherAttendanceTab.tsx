@@ -64,6 +64,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   });
   const [isReposicaoModalOpen, setIsReposicaoModalOpen] = useState(false);
   const [editingReposicao, setEditingReposicao] = useState<TeacherReposicao | null>(null);
+  const [selectedPendingReposicoes, setSelectedPendingReposicoes] = useState<string[]>([]);
   const [editingSchedule, setEditingSchedule] = useState<Partial<TeacherSchedule> | null>(null);
   const [bulkClassText, setBulkClassText] = useState('');
   const [editingClass, setEditingClass] = useState<TeacherClass | null>(null);
@@ -776,8 +777,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
   const handleSaveReposicao = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingReposicao?.makeup_date || !editingReposicao.makeup_period) {
-      alert("Informe a data e o período da reposição");
+    if (!editingReposicao?.makeup_date) {
+      alert("Informe a data da reposição");
       return;
     }
     try {
@@ -786,12 +787,25 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         ...editingReposicao,
         status: 'CONCLUIDO'
       });
+
+      // Confirm selected pending reposicoes
+      const otherSelected = reposicoes.filter(r => selectedPendingReposicoes.includes(r.id!));
+      for (const r of otherSelected) {
+        await StorageService.saveTeacherReposicao({
+          ...r,
+          makeup_date: editingReposicao.makeup_date,
+          observation: editingReposicao.observation,
+          status: 'CONCLUIDO'
+        });
+      }
+
       setIsReposicaoModalOpen(false);
       setEditingReposicao(null);
+      setSelectedPendingReposicoes([]);
       await loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Erro ao confirmar reposição");
+      alert(`Erro ao confirmar reposição: ${err?.message || err?.details || JSON.stringify(err)}`);
     } finally {
       setIsSaving(false);
     }
@@ -1810,6 +1824,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               {r.status === 'PENDENTE' && (
                                 <button 
                                   onClick={() => {
+                                    setSelectedPendingReposicoes([]);
                                     setEditingReposicao(r);
                                     setIsReposicaoModalOpen(true);
                                   }}
@@ -2666,7 +2681,64 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {(() => {
+            const pending = reposicoes.filter(r => 
+              r.teacher_name === editingReposicao?.teacher_name && 
+              r.status === 'PENDENTE' && 
+              r.id !== editingReposicao?.id
+            );
+            if (pending.length > 0) {
+              return (
+                <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100 mb-6">
+                  <h5 className="text-xs font-black text-orange-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <AlertCircle size={16} />
+                    Outras Reposições Pendentes ({pending.length}) (Clique para selecionar e repor juntas)
+                  </h5>
+                  <ul className="space-y-2">
+                    {pending.map(r => {
+                      const isSelected = selectedPendingReposicoes.includes(r.id!);
+                      return (
+                        <li 
+                          key={r.id} 
+                          onClick={() => {
+                            setSelectedPendingReposicoes(prev => 
+                              prev.includes(r.id!) 
+                                ? prev.filter(id => id !== r.id) 
+                                : [...prev, r.id!]
+                            );
+                          }}
+                          className={`text-xs font-medium flex justify-between items-center p-3 rounded-xl border cursor-pointer select-none transition-all ${
+                            isSelected 
+                              ? 'bg-orange-100/80 border-orange-300 text-orange-900 shadow-sm' 
+                              : 'bg-white/60 border-orange-100/50 text-orange-700 hover:bg-orange-100/30'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
+                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-orange-300 bg-white'
+                            }`}>
+                              {isSelected && <Check size={12} className="text-white" />}
+                            </div>
+                            <span>
+                              <span className="font-bold">{r.class_name}</span> - {r.subject || 'Sem disciplina'}
+                            </span>
+                          </div>
+                          <span className={`font-bold px-2 py-1 rounded-lg transition-colors ${
+                            isSelected ? 'bg-orange-200/80 text-orange-800' : 'bg-orange-100 text-orange-600'
+                          }`}>
+                            {r.date ? new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR') : ''}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            }
+            return null;
+          })()}
+
+          <div className="grid grid-cols-1 gap-6">
             <div>
               <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Reposição *</label>
               <input 
@@ -2676,20 +2748,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 onChange={e => setEditingReposicao(prev => prev ? { ...prev, makeup_date: e.target.value } : null)}
                 className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
               />
-            </div>
-            <div>
-              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Período *</label>
-              <select
-                required
-                value={editingReposicao?.makeup_period || ''}
-                onChange={e => setEditingReposicao(prev => prev ? { ...prev, makeup_period: Number(e.target.value) } : null)}
-                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-              >
-                <option value="">Selecione...</option>
-                {timeSlots.map(slot => (
-                  <option key={slot.id} value={slot.id}>{slot.time} ({slot.shift})</option>
-                ))}
-              </select>
             </div>
           </div>
 

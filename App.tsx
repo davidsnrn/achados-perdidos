@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from './services/storage';
-import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, StudentNotification } from './types';
+import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, StudentNotification, NotificationType } from './types';
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';

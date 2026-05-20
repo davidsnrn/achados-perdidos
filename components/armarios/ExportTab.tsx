@@ -8,7 +8,7 @@ interface ExportTabProps {
 }
 
 interface ExportEntry {
-    lockerNumber: number;
+    lockerNumber: string;
     registration: string;
     studentName: string;
     studentClass: string;

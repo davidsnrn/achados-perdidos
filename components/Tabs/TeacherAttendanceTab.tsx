@@ -811,6 +811,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
+  const handleCancelReposicao = async (reposicao: TeacherReposicao) => {
+    if (!window.confirm("Deseja realmente cancelar a confirmação desta reposição? Ela voltará para o estado pendente.")) {
+      return;
+    }
+    try {
+      setIsSaving(true);
+      await StorageService.saveTeacherReposicao({
+        ...reposicao,
+        status: 'PENDENTE',
+        makeup_date: undefined,
+        makeup_period: undefined,
+        observation: undefined
+      });
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao cancelar reposição: ${err?.message || err?.details || JSON.stringify(err)}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
 
   const openGradeEditModal = async (day: number, slotId: number) => {
     setGradeEditCell({ day, slotId });
@@ -1216,7 +1238,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               onClick={() => { 
                 setTeacherName(''); 
                 setOriginalTeacherName(null);
-                setScheduleRows([{ class_name: '', subject: '', shorthand: '', room: '' }]); 
+                setScheduleRows([{ class_name: '', subject: '', shorthand: '' }]); 
                 setIsScheduleModalOpen(true); 
               }}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 active:translate-y-0"
@@ -1814,14 +1836,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               {r.makeup_date ? (
                                 <div>
                                   <div className="font-bold text-green-700">{new Date(r.makeup_date + 'T12:00:00').toLocaleDateString('pt-BR')}</div>
-                                  <div className="text-xs text-green-600 font-medium">Período: {r.makeup_period}</div>
+                                  {r.observation && (
+                                    <div className="text-xs text-gray-500 font-medium italic mt-0.5 max-w-[200px] truncate" title={r.observation}>
+                                      Obs: {r.observation}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <span className="text-gray-400 font-medium">-</span>
                               )}
                             </td>
                             <td className="p-4">
-                              {r.status === 'PENDENTE' && (
+                              {r.status === 'PENDENTE' ? (
                                 <button 
                                   onClick={() => {
                                     setSelectedPendingReposicoes([]);
@@ -1832,6 +1858,25 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                 >
                                   Confirmar
                                 </button>
+                              ) : (
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setSelectedPendingReposicoes([]);
+                                      setEditingReposicao(r);
+                                      setIsReposicaoModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg text-xs font-bold transition-colors border border-gray-200"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button 
+                                    onClick={() => handleCancelReposicao(r)}
+                                    className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors border border-red-100"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -2625,7 +2670,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   >
                     <option value="">Selecione o substituto...</option>
                     {allServers.sort((a,b) => a.name.localeCompare(b.name)).map(server => (
-                      <option key={server.id} value={server.name}>{server.name}</option>
+                      <option key={server.matricula} value={server.name}>{server.name}</option>
                     ))}
                   </select>
                 </div>
@@ -2668,7 +2713,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       <Modal
         isOpen={isReposicaoModalOpen}
         onClose={() => setIsReposicaoModalOpen(false)}
-        title="Confirmar Reposição"
+        title={editingReposicao?.status === 'CONCLUIDO' ? 'Editar Reposição' : 'Confirmar Reposição'}
       >
         <form onSubmit={handleSaveReposicao} className="p-8 space-y-6">
           <div className="bg-indigo-50 rounded-2xl p-4 border border-indigo-100 mb-6">
@@ -2687,7 +2732,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               r.status === 'PENDENTE' && 
               r.id !== editingReposicao?.id
             );
-            if (pending.length > 0) {
+            if (pending.length > 0 && editingReposicao?.status === 'PENDENTE') {
               return (
                 <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100 mb-6">
                   <h5 className="text-xs font-black text-orange-800 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -2776,7 +2821,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Check size={20} />}
-              Confirmar Reposição
+              {editingReposicao?.status === 'CONCLUIDO' ? 'Salvar Alterações' : 'Confirmar Reposição'}
             </button>
           </div>
         </form>

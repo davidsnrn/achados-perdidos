@@ -43,7 +43,7 @@ export const generateInitialLockers = (): Locker[] => {
     const historyCount = Math.floor(Math.random() * 4);
     const loanHistory: LoanData[] = Array.from({ length: historyCount }, (_, hi) => ({
       id: `H${num}-${hi}`,
-      lockerNumber: num,
+      lockerNumber: String(num),
       physicalLocation: location,
       registrationNumber: `2023${1000 + hi}`,
       studentName: STUDENT_NAMES[Math.floor(Math.random() * STUDENT_NAMES.length)],
@@ -66,7 +66,7 @@ export const generateInitialLockers = (): Locker[] => {
     if (status === LockerStatus.OCCUPIED) {
       mockLoan = {
         id: Math.random().toString(36).substr(2, 5).toUpperCase(),
-        lockerNumber: num,
+        lockerNumber: String(num),
         physicalLocation: location,
         registrationNumber: `2024${Math.floor(100000 + Math.random() * 900000)}`,
         studentName: STUDENT_NAMES[Math.floor(Math.random() * STUDENT_NAMES.length)],
@@ -83,7 +83,7 @@ export const generateInitialLockers = (): Locker[] => {
     }
 
     return {
-      number: num,
+      number: String(num),
       status: status,
       location: location,
       currentLoan: mockLoan,

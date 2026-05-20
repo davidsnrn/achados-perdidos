@@ -225,6 +225,10 @@ export interface StudentNotification {
   teacher_referral: boolean;
   teacher_name?: string;
   operator_id: string;
+  out_of_hours?: boolean;
+  mobile_use?: boolean;
+  no_uniform?: boolean;
+  no_sneakers?: boolean;
   created_at?: string;
 }
 
@@ -261,7 +265,7 @@ export interface TeacherSchedule {
 }
 
 export interface TeacherAttendance {
-  id: string;
+  id?: string;
   campus_id: string;
   schedule_id: string;
   period: number;

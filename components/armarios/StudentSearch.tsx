@@ -6,9 +6,9 @@ import { PersonType } from '../../types';
 
 interface StudentSearchProps {
   lockers: Locker[];
-  onReturnLocker: (num: number) => void;
-  onUpdateObservation: (num: number, obs: string) => void;
-  onChangeLocker: (old: number, next: number) => void;
+  onReturnLocker: (num: string) => void;
+  onUpdateObservation: (num: string, obs: string) => void;
+  onChangeLocker: (old: string, next: string) => void;
 }
 
 const StudentSearch: React.FC<StudentSearchProps> = ({
@@ -20,7 +20,7 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [editingLoan, setEditingLoan] = useState<LoanData | null>(null);
   const [newObs, setNewObs] = useState('');
-  const [selectedNewLocker, setSelectedNewLocker] = useState<number | null>(null);
+  const [selectedNewLocker, setSelectedNewLocker] = useState<string | null>(null);
   const [isPickingLocker, setIsPickingLocker] = useState(false);
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [isSearching, setIsSearching] = useState(false);

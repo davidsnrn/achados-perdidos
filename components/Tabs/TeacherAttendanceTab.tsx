@@ -1086,7 +1086,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               <ClipboardList size={32} className="text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-gray-900 tracking-tight">Frequência de Docentes</h1>
+              <h1 className="text-3xl font-black text-gray-900 tracking-tight">Controle de Aulas</h1>
               <p className="text-gray-500 font-medium">Controle e verificação diária de presença docente</p>
             </div>
           </div>
@@ -1426,7 +1426,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <div className="flex justify-between items-end">
                     <div>
                       <div className="text-2xl font-black text-gray-900 mb-1">IFRN - NOVA CRUZ</div>
-                      <div className="text-lg font-bold text-gray-600 uppercase tracking-widest">Relatório de Frequência de Docentes</div>
+                      <div className="text-lg font-bold text-gray-600 uppercase tracking-widest">Relatório de Controle de Aulas</div>
                     </div>
                     <div className="text-right text-xs font-bold text-gray-500 space-y-1">
                       <div>Período: {new Date(reportStartDate + 'T12:00:00').toLocaleDateString('pt-BR')} até {new Date(reportEndDate + 'T12:00:00').toLocaleDateString('pt-BR')}</div>

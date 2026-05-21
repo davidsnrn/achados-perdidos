@@ -1063,7 +1063,7 @@ const App: React.FC = () => {
                 },
                 frequencia: {
                   id: 'frequencia',
-                  label: 'Frequência de Docentes',
+                  label: 'Controle de Aulas',
                   description: 'Verifique a presença de docentes nas salas e registre substituições ou horários vagos.',
                   icon: <ClipboardList size={32} />,
                   color: 'text-indigo-800',
@@ -1431,7 +1431,7 @@ const App: React.FC = () => {
             <button onClick={() => setActiveTab('notificacoes')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'notificacoes' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ShieldAlert size={18} /> Notificação de Alunos</button>
           )}
           {currentSystem === 'frequencia' && (
-            <button onClick={() => setActiveTab('frequencia')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'frequencia' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ClipboardList size={18} /> Frequência de Docentes</button>
+            <button onClick={() => setActiveTab('frequencia')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'frequencia' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ClipboardList size={18} /> Controle de Aulas</button>
           )}
 
         </div>

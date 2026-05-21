@@ -2959,6 +2959,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           {(() => {
             const pending = reposicoes.filter(r =>
               r.teacher_name === editingReposicao?.teacher_name &&
+              r.class_name === editingReposicao?.class_name &&
               r.status === 'PENDENTE' &&
               r.id !== editingReposicao?.id
             );

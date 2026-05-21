@@ -779,6 +779,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           );
 
           for (const schedule of teacherSchedules) {
+            const key = `${date}_${schedule.id}`;
+            if (!absenceForm.selected_schedules.includes(key)) continue;
+
             const savedAbsence = await StorageService.saveTeacherPlannedAbsence({
               campus_id: currentCampusId || '',
               schedule_id: schedule.id!,
@@ -1219,13 +1222,35 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             {activeSubTab === 'verificacao' && (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 bg-indigo-50 p-1.5 rounded-xl border border-indigo-100">
-                  <Calendar size={18} className="text-indigo-600 ml-2" />
+                  <button 
+                    onClick={() => {
+                      const d = new Date(selectedDate + 'T12:00:00');
+                      d.setDate(d.getDate() - 1);
+                      setSelectedDate(d.toISOString().split('T')[0]);
+                    }}
+                    className="p-1 hover:bg-indigo-100 rounded-lg text-indigo-600 transition-colors"
+                    title="Dia Anterior"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <Calendar size={18} className="text-indigo-600" />
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={e => setSelectedDate(e.target.value)}
                     className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer"
                   />
+                  <button 
+                    onClick={() => {
+                      const d = new Date(selectedDate + 'T12:00:00');
+                      d.setDate(d.getDate() + 1);
+                      setSelectedDate(d.toISOString().split('T')[0]);
+                    }}
+                    className="p-1 hover:bg-indigo-100 rounded-lg text-indigo-600 transition-colors"
+                    title="Próximo Dia"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2 bg-indigo-50 p-1.5 rounded-xl border border-indigo-100">
@@ -2733,30 +2758,89 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <label className="block text-xs font-black text-indigo-800 uppercase tracking-wider">
                     Aulas Afetadas no Período
                   </label>
-                  <span className="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-lg">
-                    {totalAulas} aula{totalAulas !== 1 ? 's' : ''} em {daysSummary.length} dia{daysSummary.length !== 1 ? 's' : ''}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-lg">
+                      {absenceForm.selected_schedules.length} de {totalAulas} aulas
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (absenceForm.selected_schedules.length === totalAulas) {
+                          setAbsenceForm({ ...absenceForm, selected_schedules: [] });
+                        } else {
+                          const allKeys = daysSummary.flatMap(d => d.teacherSchedules.map(s => `${d.date}_${s.id}`));
+                          setAbsenceForm({ ...absenceForm, selected_schedules: allKeys });
+                        }
+                      }}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                    >
+                      {absenceForm.selected_schedules.length === totalAulas ? 'Desmarcar Todas' : 'Selecionar Todas'}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                  {daysSummary.map(({ date, dateObj, dayName, teacherSchedules }) => (
+                  {daysSummary.map(({ date, dateObj, dayName, teacherSchedules }) => {
+                    const allDaySelected = teacherSchedules.every(s => absenceForm.selected_schedules.includes(`${date}_${s.id}`));
+                    
+                    return (
                     <div key={date} className="bg-white rounded-xl p-3 border border-indigo-100">
-                      <div className="font-bold text-gray-900 text-sm mb-2 flex items-center gap-2">
-                        <Calendar size={14} className="text-indigo-500" />
-                        {dayName}, {dateObj.toLocaleDateString('pt-BR')}
-                        <span className="text-xs text-indigo-500 font-medium">({teacherSchedules.length} aula{teacherSchedules.length !== 1 ? 's' : ''})</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="font-bold text-gray-900 text-sm flex items-center gap-2">
+                          <Calendar size={14} className="text-indigo-500" />
+                          {dayName}, {dateObj.toLocaleDateString('pt-BR')}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (allDaySelected) {
+                              setAbsenceForm({
+                                ...absenceForm,
+                                selected_schedules: absenceForm.selected_schedules.filter(id => !teacherSchedules.find(s => `${date}_${s.id}` === id))
+                              });
+                            } else {
+                              const newSelected = new Set(absenceForm.selected_schedules);
+                              teacherSchedules.forEach(s => newSelected.add(`${date}_${s.id}`));
+                              setAbsenceForm({ ...absenceForm, selected_schedules: Array.from(newSelected) });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 uppercase tracking-wider"
+                        >
+                          {allDaySelected ? 'Desmarcar Dia' : 'Selecionar Dia'}
+                        </button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="space-y-2">
                         {teacherSchedules.map(s => {
                           const slot = timeSlots.find(ts => ts.id === s.period);
+                          const key = `${date}_${s.id}`;
+                          const isSelected = absenceForm.selected_schedules.includes(key);
+                          
                           return (
-                            <span key={s.id} className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-medium">
-                              {s.class_name} ({slot?.time})
-                            </span>
+                            <label key={key} className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-indigo-500 bg-indigo-50/50 shadow-sm' : 'border-gray-100 hover:bg-gray-50'}`}>
+                              <div className={`w-5 h-5 rounded flex items-center justify-center border-2 transition-colors ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
+                                {isSelected && <Check size={14} className="text-white" />}
+                              </div>
+                              <input
+                                type="checkbox"
+                                className="hidden"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAbsenceForm({ ...absenceForm, selected_schedules: [...absenceForm.selected_schedules, key] });
+                                  } else {
+                                    setAbsenceForm({ ...absenceForm, selected_schedules: absenceForm.selected_schedules.filter(id => id !== key) });
+                                  }
+                                }}
+                              />
+                              <div className="flex-1">
+                                <div className="font-bold text-gray-900 text-sm">{s.class_name} <span className="text-gray-500 font-medium ml-1">({slot?.time})</span></div>
+                                <div className="text-xs text-indigo-600 font-medium">{s.subject}</div>
+                              </div>
+                            </label>
                           );
                         })}
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
               </div>
             );

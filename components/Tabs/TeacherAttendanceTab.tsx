@@ -705,24 +705,46 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       }
 
       const matchedClass = classes.find(c => c.name === selectedClass);
-      const promises = gradeSelectedSlots.map(({ day, slotId }) => {
+      
+      // Group slots by day and shift to generate combined shorthands (e.g., 2M12 instead of 2M1 and 2M2)
+      const groupedSlots: Record<string, number[]> = {};
+      gradeSelectedSlots.forEach(({ day, slotId }) => {
         const slot = timeSlots.find(ts => ts.id === slotId);
-        if (!slot) return Promise.resolve();
-        const relativePeriod = slotId - base[slot.shift];
-        const shorthand = `${day}${slot.shift}${relativePeriod}`;
-        return StorageService.saveTeacherSchedule({
-          id: '',
-          campus_id: currentCampusId,
-          teacher_name: gradeCellTeacher.trim(),
-          class_name: selectedClass,
-          subject: gradeCellSubject.trim(),
-          day_of_week: day - 1,
-          period: slotId,
-          periods: [slotId],
-          shorthand,
-          start_time: slot.time.split(' - ')[0],
-          end_time: slot.time.split(' - ')[1],
-          room: matchedClass?.room || undefined
+        if (slot) {
+          const key = `${day}_${slot.shift}`;
+          if (!groupedSlots[key]) groupedSlots[key] = [];
+          groupedSlots[key].push(slotId);
+        }
+      });
+
+      const promises: Promise<any>[] = [];
+      Object.entries(groupedSlots).forEach(([key, slotIds]) => {
+        const [dayStr, shift] = key.split('_');
+        const day = parseInt(dayStr);
+        slotIds.sort((a, b) => a - b);
+        
+        // Generate combined shorthand
+        const relativePeriods = slotIds.map(id => id - base[shift]).join('');
+        const combinedShorthand = `${day}${shift}${relativePeriods}`;
+
+        slotIds.forEach(slotId => {
+          const slot = timeSlots.find(ts => ts.id === slotId);
+          if (slot) {
+            promises.push(StorageService.saveTeacherSchedule({
+              id: '',
+              campus_id: currentCampusId,
+              teacher_name: gradeCellTeacher.trim(),
+              class_name: selectedClass,
+              subject: gradeCellSubject.trim(),
+              day_of_week: day - 1,
+              period: slotId,
+              periods: [slotId],
+              shorthand: combinedShorthand,
+              start_time: slot.time.split(' - ')[0],
+              end_time: slot.time.split(' - ')[1],
+              room: matchedClass?.room || undefined
+            }));
+          }
         });
       });
       await Promise.all(promises);

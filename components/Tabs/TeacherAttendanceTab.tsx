@@ -313,12 +313,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     window.print();
   };
 
-  const parseShorthand = (code: string): { day: number, periods: number[] } | null => {
-    // Regex for 2T12, 3M34, 4N12 etc.
-    const match = code.toUpperCase().match(/^([2-7])([MTN])([1-6]+)$/);
+  const parseShorthand = (code: string): { days: number[], periods: number[] } | null => {
+    // Supports: 2M1, 2M12, 25M12 (multi-day), 25M123 (multi-day, multi-period)
+    // Day digits: 2=Mon, 3=Tue, 4=Wed, 5=Thu, 6=Fri
+    // Shift: M=Manhã, T=Tarde, N=Noite
+    // Period digits: 1-6 within each shift
+    const match = code.toUpperCase().match(/^([2-7]+)([MTN])([1-6]+)$/);
     if (!match) return null;
 
-    const day = parseInt(match[1]);
+    const days = match[1].split('').map(Number).filter(d => d >= 2 && d <= 7);
     const shift = match[2];
     const periodDigits = match[3].split('').map(Number);
 
@@ -326,21 +329,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     const base = baseMapping[shift];
 
     const periods = periodDigits.map(p => base + p).filter(p => p >= 1 && p <= 16);
-    return { day, periods };
+    if (days.length === 0 || periods.length === 0) return null;
+    return { days, periods };
+  };
+
+  // Legacy compat: returns first day only (used by handleShorthandChange)
+  const parseShorthandSingle = (code: string): { day: number, periods: number[] } | null => {
+    const result = parseShorthand(code);
+    if (!result) return null;
+    return { day: result.days[0], periods: result.periods };
   };
 
   const handleShorthandChange = (code: string) => {
     setShorthandCode(code);
-    const parsed = parseShorthand(code);
+    const parsed = parseShorthandSingle(code);
     if (parsed && editingSchedule) {
-      // Just take the first period for start/end times if multiple
       const firstPeriod = timeSlots.find(ts => ts.id === parsed.periods[0]);
       const lastPeriod = timeSlots.find(ts => ts.id === parsed.periods[parsed.periods.length - 1]);
 
       if (firstPeriod && lastPeriod) {
         setEditingSchedule({
           ...editingSchedule,
-          day_of_week: parsed.day - 1, // Store as 0-6
+          day_of_week: parsed.day - 1,
           period: parsed.periods[0],
           start_time: firstPeriod.time.split(' - ')[0],
           end_time: lastPeriod.time.split(' - ')[1]
@@ -528,23 +538,29 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         for (const code of shorthandParts) {
           const parsed = parseShorthand(code);
           if (parsed) {
-            const startSlot = timeSlots.find(ts => ts.id === parsed.periods[0]);
-            const endSlot = timeSlots.find(ts => ts.id === parsed.periods[parsed.periods.length - 1]);
+            // Create one record per (day × period) so every grid slot is filled
+            for (const day of parsed.days) {
+              for (const period of parsed.periods) {
+                const slot = timeSlots.find(ts => ts.id === period);
+                // Build a per-period shorthand label for display (e.g. "2M1")
+                const singleShorthand = `${day}${code.toUpperCase().match(/([MTN])/)?.[1] || ''}${period - (['M','T','N'].indexOf(code.toUpperCase().match(/([MTN])/)?.[1] || 'M') * 6)}`;
 
-            allPromises.push(StorageService.saveTeacherSchedule({
-              id: '', // New record
-              campus_id: currentCampusId,
-              teacher_name: teacherName,
-              class_name: row.class_name,
-              subject: row.subject,
-              day_of_week: parsed.day - 1,
-              period: parsed.periods[0],
-              periods: parsed.periods,
-              shorthand: code,
-              start_time: startSlot?.time.split(' - ')[0] || '',
-              end_time: endSlot?.time.split(' - ')[1] || '',
-              room: resolvedRoom || undefined
-            }));
+                allPromises.push(StorageService.saveTeacherSchedule({
+                  id: '',
+                  campus_id: currentCampusId,
+                  teacher_name: teacherName,
+                  class_name: row.class_name,
+                  subject: row.subject,
+                  day_of_week: day - 1,
+                  period: period,
+                  periods: [period],
+                  shorthand: code, // Keep original shorthand for display grouping
+                  start_time: slot?.time.split(' - ')[0] || '',
+                  end_time: slot?.time.split(' - ')[1] || '',
+                  room: resolvedRoom || undefined
+                }));
+              }
+            }
           }
         }
       }
@@ -1684,7 +1700,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             const schedule = schedules.find(s =>
                               s.class_name === selectedClass &&
                               s.day_of_week === day.id - 1 &&
-                              s.period === slot.id
+                              (s.period === slot.id || (s.periods?.includes(slot.id)))
                             );
 
                             const isEditable = isGradeEditMode && !schedule;
@@ -3012,7 +3028,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             const occupied = schedules.some(
               s => s.class_name === selectedClass &&
                 s.day_of_week === day.id - 1 &&
-                s.period === slot.id &&
+                (s.period === slot.id || (s.periods?.includes(slot.id))) &&
                 !editingSchedulesInGrid.some(es => es.id === s.id)
             );
             return { day, slot, occupied };

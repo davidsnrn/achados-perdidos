@@ -296,12 +296,39 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const loadReport = async () => {
     try {
       setReportLoading(true);
-      const data = await (StorageService as any).getTeacherAttendanceByDateRange(
-        currentCampusId || undefined,
-        reportStartDate,
-        reportEndDate
-      );
-      setReportAttendances(data);
+      const [attendancesData, plannedData] = await Promise.all([
+        (StorageService as any).getTeacherAttendanceByDateRange(
+          currentCampusId || undefined,
+          reportStartDate,
+          reportEndDate
+        ),
+        (StorageService as any).getTeacherPlannedAbsencesByDateRange(
+          currentCampusId || undefined,
+          reportStartDate,
+          reportEndDate
+        )
+      ]);
+      
+      const combined = [...attendancesData];
+      for (const planned of plannedData) {
+        const exists = combined.find(a => a.schedule_id === planned.schedule_id && a.period === planned.period && a.date === planned.date);
+        if (!exists) {
+          combined.push({
+            id: undefined,
+            planned_absence_id: planned.id,
+            campus_id: planned.campus_id,
+            schedule_id: planned.schedule_id,
+            period: planned.period,
+            date: planned.date,
+            status: planned.status,
+            substitute_name: planned.substitute_name,
+            observation: planned.observation || 'Ausência informada',
+            operator_id: planned.operator_id,
+            is_planned: true
+          } as any);
+        }
+      }
+      setReportAttendances(combined);
     } catch (error) {
       console.error('Error loading report:', error);
     } finally {

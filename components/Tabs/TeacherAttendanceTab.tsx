@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  ClipboardList, Plus, Search, Filter, Calendar, 
-  User, BookOpen, MapPin, Clock, CheckCircle2, 
+import {
+  ClipboardList, Plus, Search, Filter, Calendar,
+  User, BookOpen, MapPin, Clock, CheckCircle2,
   XCircle, UserPlus, AlertCircle, Save, Trash2,
   ChevronRight, ArrowLeft, Loader2, MoreVertical,
-  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer, Check
+  GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer, Check,
+  ChevronLeft
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel, TeacherPlannedAbsence, TeacherReposicao } from '../../types';
@@ -42,13 +43,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedShift, setSelectedShift] = useState<'M' | 'T' | 'N'>('M');
-  
+
   // Modal States
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
   const [isAbsenceModalOpen, setIsAbsenceModalOpen] = useState(false);
   const [absenceForm, setAbsenceForm] = useState<{
     date: string;
+    date_end: string;
+    is_period: boolean;
     teacher_name: string;
     status: 'VAGO' | 'SUBSTITUIDO';
     substitute_name: string;
@@ -56,6 +59,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     selected_schedules: string[];
   }>({
     date: '',
+    date_end: '',
+    is_period: false,
     teacher_name: '',
     status: 'VAGO',
     substitute_name: '',
@@ -120,7 +125,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         // Toggle direction if it's already the primary sort
         return [{ field, direction: prev[0].direction === 'asc' ? 'desc' : 'asc' }, ...prev.slice(1)];
       }
-      
+
       // Move to front and set as primary
       const newSort = { field, direction: 'asc' as const };
       const filtered = prev.filter(s => s.field !== field);
@@ -181,7 +186,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     const monday = new Date(date.setDate(diffToMonday));
     const friday = new Date(monday);
     friday.setDate(monday.getDate() + 4);
-    
+
     return {
       start: monday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
       end: friday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
@@ -273,7 +278,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       const map: Record<string, string> = {};
       usersData.forEach((u: any) => { if (u.id) map[u.id] = u.name; });
       setUsersMap(map);
-      
+
       // Auto-select first class if none selected
       if (classesData.length > 0 && !selectedClass) {
         setSelectedClass(classesData[0].name);
@@ -316,7 +321,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     const day = parseInt(match[1]);
     const shift = match[2];
     const periodDigits = match[3].split('').map(Number);
-    
+
     const baseMapping: Record<string, number> = { 'M': 0, 'T': 6, 'N': 12 };
     const base = baseMapping[shift];
 
@@ -331,7 +336,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       // Just take the first period for start/end times if multiple
       const firstPeriod = timeSlots.find(ts => ts.id === parsed.periods[0]);
       const lastPeriod = timeSlots.find(ts => ts.id === parsed.periods[parsed.periods.length - 1]);
-      
+
       if (firstPeriod && lastPeriod) {
         setEditingSchedule({
           ...editingSchedule,
@@ -387,7 +392,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         operator_id: user.id,
         id: attendanceId || ''
       };
-      
+
       // Atualização otimista do estado local
       setAttendances(prev => {
         const filtered = prev.filter(a => !(a.schedule_id === scheduleId && a.period === period && a.date === selectedDate));
@@ -437,15 +442,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const handleToggleAttendance = async (scheduleId: string, period: number, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
     const effective = getEffectiveAttendance(scheduleId, period, selectedDate);
     const displayStatus = effective?.status || 'PRESENTE';
-    
+
     // Se clicar no status que já está ativo (ou se for PRESENTE e não tiver registro, o que significa que já é implicitamente PRESENTE)
     if (displayStatus === status) {
       if (!confirm('Deseja limpar este registro de frequência e reverter para Presente?')) return;
-      
+
       try {
         // Atualização otimista
         setAttendances(prev => prev.filter(a => !(a.schedule_id === scheduleId && a.period === period && a.date === selectedDate)));
-        
+
         if (effective) {
           if (!effective.is_planned && effective.id) {
             await StorageService.deleteTeacherAttendance(effective.id);
@@ -502,7 +507,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
     try {
       setIsSaving(true);
-      
+
       // If we are editing (have an original name), delete old records first
       if (originalTeacherName) {
         const oldSchedules = schedules.filter(s => s.teacher_name === originalTeacherName && s.campus_id === currentCampusId);
@@ -514,12 +519,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       const allPromises: Promise<any>[] = [];
       for (const row of scheduleRows) {
         if (!row.class_name || !row.shorthand) continue;
-        
+
         // Split shorthand by comma to support multiple codes in one field
         const shorthandParts = row.shorthand.split(',').map(s => s.trim()).filter(s => s.length > 0);
         const matchedClass = classes.find(c => c.name === row.class_name);
         const resolvedRoom = matchedClass?.room || '';
-        
+
         for (const code of shorthandParts) {
           const parsed = parseShorthand(code);
           if (parsed) {
@@ -545,7 +550,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       }
 
       await Promise.all(allPromises);
-      
+
       setIsScheduleModalOpen(false);
       setTeacherName('');
       setOriginalTeacherName(null);
@@ -577,7 +582,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     try {
       setIsSaving(true);
       const classNames = bulkClassText.split('\n').map(name => name.trim()).filter(name => name.length > 0);
-      
+
       const promises = classNames.map(async (name) => {
         try {
           await StorageService.saveTeacherClass({
@@ -591,7 +596,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       });
 
       await Promise.all(promises);
-      
+
       setIsClassModalOpen(false);
       setBulkClassText('');
       await loadData();
@@ -719,58 +724,133 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   };
 
+  const getDatesBetween = (start: string, end: string): string[] => {
+    const dates: string[] = [];
+    const current = new Date(start + 'T12:00:00');
+    const endDate = new Date(end + 'T12:00:00');
+    while (current <= endDate) {
+      const dow = current.getDay();
+      if (dow >= 1 && dow <= 5) {
+        dates.push(current.toISOString().split('T')[0]);
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+
   const handleSaveAbsence = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!absenceForm.date || !absenceForm.teacher_name || absenceForm.selected_schedules.length === 0) {
-      alert("Preencha todos os campos obrigatórios e selecione ao menos uma aula.");
-      return;
-    }
-    
-    try {
-      setIsSaving(true);
-      
-      const promises = absenceForm.selected_schedules.map(async (scheduleId) => {
-        const schedule = schedules.find(s => s.id === scheduleId);
-        if (!schedule) return;
 
-        const savedAbsence = await StorageService.saveTeacherPlannedAbsence({
-          campus_id: currentCampusId || '',
-          schedule_id: schedule.id!,
-          teacher_name: schedule.teacher_name,
-          period: schedule.period,
-          date: absenceForm.date,
-          status: 'VAGO',
-          observation: absenceForm.observation,
-          operator_id: user.id
+    if (absenceForm.is_period) {
+      if (!absenceForm.date || !absenceForm.date_end || !absenceForm.teacher_name) {
+        alert("Preencha todos os campos obrigatórios (datas e professor).");
+        return;
+      }
+      if (absenceForm.date_end < absenceForm.date) {
+        alert("A data final deve ser igual ou posterior à data inicial.");
+        return;
+      }
+
+      try {
+        setIsSaving(true);
+        const dates = getDatesBetween(absenceForm.date, absenceForm.date_end);
+
+        for (const date of dates) {
+          const dateObj = new Date(date + 'T12:00:00');
+          const targetDay = dateObj.getDay();
+          const teacherSchedules = schedules.filter(
+            s => s.teacher_name === absenceForm.teacher_name && s.day_of_week === targetDay
+          );
+
+          for (const schedule of teacherSchedules) {
+            const savedAbsence = await StorageService.saveTeacherPlannedAbsence({
+              campus_id: currentCampusId || '',
+              schedule_id: schedule.id!,
+              teacher_name: schedule.teacher_name,
+              period: schedule.period,
+              date: date,
+              status: 'VAGO',
+              observation: absenceForm.observation,
+              operator_id: user.id
+            });
+
+            await StorageService.saveTeacherReposicao({
+              campus_id: currentCampusId || '',
+              planned_absence_id: savedAbsence.id,
+              schedule_id: schedule.id!,
+              date: date,
+              period: schedule.period,
+              teacher_name: schedule.teacher_name,
+              class_name: schedule.class_name,
+              subject: schedule.subject || '',
+              status: 'PENDENTE',
+              operator_id: user.id
+            });
+          }
+        }
+
+        setIsAbsenceModalOpen(false);
+        setAbsenceForm({
+          date: '', date_end: '', is_period: false, teacher_name: '', status: 'VAGO', substitute_name: '', observation: '', selected_schedules: []
+        });
+        await loadData();
+      } catch (err: any) {
+        console.error(err);
+        alert(`Erro ao salvar ausências: ${err?.message || err?.details || JSON.stringify(err)}`);
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
+      if (!absenceForm.date || !absenceForm.teacher_name || absenceForm.selected_schedules.length === 0) {
+        alert("Preencha todos os campos obrigatórios e selecione ao menos uma aula.");
+        return;
+      }
+
+      try {
+        setIsSaving(true);
+
+        const promises = absenceForm.selected_schedules.map(async (scheduleId) => {
+          const schedule = schedules.find(s => s.id === scheduleId);
+          if (!schedule) return;
+
+          const savedAbsence = await StorageService.saveTeacherPlannedAbsence({
+            campus_id: currentCampusId || '',
+            schedule_id: schedule.id!,
+            teacher_name: schedule.teacher_name,
+            period: schedule.period,
+            date: absenceForm.date,
+            status: 'VAGO',
+            observation: absenceForm.observation,
+            operator_id: user.id
+          });
+
+          await StorageService.saveTeacherReposicao({
+            campus_id: currentCampusId || '',
+            planned_absence_id: savedAbsence.id,
+            schedule_id: schedule.id!,
+            date: absenceForm.date,
+            period: schedule.period,
+            teacher_name: schedule.teacher_name,
+            class_name: schedule.class_name,
+            subject: schedule.subject || '',
+            status: 'PENDENTE',
+            operator_id: user.id
+          });
         });
 
-        // Vincula a reposição
-        await StorageService.saveTeacherReposicao({
-          campus_id: currentCampusId || '',
-          planned_absence_id: savedAbsence.id,
-          schedule_id: schedule.id!,
-          date: absenceForm.date,
-          period: schedule.period,
-          teacher_name: schedule.teacher_name,
-          class_name: schedule.class_name,
-          subject: schedule.subject || '',
-          status: 'PENDENTE',
-          operator_id: user.id
+        await Promise.all(promises);
+
+        setIsAbsenceModalOpen(false);
+        setAbsenceForm({
+          date: '', date_end: '', is_period: false, teacher_name: '', status: 'VAGO', substitute_name: '', observation: '', selected_schedules: []
         });
-      });
-
-      await Promise.all(promises);
-
-      setIsAbsenceModalOpen(false);
-      setAbsenceForm({
-        date: '', teacher_name: '', status: 'VAGO', substitute_name: '', observation: '', selected_schedules: []
-      });
-      await loadData();
-    } catch (err: any) {
-      console.error(err);
-      alert(`Erro ao salvar ausência informada: ${err?.message || err?.details || JSON.stringify(err)}`);
-    } finally {
-      setIsSaving(false);
+        await loadData();
+      } catch (err: any) {
+        console.error(err);
+        alert(`Erro ao salvar ausência informada: ${err?.message || err?.details || JSON.stringify(err)}`);
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
@@ -853,23 +933,23 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
   const openGradeEditModalForEdit = async (schedule: TeacherSchedule) => {
     // Encontra todos os horários deste docente para a mesma turma e disciplina no campus atual
-    const matchingSchedules = schedules.filter(s => 
-      s.teacher_name === schedule.teacher_name && 
-      s.class_name === selectedClass && 
+    const matchingSchedules = schedules.filter(s =>
+      s.teacher_name === schedule.teacher_name &&
+      s.class_name === selectedClass &&
       s.subject === schedule.subject &&
       s.campus_id === currentCampusId
     );
 
     setEditingSchedulesInGrid(matchingSchedules);
     setGradeEditCell({ day: schedule.day_of_week + 1, slotId: schedule.period });
-    
+
     // Define os slots selecionados como todos os slots destes horários que estamos editando
     const slots = matchingSchedules.map(s => ({
       day: s.day_of_week + 1,
       slotId: s.period
     }));
     setGradeSelectedSlots(slots);
-    
+
     setGradeCellTeacher(schedule.teacher_name);
     setGradeCellSubject(schedule.subject || '');
     setGradeTeacherSearch(schedule.teacher_name);
@@ -895,22 +975,22 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   };
 
   // Helper to get attendance for a schedule
-  const getAttendanceFor = (scheduleId: string, period?: number) => 
+  const getAttendanceFor = (scheduleId: string, period?: number) =>
     attendances.find(a => a.schedule_id === scheduleId && (period === undefined || a.period === period));
 
   // Helper to convert internal period/day back to shorthand code (IFRN)
   const getShorthandFrom = (day: number, period: number): string => {
     const slot = timeSlots.find(ts => ts.id === period);
     if (!slot) return '';
-    
+
     // Convert 0-6 back to 2-7
     const dayCode = day + 1;
     const shift = slot.shift;
-    
+
     // Convert slot ID back to 1-6 relative to shift
     const baseMapping: Record<string, number> = { 'M': 0, 'T': 6, 'N': 12 };
     const relativePeriod = period - baseMapping[shift];
-    
+
     return `${dayCode}${shift}${relativePeriod}`;
   };
 
@@ -928,10 +1008,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
   // Filtered schedules for the list
   const displaySchedules = schedules.filter(s => {
-    const matchesSearch = s.teacher_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          s.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (s.subject || '').toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const matchesSearch = s.teacher_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.class_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.subject || '').toLowerCase().includes(searchTerm.toLowerCase());
+
     if (activeSubTab === 'verificacao') {
       const dateObj = new Date(selectedDate);
       const day = dateObj.getUTCDay();
@@ -958,7 +1038,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       <div className="bg-white rounded-3xl p-6 shadow-xl shadow-indigo-100 border border-indigo-50 mb-8 overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full -mr-32 -mt-32 blur-3xl opacity-50"></div>
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-50 rounded-full -ml-24 -mb-24 blur-3xl opacity-50"></div>
-        
+
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-blue-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
@@ -974,20 +1054,20 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200">
               {!isUserStandard && (
                 <>
-                  <button 
+                  <button
                     onClick={() => setActiveSubTab('verificacao')}
                     className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'verificacao' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     Verificação
                   </button>
-                  <button 
+                  <button
                     onClick={() => setActiveSubTab('ausencias')}
                     className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'ausencias' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     <Calendar size={14} />
                     Ausências
                   </button>
-                  <button 
+                  <button
                     onClick={() => setActiveSubTab('reposicoes')}
                     className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${activeSubTab === 'reposicoes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
@@ -996,25 +1076,25 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   </button>
                 </>
               )}
-              <button 
+              <button
                 onClick={() => setActiveSubTab('grade')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'grade' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Grade por Turma
               </button>
-              <button 
+              <button
                 onClick={() => setActiveSubTab('horarios')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'horarios' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Docentes
               </button>
-              <button 
+              <button
                 onClick={() => setActiveSubTab('turmas')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'turmas' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
                 Turmas
               </button>
-              <button 
+              <button
                 onClick={() => setActiveSubTab('relatorio')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-1.5 ${activeSubTab === 'relatorio' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
@@ -1109,7 +1189,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             {activeSubTab === 'grade' && (
               <div className="flex items-center gap-2 bg-indigo-50 p-1.5 rounded-xl border border-indigo-100">
                 <Filter size={18} className="text-indigo-600 ml-2" />
-                <select 
+                <select
                   value={selectedClass}
                   onChange={e => setSelectedClass(e.target.value)}
                   className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-8"
@@ -1124,7 +1204,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 bg-indigo-50 p-1.5 rounded-xl border border-indigo-100">
                   <Calendar size={18} className="text-indigo-600 ml-2" />
-                  <input 
+                  <input
                     type="date"
                     value={selectedDate}
                     onChange={e => setSelectedDate(e.target.value)}
@@ -1134,7 +1214,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                 <div className="flex items-center gap-2 bg-indigo-50 p-1.5 rounded-xl border border-indigo-100">
                   <Clock size={18} className="text-indigo-600 ml-2" />
-                  <select 
+                  <select
                     value={selectedShift}
                     onChange={e => setSelectedShift(e.target.value as any)}
                     className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-8"
@@ -1146,86 +1226,86 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </div>
 
                 <div className="relative" ref={classSelectionRef}>
-                  <button 
+                  <button
                     onClick={() => setIsClassSelectionOpen(!isClassSelectionOpen)}
                     className="flex items-center gap-2 bg-indigo-50 p-2 px-4 rounded-xl border border-indigo-100 text-sm font-bold text-indigo-800 hover:bg-indigo-100 transition-colors"
                   >
                     <Filter size={18} className="text-indigo-600" />
                     Selecionar Turmas {selectedClasses.length > 0 && `(${selectedClasses.length})`}
                   </button>
-                  
+
                   {isClassSelectionOpen && (
                     <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-50 max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
-                        {(() => {
-                          const filtered = uniqueClasses.filter(c => 
-                            c.toLowerCase().includes(classSearch.toLowerCase())
-                          );
-                          const allFilteredSelected = filtered.length > 0 && filtered.every(c => selectedClasses.includes(c));
-                          
-                          return (
-                            <>
-                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
-                                <label className="flex items-center gap-2 cursor-pointer group">
-                                  <input 
-                                    type="checkbox"
-                                    checked={allFilteredSelected}
-                                    onChange={() => {
-                                      if (allFilteredSelected) {
-                                        // Deselect only the filtered ones
-                                        setSelectedClasses(selectedClasses.filter(c => !filtered.includes(c)));
-                                      } else {
-                                        // Select all filtered ones (keeping previously selected that are not in filter)
-                                        setSelectedClasses([...new Set([...selectedClasses, ...filtered])]);
-                                      }
-                                    }}
-                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                  />
-                                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
-                                    {allFilteredSelected ? 'Desmarcar Visíveis' : 'Selecionar Visíveis'}
-                                  </span>
-                                </label>
-                                <button onClick={() => setSelectedClasses([])} className="text-[10px] text-red-500 font-bold hover:underline">Limpar Tudo</button>
-                              </div>
-                              
-                              <div className="mb-3 relative group">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
-                                <input 
-                                  type="text"
-                                  ref={classSearchInputRef}
-                                  placeholder="Filtrar turmas..."
-                                  value={classSearch}
-                                  onChange={e => setClassSearch(e.target.value)}
-                                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-bold focus:border-indigo-400 outline-none transition-all"
-                                />
-                              </div>
+                      {(() => {
+                        const filtered = uniqueClasses.filter(c =>
+                          c.toLowerCase().includes(classSearch.toLowerCase())
+                        );
+                        const allFilteredSelected = filtered.length > 0 && filtered.every(c => selectedClasses.includes(c));
 
-                              <div className="grid grid-cols-1 gap-1">
-                                {filtered.length === 0 ? (
-                                  <p className="text-center py-4 text-xs text-gray-400 font-medium">Nenhuma turma encontrada</p>
-                                ) : (
-                                  filtered.map(c => (
-                                    <label key={c} className="flex items-center gap-3 p-3 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition-colors group active:scale-[0.98]">
-                                      <input 
-                                        type="checkbox" 
-                                        checked={selectedClasses.includes(c)}
-                                        onChange={() => {
-                                          if (selectedClasses.includes(c)) {
-                                            setSelectedClasses(selectedClasses.filter(sc => sc !== c));
-                                          } else {
-                                            setSelectedClasses([...selectedClasses, c]);
-                                          }
-                                        }}
-                                        className="w-5 h-5 rounded-lg border-2 border-gray-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
-                                      />
-                                      <span className={`text-sm font-black ${selectedClasses.includes(c) ? 'text-indigo-700' : 'text-gray-600'} group-hover:text-indigo-600`}>{c}</span>
-                                    </label>
-                                  ))
-                                )}
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </div>
+                        return (
+                          <>
+                            <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
+                              <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                  type="checkbox"
+                                  checked={allFilteredSelected}
+                                  onChange={() => {
+                                    if (allFilteredSelected) {
+                                      // Deselect only the filtered ones
+                                      setSelectedClasses(selectedClasses.filter(c => !filtered.includes(c)));
+                                    } else {
+                                      // Select all filtered ones (keeping previously selected that are not in filter)
+                                      setSelectedClasses([...new Set([...selectedClasses, ...filtered])]);
+                                    }
+                                  }}
+                                  className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
+                                  {allFilteredSelected ? 'Desmarcar Visíveis' : 'Selecionar Visíveis'}
+                                </span>
+                              </label>
+                              <button onClick={() => setSelectedClasses([])} className="text-[10px] text-red-500 font-bold hover:underline">Limpar Tudo</button>
+                            </div>
+
+                            <div className="mb-3 relative group">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                              <input
+                                type="text"
+                                ref={classSearchInputRef}
+                                placeholder="Filtrar turmas..."
+                                value={classSearch}
+                                onChange={e => setClassSearch(e.target.value)}
+                                className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-bold focus:border-indigo-400 outline-none transition-all"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-1">
+                              {filtered.length === 0 ? (
+                                <p className="text-center py-4 text-xs text-gray-400 font-medium">Nenhuma turma encontrada</p>
+                              ) : (
+                                filtered.map(c => (
+                                  <label key={c} className="flex items-center gap-3 p-3 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition-colors group active:scale-[0.98]">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedClasses.includes(c)}
+                                      onChange={() => {
+                                        if (selectedClasses.includes(c)) {
+                                          setSelectedClasses(selectedClasses.filter(sc => sc !== c));
+                                        } else {
+                                          setSelectedClasses([...selectedClasses, c]);
+                                        }
+                                      }}
+                                      className="w-5 h-5 rounded-lg border-2 border-gray-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
+                                    />
+                                    <span className={`text-sm font-black ${selectedClasses.includes(c) ? 'text-indigo-700' : 'text-gray-600'} group-hover:text-indigo-600`}>{c}</span>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1233,12 +1313,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
 
           {activeSubTab === 'horarios' && !isUserStandard && (
-            <button 
-              onClick={() => { 
-                setTeacherName(''); 
+            <button
+              onClick={() => {
+                setTeacherName('');
                 setOriginalTeacherName(null);
-                setScheduleRows([{ class_name: '', subject: '', shorthand: '' }]); 
-                setIsScheduleModalOpen(true); 
+                setScheduleRows([{ class_name: '', subject: '', shorthand: '' }]);
+                setIsScheduleModalOpen(true);
               }}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
@@ -1248,7 +1328,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           )}
 
           {activeSubTab === 'turmas' && !isUserStandard && (
-            <button 
+            <button
               onClick={() => { setBulkClassText(''); setIsClassModalOpen(true); }}
               className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
@@ -1327,7 +1407,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               { label: 'Status', field: 'status' },
                               { label: 'Registrado por', field: 'operator' }
                             ].map(col => (
-                              <th 
+                              <th
                                 key={col.field}
                                 onClick={() => toggleSort(col.field)}
                                 className="p-4 text-xs font-black text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors group"
@@ -1348,10 +1428,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                 const schedB = schedules.find(s => s.id === b.schedule_id);
                                 const slotA = timeSlots.find(ts => ts.id === (a.period || schedA?.period));
                                 const slotB = timeSlots.find(ts => ts.id === (b.period || schedB?.period));
-                                
+
                                 let valA: any = '';
                                 let valB: any = '';
-                                
+
                                 if (sort.field === 'date') {
                                   valA = a.date;
                                   valB = b.date;
@@ -1420,7 +1500,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhuma turma cadastrada</h3>
                 <p className="text-gray-500 mb-6">Comece cadastrando as turmas da instituição.</p>
-                <button 
+                <button
                   onClick={() => setIsClassModalOpen(true)}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
                 >
@@ -1449,7 +1529,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   </div>
                   {!isUserStandard && (
                     <div className="flex gap-1 items-center opacity-65 md:opacity-0 group-hover:opacity-100 transition-all duration-200">
-                      <button 
+                      <button
                         onClick={() => {
                           setEditingClass(c);
                           setEditClassName(c.name);
@@ -1461,7 +1541,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       >
                         <Pencil size={20} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteClass(c.id!)}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                         title="Excluir Turma"
@@ -1481,7 +1561,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               <div className="flex flex-col items-center justify-center gap-4 mb-6 relative">
                 <div className="flex items-center gap-4 bg-indigo-50 px-6 py-2 rounded-2xl border-2 border-indigo-100">
                   <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-indigo-100 rounded-xl transition-colors text-indigo-700">
-                    <ArrowLeft size={20} />
+                    <ChevronLeft size={20} />
                   </button>
                   <div className="text-center">
                     <div className="text-sm font-bold text-indigo-900">
@@ -1498,7 +1578,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     <ChevronRight size={20} />
                   </button>
                 </div>
-                
+
                 <div className="text-center">
                   <h2 className="text-4xl font-black text-gray-900">{selectedClass || "Selecione uma turma"}</h2>
                   {selectedClass && (() => {
@@ -1562,18 +1642,17 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 {selectedClass && !isUserStandard && (
                   <button
                     onClick={() => setIsGradeEditMode(v => !v)}
-                    className={`absolute right-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
-                      isGradeEditMode
+                    className={`absolute right-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${isGradeEditMode
                         ? 'bg-green-100 text-green-700 border-2 border-green-200 hover:bg-green-200'
                         : 'bg-indigo-50 text-indigo-700 border-2 border-indigo-100 hover:bg-indigo-100'
-                    }`}
+                      }`}
                   >
                     {isGradeEditMode ? <CheckCircle2 size={16} /> : <Pencil size={16} />}
                     {isGradeEditMode ? 'Concluir Edição' : 'Editar Grade'}
                   </button>
                 )}
               </div>
-              
+
               <table className="w-full border-separate border-spacing-1">
                 <thead>
                   <tr>
@@ -1602,14 +1681,14 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             <div className="text-[10px] text-gray-400 font-bold uppercase whitespace-nowrap">{slot.time}</div>
                           </td>
                           {daysOfWeek.map(day => {
-                            const schedule = schedules.find(s => 
-                              s.class_name === selectedClass && 
-                              s.day_of_week === day.id - 1 && 
+                            const schedule = schedules.find(s =>
+                              s.class_name === selectedClass &&
+                              s.day_of_week === day.id - 1 &&
                               s.period === slot.id
                             );
 
                             const isEditable = isGradeEditMode && !schedule;
-                            
+
                             // Determinar a data exata da célula na semana selecionada
                             const { startDate } = getWeekRange(gradeWeekDate);
                             const cellDateObj = new Date(startDate);
@@ -1617,7 +1696,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             // day.id varia de 2 (Seg) a 6 (Sex)
                             cellDateObj.setDate(cellDateObj.getDate() + (day.id - 2));
                             const cellDateStr = cellDateObj.toISOString().split('T')[0];
-                            
+
                             // Pegar a situação efetiva do professor para essa célula
                             const effective = schedule ? getEffectiveAttendance(schedule.id!, slot.id, cellDateStr) : null;
                             const status = effective?.status || 'PRESENTE'; // default to presence
@@ -1640,9 +1719,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             return (
                               <td
                                 key={`${day.id}-${slot.id}`}
-                                className={`p-1 border border-gray-100 rounded-2xl min-h-[80px] w-[180px] transition-all ${
-                                  isEditable ? 'cursor-pointer bg-indigo-50/30 hover:bg-indigo-100/50 hover:border-indigo-300' : 'bg-white/50'
-                                }`}
+                                className={`p-1 border border-gray-100 rounded-2xl min-h-[80px] w-[180px] transition-all ${isEditable ? 'cursor-pointer bg-indigo-50/30 hover:bg-indigo-100/50 hover:border-indigo-300' : 'bg-white/50'
+                                  }`}
                                 onClick={() => {
                                   if (isEditable) {
                                     openGradeEditModal(day.id, slot.id);
@@ -1691,10 +1769,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <h2 className="text-xl font-black text-gray-900">Ausências Informadas</h2>
                 <p className="text-sm text-gray-500 font-medium">Gerencie as ausências informadas</p>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setAbsenceForm({
                     date: selectedDate,
+                    date_end: '',
+                    is_period: false,
                     teacher_name: '',
                     status: 'VAGO',
                     substitute_name: '',
@@ -1709,7 +1789,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 Informar Ausência
               </button>
             </div>
-            
+
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               {plannedAbsences.length === 0 ? (
                 <div className="py-20 text-center">
@@ -1750,7 +1830,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               </div>
                             </td>
                             <td className="p-4">
-                              <button 
+                              <button
                                 onClick={async () => {
                                   if (confirm('Deseja excluir esta ausência informada?')) {
                                     try {
@@ -1784,7 +1864,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <p className="text-sm text-gray-500 font-medium">Acompanhe as aulas que precisam de reposição</p>
               </div>
             </div>
-            
+
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
               {reposicoes.length === 0 ? (
                 <div className="py-20 text-center">
@@ -1825,9 +1905,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               <div className="text-xs text-gray-500 font-medium">{r.subject}</div>
                             </td>
                             <td className="p-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                r.status === 'CONCLUIDO' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                              }`}>
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${r.status === 'CONCLUIDO' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                }`}>
                                 {r.status}
                               </span>
                             </td>
@@ -1847,7 +1926,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             </td>
                             <td className="p-4">
                               {r.status === 'PENDENTE' ? (
-                                <button 
+                                <button
                                   onClick={() => {
                                     setSelectedPendingReposicoes([]);
                                     setEditingReposicao(r);
@@ -1859,7 +1938,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                 </button>
                               ) : (
                                 <div className="flex gap-2">
-                                  <button 
+                                  <button
                                     onClick={() => {
                                       setSelectedPendingReposicoes([]);
                                       setEditingReposicao(r);
@@ -1869,7 +1948,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                   >
                                     Editar
                                   </button>
-                                  <button 
+                                  <button
                                     onClick={() => handleCancelReposicao(r)}
                                     className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors border border-red-100"
                                   >
@@ -1897,7 +1976,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Nenhum professor encontrado</h3>
                 <p className="text-gray-500 mb-6">Comece adicionando os horários dos professores.</p>
-                <button 
+                <button
                   onClick={() => { setTeacherName(''); setScheduleRows([{ class_name: '', subject: '', shorthand: '' }]); setIsScheduleModalOpen(true); }}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
                 >
@@ -1911,7 +1990,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <div key={name} className="bg-white rounded-[32px] p-6 shadow-sm border-2 border-gray-100 hover:border-indigo-200 transition-all group relative overflow-hidden flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-start mb-6">
-                        <div 
+                        <div
                           onClick={() => toggleTeacherCollapse(name)}
                           className="flex items-center gap-4 cursor-pointer select-none group/title"
                         >
@@ -1932,11 +2011,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                         </div>
                         {!isUserStandard && (
                           <div className="flex gap-1">
-                            <button 
+                            <button
                               onClick={() => {
                                 setTeacherName(name);
                                 setOriginalTeacherName(name);
-                                
+
                                 // Group by class and subject for cleaner rows
                                 const groupedRows: Record<string, string[]> = {};
                                 teacherSchedules.forEach(s => {
@@ -1953,7 +2032,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     shorthand: Array.from(new Set(shorthands)).join(', ')
                                   };
                                 });
-                                
+
                                 setScheduleRows(rows);
                                 setIsScheduleModalOpen(true);
                               }}
@@ -1962,7 +2041,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             >
                               <Pencil size={20} />
                             </button>
-                            <button 
+                            <button
                               onClick={async () => {
                                 // Check linked attendances
                                 const scheduleIds = teacherSchedules.map(s => s.id!).filter(Boolean);
@@ -2008,7 +2087,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                           ).map(([key, group]) => {
                             const [className, subject] = key.split('|||');
                             const shorthands = Array.from(new Set(group.map(s => s.shorthand || getShorthandFrom(s.day_of_week, s.period)))).join(', ');
-                            
+
                             return (
                               <div key={key} className="p-3 bg-gray-50 rounded-2xl hover:bg-gray-100/50 transition-colors">
                                 <div className="flex items-center justify-between mb-1">
@@ -2065,9 +2144,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                           </td>
                           {selectedClasses.map(className => {
                             const dayNum = new Date(selectedDate).getUTCDay();
-                            const schedule = schedules.find(s => 
-                              s.class_name === className && 
-                              s.day_of_week === dayNum && 
+                            const schedule = schedules.find(s =>
+                              s.class_name === className &&
+                              s.day_of_week === dayNum &&
                               (s.periods?.includes(slot.id) || s.period === slot.id)
                             );
 
@@ -2075,22 +2154,21 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                             const attendance = getEffectiveAttendance(schedule.id!, slot.id, selectedDate);
                             const displayStatus = attendance?.status || 'PRESENTE';
-                            
+
                             return (
                               <td key={className} className="p-2">
-                                <div className={`h-full rounded-2xl p-3 border-2 transition-all flex flex-col justify-between min-h-[130px] ${
-                                  displayStatus === 'PRESENTE' ? 'bg-green-50 border-green-200 shadow-sm' :
-                                  displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-50 border-yellow-200 shadow-sm' :
-                                  displayStatus === 'VAGO' ? 'bg-red-50 border-red-200 shadow-sm' :
-                                  'bg-white border-gray-100 hover:border-indigo-200'
-                                }`}>
+                                <div className={`h-full rounded-2xl p-3 border-2 transition-all flex flex-col justify-between min-h-[130px] ${displayStatus === 'PRESENTE' ? 'bg-green-50 border-green-200 shadow-sm' :
+                                    displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-50 border-yellow-200 shadow-sm' :
+                                      displayStatus === 'VAGO' ? 'bg-red-50 border-red-200 shadow-sm' :
+                                        'bg-white border-gray-100 hover:border-indigo-200'
+                                  }`}>
                                   <div>
                                     <div className="text-xs font-black text-indigo-600 uppercase mb-1 truncate">
                                       {displayStatus === 'SUBSTITUIDO' ? (
                                         <span className="text-yellow-700">SUBSTITUÍDO POR:</span>
                                       ) : schedule.teacher_name}
                                     </div>
-                                    
+
                                     {displayStatus === 'SUBSTITUIDO' ? (
                                       <div className="text-sm font-black text-yellow-800 uppercase truncate">
                                         {attendance?.substitute_name}
@@ -2098,7 +2176,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     ) : (
                                       <div className="text-[10px] font-bold text-gray-400 uppercase truncate">{schedule.subject}</div>
                                     )}
-                                    
+
                                     {displayStatus === 'VAGO' && attendance?.observation && (
                                       <div className="mt-1 p-1 bg-red-100/50 rounded-md text-[8px] text-red-700 font-bold flex items-center gap-0.5">
                                         <AlertCircle size={8} /> {attendance.observation}
@@ -2113,16 +2191,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                   </div>
 
                                   <div className="flex gap-0.5 mt-2">
-                                    <button 
+                                    <button
                                       onClick={() => handleToggleAttendance(schedule.id!, slot.id, 'PRESENTE', { observation: '' })}
                                       title={displayStatus === 'PRESENTE' ? "Limpar Registro" : "Presente"}
-                                      className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        displayStatus === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
-                                      }`}
+                                      className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${displayStatus === 'PRESENTE' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-green-300 hover:text-green-600'
+                                        }`}
                                     >
                                       <CheckCircle2 size={16} />
                                     </button>
-                                    <button 
+                                    <button
                                       onClick={() => {
                                         if (displayStatus === 'SUBSTITUIDO') {
                                           handleToggleAttendance(schedule.id!, slot.id, 'SUBSTITUIDO');
@@ -2133,13 +2210,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                         }
                                       }}
                                       title={displayStatus === 'SUBSTITUIDO' ? "Limpar Registro" : "Substituído"}
-                                      className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-500 border-yellow-500 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-yellow-300 hover:text-yellow-600'
-                                      }`}
+                                      className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-500 border-yellow-500 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-yellow-300 hover:text-yellow-600'
+                                        }`}
                                     >
                                       <UserPlus size={16} />
                                     </button>
-                                    <button 
+                                    <button
                                       onClick={() => {
                                         if (displayStatus === 'VAGO') {
                                           // Se clicar de novo, perguntamos se quer limpar ou editar observação
@@ -2158,9 +2234,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                         }
                                       }}
                                       title={displayStatus === 'VAGO' ? "Limpar / Editar" : "Vago / Ausente"}
-                                      className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${
-                                        displayStatus === 'VAGO' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-red-300 hover:text-red-600'
-                                      }`}
+                                      className={`flex-1 p-1.5 rounded-lg border transition-all flex items-center justify-center ${displayStatus === 'VAGO' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-100 text-gray-400 hover:border-red-300 hover:text-red-600'
+                                        }`}
                                     >
                                       <XCircle size={16} />
                                     </button>
@@ -2189,8 +2264,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       </div>
 
       {/* Modal Professores/Horários */}
-      <Modal 
-        isOpen={isScheduleModalOpen} 
+      <Modal
+        isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
         title="Cadastrar Docente e Horários"
       >
@@ -2208,7 +2283,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               <label className="block text-sm font-bold text-gray-700 mb-2">Nome do Docente</label>
               <div className="relative" ref={teacherSearchRef}>
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                <input 
+                <input
                   type="text"
                   required
                   className="w-full pl-12 pr-12 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-indigo-500 focus:ring-0 transition-all outline-none"
@@ -2232,7 +2307,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     }
                   }}
                 />
-                <button 
+                <button
                   type="button"
                   onClick={() => handleTeacherSearch()}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
@@ -2285,7 +2360,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             <div className="border-t border-gray-100 pt-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Turmas e Horários</h3>
-                <button 
+                <button
                   type="button"
                   onClick={() => setScheduleRows([...scheduleRows, { class_name: '', subject: '', shorthand: '' }])}
                   className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-bold text-sm bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
@@ -2299,7 +2374,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 {scheduleRows.map((row, index) => (
                   <div key={index} className="p-4 bg-gray-50 rounded-2xl border-2 border-gray-100 relative group">
                     {scheduleRows.length > 1 && (
-                      <button 
+                      <button
                         type="button"
                         onClick={() => setScheduleRows(scheduleRows.filter((_, i) => i !== index))}
                         className="absolute -top-2 -right-2 w-8 h-8 bg-red-100 text-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
@@ -2307,11 +2382,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                         <X size={16} />
                       </button>
                     )}
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Turma</label>
-                        <select 
+                        <select
                           required
                           className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm font-bold text-gray-800"
                           value={row.class_name}
@@ -2329,7 +2404,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Disciplina</label>
-                        <input 
+                        <input
                           type="text"
                           className="w-full px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-0 transition-all outline-none text-sm"
                           placeholder="Ex: Matemática II"
@@ -2346,7 +2421,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Código de Horário (Ex: 2T12, 3M34)</label>
-                        <input 
+                        <input
                           type="text"
                           required
                           name={`shorthand-${index}`}
@@ -2369,7 +2444,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
 
           <div className="flex gap-4 mt-8">
-            <button 
+            <button
               type="button"
               onClick={() => {
                 setIsScheduleModalOpen(false);
@@ -2381,7 +2456,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             >
               Cancelar
             </button>
-            <button 
+            <button
               type="submit"
               disabled={isSaving}
               className="flex-1 px-6 py-3.5 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50 flex items-center justify-center gap-2"
@@ -2411,7 +2486,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <h2 className="text-2xl font-black mb-1">Cadastrar Turmas em Lote</h2>
                 <p className="text-indigo-100 font-medium">Adicione várias turmas de uma vez</p>
               </div>
-              <button 
+              <button
                 onClick={() => setIsClassModalOpen(false)}
                 className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors"
               >
@@ -2431,7 +2506,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
               <div className="mb-6">
                 <label className="block text-sm font-bold text-gray-700 mb-2">Lista de Turmas (Uma por linha)</label>
-                <textarea 
+                <textarea
                   rows={10}
                   className="w-full bg-gray-50 border-2 border-gray-200 rounded-2xl px-4 py-4 focus:border-indigo-500 outline-none transition-all font-mono text-sm"
                   placeholder="Ex:&#10;ADM1M&#10;ADM2M&#10;INF1M&#10;INF2M"
@@ -2442,13 +2517,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               </div>
 
               <div className="flex gap-3 mt-8">
-                <button 
+                <button
                   onClick={() => setIsClassModalOpen(false)}
                   className="flex-1 px-6 py-4 bg-gray-100 text-gray-700 rounded-2xl font-black hover:bg-gray-200 transition-all"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={handleBulkClassSave}
                   disabled={isSaving || !bulkClassText.trim()}
                   className="flex-[2] px-6 py-4 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -2471,7 +2546,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <h2 className="text-2xl font-black mb-1">Editar Turma</h2>
                 <p className="text-indigo-100 font-medium">Altere as informações da turma ou cadastre a sala de aula</p>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setIsEditClassModalOpen(false);
                   setEditingClass(null);
@@ -2487,7 +2562,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <label className="block text-sm font-bold text-gray-700 mb-2">Nome da Turma</label>
                 <div className="relative">
                   <GraduationCap className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input 
+                  <input
                     type="text"
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 outline-none transition-all font-bold text-gray-800"
                     placeholder="Ex: ADM1M"
@@ -2501,7 +2576,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <label className="block text-sm font-bold text-gray-700 mb-2">Local / Sala de Aula (Opcional)</label>
                 <div className="relative">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                  <input 
+                  <input
                     type="text"
                     className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-indigo-500 outline-none transition-all font-bold text-gray-800"
                     placeholder="Ex: Lab de Informática, Sala 102, etc."
@@ -2515,7 +2590,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
               </div>
 
               <div className="flex gap-3 mt-8">
-                <button 
+                <button
                   onClick={() => {
                     setIsEditClassModalOpen(false);
                     setEditingClass(null);
@@ -2524,7 +2599,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   onClick={handleSaveEditClass}
                   disabled={isSaving || !editClassName.trim()}
                   className="flex-[2] px-6 py-4 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
@@ -2545,10 +2620,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         title="Informar Ausência"
       >
         <form onSubmit={handleSaveAbsence} className="p-8 space-y-6">
+          {/* Toggle: Data Única / Período */}
+          <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl w-fit">
+            <button
+              type="button"
+              onClick={() => setAbsenceForm({ ...absenceForm, is_period: false, date_end: '', selected_schedules: [] })}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!absenceForm.is_period ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <span className="flex items-center gap-1.5"><Calendar size={14} /> Data Única</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAbsenceForm({ ...absenceForm, is_period: true, selected_schedules: [] })}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${absenceForm.is_period ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <span className="flex items-center gap-1.5"><Calendar size={14} /> Período</span>
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Ausência *</label>
-              <input 
+              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">{absenceForm.is_period ? 'Data Início *' : 'Data da Ausência *'}</label>
+              <input
                 type="date"
                 required
                 value={absenceForm.date}
@@ -2556,7 +2649,20 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
               />
             </div>
-            <div>
+            {absenceForm.is_period ? (
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data Fim *</label>
+                <input
+                  type="date"
+                  required
+                  value={absenceForm.date_end}
+                  min={absenceForm.date}
+                  onChange={e => setAbsenceForm({ ...absenceForm, date_end: e.target.value, selected_schedules: [] })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+            ) : null}
+            <div className={absenceForm.is_period ? 'md:col-span-2' : ''}>
               <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Professor Ausente *</label>
               <select
                 required
@@ -2567,6 +2673,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 <option value="">Selecione o professor...</option>
                 {Array.from(new Set(schedules
                   .filter(s => {
+                    if (absenceForm.is_period) return true;
                     if (!absenceForm.date) return true;
                     const dateObj = new Date(absenceForm.date + 'T12:00:00');
                     return s.day_of_week === dateObj.getDay();
@@ -2581,7 +2688,66 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             </div>
           </div>
 
-          {absenceForm.teacher_name && absenceForm.date && (() => {
+          {/* Modo Período: Resumo das aulas afetadas */}
+          {absenceForm.is_period && absenceForm.teacher_name && absenceForm.date && absenceForm.date_end && (() => {
+            const dates = getDatesBetween(absenceForm.date, absenceForm.date_end);
+            const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+            let totalAulas = 0;
+
+            const daysSummary = dates.map(date => {
+              const dateObj = new Date(date + 'T12:00:00');
+              const targetDay = dateObj.getDay();
+              const teacherSchedules = schedules
+                .filter(s => s.teacher_name === absenceForm.teacher_name && s.day_of_week === targetDay)
+                .sort((a, b) => a.period - b.period);
+              totalAulas += teacherSchedules.length;
+              return { date, dateObj, dayName: dayNames[targetDay], teacherSchedules };
+            }).filter(d => d.teacherSchedules.length > 0);
+
+            if (daysSummary.length === 0) return (
+              <div className="bg-orange-50 p-4 rounded-2xl border-2 border-orange-100 text-center">
+                <AlertCircle size={24} className="text-orange-500 mx-auto mb-2" />
+                <p className="text-sm font-bold text-orange-800">Nenhuma aula encontrada para este professor no período selecionado.</p>
+              </div>
+            );
+
+            return (
+              <div className="bg-indigo-50 p-4 rounded-2xl border-2 border-indigo-100">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-xs font-black text-indigo-800 uppercase tracking-wider">
+                    Aulas Afetadas no Período
+                  </label>
+                  <span className="text-xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-lg">
+                    {totalAulas} aula{totalAulas !== 1 ? 's' : ''} em {daysSummary.length} dia{daysSummary.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                  {daysSummary.map(({ date, dateObj, dayName, teacherSchedules }) => (
+                    <div key={date} className="bg-white rounded-xl p-3 border border-indigo-100">
+                      <div className="font-bold text-gray-900 text-sm mb-2 flex items-center gap-2">
+                        <Calendar size={14} className="text-indigo-500" />
+                        {dayName}, {dateObj.toLocaleDateString('pt-BR')}
+                        <span className="text-xs text-indigo-500 font-medium">({teacherSchedules.length} aula{teacherSchedules.length !== 1 ? 's' : ''})</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {teacherSchedules.map(s => {
+                          const slot = timeSlots.find(ts => ts.id === s.period);
+                          return (
+                            <span key={s.id} className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded-lg font-medium">
+                              {s.class_name} ({slot?.time})
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Modo Data Única: Seleção de aulas */}
+          {!absenceForm.is_period && absenceForm.teacher_name && absenceForm.date && (() => {
             const dateObj = new Date(absenceForm.date + 'T12:00:00');
             const targetDay = dateObj.getDay();
 
@@ -2644,7 +2810,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
           <div>
             <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>
-            <input 
+            <input
               type="text"
               value={absenceForm.observation}
               onChange={e => setAbsenceForm({ ...absenceForm, observation: e.target.value })}
@@ -2663,7 +2829,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             </button>
             <button
               type="submit"
-              disabled={isSaving || absenceForm.selected_schedules.length === 0}
+              disabled={isSaving || (!absenceForm.is_period && absenceForm.selected_schedules.length === 0)}
               className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {isSaving ? <Loader2 size={20} className="animate-spin" /> : <Save size={20} />}
@@ -2691,9 +2857,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
 
           {(() => {
-            const pending = reposicoes.filter(r => 
-              r.teacher_name === editingReposicao?.teacher_name && 
-              r.status === 'PENDENTE' && 
+            const pending = reposicoes.filter(r =>
+              r.teacher_name === editingReposicao?.teacher_name &&
+              r.status === 'PENDENTE' &&
               r.id !== editingReposicao?.id
             );
             if (pending.length > 0 && editingReposicao?.status === 'PENDENTE') {
@@ -2707,34 +2873,31 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     {pending.map(r => {
                       const isSelected = selectedPendingReposicoes.includes(r.id!);
                       return (
-                        <li 
-                          key={r.id} 
+                        <li
+                          key={r.id}
                           onClick={() => {
-                            setSelectedPendingReposicoes(prev => 
-                              prev.includes(r.id!) 
-                                ? prev.filter(id => id !== r.id) 
+                            setSelectedPendingReposicoes(prev =>
+                              prev.includes(r.id!)
+                                ? prev.filter(id => id !== r.id)
                                 : [...prev, r.id!]
                             );
                           }}
-                          className={`text-xs font-medium flex justify-between items-center p-3 rounded-xl border cursor-pointer select-none transition-all ${
-                            isSelected 
-                              ? 'bg-orange-100/80 border-orange-300 text-orange-900 shadow-sm' 
+                          className={`text-xs font-medium flex justify-between items-center p-3 rounded-xl border cursor-pointer select-none transition-all ${isSelected
+                              ? 'bg-orange-100/80 border-orange-300 text-orange-900 shadow-sm'
                               : 'bg-white/60 border-orange-100/50 text-orange-700 hover:bg-orange-100/30'
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center gap-2.5">
-                            <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${
-                              isSelected ? 'bg-orange-600 border-orange-600' : 'border-orange-300 bg-white'
-                            }`}>
+                            <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${isSelected ? 'bg-orange-600 border-orange-600' : 'border-orange-300 bg-white'
+                              }`}>
                               {isSelected && <Check size={12} className="text-white" />}
                             </div>
                             <span>
                               <span className="font-bold">{r.class_name}</span> - {r.subject || 'Sem disciplina'}
                             </span>
                           </div>
-                          <span className={`font-bold px-2 py-1 rounded-lg transition-colors ${
-                            isSelected ? 'bg-orange-200/80 text-orange-800' : 'bg-orange-100 text-orange-600'
-                          }`}>
+                          <span className={`font-bold px-2 py-1 rounded-lg transition-colors ${isSelected ? 'bg-orange-200/80 text-orange-800' : 'bg-orange-100 text-orange-600'
+                            }`}>
                             {r.date ? new Date(r.date + 'T12:00:00').toLocaleDateString('pt-BR') : ''}
                           </span>
                         </li>
@@ -2750,7 +2913,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           <div className="grid grid-cols-1 gap-6">
             <div>
               <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Reposição *</label>
-              <input 
+              <input
                 type="date"
                 required
                 value={editingReposicao?.makeup_date || ''}
@@ -2762,7 +2925,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
           <div>
             <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>
-            <input 
+            <input
               type="text"
               value={editingReposicao?.observation || ''}
               onChange={e => setEditingReposicao(prev => prev ? { ...prev, observation: e.target.value } : null)}
@@ -2800,7 +2963,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           <div className="mb-6">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input 
+              <input
                 type="text"
                 className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-indigo-500 focus:ring-0 transition-all outline-none"
                 placeholder="Buscar professor cadastrado..."
@@ -2819,7 +2982,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   key={name}
                   onClick={() => {
                     if (selectedScheduleForReplacement && selectedPeriodForReplacement !== null) {
-                      handleSaveAttendance(selectedScheduleForReplacement, selectedPeriodForReplacement, 'SUBSTITUIDO', { 
+                      handleSaveAttendance(selectedScheduleForReplacement, selectedPeriodForReplacement, 'SUBSTITUIDO', {
                         substitute_name: name,
                         observation: '' // Limpa o "Sem aula" ao substituir
                       });
@@ -2847,10 +3010,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         const availableSlots = timeSlots.map(slot => {
           return daysOfWeek.map(day => {
             const occupied = schedules.some(
-              s => s.class_name === selectedClass && 
-                   s.day_of_week === day.id - 1 && 
-                   s.period === slot.id &&
-                   !editingSchedulesInGrid.some(es => es.id === s.id)
+              s => s.class_name === selectedClass &&
+                s.day_of_week === day.id - 1 &&
+                s.period === slot.id &&
+                !editingSchedulesInGrid.some(es => es.id === s.id)
             );
             return { day, slot, occupied };
           });
@@ -2943,11 +3106,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             key={name}
                             type="button"
                             onClick={() => { setGradeCellTeacher(name); setGradeTeacherSearch(name); }}
-                            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-3 ${
-                              gradeCellTeacher === name
+                            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-3 ${gradeCellTeacher === name
                                 ? 'bg-indigo-600 text-white'
                                 : 'bg-gray-50 text-gray-700 hover:bg-indigo-50 hover:text-indigo-700'
-                            }`}
+                              }`}
                           >
                             <User size={13} className={gradeCellTeacher === name ? 'text-white' : 'text-gray-400'} />
                             <span className="truncate">{name}</span>
@@ -2993,13 +3155,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                           type="button"
                                           disabled={occupied}
                                           onClick={() => toggleSlot(day.id, slot.id, occupied)}
-                                          className={`w-7 h-7 rounded-lg border-2 text-[10px] font-black transition-all ${
-                                            occupied
+                                          className={`w-7 h-7 rounded-lg border-2 text-[10px] font-black transition-all ${occupied
                                               ? 'bg-gray-100 border-gray-100 text-gray-300 cursor-not-allowed'
                                               : selected
                                                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
                                                 : 'bg-white border-gray-200 text-gray-400 hover:border-indigo-400 hover:text-indigo-600'
-                                          }`}
+                                            }`}
                                           title={occupied ? 'Já preenchido' : selected ? 'Desmarcar' : 'Selecionar'}
                                         >
                                           {occupied ? '–' : selected ? '✓' : ''}

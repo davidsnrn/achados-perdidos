@@ -48,6 +48,22 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     room: string | null;
   }>({ teacher: null, class: null, room: null });
 
+  // Substitution States
+  const [substitutionWeekDate, setSubstitutionWeekDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSubstitutionModalOpen, setIsSubstitutionModalOpen] = useState(false);
+  const [selectedAbsenceForSubstitution, setSelectedAbsenceForSubstitution] = useState<{
+    type: 'planned' | 'attendance';
+    id: string;
+    schedule_id: string;
+    period: number;
+    date: string;
+    teacher_name: string;
+    class_name: string;
+    subject: string;
+    substitute_name?: string;
+  } | null>(null);
+  const [searchSubstitutionTeacher, setSearchSubstitutionTeacher] = useState('');
+
   useEffect(() => {
     const checkConflicts = () => {
       const { teacher_name, schedule_id, new_date, new_period } = remanejamentoForm;
@@ -957,6 +973,52 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     } catch (err: any) {
       console.error(err);
       alert(`Erro ao salvar remanejamento: ${err?.message || err?.details || JSON.stringify(err)}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveSubstitution = async (substituteName: string) => {
+    if (!selectedAbsenceForSubstitution) return;
+
+    try {
+      setIsSaving(true);
+      const { type, id, schedule_id, period, date } = selectedAbsenceForSubstitution;
+
+      if (type === 'planned') {
+        const planned = plannedAbsences.find(pa => pa.id === id);
+        if (planned) {
+          await StorageService.saveTeacherPlannedAbsence({
+            ...planned,
+            status: substituteName ? 'SUBSTITUIDO' : 'VAGO',
+            substitute_name: substituteName || undefined,
+            operator_id: user.id
+          });
+        }
+      } else {
+        const schedule = schedules.find(s => s.id === schedule_id);
+        if (schedule) {
+          await StorageService.saveTeacherAttendance({
+            id: id || undefined,
+            campus_id: currentCampusId || '',
+            schedule_id,
+            period,
+            date,
+            status: substituteName ? 'SUBSTITUIDO' : 'VAGO',
+            substitute_name: substituteName || undefined,
+            operator_id: user.id
+          });
+        }
+      }
+
+      setIsSubstitutionModalOpen(false);
+      setSelectedAbsenceForSubstitution(null);
+      setSearchSubstitutionTeacher('');
+      alert("Substituto designado com sucesso!");
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erro ao designar substituto: ${err?.message || err?.details || JSON.stringify(err)}`);
     } finally {
       setIsSaving(false);
     }
@@ -3525,6 +3587,49 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       setSelectedPeriodForReplacement(null);
                     }
                   }}
+                  className="w-full text-left p-4 hover:bg-indigo-50 rounded-2xl border-2 border-transparent hover:border-indigo-100 transition-all group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-gray-700 group-hover:text-indigo-600">{name}</span>
+                    <UserPlus size={18} className="text-gray-300 group-hover:text-indigo-400" />
+                  </div>
+                </button>
+              ))
+            }
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isSubstitutionModalOpen}
+        onClose={() => {
+          setIsSubstitutionModalOpen(false);
+          setSelectedAbsenceForSubstitution(null);
+        }}
+        title="Designar Professor Substituto"
+      >
+        <div className="p-8">
+          <div className="mb-6">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-indigo-500 focus:ring-0 transition-all outline-none"
+                placeholder="Buscar professor substituto..."
+                value={searchSubstitutionTeacher}
+                onChange={(e) => setSearchSubstitutionTeacher(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+            {Array.from(new Set(schedules.map(s => s.teacher_name)))
+              .filter(name => name.toLowerCase().includes(searchSubstitutionTeacher.toLowerCase()))
+              .sort()
+              .map(name => (
+                <button
+                  key={name}
+                  onClick={() => handleSaveSubstitution(name)}
                   className="w-full text-left p-4 hover:bg-indigo-50 rounded-2xl border-2 border-transparent hover:border-indigo-100 transition-all group"
                 >
                   <div className="flex items-center justify-between">

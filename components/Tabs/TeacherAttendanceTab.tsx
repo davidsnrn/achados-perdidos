@@ -159,7 +159,55 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
-  const [selectedShift, setSelectedShift] = useState<'M' | 'T' | 'N'>('M');
+  const [selectedShift, setSelectedShift] = useState<'M' | 'T' | 'N'>(() => {
+    const hour = new Date().getHours();
+    if (hour >= 19 || hour < 7) return 'N';
+    if (hour >= 13) return 'T';
+    return 'M';
+  });
+  const [verificationViewMode, setVerificationViewMode] = useState<'turma' | 'sala'>('turma');
+  const [selectedRoom, setSelectedRoom] = useState<string>('');
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([]);
+  const [isRoomSelectionOpen, setIsRoomSelectionOpen] = useState(false);
+  const [roomSearch, setRoomSearch] = useState('');
+  const roomSelectionRef = useRef<HTMLDivElement>(null);
+  const roomSearchInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag-to-scroll refs and handlers
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isDraggingScroll = useRef(false);
+  const startX = useRef(0);
+  const scrollLeftVal = useRef(0);
+
+  const handleScrollMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('input')) return;
+    
+    isDraggingScroll.current = true;
+    startX.current = e.pageX - (scrollContainerRef.current?.offsetLeft || 0);
+    scrollLeftVal.current = scrollContainerRef.current?.scrollLeft || 0;
+    
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.cursor = 'grabbing';
+      scrollContainerRef.current.style.userSelect = 'none';
+    }
+  };
+
+  const handleScrollMouseUpOrLeave = () => {
+    isDraggingScroll.current = false;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.style.cursor = 'grab';
+      scrollContainerRef.current.style.removeProperty('user-select');
+    }
+  };
+
+  const handleScrollMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingScroll.current || !scrollContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - (scrollContainerRef.current.offsetLeft || 0);
+    const walk = (x - startX.current) * 1.5;
+    scrollContainerRef.current.scrollLeft = scrollLeftVal.current - walk;
+  };
 
   // Modal States
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -335,23 +383,35 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
   }, [isClassSelectionOpen]);
 
-  // Click outside listener for class selection dropdown
+  // Focus search input when room selection opens
+  useEffect(() => {
+    if (isRoomSelectionOpen) {
+      setTimeout(() => {
+        roomSearchInputRef.current?.focus();
+      }, 100);
+    }
+  }, [isRoomSelectionOpen]);
+
+  // Click outside listener for class and room selection dropdowns
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (classSelectionRef.current && !classSelectionRef.current.contains(event.target as Node)) {
         setIsClassSelectionOpen(false);
       }
+      if (roomSelectionRef.current && !roomSelectionRef.current.contains(event.target as Node)) {
+        setIsRoomSelectionOpen(false);
+      }
       if (teacherSearchRef.current && !teacherSearchRef.current.contains(event.target as Node)) {
         setShowTeacherResults(false);
       }
     }
-    if (isClassSelectionOpen || showTeacherResults) {
+    if (isClassSelectionOpen || isRoomSelectionOpen || showTeacherResults) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isClassSelectionOpen, showTeacherResults]);
+  }, [isClassSelectionOpen, isRoomSelectionOpen, showTeacherResults]);
 
   // Global keydown event listener to close active modals using Escape key
   useEffect(() => {
@@ -374,6 +434,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+
 
   const loadData = async (silent = false) => {
     try {
@@ -1320,6 +1382,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   }, {} as Record<string, TeacherSchedule[]>);
 
   const uniqueClasses = classes.map(c => c.name).sort();
+  const uniqueRooms = [...new Set(
+    classes.filter(c => c.room?.trim()).map(c => c.room!.trim())
+  )].sort();
+
+  const activeColumns = verificationViewMode === 'sala' ? selectedRooms : selectedClasses;
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1552,89 +1619,205 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   </select>
                 </div>
 
-                <div className="relative" ref={classSelectionRef}>
+                <div className="flex bg-indigo-50 p-1 rounded-xl border border-indigo-100">
                   <button
-                    onClick={() => setIsClassSelectionOpen(!isClassSelectionOpen)}
-                    className="flex items-center gap-2 bg-indigo-50 p-2 px-4 rounded-xl border border-indigo-100 text-sm font-bold text-indigo-800 hover:bg-indigo-100 transition-colors"
+                    type="button"
+                    onClick={() => {
+                      setVerificationViewMode('turma');
+                      setSelectedClasses([]);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      verificationViewMode === 'turma'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-indigo-600 hover:text-indigo-800'
+                    }`}
                   >
-                    <Filter size={18} className="text-indigo-600" />
-                    Selecionar Turmas {selectedClasses.length > 0 && `(${selectedClasses.length})`}
+                    Por Turma
                   </button>
-
-                  {isClassSelectionOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-50 max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
-                      {(() => {
-                        const filtered = uniqueClasses.filter(c =>
-                          c.toLowerCase().includes(classSearch.toLowerCase())
-                        );
-                        const allFilteredSelected = filtered.length > 0 && filtered.every(c => selectedClasses.includes(c));
-
-                        return (
-                          <>
-                            <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
-                              <label className="flex items-center gap-2 cursor-pointer group">
-                                <input
-                                  type="checkbox"
-                                  checked={allFilteredSelected}
-                                  onChange={() => {
-                                    if (allFilteredSelected) {
-                                      // Deselect only the filtered ones
-                                      setSelectedClasses(selectedClasses.filter(c => !filtered.includes(c)));
-                                    } else {
-                                      // Select all filtered ones (keeping previously selected that are not in filter)
-                                      setSelectedClasses([...new Set([...selectedClasses, ...filtered])]);
-                                    }
-                                  }}
-                                  className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
-                                  {allFilteredSelected ? 'Desmarcar Visíveis' : 'Selecionar Visíveis'}
-                                </span>
-                              </label>
-                              <button onClick={() => setSelectedClasses([])} className="text-[10px] text-red-500 font-bold hover:underline">Limpar Tudo</button>
-                            </div>
-
-                            <div className="mb-3 relative group">
-                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
-                              <input
-                                type="text"
-                                ref={classSearchInputRef}
-                                placeholder="Filtrar turmas..."
-                                value={classSearch}
-                                onChange={e => setClassSearch(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-bold focus:border-indigo-400 outline-none transition-all"
-                              />
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-1">
-                              {filtered.length === 0 ? (
-                                <p className="text-center py-4 text-xs text-gray-400 font-medium">Nenhuma turma encontrada</p>
-                              ) : (
-                                filtered.map(c => (
-                                  <label key={c} className="flex items-center gap-3 p-3 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition-colors group active:scale-[0.98]">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedClasses.includes(c)}
-                                      onChange={() => {
-                                        if (selectedClasses.includes(c)) {
-                                          setSelectedClasses(selectedClasses.filter(sc => sc !== c));
-                                        } else {
-                                          setSelectedClasses([...selectedClasses, c]);
-                                        }
-                                      }}
-                                      className="w-5 h-5 rounded-lg border-2 border-gray-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
-                                    />
-                                    <span className={`text-sm font-black ${selectedClasses.includes(c) ? 'text-indigo-700' : 'text-gray-600'} group-hover:text-indigo-600`}>{c}</span>
-                                  </label>
-                                ))
-                              )}
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVerificationViewMode('sala');
+                      setSelectedRoom('');
+                      setSelectedClasses([]);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      verificationViewMode === 'sala'
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-indigo-600 hover:text-indigo-800'
+                    }`}
+                  >
+                    Por Sala
+                  </button>
                 </div>
+
+                {verificationViewMode === 'turma' ? (
+                  <div className="relative" ref={classSelectionRef}>
+                    <button
+                      onClick={() => setIsClassSelectionOpen(!isClassSelectionOpen)}
+                      className="flex items-center gap-2 bg-indigo-50 p-2 px-4 rounded-xl border border-indigo-100 text-sm font-bold text-indigo-800 hover:bg-indigo-100 transition-colors"
+                    >
+                      <Filter size={18} className="text-indigo-600" />
+                      Selecionar Turmas {selectedClasses.length > 0 && `(${selectedClasses.length})`}
+                    </button>
+
+                    {isClassSelectionOpen && (
+                      <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-50 max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                        {(() => {
+                          const filtered = uniqueClasses.filter(c =>
+                            c.toLowerCase().includes(classSearch.toLowerCase())
+                          );
+                          const allFilteredSelected = filtered.length > 0 && filtered.every(c => selectedClasses.includes(c));
+
+                          return (
+                            <>
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    checked={allFilteredSelected}
+                                    onChange={() => {
+                                      if (allFilteredSelected) {
+                                        // Deselect only the filtered ones
+                                        setSelectedClasses(selectedClasses.filter(c => !filtered.includes(c)));
+                                      } else {
+                                        // Select all filtered ones (keeping previously selected that are not in filter)
+                                        setSelectedClasses([...new Set([...selectedClasses, ...filtered])]);
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
+                                    {allFilteredSelected ? 'Desmarcar Visíveis' : 'Selecionar Visíveis'}
+                                  </span>
+                                </label>
+                                <button onClick={() => setSelectedClasses([])} className="text-[10px] text-red-500 font-bold hover:underline">Limpar Tudo</button>
+                              </div>
+
+                              <div className="mb-3 relative group">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                <input
+                                  type="text"
+                                  ref={classSearchInputRef}
+                                  placeholder="Filtrar turmas..."
+                                  value={classSearch}
+                                  onChange={e => setClassSearch(e.target.value)}
+                                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-bold focus:border-indigo-400 outline-none transition-all"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-1">
+                                {filtered.length === 0 ? (
+                                  <p className="text-center py-4 text-xs text-gray-400 font-medium">Nenhuma turma encontrada</p>
+                                ) : (
+                                  filtered.map(c => (
+                                    <label key={c} className="flex items-center gap-3 p-3 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition-colors group active:scale-[0.98]">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedClasses.includes(c)}
+                                        onChange={() => {
+                                          if (selectedClasses.includes(c)) {
+                                            setSelectedClasses(selectedClasses.filter(sc => sc !== c));
+                                          } else {
+                                            setSelectedClasses([...selectedClasses, c]);
+                                          }
+                                        }}
+                                        className="w-5 h-5 rounded-lg border-2 border-gray-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
+                                      />
+                                      <span className={`text-sm font-black ${selectedClasses.includes(c) ? 'text-indigo-700' : 'text-gray-600'} group-hover:text-indigo-600`}>{c}</span>
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative" ref={roomSelectionRef}>
+                    <button
+                      onClick={() => setIsRoomSelectionOpen(!isRoomSelectionOpen)}
+                      className="flex items-center gap-2 bg-indigo-50 p-2 px-4 rounded-xl border border-indigo-100 text-sm font-bold text-indigo-800 hover:bg-indigo-100 transition-colors"
+                    >
+                      <MapPin size={18} className="text-indigo-600" />
+                      Selecionar Salas {selectedRooms.length > 0 && `(${selectedRooms.length})`}
+                    </button>
+
+                    {isRoomSelectionOpen && (
+                      <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 p-3 z-50 max-h-80 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                        {(() => {
+                          const filtered = uniqueRooms.filter(r =>
+                            r.toLowerCase().includes(roomSearch.toLowerCase())
+                          );
+                          const allFilteredSelected = filtered.length > 0 && filtered.every(r => selectedRooms.includes(r));
+
+                          return (
+                            <>
+                              <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-50">
+                                <label className="flex items-center gap-2 cursor-pointer group">
+                                  <input
+                                    type="checkbox"
+                                    checked={allFilteredSelected}
+                                    onChange={() => {
+                                      if (allFilteredSelected) {
+                                        setSelectedRooms(selectedRooms.filter(r => !filtered.includes(r)));
+                                      } else {
+                                        setSelectedRooms([...new Set([...selectedRooms, ...filtered])]);
+                                      }
+                                    }}
+                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider group-hover:text-indigo-600 transition-colors">
+                                    {allFilteredSelected ? 'Desmarcar Visíveis' : 'Selecionar Visíveis'}
+                                  </span>
+                                </label>
+                                <button onClick={() => setSelectedRooms([])} className="text-[10px] text-red-500 font-bold hover:underline">Limpar Tudo</button>
+                              </div>
+
+                              <div className="mb-3 relative group">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                <input
+                                  type="text"
+                                  ref={roomSearchInputRef}
+                                  placeholder="Filtrar salas..."
+                                  value={roomSearch}
+                                  onChange={e => setRoomSearch(e.target.value)}
+                                  className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-2 border-gray-100 rounded-xl text-sm font-bold focus:border-indigo-400 outline-none transition-all"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-1">
+                                {filtered.length === 0 ? (
+                                  <p className="text-center py-4 text-xs text-gray-400 font-medium">Nenhuma sala encontrada</p>
+                                ) : (
+                                  filtered.map(r => (
+                                    <label key={r} className="flex items-center gap-3 p-3 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition-colors group active:scale-[0.98]">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedRooms.includes(r)}
+                                        onChange={() => {
+                                          if (selectedRooms.includes(r)) {
+                                            setSelectedRooms(selectedRooms.filter(sr => sr !== r));
+                                          } else {
+                                            setSelectedRooms([...selectedRooms, r]);
+                                          }
+                                        }}
+                                        className="w-5 h-5 rounded-lg border-2 border-gray-200 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
+                                      />
+                                      <span className={`text-sm font-black ${selectedRooms.includes(r) ? 'text-indigo-700' : 'text-gray-600'} group-hover:text-indigo-600`}>{r}</span>
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -2646,26 +2829,61 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         ) : (
           /* VERIFICAÇÃO VIEW (GRID MODE) */
           <div className="space-y-6">
-            {selectedClasses.length === 0 ? (
+            {activeColumns.length === 0 ? (
               <div className="py-32 text-center bg-white/80 backdrop-blur-md rounded-[32px] border-2 border-dashed border-gray-200">
                 <div className="w-20 h-20 bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 text-indigo-400 rotate-3 transition-transform hover:rotate-0">
                   <Filter size={40} />
                 </div>
                 <h3 className="text-2xl font-black text-gray-900 mb-2">Inicie a Verificação</h3>
                 <p className="text-gray-500 font-medium max-w-sm mx-auto">
-                  Selecione as turmas no filtro acima para visualizar a grade de horários e registrar a frequência.
+                  {verificationViewMode === 'sala'
+                    ? 'Selecione as salas no filtro acima para visualizar a grade de horários e registrar a frequência.'
+                    : 'Selecione as turmas no filtro acima para visualizar a grade de horários e registrar a frequência.'
+                  }
                 </p>
               </div>
             ) : (
-              <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 overflow-x-auto">
+              <div
+                ref={scrollContainerRef}
+                onMouseDown={handleScrollMouseDown}
+                onMouseLeave={handleScrollMouseUpOrLeave}
+                onMouseUp={handleScrollMouseUpOrLeave}
+                onMouseMove={handleScrollMouseMove}
+                className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 overflow-x-auto cursor-grab select-none"
+              >
                 <div className="min-w-max">
                   <table className="w-full border-separate border-spacing-2">
                     <thead>
                       <tr>
                         <th className="p-3 bg-gray-50 rounded-2xl w-28"></th>
-                        {selectedClasses.map(className => (
-                          <th key={className} className="p-3 bg-indigo-600 text-white rounded-2xl text-base font-black min-w-[220px] shadow-lg shadow-indigo-100">
-                            {className}
+                        {activeColumns.map((colName, index) => (
+                          <th
+                            key={colName}
+                            draggable
+                            onDragStart={e => {
+                              e.dataTransfer.setData('text/plain', index.toString());
+                            }}
+                            onDragOver={e => e.preventDefault()}
+                            onDrop={e => {
+                              const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                              const toIndex = index;
+                              if (fromIndex === toIndex) return;
+
+                              if (verificationViewMode === 'sala') {
+                                const newRooms = [...selectedRooms];
+                                const [moved] = newRooms.splice(fromIndex, 1);
+                                newRooms.splice(toIndex, 0, moved);
+                                setSelectedRooms(newRooms);
+                              } else {
+                                const newClasses = [...selectedClasses];
+                                const [moved] = newClasses.splice(fromIndex, 1);
+                                newClasses.splice(toIndex, 0, moved);
+                                setSelectedClasses(newClasses);
+                              }
+                            }}
+                            className="p-3 bg-indigo-600 text-white rounded-2xl text-base font-black min-w-[220px] shadow-lg shadow-indigo-100 cursor-grab active:cursor-grabbing hover:bg-indigo-700 transition-colors"
+                          >
+                            {colName}
                           </th>
                         ))}
                       </tr>
@@ -2677,21 +2895,28 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             <div className="text-indigo-600 font-black text-base leading-none mb-1">{slot.label}º Aula</div>
                             <div className="text-[10px] text-gray-400 font-bold uppercase whitespace-nowrap">{slot.time}</div>
                           </td>
-                          {selectedClasses.map(className => {
+                          {activeColumns.map(colName => {
                             const dayNum = new Date(selectedDate).getUTCDay();
-                            const schedule = schedules.find(s =>
-                              s.class_name === className &&
-                              s.day_of_week === dayNum &&
-                              (s.periods?.includes(slot.id) || s.period === slot.id)
-                            );
+                            const schedule = schedules.find(s => {
+                              if (verificationViewMode === 'sala') {
+                                const classRoom = classes.find(c => c.name === s.class_name)?.room;
+                                return classRoom?.trim() === colName &&
+                                  s.day_of_week === dayNum &&
+                                  (s.periods?.includes(slot.id) || s.period === slot.id);
+                              } else {
+                                return s.class_name === colName &&
+                                  s.day_of_week === dayNum &&
+                                  (s.periods?.includes(slot.id) || s.period === slot.id);
+                              }
+                            });
 
-                            if (!schedule) return <td key={className} className="p-2 bg-gray-50/30 rounded-2xl border border-dashed border-gray-100"></td>;
+                            if (!schedule) return <td key={colName} className="p-2 bg-gray-50/30 rounded-2xl border border-dashed border-gray-100"></td>;
 
                             const attendance = getEffectiveAttendance(schedule.id!, slot.id, selectedDate);
                             const displayStatus = attendance?.status || 'PRESENTE';
 
                             return (
-                              <td key={className} className="p-2">
+                              <td key={colName} className="p-2">
                                 <div className={`h-full rounded-2xl p-3 border-2 transition-all flex flex-col justify-between min-h-[130px] ${displayStatus === 'PRESENTE' ? 'bg-green-50 border-green-200 shadow-sm' :
                                   displayStatus === 'SUBSTITUIDO' ? 'bg-yellow-50 border-yellow-200 shadow-sm' :
                                     displayStatus === 'VAGO' ? 'bg-red-50 border-red-200 shadow-sm' :
@@ -2705,11 +2930,17 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     </div>
 
                                     {displayStatus === 'SUBSTITUIDO' ? (
-                                      <div className="text-sm font-black text-yellow-800 uppercase truncate">
+                                      <div className="text-sm font-black text-yellow-800 uppercase truncate mb-1">
                                         {attendance?.substitute_name}
                                       </div>
                                     ) : (
-                                      <div className="text-[10px] font-bold text-gray-400 uppercase truncate">{schedule.subject}</div>
+                                      <div className="text-[10px] font-bold text-gray-400 uppercase truncate mb-1">{schedule.subject}</div>
+                                    )}
+
+                                    {verificationViewMode === 'sala' && (
+                                      <div className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-md px-1.5 py-0.5 w-fit mt-1">
+                                        {schedule.class_name}
+                                      </div>
                                     )}
 
                                     {displayStatus === 'VAGO' && attendance?.observation && (

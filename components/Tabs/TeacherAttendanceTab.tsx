@@ -32,21 +32,25 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     isUserStandard ? 'grade' : 'verificacao'
   );
   
-  // Remanejamento Form States
-  const [remanejamentoForm, setRemanejamentoForm] = useState({
-    teacher_name: '',
-    original_date: '',
-    schedule_id: '',
-    period: 0,
-    new_date: '',
-    new_period: 0,
-    observation: ''
-  });
-  const [remanejamentoConflicts, setRemanejamentoConflicts] = useState<{
+  // Remanejamento Modal States
+  const [isRemanejamentoModalOpen, setIsRemanejamentoModalOpen] = useState(false);
+  const [remanejamentoTeacher, setRemanejamentoTeacher] = useState('');
+  const [remanejamentoProposals, setRemanejamentoProposals] = useState<Array<{
+    id: string;
+    original_date: string;
+    schedule_id: string;
+    is_reposicao: boolean;
+    new_date: string;
+    new_period: number;
+    absent_key: string;
+    observation: string;
+  }>>([{ id: '1', original_date: '', schedule_id: '', is_reposicao: false, new_date: '', new_period: 0, absent_key: '', observation: '' }]);
+  const [remanejamentoConflicts, setRemanejamentoConflicts] = useState<Record<string, {
     teacher: string | null;
     class: string | null;
     room: string | null;
-  }>({ teacher: null, class: null, room: null });
+  }>>({}); 
+
 
   // Substitution States
   const [substitutionWeekDate, setSubstitutionWeekDate] = useState(new Date().toISOString().split('T')[0]);
@@ -65,66 +69,66 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [searchSubstitutionTeacher, setSearchSubstitutionTeacher] = useState('');
 
   useEffect(() => {
-    const checkConflicts = () => {
-      const { teacher_name, schedule_id, new_date, new_period } = remanejamentoForm;
-      if (!teacher_name || !schedule_id || !new_date || !new_period) {
-        setRemanejamentoConflicts({ teacher: null, class: null, room: null });
-        return;
+    const newConflicts: Record<string, { teacher: string | null; class: string | null; room: string | null }> = {};
+
+    for (const proposal of remanejamentoProposals) {
+      const { schedule_id, new_date, new_period } = proposal;
+      if (!remanejamentoTeacher || !schedule_id || !new_date || !new_period) {
+        newConflicts[proposal.id] = { teacher: null, class: null, room: null };
+        continue;
       }
 
       const schedule = schedules.find(s => s.id === schedule_id);
-      if (!schedule) return;
+      if (!schedule) continue;
 
-      const newDateObj = new Date(new_date + 'T12:00:00');
-      const newDayOfWeek = newDateObj.getDay();
-
+      const newDayOfWeek = new Date(new_date + 'T12:00:00').getDay();
       let teacherConflict: string | null = null;
       let classConflict: string | null = null;
       let roomConflict: string | null = null;
 
       // 1. Teacher Conflict
-      const teacherWeekly = schedules.find(s => 
-        s.teacher_name === teacher_name && 
-        s.day_of_week === newDayOfWeek && 
+      const teacherWeekly = schedules.find(s =>
+        s.teacher_name === remanejamentoTeacher &&
+        s.day_of_week === newDayOfWeek &&
         (s.period === new_period || s.periods?.includes(new_period))
       );
-      const teacherRepo = reposicoes.find(r => 
-        r.teacher_name === teacher_name && 
-        r.status === 'CONCLUIDO' && 
-        r.makeup_date === new_date && 
+      const teacherRepo = reposicoes.find(r =>
+        r.teacher_name === remanejamentoTeacher &&
+        r.status === 'CONCLUIDO' &&
+        r.makeup_date === new_date &&
         r.makeup_period === new_period
       );
       if (teacherWeekly) {
         teacherConflict = `Docente tem aula semanal com a turma ${teacherWeekly.class_name}`;
       } else if (teacherRepo) {
-        teacherConflict = `Docente já tem uma reposição/antecipação agendada para esta turma: ${teacherRepo.class_name}`;
+        teacherConflict = `Docente já tem uma reposição/antecipação para: ${teacherRepo.class_name}`;
       }
 
       // 2. Class Conflict
-      const classWeekly = schedules.find(s => 
-        s.class_name === schedule.class_name && 
-        s.day_of_week === newDayOfWeek && 
+      const classWeekly = schedules.find(s =>
+        s.class_name === schedule.class_name &&
+        s.day_of_week === newDayOfWeek &&
         (s.period === new_period || s.periods?.includes(new_period))
       );
-      const classRepo = reposicoes.find(r => 
-        r.class_name === schedule.class_name && 
-        r.status === 'CONCLUIDO' && 
-        r.makeup_date === new_date && 
+      const classRepo = reposicoes.find(r =>
+        r.class_name === schedule.class_name &&
+        r.status === 'CONCLUIDO' &&
+        r.makeup_date === new_date &&
         r.makeup_period === new_period
       );
       if (classWeekly) {
         classConflict = `A turma ${schedule.class_name} já tem aula de ${classWeekly.subject} com o(a) prof. ${classWeekly.teacher_name}`;
       } else if (classRepo) {
-        classConflict = `A turma ${schedule.class_name} já tem uma reposição/antecipação agendada com o(a) prof. ${classRepo.teacher_name}`;
+        classConflict = `A turma ${schedule.class_name} já tem reposição com o(a) prof. ${classRepo.teacher_name}`;
       }
 
       // 3. Room Conflict
       const room = classes.find(c => c.name === schedule.class_name)?.room;
       if (room) {
-        const roomWeekly = schedules.find(s => 
-          s.room === room && 
-          s.class_name !== schedule.class_name && 
-          s.day_of_week === newDayOfWeek && 
+        const roomWeekly = schedules.find(s =>
+          s.room === room &&
+          s.class_name !== schedule.class_name &&
+          s.day_of_week === newDayOfWeek &&
           (s.period === new_period || s.periods?.includes(new_period))
         );
         const roomRepo = reposicoes.find(r => {
@@ -132,21 +136,17 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           return rRoom === room && r.class_name !== schedule.class_name && r.status === 'CONCLUIDO' && r.makeup_date === new_date && r.makeup_period === new_period;
         });
         if (roomWeekly) {
-          roomConflict = `A sala ${room} estará ocupada pela turma ${roomWeekly.class_name} (Prof. ${roomWeekly.teacher_name})`;
+          roomConflict = `A sala ${room} estará ocupada pela turma ${roomWeekly.class_name}`;
         } else if (roomRepo) {
-          roomConflict = `A sala ${room} estará ocupada por uma reposição da turma ${roomRepo.class_name} (Prof. ${roomRepo.teacher_name})`;
+          roomConflict = `A sala ${room} estará ocupada por reposição da turma ${roomRepo.class_name}`;
         }
       }
 
-      setRemanejamentoConflicts({
-        teacher: teacherConflict,
-        class: classConflict,
-        room: roomConflict
-      });
-    };
+      newConflicts[proposal.id] = { teacher: teacherConflict, class: classConflict, room: roomConflict };
+    }
 
-    checkConflicts();
-  }, [remanejamentoForm, schedules, reposicoes, classes]);
+    setRemanejamentoConflicts(newConflicts);
+  }, [remanejamentoTeacher, remanejamentoProposals, schedules, reposicoes, classes]);
 
   const [collapsedTeachers, setCollapsedTeachers] = useState<Record<string, boolean>>({});
   const [allExpanded, setAllExpanded] = useState(false);
@@ -984,53 +984,78 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
   const handleSaveRemanejamento = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { teacher_name, original_date, schedule_id, new_date, new_period, observation } = remanejamentoForm;
-    if (!teacher_name || !original_date || !schedule_id || !new_date || !new_period) {
-      alert("Por favor, preencha todos os campos obrigatórios.");
+    const validProposals = remanejamentoProposals.filter(p => {
+      const isRepos = p.is_reposicao || (p.original_date && p.new_date && p.new_date > p.original_date);
+      return isRepos 
+        ? (p.original_date && p.schedule_id && p.new_date)
+        : (p.original_date && p.schedule_id && p.new_date && p.new_period);
+    });
+    if (!remanejamentoTeacher || validProposals.length === 0) {
+      alert("Por favor, preencha o docente e ao menos uma proposta completa.");
       return;
     }
 
-    if (remanejamentoConflicts.teacher || remanejamentoConflicts.class || remanejamentoConflicts.room) {
-      if (!confirm("Atenção: Existem conflitos de horário detectados. Deseja prosseguir mesmo assim?")) {
-        return;
-      }
+    const hasConflicts = validProposals.some(p => {
+      const c = remanejamentoConflicts[p.id];
+      return c && (c.teacher || c.class || c.room);
+    });
+    if (hasConflicts) {
+      if (!confirm("Atenção: Existem conflitos de horário detectados. Deseja prosseguir mesmo assim?")) return;
     }
 
     try {
       setIsSaving(true);
-      const schedule = schedules.find(s => s.id === schedule_id);
-      if (!schedule) return;
+      for (const proposal of validProposals) {
+        const schedule = schedules.find(s => s.id === proposal.schedule_id);
+        if (!schedule) continue;
+        
+        let attendance_id: string | undefined = undefined;
+        let planned_absence_id: string | undefined = undefined;
+        if (proposal.absent_key) {
+          const [type, id] = proposal.absent_key.split('|||');
+          if (type === 'attendance') {
+            attendance_id = id;
+          } else if (type === 'planned') {
+            planned_absence_id = id;
+          }
+        }
 
-      const isAntecipacao = new_date < original_date;
-      const prefix = isAntecipacao ? "[Antecipação de Aula]" : "[Reposição de Aula]";
-      const finalObs = observation ? `${prefix} ${observation}` : prefix;
-
-      await StorageService.saveTeacherReposicao({
-        campus_id: currentCampusId || '',
-        schedule_id: schedule.id!,
-        date: original_date,
-        period: schedule.period,
-        teacher_name: schedule.teacher_name,
-        class_name: schedule.class_name,
-        subject: schedule.subject || '',
-        status: 'CONCLUIDO',
-        makeup_date: new_date,
-        makeup_period: new_period,
-        observation: finalObs,
-        operator_id: user.id
-      });
-
-      // Clear form
-      setRemanejamentoForm({
-        teacher_name: '',
+        const isReposicao = proposal.is_reposicao || (proposal.original_date && proposal.new_date && proposal.new_date > proposal.original_date);
+        const isAntecipacao = !isReposicao;
+        const prefix = isAntecipacao ? "[Antecipação de Aula]" : "[Reposição de Aula]";
+        const finalObs = proposal.observation ? `${prefix} ${proposal.observation}` : prefix;
+        
+        await StorageService.saveTeacherReposicao({
+          campus_id: currentCampusId || '',
+          schedule_id: schedule.id!,
+          date: proposal.original_date,
+          period: schedule.period,
+          teacher_name: schedule.teacher_name,
+          class_name: schedule.class_name,
+          subject: schedule.subject || '',
+          status: 'CONCLUIDO',
+          makeup_date: proposal.new_date,
+          makeup_period: isReposicao ? undefined : proposal.new_period,
+          observation: finalObs,
+          attendance_id,
+          planned_absence_id,
+          operator_id: user.id
+        });
+      }
+      setRemanejamentoTeacher('');
+      setRemanejamentoProposals([{
+        id: Date.now().toString(),
         original_date: '',
         schedule_id: '',
-        period: 0,
+        is_reposicao: false,
         new_date: '',
         new_period: 0,
+        absent_key: '',
         observation: ''
-      });
-      alert("Remanejamento registrado com sucesso!");
+      }]);
+      setRemanejamentoConflicts({});
+      setIsRemanejamentoModalOpen(false);
+      alert(`${validProposals.length} remanejamento(s) registrado(s) com sucesso!`);
       await loadData();
     } catch (err: any) {
       console.error(err);
@@ -2420,170 +2445,29 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
         ) : activeSubTab === 'remanejamentos' ? (
           <div className="space-y-8 animate-in fade-in duration-300">
-            {/* Unified Form */}
-            <div className="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100">
-              <div className="mb-6">
-                <h2 className="text-xl font-black text-gray-900">Registrar Remanejamento</h2>
-                <p className="text-sm text-gray-500 font-medium">Reagende uma aula (Reposição ou Antecipação) com detecção automática de conflitos</p>
-              </div>
-
-              <form onSubmit={handleSaveRemanejamento} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Select Teacher */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Docente *</label>
-                    <select
-                      required
-                      value={remanejamentoForm.teacher_name}
-                      onChange={e => setRemanejamentoForm({
-                        ...remanejamentoForm,
-                        teacher_name: e.target.value,
-                        schedule_id: ''
-                      })}
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                    >
-                      <option value="">Selecione o professor...</option>
-                      {Array.from(new Set(schedules.map(s => s.teacher_name)))
-                        .sort((a, b) => a.localeCompare(b))
-                        .map(name => (
-                          <option key={name} value={name}>{name}</option>
-                        ))
-                      }
-                    </select>
-                  </div>
-
-                  {/* Select Original Date */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Aula Original *</label>
-                    <input
-                      type="date"
-                      required
-                      value={remanejamentoForm.original_date}
-                      onChange={e => setRemanejamentoForm({
-                        ...remanejamentoForm,
-                        original_date: e.target.value,
-                        schedule_id: ''
-                      })}
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                    />
-                  </div>
-
-                  {/* Select Original Schedule */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Aula Original *</label>
-                    <select
-                      required
-                      disabled={!remanejamentoForm.teacher_name}
-                      value={remanejamentoForm.schedule_id}
-                      onChange={e => setRemanejamentoForm({
-                        ...remanejamentoForm,
-                        schedule_id: e.target.value
-                      })}
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
-                    >
-                      <option value="">Selecione a aula...</option>
-                      {(() => {
-                        const originalDayOfWeek = remanejamentoForm.original_date 
-                          ? new Date(remanejamentoForm.original_date + 'T12:00:00').getDay() 
-                          : null;
-                        
-                        return schedules
-                          .filter(s => 
-                            s.teacher_name === remanejamentoForm.teacher_name && 
-                            (originalDayOfWeek === null || s.day_of_week === originalDayOfWeek)
-                          )
-                          .map(s => {
-                            const slot = timeSlots.find(ts => ts.id === s.period);
-                            return (
-                              <option key={s.id} value={s.id}>
-                                {s.class_name} - {slot?.label}º Aula ({slot?.time}) - {s.subject || 'Sem Disc.'}
-                              </option>
-                            );
-                          });
-                      })()}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {/* Select New Date */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Nova Data Proposta *</label>
-                    <input
-                      type="date"
-                      required
-                      value={remanejamentoForm.new_date}
-                      onChange={e => setRemanejamentoForm({
-                        ...remanejamentoForm,
-                        new_date: e.target.value
-                      })}
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                    />
-                  </div>
-
-                  {/* Select New Period */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Novo Horário Proposto *</label>
-                    <select
-                      required
-                      value={remanejamentoForm.new_period || ''}
-                      onChange={e => setRemanejamentoForm({
-                        ...remanejamentoForm,
-                        new_period: Number(e.target.value)
-                      })}
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                    >
-                      <option value="">Selecione o horário...</option>
-                      {timeSlots.map(ts => (
-                        <option key={ts.id} value={ts.id}>
-                          {ts.shift === 'M' ? 'Manhã' : ts.shift === 'T' ? 'Tarde' : 'Noite'} - {ts.label}º Aula ({ts.time})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Input Observation */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>
-                    <input
-                      type="text"
-                      value={remanejamentoForm.observation}
-                      onChange={e => setRemanejamentoForm({
-                        ...remanejamentoForm,
-                        observation: e.target.value
-                      })}
-                      placeholder="Ex: Aula no laboratório de redes..."
-                      className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-medium text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Conflict Warnings */}
-                {(remanejamentoConflicts.teacher || remanejamentoConflicts.class || remanejamentoConflicts.room) && (
-                  <div className="p-4 bg-red-50 border-2 border-red-100 rounded-2xl space-y-2">
-                    <h4 className="text-sm font-black text-red-800 uppercase tracking-wider flex items-center gap-2">
-                      <AlertCircle size={18} className="text-red-600" />
-                      Conflitos de Horário Detectados:
-                    </h4>
-                    <ul className="list-disc pl-5 text-xs font-bold text-red-700 space-y-1">
-                      {remanejamentoConflicts.teacher && <li>{remanejamentoConflicts.teacher}</li>}
-                      {remanejamentoConflicts.class && <li>{remanejamentoConflicts.class}</li>}
-                      {remanejamentoConflicts.room && <li>{remanejamentoConflicts.room}</li>}
-                    </ul>
-                  </div>
-                )}
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-100 transition-all flex items-center gap-2 disabled:opacity-50"
-                  >
-                    {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                    Confirmar Remanejamento
-                  </button>
-                </div>
-              </form>
+            {/* Button to open modal */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setRemanejamentoTeacher('');
+                  setRemanejamentoProposals([{
+                    id: Date.now().toString(),
+                    original_date: '',
+                    schedule_id: '',
+                    is_reposicao: false,
+                    new_date: '',
+                    new_period: 0,
+                    absent_key: '',
+                    observation: ''
+                  }]);
+                  setRemanejamentoConflicts({});
+                  setIsRemanejamentoModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all hover:-translate-y-0.5 active:translate-y-0"
+              >
+                <Plus size={20} />
+                Registrar Remanejamento
+              </button>
             </div>
 
             {/* List / Table of existing remanejamentos */}
@@ -4070,6 +3954,514 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           </div>
         );
       })()}
+
+      {/* ===== MODAL: Registrar Remanejamento ===== */}
+      {isRemanejamentoModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+
+            {/* Header */}
+            <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-7 text-white flex justify-between items-start shrink-0">
+              <div>
+                <h2 className="text-2xl font-black mb-1">Registrar Remanejamento</h2>
+                <p className="text-indigo-100 text-sm font-medium">Selecione o docente e defina as propostas de remanejamento</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRemanejamentoModalOpen(false)}
+                className="bg-white/20 hover:bg-white/30 p-2 rounded-full transition-colors ml-4 shrink-0"
+              >
+                <X size={22} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRemanejamento} className="overflow-y-auto flex-1 flex flex-col">
+              <div className="p-7 space-y-6 flex-1">
+
+                {/* --- Docente --- */}
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Docente *</label>
+                  <select
+                    required
+                    value={remanejamentoTeacher}
+                    onChange={e => {
+                      setRemanejamentoTeacher(e.target.value);
+                      setRemanejamentoProposals([{
+                        id: Date.now().toString(),
+                        original_date: '',
+                        schedule_id: '',
+                        is_reposicao: false,
+                        new_date: '',
+                        new_period: 0,
+                        absent_key: '',
+                        observation: ''
+                      }]);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+                  >
+                    <option value="">Selecione o professor...</option>
+                    {Array.from(new Set(schedules.map(s => s.teacher_name)))
+                      .sort((a, b) => a.localeCompare(b))
+                      .map(name => <option key={name} value={name}>{name}</option>)
+                    }
+                  </select>
+                </div>
+
+                {/* Warning: Aulas a Repor */}
+                {remanejamentoTeacher && (() => {
+                  const pendingAbsences = [
+                    ...attendances.filter(att => {
+                      const sch = schedules.find(s => s.id === att.schedule_id);
+                      return sch && sch.teacher_name === remanejamentoTeacher && (att.status === 'VAGO' || att.status === 'SUBSTITUIDO');
+                    }),
+                    ...plannedAbsences.filter(pa => {
+                      const sch = schedules.find(s => s.id === pa.schedule_id);
+                      const tName = sch ? sch.teacher_name : pa.teacher_name;
+                      return tName === remanejamentoTeacher && (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO');
+                    })
+                  ];
+                  if (pendingAbsences.length === 0) return null;
+                  return (
+                    <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 flex items-start gap-3 mt-3">
+                      <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                      <div>
+                        <p className="text-sm font-black text-amber-800">
+                          ⚠️ {pendingAbsences.length} aula(s) pendente(s) de reposição
+                        </p>
+                        <p className="text-xs text-amber-600 font-medium mt-0.5">
+                          Este docente possui ausência(s) registrada(s). Marque o checkbox "Reposição" nas propostas abaixo para vincular.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* --- Divider: Aulas Propostas --- */}
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Aulas Propostas</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+
+                {/* --- Proposals List --- */}
+                <div className="space-y-4">
+                  {remanejamentoProposals.map((proposal, idx) => {
+                    const dow = proposal.original_date ? new Date(proposal.original_date + 'T12:00:00').getDay() : null;
+                    const teacherSchedulesOnDay = schedules.filter(s =>
+                      s.teacher_name === remanejamentoTeacher && (dow === null || s.day_of_week === dow)
+                    );
+
+                    const selectedSchedule = schedules.find(s => s.id === proposal.schedule_id);
+                    const turmaName = selectedSchedule ? selectedSchedule.class_name : '';
+
+                    const vacantPeriodsForClass = (() => {
+                      if (!turmaName || !proposal.new_date) return [];
+                      const pDow = new Date(proposal.new_date + 'T12:00:00').getDay();
+                      return timeSlots.filter(slot => {
+                        const weeklySchedule = schedules.find(s =>
+                          s.class_name === turmaName && s.day_of_week === pDow &&
+                          (s.period === slot.id || s.periods?.includes(slot.id))
+                        );
+
+                        let isClassFree = !weeklySchedule;
+                        if (weeklySchedule) {
+                          const hasAttAbsence = attendances.some(att =>
+                            att.schedule_id === weeklySchedule.id &&
+                            att.date === proposal.new_date &&
+                            (att.status === 'VAGO' || att.status === 'SUBSTITUIDO')
+                          );
+                          const hasPlannedAbsence = plannedAbsences.some(pa =>
+                            pa.schedule_id === weeklySchedule.id &&
+                            pa.date === proposal.new_date &&
+                            (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO')
+                          );
+                          const hasPendingRepo = reposicoes.some(r =>
+                            r.class_name === turmaName &&
+                            r.status === 'PENDENTE' &&
+                            r.date === proposal.new_date &&
+                            r.period === slot.id
+                          );
+                          if (hasAttAbsence || hasPlannedAbsence || hasPendingRepo) {
+                            isClassFree = true;
+                          }
+                        }
+
+                        const hasConfirmedRepo = reposicoes.some(r =>
+                          r.class_name === turmaName && r.status === 'CONCLUIDO' &&
+                          r.makeup_date === proposal.new_date && r.makeup_period === slot.id
+                        );
+                        return isClassFree && !hasConfirmedRepo;
+                      });
+                    })();
+
+                    // 1. List of absences for this teacher (available for reposição)
+                    const teacherAbsences = (() => {
+                      if (!remanejamentoTeacher) return [];
+                      const list: Array<{ key: string; date: string; schedule_id: string; label: string }> = [];
+
+                      attendances.forEach(att => {
+                        const sch = schedules.find(s => s.id === att.schedule_id);
+                        if (sch && sch.teacher_name === remanejamentoTeacher && (att.status === 'VAGO' || att.status === 'SUBSTITUIDO')) {
+                          const slot = timeSlots.find(ts => ts.id === sch.period);
+                          const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
+                          list.push({
+                            key: `attendance|||${att.id}`,
+                            date: att.date,
+                            schedule_id: att.schedule_id,
+                            label: `Falta em ${new Date(att.date + 'T12:00:00').toLocaleDateString('pt-BR')}${periodLabel} – Turma ${sch.class_name} (${sch.subject})`
+                          });
+                        }
+                      });
+
+                      plannedAbsences.forEach(pa => {
+                        const sch = schedules.find(s => s.id === pa.schedule_id);
+                        const tName = sch ? sch.teacher_name : pa.teacher_name;
+                        if (tName === remanejamentoTeacher && (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO')) {
+                          const subjectLabel = sch ? sch.subject : '';
+                          const classNameLabel = sch ? sch.class_name : '';
+                          const periodVal = sch ? sch.period : pa.period;
+                          const slot = timeSlots.find(ts => ts.id === periodVal);
+                          const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
+                          list.push({
+                            key: `planned|||${pa.id}`,
+                            date: pa.date,
+                            schedule_id: pa.schedule_id,
+                            label: `Ausência em ${new Date(pa.date + 'T12:00:00').toLocaleDateString('pt-BR')}${periodLabel} – Turma ${classNameLabel} (${subjectLabel})`
+                          });
+                        }
+                      });
+
+                      // Filter out keys already used by other proposals
+                      const usedAbsentKeys = remanejamentoProposals
+                        .filter(p => p.id !== proposal.id && p.absent_key)
+                        .map(p => p.absent_key);
+                      return list.filter(item => !usedAbsentKeys.includes(item.key));
+                    })();
+
+                    // 2. List of absences for the selected class/turma (for optional linking in Antecipação)
+                    const absentClassesForTurma = (() => {
+                      if (!turmaName) return [];
+                      const list: Array<{ key: string; label: string }> = [];
+
+                      attendances.forEach(att => {
+                        const sch = schedules.find(s => s.id === att.schedule_id);
+                        if (sch && sch.class_name === turmaName && (att.status === 'VAGO' || att.status === 'SUBSTITUIDO')) {
+                          const slot = timeSlots.find(ts => ts.id === sch.period);
+                          const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
+                          list.push({
+                            key: `attendance|||${att.id}`,
+                            label: `Falta em ${new Date(att.date + 'T12:00:00').toLocaleDateString('pt-BR')}${periodLabel} – ${sch.subject} com ${sch.teacher_name}`
+                          });
+                        }
+                      });
+
+                      plannedAbsences.forEach(pa => {
+                        const sch = schedules.find(s => s.id === pa.schedule_id);
+                        if (sch && sch.class_name === turmaName && (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO')) {
+                          const periodVal = sch ? sch.period : pa.period;
+                          const slot = timeSlots.find(ts => ts.id === periodVal);
+                          const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
+                          list.push({
+                            key: `planned|||${pa.id}`,
+                            label: `Ausência em ${new Date(pa.date + 'T12:00:00').toLocaleDateString('pt-BR')}${periodLabel} – ${sch.subject} com ${sch.teacher_name}`
+                          });
+                        }
+                      });
+
+                      // Filter out keys already used by other proposals
+                      const usedTurmaAbsentKeys = remanejamentoProposals
+                        .filter(p => p.id !== proposal.id && p.absent_key)
+                        .map(p => p.absent_key);
+                      return list.filter(item => !usedTurmaAbsentKeys.includes(item.key));
+                    })();
+
+                    // Vacant classes for this proposal's new_date + new_period
+                    const vacantClasses = (() => {
+                      if (!proposal.new_date || !proposal.new_period) return [];
+                      const pDow = new Date(proposal.new_date + 'T12:00:00').getDay();
+                      return classes.filter(c => {
+                        const hasWeekly = schedules.some(s =>
+                          s.class_name === c.name && s.day_of_week === pDow &&
+                          (s.period === proposal.new_period || s.periods?.includes(proposal.new_period))
+                        );
+                        const hasRepo = reposicoes.some(r =>
+                          r.class_name === c.name && r.status === 'CONCLUIDO' &&
+                          r.makeup_date === proposal.new_date && r.makeup_period === proposal.new_period
+                        );
+                        return !hasWeekly && !hasRepo;
+                      });
+                    })();
+
+                    const conflicts = remanejamentoConflicts[proposal.id];
+                    const hasConflict = conflicts && (conflicts.teacher || conflicts.class || conflicts.room);
+
+                    // Colors based on whether it is reposição or antecipação
+                    const isProposalReposicao = (() => {
+                      if (proposal.is_reposicao) return true;
+                      if (proposal.original_date && proposal.new_date) {
+                        return proposal.new_date > proposal.original_date;
+                      }
+                      return false;
+                    })();
+
+                    const calculatedTypeLabel = isProposalReposicao ? "REPOSIÇÃO" : "ANTECIPAÇÃO";
+                    const cardBg = isProposalReposicao ? "bg-purple-50/40 border-purple-200" : "bg-blue-50/40 border-blue-200";
+                    const labelText = isProposalReposicao ? "text-purple-700" : "text-blue-700";
+                    const inputFocusBorder = isProposalReposicao ? "focus:border-purple-500" : "focus:border-blue-500";
+
+                    return (
+                      <div key={proposal.id} className={`${cardBg} border-2 rounded-2xl p-5 space-y-4 relative transition-colors duration-200`}>
+                        {/* Label + Checkbox + Remove */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <span className={`text-xs font-black uppercase tracking-widest ${labelText}`}>
+                              Proposta {idx + 1} ({calculatedTypeLabel})
+                            </span>
+                            <label className="flex items-center gap-1.5 cursor-pointer select-none text-xs font-bold text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={proposal.is_reposicao}
+                                onChange={e => setRemanejamentoProposals(prev =>
+                                  prev.map(p => p.id === proposal.id ? {
+                                    ...p,
+                                    is_reposicao: e.target.checked,
+                                    original_date: '',
+                                    schedule_id: '',
+                                    absent_key: ''
+                                  } : p)
+                                )}
+                                className="w-4 h-4 rounded text-purple-600 border-gray-300 focus:ring-purple-500"
+                              />
+                              Reposição
+                            </label>
+                          </div>
+                          {remanejamentoProposals.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setRemanejamentoProposals(prev => prev.filter(p => p.id !== proposal.id))}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Remover proposta"
+                            >
+                              <X size={15} />
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-6 gap-4">
+                          {proposal.is_reposicao ? (
+                            <>
+                              {/* Reposição: Select absent class */}
+                              <div className="sm:col-span-6">
+                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Selecionar Aula Ausente para Reposição *</label>
+                                <select
+                                  required
+                                  disabled={!remanejamentoTeacher}
+                                  value={proposal.absent_key}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    const foundAbsence = teacherAbsences.find(a => a.key === val);
+                                    setRemanejamentoProposals(prev =>
+                                      prev.map(p => p.id === proposal.id ? {
+                                        ...p,
+                                        absent_key: val,
+                                        original_date: foundAbsence ? foundAbsence.date : '',
+                                        schedule_id: foundAbsence ? foundAbsence.schedule_id : ''
+                                      } : p)
+                                    );
+                                  }}
+                                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-purple-500 outline-none transition-all disabled:opacity-50 text-sm"
+                                >
+                                  <option value="">Selecione a aula ausente do professor...</option>
+                                  {teacherAbsences.map(abs => (
+                                    <option key={abs.key} value={abs.key}>{abs.label}</option>
+                                  ))}
+                                </select>
+                                {!remanejamentoTeacher && (
+                                  <p className="text-[10px] text-gray-400 mt-1">Selecione o Docente no topo para listar as aulas ausentes.</p>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {/* Antecipação: Data da Aula Original */}
+                              <div className="sm:col-span-3">
+                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data da Aula Original *</label>
+                                <input
+                                  type="date"
+                                  required
+                                  disabled={!remanejamentoTeacher}
+                                  value={proposal.original_date}
+                                  onChange={e => setRemanejamentoProposals(prev =>
+                                    prev.map(p => p.id === proposal.id ? { ...p, original_date: e.target.value, schedule_id: '', absent_key: '' } : p)
+                                  )}
+                                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-blue-500 outline-none transition-all disabled:opacity-50 text-sm"
+                                />
+                              </div>
+
+                              {/* Antecipação: Aula Original */}
+                              <div className="sm:col-span-3">
+                                <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Aula Original *</label>
+                                <select
+                                  required
+                                  disabled={!remanejamentoTeacher || !proposal.original_date}
+                                  value={proposal.schedule_id}
+                                  onChange={e => setRemanejamentoProposals(prev =>
+                                    prev.map(p => p.id === proposal.id ? { ...p, schedule_id: e.target.value, absent_key: '' } : p)
+                                  )}
+                                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-blue-500 outline-none transition-all disabled:opacity-50 text-sm"
+                                >
+                                  <option value="">Selecione a aula...</option>
+                                  {teacherSchedulesOnDay.map(s => {
+                                    const slot = timeSlots.find(ts => ts.id === s.period);
+                                    return (
+                                      <option key={s.id} value={s.id}>
+                                        {s.class_name} – {slot?.label}ª ({slot?.time}) {s.subject ? `– ${s.subject}` : ''}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+                            </>
+                          )}
+
+                          {/* Nova Data */}
+                          <div className={isProposalReposicao ? "sm:col-span-6" : "sm:col-span-3"}>
+                            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">
+                              {isProposalReposicao ? 'Data da Reposição *' : 'Data da Antecipação *'}
+                            </label>
+                            <input
+                              type="date"
+                              required
+                              value={proposal.new_date}
+                              onChange={e => setRemanejamentoProposals(prev =>
+                                prev.map(p => p.id === proposal.id ? { ...p, new_date: e.target.value } : p)
+                              )}
+                              className={`w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 ${inputFocusBorder} outline-none transition-all text-sm`}
+                            />
+                          </div>
+
+                          {/* Novo Horário */}
+                          {!isProposalReposicao && (
+                            <div className="sm:col-span-3">
+                              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Novo Horário Proposto</label>
+                              <select
+                                value={proposal.new_period || ''}
+                                onChange={e => setRemanejamentoProposals(prev =>
+                                  prev.map(p => p.id === proposal.id ? { ...p, new_period: Number(e.target.value) } : p)
+                                )}
+                                className={`w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 ${inputFocusBorder} outline-none transition-all text-sm`}
+                              >
+                                <option value="">Selecione o horário...</option>
+                                {vacantPeriodsForClass.map(ts => (
+                                  <option key={ts.id} value={ts.id}>
+                                    {ts.shift === 'M' ? 'Manhã' : ts.shift === 'T' ? 'Tarde' : 'Noite'} – {ts.label}ª ({ts.time})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* Observação */}
+                          <div className="sm:col-span-6">
+                            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Observação (Opcional)</label>
+                            <input
+                              type="text"
+                              value={proposal.observation}
+                              onChange={e => setRemanejamentoProposals(prev =>
+                                prev.map(p => p.id === proposal.id ? { ...p, observation: e.target.value } : p)
+                              )}
+                              placeholder="Ex: Aula no laboratório de redes..."
+                              className={`w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-medium text-gray-900 ${inputFocusBorder} outline-none transition-all text-sm`}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Turmas livres */}
+                        {!isProposalReposicao && proposal.new_date && proposal.new_period > 0 && (
+                          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                            <p className="text-xs font-black text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <CheckCircle2 size={13} />
+                              Turmas livres nesta data/aula ({vacantClasses.length})
+                            </p>
+                            {vacantClasses.length === 0
+                              ? <p className="text-xs text-emerald-600 font-medium">Nenhuma turma com horário livre.</p>
+                              : <div className="flex flex-wrap gap-1.5">
+                                  {vacantClasses.map(c => (
+                                    <span key={c.id} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-xs font-bold">{c.name}</span>
+                                  ))}
+                                </div>
+                            }
+                          </div>
+                        )}
+
+                        {/* Conflitos */}
+                        {!isProposalReposicao && hasConflict && (
+                          <div className="bg-red-50 border-2 border-red-100 rounded-xl p-3 space-y-1">
+                            <p className="text-xs font-black text-red-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <AlertCircle size={13} /> Conflitos detectados:
+                            </p>
+                            <ul className="list-disc pl-4 text-xs font-bold text-red-600 space-y-0.5">
+                              {conflicts?.teacher && <li>{conflicts.teacher}</li>}
+                              {conflicts?.class && <li>{conflicts.class}</li>}
+                              {conflicts?.room && <li>{conflicts.room}</li>}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add more proposals */}
+                <button
+                  type="button"
+                  onClick={() => setRemanejamentoProposals(prev => [
+                    ...prev,
+                    {
+                      id: Date.now().toString(),
+                      original_date: '',
+                      schedule_id: '',
+                      is_reposicao: false,
+                      new_date: '',
+                      new_period: 0,
+                      absent_key: '',
+                      observation: ''
+                    }
+                  ])}
+                  className="flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-indigo-200 text-indigo-600 rounded-2xl font-bold text-sm hover:border-indigo-400 hover:bg-indigo-50 transition-all"
+                >
+                  <Plus size={18} />
+                  Adicionar Mais uma Aula Proposta
+                </button>
+              </div>
+
+              {/* Footer buttons */}
+              <div className="flex gap-4 px-7 pb-7 pt-3 shrink-0 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsRemanejamentoModalOpen(false)}
+                  className="flex-1 px-6 py-3.5 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-[2] px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-blue-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:shadow-indigo-300 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                  Confirmar Remanejamento{remanejamentoProposals.filter(p => {
+                    const isRepos = p.is_reposicao || (p.original_date && p.new_date && p.new_date > p.original_date);
+                    return isRepos 
+                      ? (p.original_date && p.schedule_id && p.new_date)
+                      : (p.original_date && p.schedule_id && p.new_date && p.new_period);
+                  }).length > 1 ? 's' : ''}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @media print {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ClipboardList, Plus, Search, Filter, Calendar,
   User, BookOpen, MapPin, Clock, CheckCircle2,
-  XCircle, UserPlus, AlertCircle, Save, Trash2,
+  XCircle, UserPlus, AlertCircle, Save, Trash2, RotateCcw,
   ChevronRight, ArrowLeft, Loader2, MoreVertical,
   GraduationCap, X, Pencil, BarChart2, ChevronUp, ChevronDown, Printer, Check,
   ChevronLeft
@@ -28,7 +28,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [gradeWeekDate, setGradeWeekDate] = useState(new Date().toISOString().split('T')[0]);
-  const [activeSubTab, setActiveSubTab] = useState<'verificacao' | 'horarios' | 'grade' | 'turmas' | 'relatorio' | 'ausencias' | 'substituicoes' | 'remanejamentos' | 'reposicoes'>(
+  const [activeSubTab, setActiveSubTab] = useState<'verificacao' | 'horarios' | 'grade' | 'turmas' | 'relatorio' | 'ausencias' | 'remanejamentos' | 'reposicoes'>(
     isUserStandard ? 'grade' : 'verificacao'
   );
   
@@ -99,7 +99,23 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         r.makeup_period === new_period
       );
       if (teacherWeekly) {
-        teacherConflict = `Docente tem aula semanal com a turma ${teacherWeekly.class_name}`;
+        const teacherHasAbsence = attendances.some(a =>
+          a.schedule_id === teacherWeekly.id &&
+          a.date === new_date &&
+          (a.status === 'VAGO' || a.status === 'SUBSTITUIDO')
+        ) || plannedAbsences.some(pa =>
+          pa.schedule_id === teacherWeekly.id &&
+          pa.date === new_date &&
+          pa.period === new_period
+        ) || reposicoes.some(r =>
+          r.teacher_name === remanejamentoTeacher &&
+          r.status === 'CONCLUIDO' &&
+          r.date === new_date &&
+          r.period === new_period
+        );
+        if (!teacherHasAbsence) {
+          teacherConflict = `Docente tem aula semanal com a turma ${teacherWeekly.class_name}`;
+        }
       } else if (teacherRepo) {
         teacherConflict = `Docente já tem uma reposição/antecipação para: ${teacherRepo.class_name}`;
       }
@@ -117,7 +133,23 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         r.makeup_period === new_period
       );
       if (classWeekly) {
-        classConflict = `A turma ${schedule.class_name} já tem aula de ${classWeekly.subject} com o(a) prof. ${classWeekly.teacher_name}`;
+        const teacherHasAbsence = attendances.some(a =>
+          a.schedule_id === classWeekly.id &&
+          a.date === new_date &&
+          (a.status === 'VAGO' || a.status === 'SUBSTITUIDO')
+        ) || plannedAbsences.some(pa =>
+          pa.schedule_id === classWeekly.id &&
+          pa.date === new_date &&
+          pa.period === new_period
+        ) || reposicoes.some(r =>
+          r.class_name === schedule.class_name &&
+          r.status === 'CONCLUIDO' &&
+          r.date === new_date &&
+          r.period === new_period
+        );
+        if (!teacherHasAbsence) {
+          classConflict = `A turma ${schedule.class_name} já tem aula de ${classWeekly.subject} com o(a) prof. ${classWeekly.teacher_name}`;
+        }
       } else if (classRepo) {
         classConflict = `A turma ${schedule.class_name} já tem reposição com o(a) prof. ${classRepo.teacher_name}`;
       }
@@ -146,7 +178,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     }
 
     setRemanejamentoConflicts(newConflicts);
-  }, [remanejamentoTeacher, remanejamentoProposals, schedules, reposicoes, classes]);
+  }, [remanejamentoTeacher, remanejamentoProposals, schedules, reposicoes, classes, attendances, plannedAbsences]);
 
   const [collapsedTeachers, setCollapsedTeachers] = useState<Record<string, boolean>>({});
   const [allExpanded, setAllExpanded] = useState(false);
@@ -571,7 +603,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
     if (real) return real;
 
     const planned = plannedAbsences.find(pa => pa.schedule_id === scheduleId && pa.period === period && pa.date === date);
-    if (planned) {
+    if (planned && planned.status === 'VAGO') {
       return {
         id: undefined,
         planned_absence_id: planned.id,
@@ -984,12 +1016,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
   const handleSaveRemanejamento = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validProposals = remanejamentoProposals.filter(p => {
-      const isRepos = p.is_reposicao || (p.original_date && p.new_date && p.new_date > p.original_date);
-      return isRepos 
-        ? (p.original_date && p.schedule_id && p.new_date)
-        : (p.original_date && p.schedule_id && p.new_date && p.new_period);
-    });
+    const validProposals = remanejamentoProposals.filter(p =>
+      p.original_date && p.schedule_id && p.new_date && p.new_period
+    );
     if (!remanejamentoTeacher || validProposals.length === 0) {
       alert("Por favor, preencha o docente e ao menos uma proposta completa.");
       return;
@@ -1024,6 +1053,16 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         const isAntecipacao = !isReposicao;
         const prefix = isAntecipacao ? "[Antecipação de Aula]" : "[Reposição de Aula]";
         const finalObs = proposal.observation ? `${prefix} ${proposal.observation}` : prefix;
+
+        // Remove any PENDENTE reposição linked to this absence to avoid duplication
+        const pendingRepo = reposicoes.find(r =>
+          r.status === 'PENDENTE' &&
+          ((attendance_id && r.attendance_id === attendance_id) ||
+           (planned_absence_id && r.planned_absence_id === planned_absence_id))
+        );
+        if (pendingRepo?.id) {
+          await StorageService.deleteTeacherReposicao(pendingRepo.id);
+        }
         
         await StorageService.saveTeacherReposicao({
           campus_id: currentCampusId || '',
@@ -1035,12 +1074,33 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
           subject: schedule.subject || '',
           status: 'CONCLUIDO',
           makeup_date: proposal.new_date,
-          makeup_period: isReposicao ? undefined : proposal.new_period,
+          makeup_period: proposal.new_period || undefined,
           observation: finalObs,
           attendance_id,
           planned_absence_id,
           operator_id: user.id
         });
+
+        if (planned_absence_id) {
+          const existing = plannedAbsences.find(pa => pa.id === planned_absence_id);
+          if (existing) {
+            await StorageService.saveTeacherPlannedAbsence({
+              ...existing,
+              status: 'SUBSTITUIDO',
+              substitute_name: remanejamentoTeacher
+            });
+          }
+        }
+        if (attendance_id) {
+          const existing = attendances.find(a => a.id === attendance_id);
+          if (existing) {
+            await StorageService.saveTeacherAttendance({
+              ...existing,
+              status: 'PRESENTE',
+              substitute_name: remanejamentoTeacher
+            });
+          }
+        }
       }
       setRemanejamentoTeacher('');
       setRemanejamentoProposals([{
@@ -1443,7 +1503,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   </button>
                   <button
                     onClick={() => setActiveSubTab('ausencias')}
-                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${['ausencias', 'substituicoes', 'remanejamentos'].includes(activeSubTab) ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${['ausencias', 'remanejamentos'].includes(activeSubTab) ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     <Calendar size={14} />
                     Alterações de Aula
@@ -1480,19 +1540,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
         </div>
       </div>
 
-      {['ausencias', 'substituicoes', 'remanejamentos'].includes(activeSubTab) && (
+      {['ausencias', 'remanejamentos'].includes(activeSubTab) && (
         <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-gray-200 mb-6 w-fit animate-in fade-in slide-in-from-top-2 duration-300">
           <button
             onClick={() => setActiveSubTab('ausencias')}
             className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'ausencias' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
           >
             Ausências
-          </button>
-          <button
-            onClick={() => setActiveSubTab('substituicoes')}
-            className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'substituicoes' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Substituições
           </button>
           <button
             onClick={() => setActiveSubTab('remanejamentos')}
@@ -2230,6 +2284,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               r.makeup_period === slot.id
                             );
 
+                            const cellRepoNoPeriod = undefined;
+
                             const schedule = schedules.find(s =>
                               s.class_name === selectedClass &&
                               s.day_of_week === day.id - 1 &&
@@ -2244,7 +2300,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               r.status === 'CONCLUIDO'
                             ) : null;
 
-                            const isEditable = isGradeEditMode && !schedule && !cellRepo;
+                            const isEditable = isGradeEditMode && !schedule && !cellRepo && !cellRepoNoPeriod;
 
                             // Pegar a situação efetiva do professor para essa célula
                             const effective = schedule ? getEffectiveAttendance(schedule.id!, slot.id, cellDateStr) : null;
@@ -2261,6 +2317,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               cellText = cellRepo.teacher_name;
                               subText = cellRepo.subject;
                               labelBadge = isAntecipacao ? "Antecipação" : "Reposição";
+                            } else if (cellRepoNoPeriod && originalRepo) {
+                              cellStyle = "bg-emerald-50 border-2 border-emerald-200 text-emerald-800";
+                              cellText = cellRepoNoPeriod.teacher_name;
+                              subText = cellRepoNoPeriod.subject;
+                              labelBadge = "Reposição";
                             } else if (originalRepo) {
                               const isAntecipacao = originalRepo.makeup_date! < originalRepo.date;
                               cellStyle = "bg-gray-50 border border-dashed border-gray-300 text-gray-400 opacity-60";
@@ -2289,7 +2350,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                   }
                                 }}
                               >
-                                {(schedule || cellRepo) ? (
+                                {(schedule || cellRepo || cellRepoNoPeriod) ? (
                                   <div className={`h-full rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300 relative group/cell ${cellStyle}`}>
                                     {labelBadge && (
                                       <div className="mb-1">
@@ -2300,14 +2361,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                     )}
                                     <div className="text-[11px] font-black uppercase leading-tight mb-1 opacity-80">{subText}</div>
                                     <div className="text-[10px] font-bold truncate">{cellText}</div>
-                                    {originalRepo && (
+                                    {(cellRepo || cellRepoNoPeriod) && (
                                       <div className="text-[8px] mt-1 font-bold opacity-75">
-                                        P/ {new Date(originalRepo.makeup_date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                      </div>
-                                    )}
-                                    {cellRepo && (
-                                      <div className="text-[8px] mt-1 font-bold opacity-75">
-                                        Origem: {new Date(cellRepo.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                        Origem: {new Date((cellRepo || cellRepoNoPeriod)!.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                       </div>
                                     )}
                                     {isGradeEditMode && schedule && !originalRepo && (
@@ -2370,13 +2426,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             </div>
 
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              {plannedAbsences.length === 0 ? (
+              {plannedAbsences.filter(pa => pa.status === 'VAGO').length === 0 ? (
                 <div className="py-20 text-center">
                   <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
                     <Calendar size={32} />
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900">Nenhuma ausência informada</h3>
-                  <p className="text-gray-500">Clique no botão acima para informar uma nova ausência.</p>
+                  <h3 className="text-lg font-bold text-gray-900">Nenhuma ausência pendente</h3>
+                  <p className="text-gray-500">Todas as ausências foram substituídas ou removidas.</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -2390,7 +2446,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       </tr>
                     </thead>
                     <tbody>
-                      {plannedAbsences.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(pa => {
+                      {plannedAbsences.filter(pa => pa.status === 'VAGO').sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(pa => {
                         const schedule = schedules.find(s => s.id === pa.schedule_id);
                         const slot = timeSlots.find(ts => ts.id === pa.period);
                         return (
@@ -2434,14 +2490,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </div>
               )}
             </div>
-          </div>
-        ) : activeSubTab === 'substituicoes' ? (
-          <div className="bg-white rounded-3xl p-8 text-center border border-gray-100 shadow-sm">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
-              <UserPlus size={32} />
-            </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Cadastro de Substituições</h3>
-            <p className="text-gray-500 max-w-sm mx-auto font-medium">Esta funcionalidade estará disponível em breve para gerenciar a substituição temporária de docentes.</p>
           </div>
         ) : activeSubTab === 'remanejamentos' ? (
           <div className="space-y-8 animate-in fade-in duration-300">
@@ -2540,24 +2588,72 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                 {r.observation || '-'}
                               </td>
                               <td className="p-4">
-                                <button
-                                  onClick={async () => {
-                                    if (confirm('Deseja excluir este registro de remanejamento?')) {
-                                      try {
-                                        setIsSaving(true);
-                                        await StorageService.deleteTeacherReposicao(r.id!);
-                                        await loadData();
-                                      } catch (err) {
-                                        console.error(err);
-                                      } finally {
-                                        setIsSaving(false);
+                                {r.makeup_date ? (
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm('Deseja reverter este remanejamento para Pendente?')) {
+                                        try {
+                                          setIsSaving(true);
+                                          await StorageService.saveTeacherReposicao({
+                                            ...r,
+                                            status: 'PENDENTE',
+                                            makeup_date: null as any,
+                                            makeup_period: null as any
+                                          });
+                                          if (r.planned_absence_id) {
+                                            const existing = plannedAbsences.find(pa => pa.id === r.planned_absence_id);
+                                            if (existing) {
+                                              await StorageService.saveTeacherPlannedAbsence({
+                                                ...existing,
+                                                status: 'VAGO',
+                                                substitute_name: undefined
+                                              });
+                                            }
+                                          }
+                                          if (r.attendance_id) {
+                                            const existing = attendances.find(a => a.id === r.attendance_id);
+                                            if (existing) {
+                                              await StorageService.saveTeacherAttendance({
+                                                ...existing,
+                                                status: 'VAGO',
+                                                substitute_name: undefined
+                                              });
+                                            }
+                                          }
+                                          await loadData();
+                                        } catch (err) {
+                                          console.error(err);
+                                        } finally {
+                                          setIsSaving(false);
+                                        }
                                       }
-                                    }
-                                  }}
-                                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                    }}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Reverter para Pendente"
+                                  >
+                                    <RotateCcw size={16} />
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm('Deseja excluir esta ausência?')) {
+                                        try {
+                                          setIsSaving(true);
+                                          await StorageService.deleteTeacherReposicao(r.id!);
+                                          await loadData();
+                                        } catch (err) {
+                                          console.error(err);
+                                        } finally {
+                                          setIsSaving(false);
+                                        }
+                                      }
+                                    }}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Excluir"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
@@ -4012,12 +4108,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   const pendingAbsences = [
                     ...attendances.filter(att => {
                       const sch = schedules.find(s => s.id === att.schedule_id);
-                      return sch && sch.teacher_name === remanejamentoTeacher && (att.status === 'VAGO' || att.status === 'SUBSTITUIDO');
+                      return sch && sch.teacher_name === remanejamentoTeacher && att.status === 'VAGO';
                     }),
                     ...plannedAbsences.filter(pa => {
                       const sch = schedules.find(s => s.id === pa.schedule_id);
                       const tName = sch ? sch.teacher_name : pa.teacher_name;
-                      return tName === remanejamentoTeacher && (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO');
+                      return tName === remanejamentoTeacher && pa.status === 'VAGO';
                     })
                   ];
                   if (pendingAbsences.length === 0) return null;
@@ -4058,6 +4154,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       if (!turmaName || !proposal.new_date) return [];
                       const pDow = new Date(proposal.new_date + 'T12:00:00').getDay();
                       return timeSlots.filter(slot => {
+                        const takenByOtherProposal = remanejamentoProposals.some(p =>
+                          p.id !== proposal.id &&
+                          p.new_date === proposal.new_date &&
+                          p.new_period === slot.id
+                        );
+                        if (takenByOtherProposal) return false;
+
                         const weeklySchedule = schedules.find(s =>
                           s.class_name === turmaName && s.day_of_week === pDow &&
                           (s.period === slot.id || s.periods?.includes(slot.id))
@@ -4081,7 +4184,13 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             r.date === proposal.new_date &&
                             r.period === slot.id
                           );
-                          if (hasAttAbsence || hasPlannedAbsence || hasPendingRepo) {
+                          const hasAntecipacao = reposicoes.some(r =>
+                            r.class_name === turmaName &&
+                            r.status === 'CONCLUIDO' &&
+                            r.date === proposal.new_date &&
+                            r.period === slot.id
+                          );
+                          if (hasAttAbsence || hasPlannedAbsence || hasPendingRepo || hasAntecipacao) {
                             isClassFree = true;
                           }
                         }
@@ -4101,7 +4210,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                       attendances.forEach(att => {
                         const sch = schedules.find(s => s.id === att.schedule_id);
-                        if (sch && sch.teacher_name === remanejamentoTeacher && (att.status === 'VAGO' || att.status === 'SUBSTITUIDO')) {
+                        if (sch && sch.teacher_name === remanejamentoTeacher && att.status === 'VAGO') {
                           const slot = timeSlots.find(ts => ts.id === sch.period);
                           const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
                           list.push({
@@ -4116,7 +4225,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                       plannedAbsences.forEach(pa => {
                         const sch = schedules.find(s => s.id === pa.schedule_id);
                         const tName = sch ? sch.teacher_name : pa.teacher_name;
-                        if (tName === remanejamentoTeacher && (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO')) {
+                        if (tName === remanejamentoTeacher && pa.status === 'VAGO') {
                           const subjectLabel = sch ? sch.subject : '';
                           const classNameLabel = sch ? sch.class_name : '';
                           const periodVal = sch ? sch.period : pa.period;
@@ -4145,7 +4254,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                       attendances.forEach(att => {
                         const sch = schedules.find(s => s.id === att.schedule_id);
-                        if (sch && sch.class_name === turmaName && (att.status === 'VAGO' || att.status === 'SUBSTITUIDO')) {
+                        if (sch && sch.class_name === turmaName && att.status === 'VAGO') {
                           const slot = timeSlots.find(ts => ts.id === sch.period);
                           const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
                           list.push({
@@ -4157,7 +4266,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                       plannedAbsences.forEach(pa => {
                         const sch = schedules.find(s => s.id === pa.schedule_id);
-                        if (sch && sch.class_name === turmaName && (pa.status === 'VAGO' || pa.status === 'SUBSTITUIDO')) {
+                        if (sch && sch.class_name === turmaName && pa.status === 'VAGO') {
                           const periodVal = sch ? sch.period : pa.period;
                           const slot = timeSlots.find(ts => ts.id === periodVal);
                           const periodLabel = slot ? ` (${slot.label}ª aula)` : '';
@@ -4325,7 +4434,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                           )}
 
                           {/* Nova Data */}
-                          <div className={isProposalReposicao ? "sm:col-span-6" : "sm:col-span-3"}>
+                          <div className="sm:col-span-3">
                             <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">
                               {isProposalReposicao ? 'Data da Reposição *' : 'Data da Antecipação *'}
                             </label>
@@ -4341,25 +4450,24 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                           </div>
 
                           {/* Novo Horário */}
-                          {!isProposalReposicao && (
-                            <div className="sm:col-span-3">
-                              <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Novo Horário Proposto</label>
-                              <select
-                                value={proposal.new_period || ''}
-                                onChange={e => setRemanejamentoProposals(prev =>
-                                  prev.map(p => p.id === proposal.id ? { ...p, new_period: Number(e.target.value) } : p)
-                                )}
-                                className={`w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 ${inputFocusBorder} outline-none transition-all text-sm`}
-                              >
-                                <option value="">Selecione o horário...</option>
-                                {vacantPeriodsForClass.map(ts => (
-                                  <option key={ts.id} value={ts.id}>
-                                    {ts.shift === 'M' ? 'Manhã' : ts.shift === 'T' ? 'Tarde' : 'Noite'} – {ts.label}ª ({ts.time})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                          <div className="sm:col-span-3">
+                            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Novo Horário *</label>
+                            <select
+                              required
+                              value={proposal.new_period || ''}
+                              onChange={e => setRemanejamentoProposals(prev =>
+                                prev.map(p => p.id === proposal.id ? { ...p, new_period: Number(e.target.value) } : p)
+                              )}
+                              className={`w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-900 ${inputFocusBorder} outline-none transition-all text-sm`}
+                            >
+                              <option value="">Selecione o horário...</option>
+                              {vacantPeriodsForClass.map(ts => (
+                                <option key={ts.id} value={ts.id}>
+                                  {ts.shift === 'M' ? 'Manhã' : ts.shift === 'T' ? 'Tarde' : 'Noite'} – {ts.label}ª ({ts.time})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
 
                           {/* Observação */}
                           <div className="sm:col-span-6">
@@ -4375,24 +4483,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             />
                           </div>
                         </div>
-
-                        {/* Turmas livres */}
-                        {!isProposalReposicao && proposal.new_date && proposal.new_period > 0 && (
-                          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-                            <p className="text-xs font-black text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                              <CheckCircle2 size={13} />
-                              Turmas livres nesta data/aula ({vacantClasses.length})
-                            </p>
-                            {vacantClasses.length === 0
-                              ? <p className="text-xs text-emerald-600 font-medium">Nenhuma turma com horário livre.</p>
-                              : <div className="flex flex-wrap gap-1.5">
-                                  {vacantClasses.map(c => (
-                                    <span key={c.id} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-xs font-bold">{c.name}</span>
-                                  ))}
-                                </div>
-                            }
-                          </div>
-                        )}
 
                         {/* Conflitos */}
                         {!isProposalReposicao && hasConflict && (

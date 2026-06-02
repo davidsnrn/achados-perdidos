@@ -149,6 +149,12 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }
   };
 
+  const fmtDate = (d: string) => {
+    if (!d) return '-';
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}/${y}`;
+  };
+
   const handlePrintNotification = (n: StudentNotification) => {
     // Usa iframe oculto para evitar bloqueio de popup
     const iframe = document.createElement('iframe');
@@ -280,7 +286,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           <div class="ts-row">
             <span class="ts-item">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              ${new Date(n.date).toLocaleDateString('pt-BR')}
+              ${fmtDate(n.date)}
             </span>
             <span class="ts-item">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -839,7 +845,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-xl">
                           <Calendar size={14} className="text-gray-400" />
-                          <span className="text-xs font-black text-gray-600 uppercase">{new Date(n.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-xs font-black text-gray-600 uppercase">{fmtDate(n.date)}</span>
                         </div>
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-xl">
                           <Clock size={14} className="text-gray-400" />

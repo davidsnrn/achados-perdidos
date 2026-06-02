@@ -55,6 +55,12 @@
       `;
     }
 
+    function fmtDate(d) {
+      if (!d) return '-';
+      const [y, m, day] = d.split('-');
+      return day + '/' + m + '/' + y;
+    }
+
     function renderDocumento(n) {
       content.innerHTML = `
         <div class="status-icon valid">&#10003;</div>
@@ -63,7 +69,7 @@
         <div class="detail-card">
           <div class="row"><span class="label">Aluno(a)</span><span class="value">${n.student_name || '-'}</span></div>
           <div class="row"><span class="label">Matricula</span><span class="value">${n.student_matricula || '-'}</span></div>
-          <div class="row"><span class="label">Data</span><span class="value">${n.date ? new Date(n.date).toLocaleDateString('pt-BR') : '-'}</span></div>
+          <div class="row"><span class="label">Data</span><span class="value">${fmtDate(n.date)}</span></div>
           <div class="row"><span class="label">Horario</span><span class="value">${n.time || '-'}</span></div>
           <div class="row"><span class="label">Turma</span><span class="value">${n.class_name || '-'}</span></div>
           <div class="row"><span class="label">Periodo</span><span class="value">${n.period || '-'}</span></div>

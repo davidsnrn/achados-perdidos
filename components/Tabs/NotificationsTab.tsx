@@ -150,8 +150,15 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   };
 
   const handlePrintNotification = (n: StudentNotification) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    // Usa iframe oculto para evitar bloqueio de popup
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    document.body.appendChild(iframe);
+    const printWindow = (iframe.contentWindow || iframe.contentDocument) as Window;
 
     const activeCampusId = adminGlobalCampusId || user.campus_id || '';
     const campusName = campuses.find(c => c.id === activeCampusId)?.name || '';
@@ -303,13 +310,20 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             </div>
           </div>
         </div>
-        <script>
-          window.onload = function() { window.print(); };
-        <\\/script>
       </body>
       </html>
     `);
     printWindow.document.close();
+
+    // Foca e imprime automaticamente
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+      // Remove o iframe apos a impressao
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 1000);
+    }, 500);
   };
 
   const handleEditNotification = (n: StudentNotification) => {

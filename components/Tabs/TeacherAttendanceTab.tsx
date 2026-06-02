@@ -190,6 +190,8 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [teacherName, setTeacherName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const [gradeViewMode, setGradeViewMode] = useState<'turma' | 'sala'>('turma');
+  const [gradeSelectedRoom, setGradeSelectedRoom] = useState<string>('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedShift, setSelectedShift] = useState<'M' | 'T' | 'N'>(() => {
     const hour = new Date().getHours();
@@ -1514,7 +1516,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 onClick={() => setActiveSubTab('grade')}
                 className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeSubTab === 'grade' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
               >
-                Grade por Turma
+                Grade
               </button>
               <button
                 onClick={() => setActiveSubTab('horarios')}
@@ -1640,14 +1642,39 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
             {activeSubTab === 'grade' && (
               <div className="flex items-center gap-2 bg-indigo-50 p-1.5 rounded-xl border border-indigo-100">
                 <Filter size={18} className="text-indigo-600 ml-2" />
-                <select
-                  value={selectedClass}
-                  onChange={e => setSelectedClass(e.target.value)}
-                  className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-8"
-                >
-                  <option value="">Selecione a Turma</option>
-                  {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <div className="flex bg-indigo-100/50 rounded-lg p-0.5">
+                  <button
+                    onClick={() => { setGradeViewMode('turma'); setSelectedClass(''); }}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${gradeViewMode === 'turma' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-500 hover:text-indigo-700'}`}
+                  >
+                    Turma
+                  </button>
+                  <button
+                    onClick={() => { setGradeViewMode('sala'); setGradeSelectedRoom(''); }}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${gradeViewMode === 'sala' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-500 hover:text-indigo-700'}`}
+                  >
+                    Sala
+                  </button>
+                </div>
+                {gradeViewMode === 'turma' ? (
+                  <select
+                    value={selectedClass}
+                    onChange={e => setSelectedClass(e.target.value)}
+                    className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-8"
+                  >
+                    <option value="">Selecione a Turma</option>
+                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  <select
+                    value={gradeSelectedRoom}
+                    onChange={e => setGradeSelectedRoom(e.target.value)}
+                    className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-8"
+                  >
+                    <option value="">Selecione a Sala</option>
+                    {uniqueRooms.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                )}
               </div>
             )}
 
@@ -2169,8 +2196,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                 </div>
 
                 <div className="text-center">
-                  <h2 className="text-4xl font-black text-gray-900">{selectedClass || "Selecione uma turma"}</h2>
-                  {selectedClass && (() => {
+                  <h2 className="text-4xl font-black text-gray-900">
+                    {gradeViewMode === 'turma'
+                      ? (selectedClass || "Selecione uma turma")
+                      : (gradeSelectedRoom || "Selecione uma sala")}
+                  </h2>
+                  {gradeViewMode === 'turma' && selectedClass && (() => {
                     const matchedClassObj = classes.find(c => c.name === selectedClass);
                     return (
                       <div className="flex items-center justify-center gap-2 mt-2">
@@ -2228,7 +2259,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   })()}
                   <p className="text-gray-400 text-sm mt-1">{isGradeEditMode ? 'Clique em uma célula para adicionar um professor' : 'Horário Semanal de Aulas'}</p>
                 </div>
-                {selectedClass && !isUserStandard && (
+                {gradeViewMode === 'turma' && selectedClass && !isUserStandard && (
                   <button
                     onClick={() => setIsGradeEditMode(v => !v)}
                     className={`absolute right-0 flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${isGradeEditMode
@@ -2276,20 +2307,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             cellDateObj.setDate(cellDateObj.getDate() + (day.id - 2));
                             const cellDateStr = cellDateObj.toISOString().split('T')[0];
 
+                            const schedule = schedules.find(s =>
+                              (gradeViewMode === 'turma' ? s.class_name === selectedClass : s.room === gradeSelectedRoom) &&
+                              s.day_of_week === day.id - 1 &&
+                              (s.period === slot.id || (s.periods?.includes(slot.id)))
+                            );
+
                             // Reposição/Antecipação agendada para este slot
                             const cellRepo = reposicoes.find(r => 
-                              r.class_name === selectedClass && 
+                              r.class_name === (gradeViewMode === 'turma' ? selectedClass : schedule?.class_name) && 
                               r.status === 'CONCLUIDO' && 
                               r.makeup_date === cellDateStr && 
                               r.makeup_period === slot.id
-                            );
-
-                            const cellRepoNoPeriod = undefined;
-
-                            const schedule = schedules.find(s =>
-                              s.class_name === selectedClass &&
-                              s.day_of_week === day.id - 1 &&
-                              (s.period === slot.id || (s.periods?.includes(slot.id)))
                             );
 
                             // Se há um horário semanal aqui, verificar se foi remanejado para outra data
@@ -2300,7 +2329,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               r.status === 'CONCLUIDO'
                             ) : null;
 
-                            const isEditable = isGradeEditMode && !schedule && !cellRepo && !cellRepoNoPeriod;
+                            const isEditable = gradeViewMode === 'turma' && isGradeEditMode && !schedule && !cellRepo;
 
                             // Pegar a situação efetiva do professor para essa célula
                             const effective = schedule ? getEffectiveAttendance(schedule.id!, slot.id, cellDateStr) : null;
@@ -2317,11 +2346,6 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               cellText = cellRepo.teacher_name;
                               subText = cellRepo.subject;
                               labelBadge = isAntecipacao ? "Antecipação" : "Reposição";
-                            } else if (cellRepoNoPeriod && originalRepo) {
-                              cellStyle = "bg-emerald-50 border-2 border-emerald-200 text-emerald-800";
-                              cellText = cellRepoNoPeriod.teacher_name;
-                              subText = cellRepoNoPeriod.subject;
-                              labelBadge = "Reposição";
                             } else if (originalRepo) {
                               const isAntecipacao = originalRepo.makeup_date! < originalRepo.date;
                               cellStyle = "bg-gray-50 border border-dashed border-gray-300 text-gray-400 opacity-60";
@@ -2350,7 +2374,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                   }
                                 }}
                               >
-                                {(schedule || cellRepo || cellRepoNoPeriod) ? (
+                                {(schedule || cellRepo) ? (
                                   <div className={`h-full rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300 relative group/cell ${cellStyle}`}>
                                     {labelBadge && (
                                       <div className="mb-1">
@@ -2359,11 +2383,14 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                         </span>
                                       </div>
                                     )}
+                                    {gradeViewMode === 'sala' && schedule && (
+                                      <div className="text-[9px] font-black text-indigo-700 truncate mb-0.5">{schedule.class_name}</div>
+                                    )}
                                     <div className="text-[11px] font-black uppercase leading-tight mb-1 opacity-80">{subText}</div>
                                     <div className="text-[10px] font-bold truncate">{cellText}</div>
-                                    {(cellRepo || cellRepoNoPeriod) && (
+                                    {cellRepo && (
                                       <div className="text-[8px] mt-1 font-bold opacity-75">
-                                        Origem: {new Date((cellRepo || cellRepoNoPeriod)!.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                        Origem: {new Date(cellRepo.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                       </div>
                                     )}
                                     {isGradeEditMode && schedule && !originalRepo && (

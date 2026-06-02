@@ -149,6 +149,152 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }
   };
 
+  const handlePrintNotification = (n: StudentNotification) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const activeCampusId = adminGlobalCampusId || user.campus_id || '';
+    const campusName = campuses.find(c => c.id === activeCampusId)?.name || '';
+
+    const types = n.notification_type_ids?.map(id => {
+      const t = notificationTypes.find(tp => tp.id === id);
+      return { id: t?.id, name: t?.name || '', color: t?.color || '#309B41' };
+    }).filter(t => t.name) || [];
+
+    const subtypes = n.selected_subtypes?.join(', ') || '';
+
+    const ifrnLogoSvg = `
+      <svg viewBox="0 0 110 150" style="width:48px;height:48px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="16" fill="#CB161D" />
+        <rect x="38" y="0" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="76" y="0" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="0" y="38" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="38" y="38" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="0" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="38" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="76" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="0" y="114" width="32" height="32" rx="6" fill="#78BE20" />
+        <rect x="38" y="114" width="32" height="32" rx="6" fill="#78BE20" />
+      </svg>
+    `;
+
+    const tagHtml = (name: string, color: string) => `
+      <span style="display:inline-block;padding:6px 18px;border-radius:100px;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;background:${color};color:#fff">${name}</span>
+    `;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Comprovante de Comparecimento - COADESC</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Inter', -apple-system, sans-serif; padding: 48px 56px; color: #1e293b; background: #fff; }
+          .topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+          .topo-left { display: flex; align-items: center; gap: 14px; }
+          .ifrn-text { font-size: 22px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; line-height: 1.1; }
+          .ifrn-sub { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; }
+          .emitido { font-size: 11px; font-weight: 500; color: #94a3b8; }
+          .emitido strong { color: #475569; font-weight: 600; }
+          .title-block { text-align: center; margin-bottom: 40px; }
+          .title-block h1 { font-size: 22px; font-weight: 900; color: #1e3a5f; letter-spacing: 1px; }
+          .title-block .sep { width: 60px; height: 2px; background: #e2e8f0; margin: 12px auto 0; border-radius: 2px; }
+          .card { border: 1px solid #e2e8f0; border-radius: 20px; padding: 28px 32px; margin-bottom: 28px; }
+          .card-header { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 20px; }
+          .student-name { font-size: 24px; font-weight: 800; color: #1e293b; margin-bottom: 12px; }
+          .matricula-tag { display: inline-block; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; padding: 4px 14px; border-radius: 8px; letter-spacing: 0.5px; margin-bottom: 16px; }
+          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          .grid-2 .label { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+          .grid-2 .value { font-size: 15px; font-weight: 700; color: #1e293b; }
+          .ts-row { display: flex; align-items: center; gap: 24px; margin-bottom: 20px; }
+          .ts-row .ts-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; font-weight: 500; }
+          .ts-row .ts-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+          .tags-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+          .tag-subtle { display:inline-block;padding:4px 14px;border-radius:100px;font-size:12px;font-weight:700;color:#94a3b8;background:#f1f5f9;border:1px solid #e2e8f0; }
+
+          .decl-text { font-size: 14px; line-height: 1.9; color: #475569; }
+          .decl-text strong { color: #1e293b; font-weight: 700; }
+          .just-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 24px; }
+          .just-box p { font-size: 14px; line-height: 1.8; color: #475569; margin: 0; }
+          .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid #e2e8f0; }
+          .footer p { font-size: 11px; color: #cbd5e1; font-weight: 500; }
+          @media print {
+            body { padding: 32px 40px; }
+            .matricula-tag, .tag-subtle { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .just-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+          @page { size: A4; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="topo">
+          <div class="topo-left">
+            ${ifrnLogoSvg}
+            <div>
+              <div class="ifrn-text">IFRN</div>
+              <div class="ifrn-sub">${campusName}</div>
+            </div>
+          </div>
+          <div class="emitido">Emitido por: <strong>David Galdino da Silva</strong></div>
+        </div>
+
+        <div class="title-block">
+          <h1>COMPROVANTE DE COMPARECIMENTO</h1>
+          <div class="sep"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Dados do Aluno</div>
+          <div class="student-name">${n.student_name}</div>
+          <div class="matricula-tag">Matricula: ${n.student_matricula}</div>
+          <div class="grid-2">
+            <div>
+              <div class="label">Turma</div>
+              <div class="value">${n.class_name}</div>
+            </div>
+            <div>
+              <div class="label">Periodo</div>
+              <div class="value">${n.period}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Detalhes da Ocorrencia</div>
+          <div class="ts-row">
+            <span class="ts-item">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              ${new Date(n.date).toLocaleDateString('pt-BR')}
+            </span>
+            <span class="ts-item">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              ${n.time}
+            </span>
+          </div>
+          <div class="tags-row">
+            ${types.map(t => tagHtml(t.name, t.color)).join('')}
+            ${subtypes ? subtypes.split(', ').map(s => `<span class="tag-subtle">${s}</span>`).join('') : ''}
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Declaracao</div>
+          <p class="decl-text">Declaramos para os devidos fins que o(a) estudante acima identificado(a) <strong>compareceu a COADESC</strong> para tratar e justificar a ocorrencia listada neste documento.</p>
+        </div>
+
+        <div class="footer">
+          <p>Documento gerado em ${new Date().toLocaleString('pt-BR')}</p>
+        </div>
+        <script>
+          window.onload = function() { window.print(); };
+        <\\/script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const handleEditNotification = (n: StudentNotification) => {
     setFormData({
       id: n.id,
@@ -563,65 +709,6 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           <div className="space-y-6 pt-6 border-t border-gray-100">
             <div className="space-y-4">
               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                <ShieldAlert size={14} /> Observações Rápidas (Infrações Comuns)
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.out_of_hours ? 'bg-amber-50/50 border-amber-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
-                  <input
-                    type="checkbox"
-                    checked={formData.out_of_hours || false}
-                    onChange={e => setFormData({ ...formData, out_of_hours: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className={`text-xs font-black uppercase tracking-tight ${formData.out_of_hours ? 'text-amber-800' : 'text-gray-500'}`}>Fora do Horário</span>
-                    <span className="text-[9px] text-gray-400 font-medium">Fora do período de aula</span>
-                  </div>
-                </label>
-
-                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.mobile_use ? 'bg-red-50/50 border-red-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
-                  <input
-                    type="checkbox"
-                    checked={formData.mobile_use || false}
-                    onChange={e => setFormData({ ...formData, mobile_use: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className={`text-xs font-black uppercase tracking-tight ${formData.mobile_use ? 'text-red-800' : 'text-gray-500'}`}>Uso de Celular</span>
-                    <span className="text-[9px] text-gray-400 font-medium">Uso indevido de aparelho</span>
-                  </div>
-                </label>
-
-                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.no_uniform ? 'bg-slate-50/50 border-slate-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
-                  <input
-                    type="checkbox"
-                    checked={formData.no_uniform || false}
-                    onChange={e => setFormData({ ...formData, no_uniform: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-slate-600 focus:ring-slate-500 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className={`text-xs font-black uppercase tracking-tight ${formData.no_uniform ? 'text-slate-800' : 'text-gray-500'}`}>Sem Uniforme</span>
-                    <span className="text-[9px] text-gray-400 font-medium">Ausência de farda</span>
-                  </div>
-                </label>
-
-                <label className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer select-none ${formData.no_sneakers ? 'bg-zinc-50/50 border-zinc-500 shadow-sm' : 'bg-gray-50 border-gray-100 hover:border-gray-200'}`}>
-                  <input
-                    type="checkbox"
-                    checked={formData.no_sneakers || false}
-                    onChange={e => setFormData({ ...formData, no_sneakers: e.target.checked })}
-                    className="w-5 h-5 rounded border-gray-300 text-zinc-600 focus:ring-zinc-500 cursor-pointer"
-                  />
-                  <div className="flex flex-col">
-                    <span className={`text-xs font-black uppercase tracking-tight ${formData.no_sneakers ? 'text-zinc-800' : 'text-gray-500'}`}>Sem Tênis</span>
-                    <span className="text-[9px] text-gray-400 font-medium">Sem calçado adequado</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                 <FileText size={14} /> Detalhes e Justificativa
               </h4>
               <textarea
@@ -731,6 +818,13 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                       
                       <div className="flex items-center gap-2">
                         <button
+                          onClick={() => handlePrintNotification(n)}
+                          className="p-3 text-green-500 bg-green-50 hover:bg-green-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                          title="Imprimir Comprovante"
+                        >
+                          <Printer size={18} />
+                        </button>
+                        <button
                           onClick={() => handleEditNotification(n)}
                           className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-500 hover:text-white rounded-2xl transition-all shadow-sm"
                           title="Editar Registro"
@@ -769,31 +863,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                             );
                           })}
 
-                          {/* Observações Rápidas Badges */}
-                          {(n.out_of_hours || n.mobile_use || n.no_uniform || n.no_sneakers) && (
-                            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 border-dashed animate-fade-in">
-                              {n.out_of_hours && (
-                                <span className="px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
-                                  Fora do Horário
-                                </span>
-                              )}
-                              {n.mobile_use && (
-                                <span className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
-                                  Uso de Celular
-                                </span>
-                              )}
-                              {n.no_uniform && (
-                                <span className="px-3 py-1.5 bg-slate-50 text-slate-700 border border-slate-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
-                                  Sem Uniforme
-                                </span>
-                              )}
-                              {n.no_sneakers && (
-                                <span className="px-3 py-1.5 bg-zinc-50 text-zinc-700 border border-zinc-100 text-[10px] font-black rounded-xl uppercase tracking-tight shadow-sm">
-                                  Sem Tênis
-                                </span>
-                              )}
-                            </div>
-                          )}
+
                         </div>
                       </div>
 

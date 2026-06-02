@@ -240,7 +240,7 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('people')
-        .select('id, name, matricula, campus_id, type')
+        .select('id, name, matricula, campus_id, type, email')
         .range(from, from + limit - 1);
 
       if (campusId) {
@@ -275,7 +275,7 @@ export const StorageService = {
 
     let query = supabase
       .from('people')
-      .select('name, matricula, campus_id, type')
+      .select('name, matricula, campus_id, type, email')
       .range(from, to)
       .order('name', { ascending: true });
 
@@ -346,7 +346,7 @@ export const StorageService = {
 
     let supabaseQuery = supabase
       .from('people')
-      .select('name, matricula, campus_id, type');
+      .select('name, matricula, campus_id, type, email');
 
     if (tokens.length > 0) {
       tokens.forEach(t => {
@@ -400,7 +400,8 @@ export const StorageService = {
           matricula: person.matricula,
           name: person.name,
           type: person.type,
-          campus_id: person.campus_id
+          campus_id: person.campus_id,
+          email: person.email
         })
         .eq('matricula', oldMatricula);
 
@@ -437,7 +438,8 @@ export const StorageService = {
         matricula: person.matricula,
         name: person.name,
         type: person.type,
-        campus_id: person.campus_id
+        campus_id: person.campus_id,
+        email: person.email
       }, { onConflict: 'matricula' });
 
       if (error) throw error;
@@ -1324,6 +1326,7 @@ export const StorageService = {
       materialCode: d.materialCode,
       personName: d.personName,
       personMatricula: d.personMatricula,
+      personEmail: d.personEmail,
       loanDate: d.loanDate,
       returnDate: d.returnDate,
       observation: d.observation,
@@ -1342,6 +1345,7 @@ export const StorageService = {
       materialCode: loan.materialCode,
       personName: loan.personName,
       personMatricula: loan.personMatricula,
+      personEmail: loan.personEmail,
       loanDate: loan.loanDate,
       returnDate: loan.returnDate,
       observation: loan.observation,

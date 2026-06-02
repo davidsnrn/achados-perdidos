@@ -13,6 +13,7 @@ export interface MaterialLoan {
     materialCode: string; // Track by code
     personName: string;
     personMatricula: string;
+    personEmail?: string;
     loanDate: string;
     returnDate?: string;
     observation?: string;

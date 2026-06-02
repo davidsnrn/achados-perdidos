@@ -28,6 +28,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
   const [name, setName] = useState('');
   const [matricula, setMatricula] = useState('');
   const [type, setType] = useState<PersonType>(PersonType.STUDENT);
+  const [email, setEmail] = useState('');
 
   // Import State
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -163,10 +164,12 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         name: toTitleCase(name),
         matricula,
         type,
+        email: email.trim() || undefined,
         campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
       });
       setName('');
       setMatricula('');
+      setEmail('');
       onUpdate();
       fetchData(); // Recarregar dados após cadastro
       alert('Pessoa cadastrada!');
@@ -186,12 +189,14 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     const formData = new FormData(e.currentTarget);
     const rawName = formData.get('name') as string;
     const newMatricula = formData.get('matricula') as string;
+    const rawEmail = formData.get('email') as string;
 
     const updatedPerson: Person = {
       ...editingPerson,
       name: toTitleCase(rawName),
       matricula: newMatricula,
       type: formData.get('type') as PersonType,
+      email: rawEmail.trim() || undefined,
       campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : (editingPerson.campus_id || user.campus_id)
     };
 
@@ -264,6 +269,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         const colsHeader = rows[headerIndex].map(c => c.trim().toLowerCase().replace(/^["']|["']$/g, ''));
         const idxNome = colsHeader.indexOf('nome');
         const idxMatricula = colsHeader.findIndex(c => c.includes('matrícula'));
+        const idxEmail = colsHeader.findIndex(c => c.includes('email') || c.includes('e-mail'));
 
         if (idxNome === -1 || idxMatricula === -1) {
           processingLog += `❌ ${file.name}: Colunas 'Nome' ou 'Matrícula' não identificadas.\n`;
@@ -286,11 +292,13 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
           const pName = cols[idxNome];
           const pMatricula = cols[idxMatricula];
+          const pEmail = idxEmail !== -1 ? cols[idxEmail] : undefined;
 
           if (!pName || !pMatricula) continue;
 
           const cleanName = toTitleCase(pName.trim().replace(/^["']|["']$/g, ''));
           const cleanMatricula = pMatricula.trim().replace(/^["']|["']$/g, '');
+          const cleanEmail = pEmail ? pEmail.trim().replace(/^["']|["']$/g, '') : undefined;
 
           if (cleanName.toLowerCase() === 'nome' && cleanMatricula.toLowerCase().includes('matrícula')) continue;
           if (cleanName.length < 2 || cleanMatricula.length < 2) continue;
@@ -308,6 +316,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             name: cleanName,
             matricula: cleanMatricula,
             type: detectedType,
+            email: cleanEmail || undefined,
             campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
           });
           fileCount++;
@@ -522,6 +531,16 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                     onChange={e => setName(e.target.value)} 
                     className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all" 
                     placeholder="Nome completo..." 
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">E-mail (opcional)</label>
+                  <input 
+                    type="email"
+                    value={email} 
+                    onChange={e => setEmail(e.target.value)} 
+                    className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all" 
+                    placeholder="Ex: nome@ifrn.edu.br..." 
                   />
                 </div>
               </div>
@@ -784,6 +803,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Editar Pessoa">
         <form onSubmit={handleEditSubmit} className="space-y-4">
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label><input name="name" required defaultValue={editingPerson?.name} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">E-mail (opcional)</label><input name="email" type="email" defaultValue={editingPerson?.email} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Ex: nome@ifrn.edu.br..." /></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Matrícula</label><input name="matricula" required defaultValue={editingPerson?.matricula} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Vínculo</label><select name="type" defaultValue={editingPerson?.type} className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"><option value={PersonType.STUDENT}>Aluno</option><option value={PersonType.SERVER}>Servidor</option><option value={PersonType.EXTERNAL}>Externo</option></select></div>

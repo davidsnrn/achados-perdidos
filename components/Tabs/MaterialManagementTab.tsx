@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
+import { EmailService } from '../../services/emailService';
 import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
@@ -310,6 +311,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             return;
         }
 
+        // Cadastro Sem E-mail: Opção B - Alerta e pergunta se deseja prosseguir
+        if (!selectedPerson.email) {
+            const proceed = window.confirm(`Atenção: A pessoa '${selectedPerson.name}' não possui e-mail cadastrado. Deseja prosseguir com o empréstimo sem notificações por e-mail?`);
+            if (!proceed) return;
+        }
+
         const newLoans = selectedMaterials.map(mat => ({
             id: Math.random().toString(36).substr(2, 9),
             materialId: mat.id,
@@ -317,6 +324,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             materialCode: mat.code,
             personName: selectedPerson.name,
             personMatricula: selectedPerson.matricula,
+            personEmail: selectedPerson.email,
             loanDate: new Date().toISOString(),
             observation: observation.trim() || undefined,
             status: 'ACTIVE' as const,
@@ -335,7 +343,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setSelectedMaterials([]);
             setMaterialSearch('');
             setObservation('');
-            alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!`);
+
+            // Enviar e-mail único de notificação
+            if (selectedPerson.email) {
+                const currentCampus = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id));
+                const res = await EmailService.sendLoanBatchNotification(
+                    selectedPerson.email,
+                    selectedPerson.name,
+                    newLoans.map(l => ({ materialName: l.materialName, loanDate: l.loanDate })),
+                    user.name,
+                    user.email,
+                    currentCampus?.name
+                );
+                if (!res.success) {
+                    alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!\n\n⚠️ Mas a notificação por e-mail falhou.`);
+                } else {
+                    alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!`);
+                }
+            } else {
+                alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!`);
+            }
         } catch (error) {
             alert('Erro ao registrar empréstimo.');
         }
@@ -348,6 +375,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             await StorageService.returnMaterialLoan(loan.id, `${user.name} (${user.matricula})`);
             onUpdate();
             setViewingLoan(null);
+
+            // Enviar e-mail de devolução
+            if (loan.personEmail) {
+                const campusName = campuses.find(c => c.id === user.campus_id)?.name;
+                const res = await EmailService.sendReturnNotification(
+                    loan.personEmail,
+                    loan.personName,
+                    loan.materialName,
+                    loan.materialCode,
+                    new Date().toISOString(),
+                    user.name,
+                    user.email,
+                    campusName
+                );
+                if (!res.success) {
+                    alert('Material devolvido com sucesso!\n\n⚠️ A notificação por e-mail falhou.');
+                    return;
+                }
+            }
+
             alert('Material devolvido com sucesso!');
         } catch (error) {
             alert('Erro ao processar devolução.');
@@ -393,7 +440,30 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             await StorageService.returnMaterialLoansBulk(loanIds, `${user.name} (${user.matricula})`);
             await onUpdate();
             setSelectedIds([]);
-            alert(`${loanedItems.length} material(is) devolvido(s) com sucesso!`);
+
+            // Enviar e-mails de notificação de devolução em lote (um por pessoa)
+            const campusName = campuses.find(c => c.id === user.campus_id)?.name;
+            const byEmail: Record<string, { personName: string; items: { materialName: string }[] }> = {};
+            for (const item of loanedItems) {
+                const loan = item.activeLoan;
+                if (loan?.personEmail) {
+                    if (!byEmail[loan.personEmail]) {
+                        byEmail[loan.personEmail] = { personName: loan.personName, items: [] };
+                    }
+                    byEmail[loan.personEmail].items.push({ materialName: loan.materialName });
+                }
+            }
+            let batchEmailOk = true;
+            for (const [email, data] of Object.entries(byEmail)) {
+                const res = await EmailService.sendReturnBatchNotification(
+                    email, data.personName, data.items, user.name, user.email, campusName
+                );
+                if (!res.success) batchEmailOk = false;
+            }
+
+            if (loanedItems.length > 0) {
+                alert(`${loanedItems.length} material(is) devolvido(s) com sucesso!${batchEmailOk ? '' : '\n\n⚠️ Mas a notificação por e-mail falhou para algumas pessoa(s).'}`);
+            }
         } catch (error) {
             console.error(error);
             alert('Erro ao processar devolução em lote.');

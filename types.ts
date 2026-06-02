@@ -33,6 +33,7 @@ export interface User {
   id: string;
   matricula: string;
   name: string;
+  email?: string;
   password?: string;
   level: UserLevel;
   campus_id?: string;
@@ -59,6 +60,7 @@ export interface Person {
   name: string;
   type: PersonType;
   campus_id?: string;
+  email?: string;
 }
 
 export interface ItemHistory {

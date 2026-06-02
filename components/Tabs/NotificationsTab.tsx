@@ -163,6 +163,9 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
     const subtypes = n.selected_subtypes?.join(', ') || '';
 
+    const verificationCode = n.id ? n.id.replace(/-/g, '').slice(0, 12).toUpperCase() : '';
+    const verificationUrl = n.id ? `https://achados-perdidos-main.vercel.app/verificar.html?id=${n.id}` : '';
+
     const ifrnLogoSvg = `
       <svg viewBox="0 0 110 150" style="width:48px;height:48px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">
         <circle cx="16" cy="16" r="16" fill="#CB161D" />
@@ -217,8 +220,13 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           .decl-text strong { color: #1e293b; font-weight: 700; }
           .just-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px 24px; }
           .just-box p { font-size: 14px; line-height: 1.8; color: #475569; margin: 0; }
-          .footer { text-align: center; margin-top: 48px; padding-top: 24px; border-top: 1px solid #e2e8f0; }
-          .footer p { font-size: 11px; color: #cbd5e1; font-weight: 500; }
+          .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #e2e8f0; }
+          .footer-content { display: flex; align-items: center; justify-content: space-between; }
+          .footer-left p { font-size: 11px; color: #cbd5e1; font-weight: 500; margin-bottom: 4px; }
+          .footer-left p:last-child { margin-bottom: 0; }
+          .verify-box { text-align: right; }
+          .verify-box img { width: 72px; height: 72px; display: block; margin: 0 0 4px auto; }
+          .verify-code { font-size: 10px; font-weight: 700; color: #94a3b8; letter-spacing: 1px; }
           @media print {
             body { padding: 32px 40px; }
             .matricula-tag, .tag-subtle { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -284,7 +292,16 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
         </div>
 
         <div class="footer">
-          <p>Documento gerado em ${new Date().toLocaleString('pt-BR')}</p>
+          <div class="footer-content">
+            <div class="footer-left">
+              <p>Documento gerado em ${new Date().toLocaleString('pt-BR')}</p>
+              <p>Codigo de verificacao: ${verificationCode}</p>
+            </div>
+            <div class="verify-box">
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verificationUrl)}" alt="QR Code" />
+              <div class="verify-code">${verificationCode}</div>
+            </div>
+          </div>
         </div>
         <script>
           window.onload = function() { window.print(); };

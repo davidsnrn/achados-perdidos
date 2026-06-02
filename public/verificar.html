@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verificar Documento - COADESC</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: #f1f5f9; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: #fff; border-radius: 24px; padding: 48px; max-width: 520px; width: 100%; box-shadow: 0 4px 24px rgba(0,0,0,0.06); text-align: center; }
+    .status-icon { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 36px; }
+    .status-icon.valid { background: #dcfce7; color: #16a34a; }
+    .status-icon.invalid { background: #fee2e2; color: #dc2626; }
+    .status-icon.loading { background: #eff6ff; color: #3b82f6; }
+    h1 { font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: #64748b; margin-bottom: 32px; }
+    .detail-card { background: #f8fafc; border-radius: 16px; padding: 24px; text-align: left; margin-bottom: 24px; }
+    .detail-card .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+    .detail-card .row:last-child { border-bottom: none; }
+    .detail-card .label { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .detail-card .value { font-size: 14px; font-weight: 600; color: #1e293b; text-align: right; }
+    .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; justify-content: flex-end; }
+    .tag { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; color: #fff; }
+    .error-text { font-size: 14px; color: #64748b; line-height: 1.7; }
+    .footer-text { font-size: 12px; color: #94a3b8; margin-top: 24px; }
+    .logo-text { font-size: 14px; font-weight: 800; color: #1e293b; letter-spacing: 1px; margin-bottom: 4px; }
+    .logo-sub { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; }
+    .loader { width: 36px; height: 36px; border: 4px solid #e2e8f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card" id="app">
+    <div class="logo-text">COADESC</div>
+    <div class="logo-sub">Coordenadoria de Administracao Escolar</div>
+    <div id="content">
+      <div class="status-icon loading" style="margin-top:24px"><div class="loader"></div></div>
+      <h1 style="margin-top:16px">Verificando documento...</h1>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://vfcnptykhuljtoykpbmv.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_jjl3YMTXv7Ly-LwahfI3Yw_5GZD4fpv';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const docId = urlParams.get('id');
+
+    const content = document.getElementById('content');
+
+    function renderError(message) {
+      content.innerHTML = `
+        <div class="status-icon invalid">&#10007;</div>
+        <h1>Documento nao encontrado</h1>
+        <p class="subtitle">${message}</p>
+        <p class="footer-text">Verifique o codigo informado e tente novamente.</p>
+      `;
+    }
+
+    function renderDocumento(n) {
+      const types = (n.notification_type_ids || []).map(id => {
+        return { id, name: 'Ocorrencia' };
+      });
+
+      content.innerHTML = `
+        <div class="status-icon valid">&#10003;</div>
+        <h1>Documento Autentico</h1>
+        <p class="subtitle">Este comprovante foi emitido pela COADESC e consta em nosso sistema.</p>
+        <div class="detail-card">
+          <div class="row"><span class="label">Aluno(a)</span><span class="value">${n.student_name || '-'}</span></div>
+          <div class="row"><span class="label">Matricula</span><span class="value">${n.student_matricula || '-'}</span></div>
+          <div class="row"><span class="label">Data</span><span class="value">${n.date ? new Date(n.date).toLocaleDateString('pt-BR') : '-'}</span></div>
+          <div class="row"><span class="label">Horario</span><span class="value">${n.time || '-'}</span></div>
+          <div class="row"><span class="label">Turma</span><span class="value">${n.class_name || '-'}</span></div>
+          <div class="row"><span class="label">Periodo</span><span class="value">${n.period || '-'}</span></div>
+        </div>
+        <p class="footer-text">Emitido por COADESC — IFRN</p>
+      `;
+    }
+
+    if (!docId) {
+      renderError('Nenhum codigo de verificacao informado na URL.');
+    } else {
+      supabase
+        .from('student_notifications')
+        .select('*')
+        .eq('id', docId)
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data) {
+            renderError('O documento nao foi encontrado em nossa base de dados ou o codigo informado e invalido.');
+          } else {
+            renderDocumento(data);
+          }
+        })
+        .catch(() => {
+          renderError('Erro ao conectar com o servidor. Tente novamente mais tarde.');
+        });
+    }
+  </script>
+</body>
+</html>

@@ -29,7 +29,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
 
   // Sort State
-  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'id', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'dateFound', direction: 'desc' });
 
   // Modals State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -305,7 +305,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     if (activeSubTab === ItemStatus.RETURNED || activeSubTab === ItemStatus.DISCARDED) {
       setSortConfig({ key: 'returnedDate', direction: 'desc' });
     } else {
-      setSortConfig({ key: 'id', direction: 'desc' });
+      setSortConfig({ key: 'dateFound', direction: 'desc' });
     }
   }, [activeSubTab]);
 

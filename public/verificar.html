@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Verificar Documento - COADESC</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -21,8 +20,6 @@
     .detail-card .row:last-child { border-bottom: none; }
     .detail-card .label { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
     .detail-card .value { font-size: 14px; font-weight: 600; color: #1e293b; text-align: right; }
-    .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; justify-content: flex-end; }
-    .tag { display: inline-block; padding: 4px 12px; border-radius: 100px; font-size: 11px; font-weight: 700; color: #fff; }
     .error-text { font-size: 14px; color: #64748b; line-height: 1.7; }
     .footer-text { font-size: 12px; color: #94a3b8; margin-top: 24px; }
     .logo-text { font-size: 14px; font-weight: 800; color: #1e293b; letter-spacing: 1px; margin-bottom: 4px; }
@@ -44,11 +41,9 @@
   <script>
     const SUPABASE_URL = 'https://vfcnptykhuljtoykpbmv.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_jjl3YMTXv7Ly-LwahfI3Yw_5GZD4fpv';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const urlParams = new URLSearchParams(window.location.search);
     const docId = urlParams.get('id');
-
     const content = document.getElementById('content');
 
     function renderError(message) {
@@ -61,10 +56,6 @@
     }
 
     function renderDocumento(n) {
-      const types = (n.notification_type_ids || []).map(id => {
-        return { id, name: 'Ocorrencia' };
-      });
-
       content.innerHTML = `
         <div class="status-icon valid">&#10003;</div>
         <h1>Documento Autentico</h1>
@@ -84,21 +75,23 @@
     if (!docId) {
       renderError('Nenhum codigo de verificacao informado na URL.');
     } else {
-      supabase
-        .from('student_notifications')
-        .select('*')
-        .eq('id', docId)
-        .single()
-        .then(({ data, error }) => {
-          if (error || !data) {
-            renderError('O documento nao foi encontrado em nossa base de dados ou o codigo informado e invalido.');
-          } else {
-            renderDocumento(data);
-          }
-        })
-        .catch(() => {
-          renderError('Erro ao conectar com o servidor. Tente novamente mais tarde.');
-        });
+      fetch(`${SUPABASE_URL}/rest/v1/student_notifications?id=eq.${encodeURIComponent(docId)}&select=*`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data || data.length === 0) {
+          renderError('O documento nao foi encontrado em nossa base de dados ou o codigo informado e invalido.');
+        } else {
+          renderDocumento(data[0]);
+        }
+      })
+      .catch(() => {
+        renderError('Erro ao conectar com o servidor. Tente novamente mais tarde.');
+      });
     }
   </script>
 </body>

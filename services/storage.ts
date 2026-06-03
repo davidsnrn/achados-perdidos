@@ -2163,5 +2163,42 @@ export const StorageService = {
   deleteTeacherReposicaoByPlannedAbsence: async (plannedAbsenceId: string) => {
     const { error } = await supabase.from('teacher_reposicoes').delete().eq('planned_absence_id', plannedAbsenceId);
     if (error) throw error;
-  }
+  },
+
+  logChargeSent: async (params: {
+    loan_id: string;
+    material_id: string;
+    person_email: string;
+    person_name: string;
+    triggered_by_name: string;
+    triggered_by_email?: string;
+    campus_id?: string;
+  }) => {
+    const { error } = await supabase.from('charge_history').insert({
+      loan_id: params.loan_id,
+      material_id: params.material_id,
+      person_email: params.person_email,
+      person_name: params.person_name,
+      triggered_by_name: params.triggered_by_name,
+      triggered_by_email: params.triggered_by_email,
+      campus_id: params.campus_id,
+    });
+    if (error) {
+      console.error("Erro ao registrar envio de lembrete:", error);
+      throw error;
+    }
+  },
+
+  getChargeHistory: async (loanId: string): Promise<import('./types-materiais').ChargeHistory[]> => {
+    const { data, error } = await supabase
+      .from('charge_history')
+      .select('*')
+      .eq('loan_id', loanId)
+      .order('sent_at', { ascending: false });
+    if (error) {
+      console.error("Erro ao buscar historico de lembretes:", error);
+      return [];
+    }
+    return data || [];
+  },
 };

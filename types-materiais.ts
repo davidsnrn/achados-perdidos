@@ -22,3 +22,15 @@ export interface MaterialLoan {
     returnedBy?: string; // User who registered the return
     campus_id?: string;
 }
+
+export interface ChargeHistory {
+    id: number;
+    loan_id: string;
+    material_id: string;
+    person_email: string;
+    person_name: string;
+    sent_at: string;
+    triggered_by_name: string;
+    triggered_by_email?: string;
+    campus_id?: string;
+}

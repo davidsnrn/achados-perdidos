@@ -67,6 +67,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(false);
     const [loadingConfig, setLoadingConfig] = useState(true);
     const [sendingCharge, setSendingCharge] = useState(false);
+    const [chargeHistory, setChargeHistory] = useState<import('../../types-materiais').ChargeHistory[]>([]);
+    const [loadingChargeHistory, setLoadingChargeHistory] = useState(false);
 
     const campusIdForConfig = user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id;
 
@@ -82,6 +84,18 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setLoadingConfig(false);
         }).catch(() => setLoadingConfig(false));
     }, [campusIdForConfig]);
+
+    useEffect(() => {
+        if (viewingItem?.activeLoan) {
+            setLoadingChargeHistory(true);
+            StorageService.getChargeHistory(viewingItem.activeLoan.id).then(history => {
+                setChargeHistory(history);
+                setLoadingChargeHistory(false);
+            }).catch(() => setLoadingChargeHistory(false));
+        } else {
+            setChargeHistory([]);
+        }
+    }, [viewingItem]);
 
     const toggleEmailNotification = async () => {
         if (!campusIdForConfig) return;
@@ -453,6 +467,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 campusName
             );
             if (res.success) {
+                try {
+                    await StorageService.logChargeSent({
+                        loan_id: loan.id,
+                        material_id: loan.materialId,
+                        person_email: loan.personEmail,
+                        person_name: loan.personName,
+                        triggered_by_name: `${user.name} (${user.matricula})`,
+                        triggered_by_email: user.email,
+                        campus_id: user.campus_id
+                    });
+                } catch (logErr: any) {
+                    const msg = logErr?.message || '';
+                    if (msg.includes('does not exist') || msg.includes('relation') || msg.includes('charge_history')) {
+                        alert('Lembrete enviado! Mas o histórico não foi registrado. Execute o SQL em scripts/criar-tabela-charge-history.sql no Supabase.');
+                    } else {
+                        alert('Lembrete enviado! Mas houve erro ao registrar histórico: ' + msg);
+                    }
+                }
+                const updated = await StorageService.getChargeHistory(loan.id);
+                setChargeHistory(updated);
                 alert('Lembrete enviado com sucesso!');
             } else {
                 alert('Erro ao enviar o lembrete: ' + (res.error || ''));
@@ -1455,6 +1489,36 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                             </div>
                                         )}
                                     </div>
+                                </div>
+                            )}
+                            {viewingItem.status === 'LOANED' && (
+                                <div className="p-4 rounded-xl border border-gray-100 bg-white space-y-3">
+                                    <p className="text-xs font-bold text-gray-400 uppercase">Histórico de Lembretes</p>
+                                    {loadingChargeHistory ? (
+                                        <p className="text-xs text-gray-400 italic">Carregando...</p>
+                                    ) : chargeHistory.length === 0 ? (
+                                        <p className="text-xs text-gray-400 italic">Nenhum lembrete enviado ainda.</p>
+                                    ) : (
+                                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                                            {chargeHistory.map((ch, i) => (
+                                                <div key={ch.id} className="flex items-start gap-2 text-xs">
+                                                    <span className="text-emerald-500 mt-0.5 shrink-0">
+                                                        <Mail size={12} />
+                                                    </span>
+                                                    <div>
+                                                        <span className="text-gray-700 font-medium">
+                                                            {i === 0 ? 'Último envio' : `Envio #${chargeHistory.length - i}`}
+                                                        </span>
+                                                        <span className="text-gray-400 ml-1">
+                                                            {new Date(ch.sent_at).toLocaleString('pt-BR')}
+                                                        </span>
+                                                        <br />
+                                                        <span className="text-gray-400">por {ch.triggered_by_name}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

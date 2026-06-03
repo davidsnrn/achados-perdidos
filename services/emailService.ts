@@ -397,7 +397,7 @@ export const EmailService = {
         </div>
         <div style="padding: 24px; color: #333; line-height: 1.6;">
           <p>Olá, <strong>${personName}</strong>,</p>
-          <p>Este é um lembrete amigável informando que o material abaixo segue emprestado conosco:</p>
+          <p>Identificamos em nosso sistema que o material listado abaixo consta em seu nome como pendente de devolução:</p>
           
           <div style="background-color: #f9f9f9; border-left: 4px solid #2e7d32; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
             <table style="width: 100%; border-collapse: collapse;">
@@ -416,7 +416,7 @@ export const EmailService = {
             </table>
           </div>
 
-          <p>Pedimos que, ao finalizar o uso, você realize a devolução na <strong>COADES</strong> para que outros possam utilizá-lo.</p>
+          <p>Solicitamos que, ao encerrar a utilização do item, efetue a devolução diretamente na <strong>COADES</strong> para a devida baixa no sistema.</p>
           <p style="font-size: 13px; color: #666;">Estamos à disposição para qualquer dúvida.</p>
 
           <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />

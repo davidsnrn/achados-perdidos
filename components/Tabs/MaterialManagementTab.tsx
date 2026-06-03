@@ -64,14 +64,34 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
     );
-    const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(() => {
-        const stored = localStorage.getItem('material_email_notification');
-        return stored !== null ? stored === 'true' : true;
-    });
+    const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(false);
+    const [loadingConfig, setLoadingConfig] = useState(true);
+
+    const campusIdForConfig = user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id;
 
     useEffect(() => {
-        localStorage.setItem('material_email_notification', String(emailNotificationEnabled));
-    }, [emailNotificationEnabled]);
+        if (!campusIdForConfig) {
+            setLoadingConfig(false);
+            return;
+        }
+        StorageService.getCampusConfig(campusIdForConfig).then(config => {
+            if (config) {
+                setEmailNotificationEnabled(config.material_email_notification);
+            }
+            setLoadingConfig(false);
+        }).catch(() => setLoadingConfig(false));
+    }, [campusIdForConfig]);
+
+    const toggleEmailNotification = async () => {
+        if (!campusIdForConfig) return;
+        const newValue = !emailNotificationEnabled;
+        try {
+            await StorageService.saveCampusConfig(campusIdForConfig, newValue);
+            setEmailNotificationEnabled(newValue);
+        } catch (err) {
+            alert('Erro ao salvar configuração.');
+        }
+    };
 
     // Sync with global admin campus selector
     useEffect(() => {
@@ -630,16 +650,19 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <Plus size={18} /> Novo Empréstimo
                             </button>
                             <button
-                                onClick={() => setEmailNotificationEnabled(!emailNotificationEnabled)}
+                                onClick={toggleEmailNotification}
+                                disabled={loadingConfig}
                                 className={`flex-1 sm:flex-none px-3 py-2 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 border ${
-                                    emailNotificationEnabled
+                                    loadingConfig
+                                    ? 'bg-gray-50 text-gray-300 border-gray-100'
+                                    : emailNotificationEnabled
                                     ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
                                     : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
                                 }`}
                                 title="Ativar/desativar notificações por e-mail"
                             >
                                 <Mail size={16} />
-                                {emailNotificationEnabled ? 'E-mail Ativo' : 'E-mail Off'}
+                                {loadingConfig ? '...' : emailNotificationEnabled ? 'E-mail Ativo' : 'E-mail Off'}
                             </button>
                         </div>
                     </div>

@@ -1458,6 +1458,30 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  getCampusConfig: async (campusId: string): Promise<{ material_email_notification: boolean } | null> => {
+    const { data, error } = await supabase
+      .from('campus_config')
+      .select('material_email_notification')
+      .eq('campus_id', campusId)
+      .maybeSingle();
+    if (error) {
+      console.error("Erro ao buscar config do campus:", error);
+      return null;
+    }
+    return data;
+  },
+
+  saveCampusConfig: async (campusId: string, material_email_notification: boolean) => {
+    const { error } = await supabase
+      .from('campus_config')
+      .upsert({
+        campus_id: campusId,
+        material_email_notification,
+        updated_at: new Date().toISOString()
+      });
+    if (error) throw error;
+  },
+
   getCopyRecords: async (campusId: string, startDate?: string, endDate?: string): Promise<CopyRecord[]> => {
     let query = supabase
       .from('copy_records')

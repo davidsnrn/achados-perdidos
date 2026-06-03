@@ -89,7 +89,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             await StorageService.saveCampusConfig(campusIdForConfig, newValue);
             setEmailNotificationEnabled(newValue);
         } catch (err) {
-            alert('Erro ao salvar configuração.');
+            const msg = (err as any)?.message || '';
+            if (msg.includes('does not exist') || msg.includes('relation') || msg.includes('campus_config')) {
+                alert('Configuração não disponível. Execute o SQL em scripts/criar-tabela-campus-config.sql no Supabase.');
+            } else {
+                alert('Erro ao salvar configuração: ' + msg);
+            }
         }
     };
 

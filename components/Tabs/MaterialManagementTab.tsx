@@ -1502,7 +1502,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <div className="space-y-2 max-h-40 overflow-y-auto">
                                             {chargeHistory.map((ch, i) => (
                                                 <div key={ch.id} className="flex items-start gap-2 text-xs">
-                                                    <span className="text-emerald-500 mt-0.5 shrink-0">
+                                                    <span className="text-amber-500 mt-0.5 shrink-0">
                                                         <Mail size={12} />
                                                     </span>
                                                     <div>
@@ -1510,10 +1510,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                             {i === 0 ? 'Último envio' : `Envio #${chargeHistory.length - i}`}
                                                         </span>
                                                         <span className="text-gray-400 ml-1">
-                                                            {new Date(ch.sent_at).toLocaleString('pt-BR')}
+                                                            {new Date(ch.sent_at).toLocaleString('pt-BR')} por {ch.triggered_by_name}
                                                         </span>
-                                                        <br />
-                                                        <span className="text-gray-400">por {ch.triggered_by_name}</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1534,7 +1532,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <button
                                     onClick={() => handleSendCharge(viewingItem.activeLoan!)}
                                     disabled={sendingCharge}
-                                    className="py-3 px-4 text-emerald-600 font-bold border-2 border-emerald-200 rounded-xl hover:bg-emerald-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                    className="py-3 px-4 text-amber-600 font-bold border-2 border-amber-200 rounded-xl hover:bg-amber-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                                 >
                                     <Mail size={18} /> {sendingCharge ? 'Enviando...' : 'Enviar Lembrete'}
                                 </button>

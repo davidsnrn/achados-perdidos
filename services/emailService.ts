@@ -391,7 +391,7 @@ export const EmailService = {
 
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-        <div style="background-color: #2e7d32; color: white; padding: 20px; text-align: center;">
+        <div style="background-color: #e67e22; color: white; padding: 20px; text-align: center;">
           <h2 style="margin: 0; font-size: 20px;">Lembrete de Devolução</h2>
           <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SIGAE - IFRN ${campusLabel}</p>
         </div>
@@ -399,15 +399,11 @@ export const EmailService = {
           <p>Olá, <strong>${personName}</strong>,</p>
           <p>Identificamos em nosso sistema que o material listado abaixo consta em seu nome como pendente de devolução:</p>
           
-          <div style="background-color: #f9f9f9; border-left: 4px solid #2e7d32; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+          <div style="background-color: #fff8f0; border-left: 4px solid #e67e22; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 4px 0; color: #666; font-size: 14px; width: 120px;"><strong>Material:</strong></td>
                 <td style="padding: 4px 0; color: #333; font-weight: bold;">${materialName}</td>
-              </tr>
-              <tr>
-                <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Código:</strong></td>
-                <td style="padding: 4px 0; color: #333; font-family: monospace;">${materialCode}</td>
               </tr>
               <tr>
                 <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Retirado em:</strong></td>

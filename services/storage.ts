@@ -471,19 +471,18 @@ export const StorageService = {
     let totalInserted = 0;
     let totalUpdated = 0;
 
-    const toUpsert = people.map(p => ({
-      matricula: p.matricula,
-      name: p.name,
-      type: p.type,
-      campus_id: p.campus_id
-    }));
-
-    if (toUpsert.length > 0) {
+    if (people.length > 0) {
       const BATCH_SIZE = 500;
-      for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
-        const batch = toUpsert.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < people.length; i += BATCH_SIZE) {
+        const batch = people.slice(i, i + BATCH_SIZE);
         const { data, error } = await supabase.rpc('import_people_bulk', {
-          p_people: batch
+          p_people: batch.map(p => ({
+            matricula: p.matricula,
+            name: p.name,
+            type: p.type,
+            email: p.email || null,
+            campus_id: p.campus_id
+          }))
         });
         if (error) {
           console.error("Erro import batch via RPC:", error);
@@ -492,6 +491,23 @@ export const StorageService = {
         if (data && data.length > 0) {
           totalInserted += data[0].inserted_count || 0;
           totalUpdated += data[0].updated_count || 0;
+        }
+      }
+
+      const withEmail = people.filter(p => p.email);
+      if (withEmail.length > 0) {
+        const CONCURRENT = 50;
+        for (let i = 0; i < withEmail.length; i += CONCURRENT) {
+          const batch = withEmail.slice(i, i + CONCURRENT);
+          await Promise.all(batch.map(p =>
+            supabase
+              .from('people')
+              .update({ email: p.email })
+              .eq('matricula', p.matricula)
+              .then(({ error }) => {
+                if (error) console.warn(`Email não atualizado: ${p.matricula}`, error);
+              })
+          ));
         }
       }
     }

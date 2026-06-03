@@ -3,6 +3,7 @@ import { Person, PersonType, User, UserLevel, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Upload, UserPlus, Pencil, FileText, X, CheckCircle, HelpCircle, Trash2, ChevronLeft, ChevronRight, UserX, AlertTriangle, Loader2, ShieldAlert, BookOpen, Package, Lock as LockIcon, CheckCircle2, Search, Users } from 'lucide-react';
 import { Modal } from '../ui/Modal';
+import * as XLSX from 'xlsx';
 
 interface Props {
   onUpdate: () => void;
@@ -126,6 +127,17 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     }
 
     return rows;
+  };
+
+  const parseXLSX = (buffer: ArrayBuffer): string[][] => {
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) return [];
+    const sheet = workbook.Sheets[sheetName];
+    const data: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    return data.map(row =>
+      row.map(cell => (cell == null ? '' : String(cell)))
+    );
   };
 
   const performMatriculaCheck = async (mat: string) => {
@@ -253,8 +265,16 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
     try {
       for (const file of selectedFiles) {
-        const text = await file.text();
-        const rows = parseCSV(text);
+        const isExcel = /\.xlsx?$/i.test(file.name);
+        let rows: string[][];
+
+        if (isExcel) {
+          const buffer = await file.arrayBuffer();
+          rows = parseXLSX(buffer);
+        } else {
+          const text = await file.text();
+          rows = parseCSV(text);
+        }
 
         const headerIndex = rows.findIndex(row => {
           const rowStr = row.join(';').toLowerCase();
@@ -266,10 +286,25 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           continue;
         }
 
-        const colsHeader = rows[headerIndex].map(c => c.trim().toLowerCase().replace(/^["']|["']$/g, ''));
+        const colsHeader = rows[headerIndex].map(c =>
+          c.trim()
+            .toLowerCase()
+            .replace(/^["']|["']$/g, '')
+            .replace(/[\u2010-\u2015\u2212]/g, '-')
+            .replace(/\u00a0/g, ' ')
+        );
         const idxNome = colsHeader.indexOf('nome');
         const idxMatricula = colsHeader.findIndex(c => c.includes('matrícula'));
         const idxEmail = colsHeader.findIndex(c => c.includes('email') || c.includes('e-mail'));
+        const idxEmailAcademico = colsHeader.findIndex(c =>
+          c.includes('e-mail acadêmico') || c.includes('email acadêmico')
+        );
+        const idxEmailContato = colsHeader.findIndex(c =>
+          c.includes('e-mail para contato') ||
+          c.includes('email para contato') ||
+          c.includes('e-mail de contato') ||
+          c.includes('email de contato')
+        );
 
         if (idxNome === -1 || idxMatricula === -1) {
           processingLog += `❌ ${file.name}: Colunas 'Nome' ou 'Matrícula' não identificadas.\n`;
@@ -292,7 +327,14 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
           const pName = cols[idxNome];
           const pMatricula = cols[idxMatricula];
-          const pEmail = idxEmail !== -1 ? cols[idxEmail] : undefined;
+          const pEmail =
+            detectedType === PersonType.STUDENT && idxEmailAcademico !== -1
+              ? cols[idxEmailAcademico]
+              : detectedType === PersonType.SERVER && idxEmailContato !== -1
+                ? cols[idxEmailContato]
+                : idxEmail !== -1
+                  ? cols[idxEmail]
+                  : undefined;
 
           if (!pName || !pMatricula) continue;
 
@@ -473,7 +515,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             onClick={() => { setActiveTab('import'); setShowManualForm(true); }}
             className="px-4 py-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 font-bold text-sm flex items-center justify-center gap-2 transition-all border border-blue-200"
           >
-            <Upload size={18} /> Em Lote (CSV)
+            <Upload size={18} /> Em Lote (CSV/Excel)
           </button>
 
           {canDeleteAll && (
@@ -492,7 +534,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       <Modal 
         isOpen={showManualForm} 
         onClose={() => { setShowManualForm(false); setMatriculaCheck(null); }} 
-        title={activeTab === 'manual' ? 'Cadastro Individual' : 'Cadastro em Lote (CSV)'}
+        title={activeTab === 'manual' ? 'Cadastro Individual' : 'Cadastro em Lote (CSV/Excel)'}
       >
         <div className="space-y-6">
           {activeTab === 'manual' ? (
@@ -629,8 +671,14 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 </div>
                 
                 <div className="space-y-3 text-xs leading-relaxed">
+                  <p className="font-semibold">
+                    Formatos aceitos: CSV, XLSX e XLS.
+                  </p>
                   <p>
-                    Para garantir que os nomes e acentos fiquem corretos, ao salvar no Excel, escolha a opção:<br/>
+                    O arquivo deve conter as colunas <strong>Nome</strong> e <strong>Matrícula</strong> (obrigatórias) e opcionalmente <strong>E-mail</strong>.
+                  </p>
+                  <p>
+                    Para CSVs, ao salvar no Excel, escolha a opção:<br/>
                     <strong className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[11px] inline-block mt-2 shadow-sm">
                       CSV UTF-8 (Delimitado por vírgulas) (*.csv)
                     </strong>
@@ -639,12 +687,12 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
               </div>
 
               <div className="flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-3xl p-10 bg-gray-50/50 hover:bg-white hover:border-ifrn-green/30 transition-all cursor-pointer group" onClick={handleSelectFiles}>
-                <input type="file" ref={fileInputRef} className="hidden" accept=".csv" multiple onChange={handleFileChange} />
+                <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx,.xls" multiple onChange={handleFileChange} />
                 <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-ifrn-green mb-4 group-hover:scale-110 transition-transform">
                   <Upload size={32} />
                 </div>
                 <p className="font-black text-gray-700">Clique para selecionar arquivos</p>
-                <p className="text-xs text-gray-400 mt-1">Formatos aceitos: .csv</p>
+                <p className="text-xs text-gray-400 mt-1">Formatos aceitos: .csv, .xlsx, .xls</p>
               </div>
 
               {selectedFiles.length > 0 && (

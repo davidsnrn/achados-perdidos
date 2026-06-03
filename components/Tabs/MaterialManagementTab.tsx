@@ -3,7 +3,7 @@ import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -64,6 +64,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
     );
+    const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(() => {
+        const stored = localStorage.getItem('material_email_notification');
+        return stored !== null ? stored === 'true' : true;
+    });
+
+    useEffect(() => {
+        localStorage.setItem('material_email_notification', String(emailNotificationEnabled));
+    }, [emailNotificationEnabled]);
 
     // Sync with global admin campus selector
     useEffect(() => {
@@ -345,7 +353,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setObservation('');
 
             // Enviar e-mail único de notificação
-            if (selectedPerson.email) {
+            if (selectedPerson.email && emailNotificationEnabled) {
                 const currentCampus = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id));
                 const res = await EmailService.sendLoanBatchNotification(
                     selectedPerson.email,
@@ -377,7 +385,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setViewingLoan(null);
 
             // Enviar e-mail de devolução
-            if (loan.personEmail) {
+            if (loan.personEmail && emailNotificationEnabled) {
                 const campusName = campuses.find(c => c.id === user.campus_id)?.name;
                 const res = await EmailService.sendReturnNotification(
                     loan.personEmail,
@@ -442,23 +450,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setSelectedIds([]);
 
             // Enviar e-mails de notificação de devolução em lote (um por pessoa)
-            const campusName = campuses.find(c => c.id === user.campus_id)?.name;
-            const byEmail: Record<string, { personName: string; items: { materialName: string }[] }> = {};
-            for (const item of loanedItems) {
-                const loan = item.activeLoan;
-                if (loan?.personEmail) {
-                    if (!byEmail[loan.personEmail]) {
-                        byEmail[loan.personEmail] = { personName: loan.personName, items: [] };
-                    }
-                    byEmail[loan.personEmail].items.push({ materialName: loan.materialName });
-                }
-            }
             let batchEmailOk = true;
-            for (const [email, data] of Object.entries(byEmail)) {
-                const res = await EmailService.sendReturnBatchNotification(
-                    email, data.personName, data.items, user.name, user.email, campusName
-                );
-                if (!res.success) batchEmailOk = false;
+            if (emailNotificationEnabled) {
+                const campusName = campuses.find(c => c.id === user.campus_id)?.name;
+                const byEmail: Record<string, { personName: string; items: { materialName: string }[] }> = {};
+                for (const item of loanedItems) {
+                    const loan = item.activeLoan;
+                    if (loan?.personEmail) {
+                        if (!byEmail[loan.personEmail]) {
+                            byEmail[loan.personEmail] = { personName: loan.personName, items: [] };
+                        }
+                        byEmail[loan.personEmail].items.push({ materialName: loan.materialName });
+                    }
+                }
+                for (const [email, data] of Object.entries(byEmail)) {
+                    const res = await EmailService.sendReturnBatchNotification(
+                        email, data.personName, data.items, user.name, user.email, campusName
+                    );
+                    if (!res.success) batchEmailOk = false;
+                }
             }
 
             if (loanedItems.length > 0) {
@@ -618,6 +628,18 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 text-white font-bold rounded-lg shadow-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 text-sm"
                             >
                                 <Plus size={18} /> Novo Empréstimo
+                            </button>
+                            <button
+                                onClick={() => setEmailNotificationEnabled(!emailNotificationEnabled)}
+                                className={`flex-1 sm:flex-none px-3 py-2 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 border ${
+                                    emailNotificationEnabled
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                    : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                                }`}
+                                title="Ativar/desativar notificações por e-mail"
+                            >
+                                <Mail size={16} />
+                                {emailNotificationEnabled ? 'E-mail Ativo' : 'E-mail Off'}
                             </button>
                         </div>
                     </div>

@@ -66,6 +66,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     );
     const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(false);
     const [loadingConfig, setLoadingConfig] = useState(true);
+    const [sendingCharge, setSendingCharge] = useState(false);
 
     const campusIdForConfig = user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id;
 
@@ -431,6 +432,35 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             alert('Material devolvido com sucesso!');
         } catch (error) {
             alert('Erro ao processar devolução.');
+        }
+    };
+
+    const handleSendCharge = async (loan: MaterialLoan) => {
+        if (!loan.personEmail) {
+            alert('Esta pessoa não possui e-mail cadastrado para envio de cobrança.');
+            return;
+        }
+        setSendingCharge(true);
+        try {
+            const campusName = campuses.find(c => c.id === user.campus_id)?.name;
+            const res = await EmailService.sendChargeNotification(
+                loan.personEmail,
+                loan.personName,
+                loan.materialName,
+                loan.materialCode,
+                loan.loanDate,
+                user.email,
+                campusName
+            );
+            if (res.success) {
+                alert('Lembrete enviado com sucesso!');
+            } else {
+                alert('Erro ao enviar o lembrete: ' + (res.error || ''));
+            }
+        } catch (error) {
+            alert('Erro ao enviar o lembrete.');
+        } finally {
+            setSendingCharge(false);
         }
     };
 
@@ -1436,6 +1466,15 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             >
                                 Fechar
                             </button>
+                            {viewingItem.status === 'LOANED' && viewingItem.activeLoan && (
+                                <button
+                                    onClick={() => handleSendCharge(viewingItem.activeLoan!)}
+                                    disabled={sendingCharge}
+                                    className="py-3 px-4 text-emerald-600 font-bold border-2 border-emerald-200 rounded-xl hover:bg-emerald-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                >
+                                    <Mail size={18} /> {sendingCharge ? 'Enviando...' : 'Enviar Lembrete'}
+                                </button>
+                            )}
                             {viewingItem.status === 'AVAILABLE' ? (
                                 <button
                                     onClick={() => {

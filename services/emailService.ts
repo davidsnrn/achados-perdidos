@@ -370,5 +370,69 @@ export const EmailService = {
       html,
       replyTo: operatorEmail,
     });
+  },
+
+  /**
+   * Envia e-mail de cobrança amigável (lembrete para devolução).
+   */
+  sendChargeNotification: async (
+    toEmail: string,
+    personName: string,
+    materialName: string,
+    materialCode: string,
+    loanDateStr: string,
+    operatorEmail?: string,
+    campusName?: string
+  ) => {
+    const formattedDate = new Date(loanDateStr).toLocaleString("pt-BR");
+    const subject = `Lembrete - Devolução de Material - ${materialName} (${materialCode})`;
+
+    const campusLabel = campusName ? `Campus ${campusName}` : '';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #2e7d32; color: white; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px;">Lembrete de Devolução</h2>
+          <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SIGAE - IFRN ${campusLabel}</p>
+        </div>
+        <div style="padding: 24px; color: #333; line-height: 1.6;">
+          <p>Olá, <strong>${personName}</strong>,</p>
+          <p>Este é um lembrete amigável informando que o material abaixo segue emprestado conosco:</p>
+          
+          <div style="background-color: #f9f9f9; border-left: 4px solid #2e7d32; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #666; font-size: 14px; width: 120px;"><strong>Material:</strong></td>
+                <td style="padding: 4px 0; color: #333; font-weight: bold;">${materialName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Código:</strong></td>
+                <td style="padding: 4px 0; color: #333; font-family: monospace;">${materialCode}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Retirado em:</strong></td>
+                <td style="padding: 4px 0; color: #333;">${formattedDate}</td>
+              </tr>
+            </table>
+          </div>
+
+          <p>Pedimos que, ao finalizar o uso, você realize a devolução na <strong>COADES</strong> para que outros possam utilizá-lo.</p>
+          <p style="font-size: 13px; color: #666;">Estamos à disposição para qualquer dúvida.</p>
+
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #888; text-align: center; margin: 0;">
+            Esta é uma mensagem automática gerada pelo Sistema de Gestão de Administração Escolar (SIGAE).<br />
+            Para dúvidas, entre em contato diretamente com a COADES.
+          </p>
+        </div>
+      </div>
+    `;
+
+    return await EmailService.sendEmail({
+      to: toEmail,
+      subject,
+      html,
+      replyTo: operatorEmail,
+    });
   }
 };

@@ -450,7 +450,17 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     };
 
     const handleSendCharge = async (loan: MaterialLoan) => {
-        if (!loan.personEmail) {
+        let personEmail = loan.personEmail;
+        if (!personEmail) {
+            try {
+                const people = await StorageService.searchPeople(loan.personMatricula);
+                const found = people.find(p => p.matricula === loan.personMatricula);
+                if (found?.email) {
+                    personEmail = found.email;
+                }
+            } catch (_) {}
+        }
+        if (!personEmail) {
             alert('Esta pessoa não possui e-mail cadastrado para envio de cobrança.');
             return;
         }
@@ -458,7 +468,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         try {
             const campusName = campuses.find(c => c.id === user.campus_id)?.name;
             const res = await EmailService.sendChargeNotification(
-                loan.personEmail,
+                personEmail,
                 loan.personName,
                 loan.materialName,
                 loan.materialCode,
@@ -471,7 +481,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                     await StorageService.logChargeSent({
                         loan_id: loan.id,
                         material_id: loan.materialId,
-                        person_email: loan.personEmail,
+                        person_email: personEmail,
                         person_name: loan.personName,
                         triggered_by_name: `${user.name} (${user.matricula})`,
                         triggered_by_email: user.email,

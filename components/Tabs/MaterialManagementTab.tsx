@@ -733,7 +733,16 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 )}
                                             </td>
                                             <td className="p-4 text-xs text-gray-600">
-                                                {item.activeLoan ? new Date(item.activeLoan.loanDate).toLocaleString('pt-BR') : '-'}
+                                                {item.activeLoan ? (() => {
+                                                    const days = Math.floor((Date.now() - new Date(item.activeLoan!.loanDate).getTime()) / (1000 * 60 * 60 * 24));
+                                                    return <>
+                                                        {new Date(item.activeLoan!.loanDate).toLocaleString('pt-BR')}
+                                                        {' '}
+                                                        <span className={days >= 2 ? 'font-black text-red-600' : 'text-gray-400'}>
+                                                            ({days}d)
+                                                        </span>
+                                                    </>;
+                                                })() : '-'}
                                             </td>
                                         </tr>
                                     ))}

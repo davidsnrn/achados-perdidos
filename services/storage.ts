@@ -2201,4 +2201,17 @@ export const StorageService = {
     }
     return data || [];
   },
+
+  getPersonEmail: async (matricula: string): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from('people')
+      .select('email')
+      .eq('matricula', matricula)
+      .maybeSingle();
+    if (error) {
+      console.error("Erro ao buscar email da pessoa:", error);
+      return null;
+    }
+    return data?.email || null;
+  },
 };

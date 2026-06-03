@@ -453,12 +453,10 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         let personEmail = loan.personEmail;
         if (!personEmail) {
             try {
-                const people = await StorageService.searchPeople(loan.personMatricula);
-                const found = people.find(p => p.matricula === loan.personMatricula);
-                if (found?.email) {
-                    personEmail = found.email;
-                }
-            } catch (_) {}
+                personEmail = await StorageService.getPersonEmail(loan.personMatricula);
+            } catch (e: any) {
+                alert('Erro ao buscar email: ' + (e?.message || String(e)));
+            }
         }
         if (!personEmail) {
             alert('Esta pessoa não possui e-mail cadastrado para envio de cobrança.');

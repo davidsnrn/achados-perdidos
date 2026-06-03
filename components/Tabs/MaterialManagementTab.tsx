@@ -739,7 +739,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                         {new Date(item.activeLoan!.loanDate).toLocaleString('pt-BR')}
                                                         {' '}
                                                         <span className={days >= 2 ? 'font-black text-red-600' : 'text-gray-400'}>
-                                                            {days} {days === 1 ? 'dia' : 'dias'}
+                                                            ({days} {days === 1 ? 'dia' : 'dias'})
                                                         </span>
                                                     </>;
                                                 })() : '-'}

@@ -417,7 +417,7 @@ export const EmailService = {
             </table>
           </div>
 
-          <p>Solicitamos que, ao encerrar a utilização do item, efetue a devolução diretamente na <strong>COADES</strong> para a devida baixa no sistema.</p>
+          <p>Solicitamos que, ao encerrar a utilização do item, efetue a devolução diretamente na <strong>COADESC</strong> para a devida baixa no sistema.</p>
           <p style="font-size: 13px; color: #666;">Estamos à disposição para qualquer dúvida.</p>
 
           <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />

@@ -423,7 +423,7 @@ export const EmailService = {
           <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
           <p style="font-size: 12px; color: #888; text-align: center; margin: 0;">
             Esta é uma mensagem automática gerada pelo Sistema de Gestão de Administração Escolar (SIGAE).<br />
-            Para dúvidas, entre em contato diretamente com a COADES.
+            Para dúvidas, entre em contato diretamente com a COADESC.
           </p>
         </div>
       </div>

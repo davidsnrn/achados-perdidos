@@ -1401,6 +1401,24 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  deleteMaterialLoan: async (loanId: string) => {
+    const { error } = await supabase
+      .from('material_loans')
+      .delete()
+      .eq('id', loanId);
+
+    if (error) throw error;
+  },
+
+  deleteMaterialLoansBulk: async (loanIds: string[]) => {
+    const { error } = await supabase
+      .from('material_loans')
+      .delete()
+      .in('id', loanIds);
+
+    if (error) throw error;
+  },
+
   getBackupData: async () => {
     const [config, users, people, items, reports, lockers, books, loans, copyRecords, copyConfigs] = await Promise.all([
       supabase.from('config').select('*'),

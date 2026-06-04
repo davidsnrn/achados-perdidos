@@ -55,6 +55,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [reportSearch, setReportSearch] = useState('');
     const [reportDateStart, setReportDateStart] = useState('');
     const [reportDateEnd, setReportDateEnd] = useState('');
+    const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
+    const [showDeleteReportConfirm, setShowDeleteReportConfirm] = useState(false);
+    const [isDeletingReport, setIsDeletingReport] = useState(false);
 
     // Viewing
     const [viewingLoan, setViewingLoan] = useState<MaterialLoan | null>(null);
@@ -882,7 +885,15 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <h3 className="text-xl font-black text-gray-800">Histórico de Movimentações</h3>
                                 <p className="text-sm text-gray-500">Consulte logins, empréstimos e devoluções.</p>
                             </div>
-
+                            {user.level === UserLevel.ADMIN && selectedReportIds.length > 0 && (
+                                <button
+                                    onClick={() => setShowDeleteReportConfirm(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg shadow-sm hover:bg-red-700 transition-all text-sm"
+                                >
+                                    <Trash2 size={16} />
+                                    Excluir {selectedReportIds.length} registro(s)
+                                </button>
+                            )}
                         </div>
 
                         {/* Filters Row */}
@@ -923,6 +934,53 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
                                     <tr>
+                                        {user.level === UserLevel.ADMIN && (
+                                            <th className="p-4 w-10">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                    checked={(() => {
+                                                        const filtered = loans
+                                                            .filter(loan => {
+                                                                const search = reportSearch.toLowerCase().trim();
+                                                                return (!search ||
+                                                                    loan.materialName.toLowerCase().includes(search) ||
+                                                                    loan.personName.toLowerCase().includes(search) ||
+                                                                    loan.personMatricula.toLowerCase().includes(search) ||
+                                                                    loan.loanedBy.toLowerCase().includes(search) ||
+                                                                    (loan.returnedBy || '').toLowerCase().includes(search) ||
+                                                                    `#${loan.materialCode}`.includes(search) ||
+                                                                    loan.materialCode.includes(search));
+                                                            })
+                                                            .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+                                                            .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE);
+                                                        return filtered.length > 0 && filtered.every(l => selectedReportIds.includes(l.id));
+                                                    })()}
+                                                    onChange={() => {
+                                                        const filtered = loans
+                                                            .filter(loan => {
+                                                                const search = reportSearch.toLowerCase().trim();
+                                                                return (!search ||
+                                                                    loan.materialName.toLowerCase().includes(search) ||
+                                                                    loan.personName.toLowerCase().includes(search) ||
+                                                                    loan.personMatricula.toLowerCase().includes(search) ||
+                                                                    loan.loanedBy.toLowerCase().includes(search) ||
+                                                                    (loan.returnedBy || '').toLowerCase().includes(search) ||
+                                                                    `#${loan.materialCode}`.includes(search) ||
+                                                                    loan.materialCode.includes(search));
+                                                            })
+                                                            .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+                                                            .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE);
+                                                        const allSelected = filtered.every(l => selectedReportIds.includes(l.id));
+                                                        if (allSelected) {
+                                                            setSelectedReportIds(prev => prev.filter(id => !filtered.find(l => l.id === id)));
+                                                        } else {
+                                                            setSelectedReportIds(prev => [...new Set([...prev, ...filtered.map(l => l.id)])]);
+                                                        }
+                                                    }}
+                                                />
+                                            </th>
+                                        )}
                                         <th className="p-4 text-left">Material</th>
                                         <th className="p-4 text-left">Pessoa</th>
                                         <th className="p-4 text-left">Data Empréstimo</th>
@@ -953,6 +1011,22 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE)
                                         .map(loan => (
                                             <tr key={loan.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewingLoan(loan)}>
+                                                {user.level === UserLevel.ADMIN && (
+                                                    <td className="p-4 w-10" onClick={e => e.stopPropagation()}>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                                            checked={selectedReportIds.includes(loan.id)}
+                                                            onChange={() => {
+                                                                setSelectedReportIds(prev =>
+                                                                    prev.includes(loan.id)
+                                                                        ? prev.filter(id => id !== loan.id)
+                                                                        : [...prev, loan.id]
+                                                                );
+                                                            }}
+                                                        />
+                                                    </td>
+                                                )}
                                                 <td className="p-4">
                                                     <div className="font-bold text-gray-800">{loan.materialName}</div>
                                                     <div className="text-xs text-gray-500 font-mono">#{stripPrefix(loan.materialCode)}</div>
@@ -988,7 +1062,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         ))}
                                     {loans.length === 0 && (
                                         <tr>
-                                            <td colSpan={5} className="p-12 text-center text-gray-400 italic">Nenhum histórico disponível.</td>
+                                            <td colSpan={user.level === UserLevel.ADMIN ? 6 : 5} className="p-12 text-center text-gray-400 italic">Nenhum histórico disponível.</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -1061,6 +1135,45 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                     </div>
                 </div>
             )}
+
+            {/* Delete Report Confirmation Modal */}
+            <Modal isOpen={showDeleteReportConfirm} onClose={() => setShowDeleteReportConfirm(false)} title="Excluir Registros">
+                <div className="space-y-4">
+                    <p className="text-gray-600">
+                        Tem certeza que deseja excluir permanentemente <strong>{selectedReportIds.length}</strong> registro(s) do histórico?
+                    </p>
+                    <p className="text-sm text-red-600 font-bold">
+                        Esta ação não pode ser desfeita. Os registros serão apagados sem deixar rastro.
+                    </p>
+                    <div className="flex justify-end gap-3 pt-2">
+                        <button
+                            onClick={() => setShowDeleteReportConfirm(false)}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-all"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            disabled={isDeletingReport}
+                            onClick={async () => {
+                                setIsDeletingReport(true);
+                                try {
+                                    await StorageService.deleteMaterialLoansBulk(selectedReportIds);
+                                    setSelectedReportIds([]);
+                                    setShowDeleteReportConfirm(false);
+                                    onUpdate();
+                                } catch (err) {
+                                    alert('Erro ao excluir registros: ' + ((err as any)?.message || err));
+                                } finally {
+                                    setIsDeletingReport(false);
+                                }
+                            }}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-all disabled:opacity-50"
+                        >
+                            {isDeletingReport ? 'Excluindo...' : 'Sim, Excluir'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Material Form Modal */}
             <Modal isOpen={showMaterialForm} onClose={() => setShowMaterialForm(false)} title={editingMaterial ? 'Editar Material' : 'Novo Material'}>

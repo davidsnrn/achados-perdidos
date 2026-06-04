@@ -11,6 +11,7 @@ interface EmailPayload {
   subject: string;
   html: string;
   replyTo?: string;
+  campusName?: string;
 }
 
 serve(async (req) => {
@@ -52,8 +53,10 @@ serve(async (req) => {
       },
     });
 
+    const campusLabel = payload.campusName ? `SIGAE - IFRN ${payload.campusName}` : 'SIGAE - IFRN';
+
     await transporter.sendMail({
-      from: `SIGAE - IFRN Nova Cruz <${smtpFrom}>`,
+      from: `${campusLabel} <${smtpFrom}>`,
       to: payload.to,
       replyTo: payload.replyTo || smtpFrom,
       subject: payload.subject,

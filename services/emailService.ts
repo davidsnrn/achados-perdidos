@@ -5,6 +5,7 @@ interface SendEmailParams {
   subject: string;
   html: string;
   replyTo?: string;
+  campusName?: string;
 }
 
 export const EmailService = {
@@ -12,10 +13,10 @@ export const EmailService = {
    * Invoca a Edge Function para enviar um e-mail.
    * Retorna true se enviado com sucesso, false caso contrário.
    */
-  sendEmail: async ({ to, subject, html, replyTo }: SendEmailParams): Promise<{ success: boolean; error?: string }> => {
+  sendEmail: async ({ to, subject, html, replyTo, campusName }: SendEmailParams): Promise<{ success: boolean; error?: string }> => {
     try {
       const { data, error } = await supabase.functions.invoke("send-email", {
-        body: { to, subject, html, replyTo },
+        body: { to, subject, html, replyTo, campusName },
       });
 
       if (error) {
@@ -100,6 +101,7 @@ export const EmailService = {
       subject,
       html,
       replyTo: operatorEmail,
+      campusName,
     });
   },
 
@@ -164,6 +166,7 @@ export const EmailService = {
       subject,
       html,
       replyTo: operatorEmail,
+      campusName,
     });
   },
 
@@ -235,6 +238,7 @@ export const EmailService = {
       subject,
       html,
       replyTo: operatorEmail,
+      campusName,
     });
   },
 
@@ -303,6 +307,7 @@ export const EmailService = {
       subject,
       html,
       replyTo: operatorEmail,
+      campusName,
     });
   },
 
@@ -429,6 +434,7 @@ export const EmailService = {
       subject,
       html,
       replyTo: operatorEmail,
+      campusName,
     });
   }
 };

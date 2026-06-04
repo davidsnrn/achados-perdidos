@@ -126,7 +126,7 @@ export const EmailService = {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #1565c0; color: white; padding: 20px; text-align: center;">
-          <h2 style="margin: 0; font-size: 20px;">Devolução Confirmada</h2>
+          <h2 style="margin: 0; font-size: 20px;">Comprovante de Devolução</h2>
           <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SIGAE - IFRN ${campusLabel}</p>
         </div>
         <div style="padding: 24px; color: #333; line-height: 1.6;">
@@ -270,7 +270,7 @@ export const EmailService = {
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
         <div style="background-color: #1565c0; color: white; padding: 20px; text-align: center;">
-          <h2 style="margin: 0; font-size: 20px;">Devolução Confirmada</h2>
+          <h2 style="margin: 0; font-size: 20px;">Comprovante de Devolução</h2>
           <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SIGAE - IFRN ${campusLabel}</p>
         </div>
         <div style="padding: 24px; color: #333; line-height: 1.6;">

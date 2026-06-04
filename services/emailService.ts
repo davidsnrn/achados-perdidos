@@ -119,7 +119,7 @@ export const EmailService = {
     campusName?: string
   ) => {
     const formattedDate = new Date(returnDateStr).toLocaleString("pt-BR");
-    const subject = `Confirmação de Devolução`;
+    const subject = `Comprovante de Devolução`;
 
     const campusLabel = campusName ? `Campus ${campusName}` : '';
 
@@ -253,7 +253,7 @@ export const EmailService = {
     operatorEmail?: string,
     campusName?: string
   ) => {
-    const subject = items.length === 1 ? `Confirmação de Devolução` : `Confirmação de Devolução (${items.length} itens)`;
+    const subject = items.length === 1 ? `Comprovante de Devolução` : `Comprovante de Devolução (${items.length} itens)`;
     const campusLabel = campusName ? `Campus ${campusName}` : '';
 
     const itemsRows = items.map((item, i) => {

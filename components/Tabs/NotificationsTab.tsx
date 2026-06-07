@@ -419,8 +419,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
               ${teacherHtml}
             </div>
             <div class="card-footer">
-              <span class="card-verify">Acesse <strong>sigae-ifrn.vercel.app/verificar.html</strong> e digite o código:</span>
-              <span class="card-code">${verificationCode}</span>
+              <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(verificationUrl)}" alt="QR" class="card-qr" />
+              <div class="card-verify-wrap">
+                <span class="card-verify">Acesse <strong>sigae-ifrn.vercel.app/verificar.html</strong> e digite:</span>
+                <span class="card-code">${verificationCode}</span>
+              </div>
             </div>
           </div>
           ${cutLine}
@@ -453,10 +456,12 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           .tag-sub { display: inline-block; padding: 1px 6px; border-radius: 100px; font-size: 7px; font-weight: 700; color: #94a3b8; background: #f1f5f9; border: 1px solid #e2e8f0; }
           .just { font-size: 8px; font-weight: 500; color: #475569; font-style: italic; background: #f8fafc; padding: 4px 6px; border-radius: 6px; margin-bottom: 3px; line-height: 1.3; }
           .teacher { font-size: 8px; font-weight: 700; color: #dc2626; margin-bottom: 2px; }
-          .card-footer { margin-top: 4px; padding-top: 4px; border-top: 1px solid #e5e7eb; text-align: center; }
-          .card-verify { font-size: 7px; font-weight: 500; color: #64748b; }
+          .card-footer { margin-top: 4px; padding-top: 4px; border-top: 1px solid #e5e7eb; display: flex; align-items: center; gap: 6px; }
+          .card-qr { width: 36px; height: 36px; flex-shrink: 0; border-radius: 4px; }
+          .card-verify-wrap { flex: 1; min-width: 0; }
+          .card-verify { font-size: 6.5px; font-weight: 500; color: #64748b; line-height: 1.2; }
           .card-verify strong { font-weight: 700; color: #2563eb; text-decoration: underline; }
-          .card-code { font-size: 10px; font-weight: 900; color: #1e293b; letter-spacing: 2px; display: block; margin-top: 2px; }
+          .card-code { font-size: 9px; font-weight: 900; color: #1e293b; letter-spacing: 1.5px; display: block; margin-top: 1px; }
           .cut-row { border-top: 1.5px dashed #94a3b8; margin: 0; height: 4px; }
           .page-break { page-break-after: always; }
           @media print {

@@ -607,23 +607,23 @@ const App: React.FC = () => {
     };
   }, [user, handleLogout]);
 
-  // 4. Browser Back Button -> Home Screen
+  // 4. Browser Back/Forward Buttons -> Home Screen / System Restore
   useEffect(() => {
-    const handlePopState = () => {
-      setShowModuleSelector(true);
-      setCurrentSystem(null);
-      sessionStorage.removeItem('currentSystem');
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state?.system) {
+        setCurrentSystem(e.state.system);
+        sessionStorage.setItem('currentSystem', e.state.system);
+        setActiveTab(e.state.system === 'livros' ? 'livros-catalogo' : e.state.system);
+        setShowModuleSelector(false);
+      } else {
+        setShowModuleSelector(true);
+        setCurrentSystem(null);
+        sessionStorage.removeItem('currentSystem');
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
-
-  // Push history state when entering a system so back button works within the app
-  useEffect(() => {
-    if (currentSystem) {
-      history.pushState(null, '', window.location.href);
-    }
-  }, [currentSystem]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -910,8 +910,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-ifrn-green',
                   bgLight: 'bg-green-50',
                   permission: 'achados',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('achados');
+                    history.pushState({ system: 'achados' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'achados');
                     setActiveTab('achados');
                     setShowModuleSelector(false);
@@ -928,8 +929,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-emerald-600',
                   bgLight: 'bg-emerald-50',
                   permission: 'armarios',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('armarios');
+                    history.pushState({ system: 'armarios' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'armarios');
                     setActiveTab('armarios');
                     setShowModuleSelector(false);
@@ -946,8 +948,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-orange-500',
                   bgLight: 'bg-orange-50',
                   permission: 'livros',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('livros');
+                    history.pushState({ system: 'livros' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'livros');
                     setActiveTab('livros-catalogo');
                     setShowModuleSelector(false);
@@ -964,8 +967,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-blue-600',
                   bgLight: 'bg-blue-50',
                   permission: 'nadaconsta',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('nadaconsta');
+                    history.pushState({ system: 'nadaconsta' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'nadaconsta');
                     setActiveTab('nadaconsta');
                     setShowModuleSelector(false);
@@ -982,8 +986,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-indigo-600',
                   bgLight: 'bg-indigo-50',
                   permission: 'materiais',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('materiais');
+                    history.pushState({ system: 'materiais' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'materiais');
                     setActiveTab('materiais');
                     setShowModuleSelector(false);
@@ -1036,8 +1041,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-rose-600',
                   bgLight: 'bg-rose-50',
                   permission: 'copias',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('copias');
+                    history.pushState({ system: 'copias' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'copias');
                     setActiveTab('copias');
                     setShowModuleSelector(false);
@@ -1054,8 +1060,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-indigo-600',
                   bgLight: 'bg-indigo-50',
                   permission: 'insumos',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('insumos');
+                    history.pushState({ system: 'insumos' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'insumos');
                     setActiveTab('insumos');
                     setShowModuleSelector(false);
@@ -1072,8 +1079,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-red-600',
                   bgLight: 'bg-red-50',
                   permission: 'notificacoes',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('notificacoes');
+                    history.pushState({ system: 'notificacoes' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'notificacoes');
                     setActiveTab('notificacoes');
                     setShowModuleSelector(false);
@@ -1090,8 +1098,9 @@ const App: React.FC = () => {
                   hoverBorder: 'hover:border-indigo-700',
                   bgLight: 'bg-indigo-50',
                   permission: 'frequencia',
-                  onSelect: () => {
+                    onSelect: () => {
                     setCurrentSystem('frequencia');
+                    history.pushState({ system: 'frequencia' }, '', window.location.href);
                     sessionStorage.setItem('currentSystem', 'frequencia');
                     setActiveTab('frequencia');
                     setShowModuleSelector(false);

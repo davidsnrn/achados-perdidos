@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare } from 'lucide-react';
+import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -29,6 +29,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [selectedType, setSelectedType] = useState<Partial<NotificationType> | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [newSubtype, setNewSubtype] = useState('');
 
   // Form State
@@ -86,6 +87,21 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     } else {
       setSelectedNotificationIds(prev => [...new Set([...prev, ...ids])]);
     }
+  };
+
+  const toggleSelectNotification = (id: string) => {
+    setSelectedNotificationIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleExpandGroup = (matricula: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(matricula)) next.delete(matricula);
+      else next.add(matricula);
+      return next;
+    });
   };
 
   const handleSearchPeople = async (query: string) => {
@@ -406,24 +422,26 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
               <div class="card-campus">${campusName}</div>
             </div>
             <div class="card-body">
-              <div class="card-student">
-                <span class="student-name">${n.student_name}</span>
-                <span class="student-mat">${n.student_matricula}</span>
+              <div class="card-body-left">
+                <div class="card-student">
+                  <span class="student-name">${n.student_name}</span>
+                  <span class="student-mat">${n.student_matricula}</span>
+                </div>
+                <div class="card-class">
+                  ${n.class_name || ''}${n.period ? ' - ' + n.period : ''}
+                </div>
+                <div class="card-dt">${fmtDate2(n.date)} às ${n.time}</div>
+                <div class="tags-row">${tagsHtml}</div>
+                ${justHtml}
+                ${teacherHtml}
               </div>
-              <div class="card-class">
-                ${n.class_name || ''}${n.period ? ' - ' + n.period : ''}
-              </div>
-              <div class="card-dt">${fmtDate2(n.date)} às ${n.time}</div>
-              <div class="tags-row">${tagsHtml}</div>
-              ${justHtml}
-              ${teacherHtml}
-            </div>
-            <div class="card-footer">
-              <img src="https://api.qrserver.com/v1/create-qr-code/?size=60x60&data=${encodeURIComponent(verificationUrl)}" alt="QR" class="card-qr" />
-              <div class="card-verify-wrap">
-                <span class="card-verify">Acesse <strong>sigae-ifrn.vercel.app/verificar.html</strong> e digite:</span>
+              <div class="card-body-right">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(verificationUrl)}" alt="QR" class="card-qr" />
                 <span class="card-code">${verificationCode}</span>
               </div>
+            </div>
+            <div class="card-footer">
+              <span class="card-verify">Acesse <strong>sigae-ifrn.vercel.app/verificar.html</strong></span>
             </div>
           </div>
           ${cutLine}
@@ -445,23 +463,24 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           .card-topo { text-align: center; margin-bottom: 6px; }
           .card-title { font-size: 10px; font-weight: 900; color: #1e3a5f; letter-spacing: 0.5px; text-transform: uppercase; }
           .card-campus { font-size: 8px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
-          .card-body { flex: 1; }
-          .card-student { margin-bottom: 4px; }
+          .card-body { flex: 1; display: flex; gap: 8px; }
+          .card-body-left { flex: 1; min-width: 0; }
+          .card-body-right { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; flex-shrink: 0; }
+          .card-student { margin-bottom: 3px; }
           .student-name { font-size: 11px; font-weight: 800; color: #1e293b; }
           .student-mat { font-size: 9px; font-weight: 600; color: #64748b; margin-left: 6px; }
-          .card-class { font-size: 9px; font-weight: 600; color: #475569; margin-bottom: 3px; }
-          .card-dt { font-size: 9px; font-weight: 500; color: #64748b; margin-bottom: 5px; }
-          .tags-row { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
+          .card-class { font-size: 9px; font-weight: 600; color: #475569; margin-bottom: 2px; }
+          .card-dt { font-size: 9px; font-weight: 500; color: #64748b; margin-bottom: 4px; }
+          .tags-row { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 3px; }
           .tag { display: inline-block; padding: 2px 8px; border-radius: 100px; font-size: 8px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.3px; }
           .tag-sub { display: inline-block; padding: 1px 6px; border-radius: 100px; font-size: 7px; font-weight: 700; color: #94a3b8; background: #f1f5f9; border: 1px solid #e2e8f0; }
-          .just { font-size: 8px; font-weight: 500; color: #475569; font-style: italic; background: #f8fafc; padding: 4px 6px; border-radius: 6px; margin-bottom: 3px; line-height: 1.3; }
+          .just { font-size: 8px; font-weight: 500; color: #475569; font-style: italic; background: #f8fafc; padding: 4px 6px; border-radius: 6px; margin-bottom: 2px; line-height: 1.3; }
           .teacher { font-size: 8px; font-weight: 700; color: #dc2626; margin-bottom: 2px; }
-          .card-footer { margin-top: 4px; padding-top: 4px; border-top: 1px solid #e5e7eb; display: flex; align-items: center; gap: 6px; }
-          .card-qr { width: 36px; height: 36px; flex-shrink: 0; border-radius: 4px; }
-          .card-verify-wrap { flex: 1; min-width: 0; }
+          .card-qr { width: 52px; height: 52px; flex-shrink: 0; border-radius: 4px; }
+          .card-code { font-size: 7px; font-weight: 900; color: #1e293b; letter-spacing: 1px; text-align: center; }
+          .card-footer { margin-top: 3px; padding-top: 3px; border-top: 1px solid #e5e7eb; text-align: left; }
           .card-verify { font-size: 6.5px; font-weight: 500; color: #64748b; line-height: 1.2; }
           .card-verify strong { font-weight: 700; color: #2563eb; text-decoration: underline; }
-          .card-code { font-size: 9px; font-weight: 900; color: #1e293b; letter-spacing: 1.5px; display: block; margin-top: 1px; }
           .cut-row { border-top: 1.5px dashed #94a3b8; margin: 0; height: 4px; }
           .page-break { page-break-after: always; }
           @media print {
@@ -469,6 +488,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
             .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; border: 1px solid #d1d5db; }
             .tag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .card-qr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           }
           @page { size: A4; margin: 6mm; }
         </style>
@@ -695,43 +715,105 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             <tbody className="divide-y divide-gray-100">
               {groupedNotifications.length > 0 ? (
                 groupedNotifications.map((group) => (
-                  <tr key={group.student_matricula} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-2 py-5">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
-                        checked={group.items.every(i => selectedNotificationIds.includes(i.id))}
-                        onChange={() => toggleSelectGroup(group.items)}
-                      />
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-800">{group.student_name}</span>
-                        <span className="text-xs text-gray-400 font-mono">{group.student_matricula}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-600">{group.class_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${group.items.length >= 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
-                        {group.items.length}
-                      </span>
-                    </td>
-                    <td className="px-6 py-5 text-right">
-                      <button
-                        onClick={() => {
-                          setSelectedStudent(group);
-                          setIsStudentDetailOpen(true);
-                        }}
-                        className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-xs transition-all"
-                      >
-                        Ver Detalhes
-                      </button>
-                    </td>
-                  </tr>
+                  <React.Fragment key={group.student_matricula}>
+                    <tr className="hover:bg-gray-50/50 transition-colors group">
+                      <td className="px-2 py-5">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                          checked={group.items.every(i => selectedNotificationIds.includes(i.id))}
+                          onChange={() => toggleSelectGroup(group.items)}
+                        />
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleExpandGroup(group.student_matricula)}
+                            className="text-gray-400 hover:text-gray-700 transition-colors p-0.5"
+                          >
+                            {expandedGroups.has(group.student_matricula) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          </button>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-800">{group.student_name}</span>
+                            <span className="text-xs text-gray-400 font-mono">{group.student_matricula}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-gray-600">{group.class_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${group.items.length >= 3 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                          {group.items.length}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => toggleExpandGroup(group.student_matricula)}
+                            className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all"
+                          >
+                            Selecionar
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedStudent(group);
+                              setIsStudentDetailOpen(true);
+                            }}
+                            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-xs transition-all"
+                          >
+                            Ver Detalhes
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedGroups.has(group.student_matricula) && (
+                      <tr className="bg-gray-50/30">
+                        <td colSpan={5} className="px-6 py-3">
+                          <div className="space-y-2">
+                            {group.items.map((n: StudentNotification) => {
+                              const types = n.notification_type_ids?.map(id => {
+                                const t = notificationTypes.find(tp => tp.id === id);
+                                return { name: t?.name || '', color: t?.color || '#309B41' };
+                              }).filter(t => t.name) || [];
+                              return (
+                                <div key={n.id} className="flex items-center gap-3 px-4 py-2.5 bg-white rounded-xl border border-gray-100 hover:border-red-200 transition-all">
+                                  <input
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                                    checked={selectedNotificationIds.includes(n.id)}
+                                    onChange={() => toggleSelectNotification(n.id)}
+                                  />
+                                  <div className="flex items-center gap-3 text-xs font-bold text-gray-600 min-w-[120px]">
+                                    <Calendar size={12} className="text-gray-400" />
+                                    {new Date(n.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                    <Clock size={12} className="text-gray-400 ml-1" />
+                                    {n.time}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5 flex-1">
+                                    {types.map(t => (
+                                      <span key={t.name} className="px-2 py-0.5 text-[10px] font-bold text-white rounded-full" style={{ backgroundColor: t.color }}>
+                                        {t.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <button
+                                    onClick={() => handlePrintNotification(n)}
+                                    className="p-1.5 text-green-500 bg-green-50 hover:bg-green-500 hover:text-white rounded-lg transition-all"
+                                    title="Imprimir"
+                                  >
+                                    <Printer size={14} />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))
               ) : (
                 <tr>

@@ -261,7 +261,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
         </div>
 
         <div class="title-block">
-          <h1>COMPROVANTE DE COMPARECIMENTO</h1>
+          <h1>REGISTRO DE OCORRÊNCIA</h1>
           <div class="sep"></div>
         </div>
 

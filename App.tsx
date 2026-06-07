@@ -607,6 +607,24 @@ const App: React.FC = () => {
     };
   }, [user, handleLogout]);
 
+  // 4. Browser Back Button -> Home Screen
+  useEffect(() => {
+    const handlePopState = () => {
+      setShowModuleSelector(true);
+      setCurrentSystem(null);
+      sessionStorage.removeItem('currentSystem');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Push history state when entering a system so back button works within the app
+  useEffect(() => {
+    if (currentSystem) {
+      history.pushState(null, '', window.location.href);
+    }
+  }, [currentSystem]);
+
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     attemptLogin(loginMat, loginPass);

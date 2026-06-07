@@ -732,17 +732,44 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             <button
                                 onClick={toggleEmailNotification}
                                 disabled={loadingConfig}
-                                className={`flex-1 sm:flex-none px-3 py-2 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-1.5 border ${
-                                    loadingConfig
-                                    ? 'bg-gray-50 text-gray-300 border-gray-100'
-                                    : emailNotificationEnabled
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                                    : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
-                                }`}
-                                title="Ativar/desativar notificações por e-mail"
+                                className={`
+                                    flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] sm:text-xs
+                                    transition-all w-full sm:w-auto
+                                    ${loadingConfig
+                                        ? 'bg-gray-50 border-gray-150 text-gray-300 cursor-not-allowed'
+                                        : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-[0.97]'
+                                    }
+                                `}
+                                title="Ativar/desativar confirmação por e-mail"
                             >
-                                <Mail size={16} />
-                                {loadingConfig ? '...' : emailNotificationEnabled ? 'E-mail Ativo' : 'E-mail Off'}
+                                <div className={`
+                                    transition-all
+                                    ${loadingConfig ? 'text-gray-300' : emailNotificationEnabled ? 'text-green-600' : 'text-gray-400'}
+                                `}>
+                                    <Mail size={13} />
+                                </div>
+                                {loadingConfig ? (
+                                    <Loader2 className="animate-spin text-gray-400" size={13} />
+                                ) : (
+                                    <>
+                                        <div className={`
+                                            relative w-8 h-4 rounded-full transition-all
+                                            ${emailNotificationEnabled ? 'bg-green-400' : 'bg-gray-300'}
+                                        `}>
+                                            <div className={`
+                                                absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm
+                                                transition-all duration-200
+                                                ${emailNotificationEnabled ? 'left-[18px]' : 'left-0.5'}
+                                            `} />
+                                        </div>
+                                        <span className={`
+                                            font-semibold whitespace-nowrap
+                                            ${emailNotificationEnabled ? 'text-green-700' : 'text-gray-400'}
+                                        `}>
+                                            {emailNotificationEnabled ? 'Ligado' : 'Desligado'}
+                                        </span>
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

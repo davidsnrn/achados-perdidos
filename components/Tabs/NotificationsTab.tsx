@@ -28,6 +28,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
   const [selectedType, setSelectedType] = useState<Partial<NotificationType> | null>(null);
+  const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [newSubtype, setNewSubtype] = useState('');
 
   // Form State
@@ -76,6 +77,16 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
     return Object.values(groups).sort((a, b) => b.items.length - a.items.length || a.student_name.localeCompare(b.student_name));
   }, [notifications, searchTerm]);
+
+  const toggleSelectGroup = (items: StudentNotification[]) => {
+    const ids = items.map(i => i.id);
+    const allSelected = ids.every(id => selectedNotificationIds.includes(id));
+    if (allSelected) {
+      setSelectedNotificationIds(prev => prev.filter(id => !ids.includes(id)));
+    } else {
+      setSelectedNotificationIds(prev => [...new Set([...prev, ...ids])]);
+    }
+  };
 
   const handleSearchPeople = async (query: string) => {
     setPersonSearch(query);
@@ -177,7 +188,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     const subtypes = n.selected_subtypes?.join(', ') || '';
 
     const verificationCode = n.id ? n.id.replace(/-/g, '').slice(0, 12).toUpperCase() : '';
-    const verificationUrl = n.id ? `https://achados-perdidos-main.vercel.app/verificar.html?id=${n.id}` : '';
+    const verificationUrl = n.id ? `https://sigae-ifrn.vercel.app/verificar.html?id=${n.id}` : '';
 
     const ifrnLogoSvg = `
       <svg viewBox="0 0 110 150" style="width:48px;height:48px;flex-shrink:0" xmlns="http://www.w3.org/2000/svg">
@@ -326,6 +337,149 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
       printWindow.focus();
       printWindow.print();
       // Remove o iframe apos a impressao
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 1000);
+    }, 500);
+  };
+
+  const handlePrintMultiple = () => {
+    const selected = notifications.filter(n => selectedNotificationIds.includes(n.id));
+    if (selected.length === 0) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    document.body.appendChild(iframe);
+    const printWindow = (iframe.contentWindow || iframe.contentDocument) as Window;
+
+    const activeCampusId = adminGlobalCampusId || user.campus_id || '';
+    const campusName = campuses.find(c => c.id === activeCampusId)?.name || '';
+    const operatorName = user.name;
+
+    const fmtDate2 = (d: string) => {
+      const date = new Date(d + 'T12:00:00');
+      return date.toLocaleDateString('pt-BR');
+    };
+
+    const notificationCards = selected.map((n, idx) => {
+      const types = n.notification_type_ids?.map(id => {
+        const t = notificationTypes.find(tp => tp.id === id);
+        return { name: t?.name || '', color: t?.color || '#309B41' };
+      }).filter(t => t.name) || [];
+
+      const subtypes = n.selected_subtypes?.join(', ') || '';
+      const verificationCode = n.id ? n.id.replace(/-/g, '').slice(0, 8).toUpperCase() : '';
+      const verificationUrl = n.id ? `https://sigae-ifrn.vercel.app/verificar.html?id=${n.id}` : '';
+
+      const tagsHtml = types.map(t =>
+        `<span class="tag" style="background:${t.color}">${t.name}</span>`
+      ).join('') +
+      (subtypes ? subtypes.split(', ').map(s =>
+        `<span class="tag-sub">${s}</span>`
+      ).join('') : '');
+
+      const justHtml = n.justification
+        ? `<div class="just">"${n.justification}"</div>`
+        : '';
+
+      const teacherHtml = n.teacher_referral && n.teacher_name
+        ? `<div class="teacher">Encaminhado: Prof. ${n.teacher_name}</div>`
+        : '';
+
+      const cutLine = (idx + 1) % 2 === 0 && idx < selected.length - 1
+        ? '<div class="cut-row"></div>'
+        : '';
+
+      const pageBreak = (idx + 1) % 4 === 0 && idx < selected.length - 1
+        ? '<div class="page-break"></div>'
+        : '';
+
+      return `
+        <div class="card-wrap">
+          <div class="card">
+            <div class="card-topo">
+              <div class="card-title">REGISTRO DE OCORRÊNCIA</div>
+              <div class="card-campus">${campusName}</div>
+            </div>
+            <div class="card-body">
+              <div class="card-student">
+                <span class="student-name">${n.student_name}</span>
+                <span class="student-mat">${n.student_matricula}</span>
+              </div>
+              <div class="card-class">
+                ${n.class_name || ''}${n.period ? ' - ' + n.period : ''}
+              </div>
+              <div class="card-dt">${fmtDate2(n.date)} às ${n.time}</div>
+              <div class="tags-row">${tagsHtml}</div>
+              ${justHtml}
+              ${teacherHtml}
+            </div>
+            <div class="card-footer">
+              <span class="card-verify">Acesse <strong>sigae-ifrn.vercel.app/verificar.html</strong> e digite o código:</span>
+              <span class="card-code">${verificationCode}</span>
+            </div>
+          </div>
+          ${cutLine}
+          ${pageBreak}
+        </div>`;
+    }).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Registros de Ocorrência</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+          .card-wrap { }
+          .card { border: 1px solid #d1d5db; padding: 10px 12px; height: 100%; display: flex; flex-direction: column; }
+          .card-topo { text-align: center; margin-bottom: 6px; }
+          .card-title { font-size: 10px; font-weight: 900; color: #1e3a5f; letter-spacing: 0.5px; text-transform: uppercase; }
+          .card-campus { font-size: 8px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+          .card-body { flex: 1; }
+          .card-student { margin-bottom: 4px; }
+          .student-name { font-size: 11px; font-weight: 800; color: #1e293b; }
+          .student-mat { font-size: 9px; font-weight: 600; color: #64748b; margin-left: 6px; }
+          .card-class { font-size: 9px; font-weight: 600; color: #475569; margin-bottom: 3px; }
+          .card-dt { font-size: 9px; font-weight: 500; color: #64748b; margin-bottom: 5px; }
+          .tags-row { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
+          .tag { display: inline-block; padding: 2px 8px; border-radius: 100px; font-size: 8px; font-weight: 800; color: #fff; text-transform: uppercase; letter-spacing: 0.3px; }
+          .tag-sub { display: inline-block; padding: 1px 6px; border-radius: 100px; font-size: 7px; font-weight: 700; color: #94a3b8; background: #f1f5f9; border: 1px solid #e2e8f0; }
+          .just { font-size: 8px; font-weight: 500; color: #475569; font-style: italic; background: #f8fafc; padding: 4px 6px; border-radius: 6px; margin-bottom: 3px; line-height: 1.3; }
+          .teacher { font-size: 8px; font-weight: 700; color: #dc2626; margin-bottom: 2px; }
+          .card-footer { margin-top: 4px; padding-top: 4px; border-top: 1px solid #e5e7eb; text-align: center; }
+          .card-verify { font-size: 7px; font-weight: 500; color: #64748b; }
+          .card-verify strong { font-weight: 700; color: #2563eb; text-decoration: underline; }
+          .card-code { font-size: 10px; font-weight: 900; color: #1e293b; letter-spacing: 2px; display: block; margin-top: 2px; }
+          .cut-row { border-top: 1.5px dashed #94a3b8; margin: 0; height: 4px; }
+          .page-break { page-break-after: always; }
+          @media print {
+            body { padding: 6mm; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+            .card { -webkit-print-color-adjust: exact; print-color-adjust: exact; border: 1px solid #d1d5db; }
+            .tag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+          @page { size: A4; margin: 6mm; }
+        </style>
+      </head>
+      <body>
+        <div class="grid">
+          ${notificationCards}
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
       setTimeout(() => {
         if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
       }, 1000);
@@ -483,12 +637,50 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
         </div>
       </div>
 
+      {selectedNotificationIds.length > 0 && (
+        <div className="flex items-center gap-3 px-5 py-3 bg-red-50 border border-red-200 rounded-2xl animate-fade-in">
+          <span className="text-sm font-bold text-red-700">
+            {selectedNotificationIds.length} notificação(ões) selecionada(s)
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={() => setSelectedNotificationIds([])}
+            className="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-700 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"
+          >
+            Limpar
+          </button>
+          <button
+            onClick={handlePrintMultiple}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs transition-all shadow-sm active:scale-95"
+          >
+            <Printer size={16} />
+            Imprimir Selecionados
+          </button>
+        </div>
+      )}
+
       {/* Grouped Notifications Table */}
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50">
+                <th className="px-2 py-5 w-10">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                    checked={groupedNotifications.length > 0 && groupedNotifications.every(g => g.items.every(i => selectedNotificationIds.includes(i.id)))}
+                    onChange={() => {
+                      const allIds = groupedNotifications.flatMap(g => g.items.map(i => i.id));
+                      const allSelected = allIds.every(id => selectedNotificationIds.includes(id));
+                      if (allSelected) {
+                        setSelectedNotificationIds(prev => prev.filter(id => !allIds.includes(id)));
+                      } else {
+                        setSelectedNotificationIds(prev => [...new Set([...prev, ...allIds])]);
+                      }
+                    }}
+                  />
+                </th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider">Aluno</th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider">Turma / Período</th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total Ocorrências</th>
@@ -499,6 +691,14 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
               {groupedNotifications.length > 0 ? (
                 groupedNotifications.map((group) => (
                   <tr key={group.student_matricula} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="px-2 py-5">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        checked={group.items.every(i => selectedNotificationIds.includes(i.id))}
+                        onChange={() => toggleSelectGroup(group.items)}
+                      />
+                    </td>
                     <td className="px-6 py-5">
                       <div className="flex flex-col">
                         <span className="font-bold text-gray-800">{group.student_name}</span>
@@ -530,7 +730,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-6 py-20 text-center">
+                  <td colSpan={5} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
                         <ShieldAlert size={32} className="text-gray-300" />

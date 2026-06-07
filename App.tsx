@@ -1352,7 +1352,13 @@ const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileMenuOpen(true)} className="md:hidden text-gray-500 hover:text-ifrn-green p-1 transition-colors"><Menu size={24} /></button>
-            <IfrnLogo campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} className="flex-shrink-0" />
+            <button
+              onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); sessionStorage.removeItem('currentSystem'); }}
+              className="hover:opacity-80 transition-opacity"
+              title="Ir para tela inicial"
+            >
+              <IfrnLogo campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} className="flex-shrink-0 cursor-pointer" />
+            </button>
           </div>
           <div className="flex items-center gap-4 flex-1 justify-center md:justify-start max-w-sm ml-4">
             {user.level === UserLevel.ADMIN && (

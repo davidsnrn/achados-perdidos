@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight, Eye, List } from 'lucide-react';
+import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight, Eye, List, X } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -34,6 +34,10 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteJustification, setDeleteJustification] = useState('');
   const [newSubtype, setNewSubtype] = useState('');
+  const [dateFilterMode, setDateFilterMode] = useState<'off' | 'single' | 'range'>('off');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterDateStart, setFilterDateStart] = useState('');
+  const [filterDateEnd, setFilterDateEnd] = useState('');
 
   // Form State
   const [formData, setFormData] = useState<Partial<StudentNotification>>({
@@ -59,11 +63,17 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
   const groupedNotifications = useMemo(() => {
-    const filtered = notifications.filter(n => 
+    let filtered = notifications.filter(n => 
       n.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       n.student_matricula.includes(searchTerm) ||
       (n.class_name && n.class_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    if (dateFilterMode === 'single' && filterDate) {
+      filtered = filtered.filter(n => n.date === filterDate);
+    } else if (dateFilterMode === 'range' && filterDateStart && filterDateEnd) {
+      filtered = filtered.filter(n => n.date >= filterDateStart && n.date <= filterDateEnd);
+    }
 
     const groups: { [key: string]: { student_name: string, student_matricula: string, class_name: string, items: StudentNotification[] } } = {};
     
@@ -80,7 +90,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     });
 
     return Object.values(groups).sort((a, b) => b.items.length - a.items.length || a.student_name.localeCompare(b.student_name));
-  }, [notifications, searchTerm]);
+  }, [notifications, searchTerm, dateFilterMode, filterDate, filterDateStart, filterDateEnd]);
 
   useEffect(() => {
     if (selectedStudent) {
@@ -728,8 +738,8 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
       </div>
 
       {/* Filters and Search */}
-      <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex flex-col lg:flex-row gap-4">
+        <div className="relative flex-[2]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
             type="text"
@@ -739,9 +749,76 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             className="w-full bg-gray-50 border-2 border-transparent focus:border-red-500 focus:bg-white rounded-2xl pl-12 pr-4 py-3.5 outline-none transition-all font-medium"
           />
         </div>
-        <div className="flex items-center gap-2">
-           {/* Possible filter by type/reason here */}
+
+        <div className="flex items-stretch gap-2 bg-gray-50 rounded-2xl p-1 border-2 border-transparent has-[.active]:border-red-200">
+          <button
+            onClick={() => { setDateFilterMode('off'); setFilterDate(''); setFilterDateStart(''); setFilterDateEnd(''); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${dateFilterMode === 'off' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Todas
+          </button>
+          <button
+            onClick={() => { setDateFilterMode('single'); setFilterDateStart(''); setFilterDateEnd(''); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${dateFilterMode === 'single' ? 'bg-white text-red-600 shadow-sm active' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            <Calendar size={14} className="inline mr-1.5 -mt-0.5" />
+            Data
+          </button>
+          <button
+            onClick={() => { setDateFilterMode('range'); setFilterDate(''); }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${dateFilterMode === 'range' ? 'bg-white text-red-600 shadow-sm active' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            <Calendar size={14} className="inline mr-1.5 -mt-0.5" />
+            Período
+          </button>
         </div>
+
+        {dateFilterMode === 'single' && (
+          <div className="flex items-center gap-2 animate-fade-in">
+            <input
+              type="date"
+              value={filterDate}
+              onChange={e => setFilterDate(e.target.value)}
+              className="bg-gray-50 border-2 border-gray-100 focus:border-red-500 rounded-xl px-4 py-3 text-sm font-bold outline-none transition-all"
+            />
+            {filterDate && (
+              <button
+                onClick={() => setFilterDate('')}
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                title="Limpar data"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {dateFilterMode === 'range' && (
+          <div className="flex items-center gap-2 animate-fade-in">
+            <input
+              type="date"
+              value={filterDateStart}
+              onChange={e => setFilterDateStart(e.target.value)}
+              className="bg-gray-50 border-2 border-gray-100 focus:border-red-500 rounded-xl px-4 py-3 text-sm font-bold outline-none transition-all"
+            />
+            <span className="text-xs font-bold text-gray-400">até</span>
+            <input
+              type="date"
+              value={filterDateEnd}
+              onChange={e => setFilterDateEnd(e.target.value)}
+              className="bg-gray-50 border-2 border-gray-100 focus:border-red-500 rounded-xl px-4 py-3 text-sm font-bold outline-none transition-all"
+            />
+            {(filterDateStart || filterDateEnd) && (
+              <button
+                onClick={() => { setFilterDateStart(''); setFilterDateEnd(''); }}
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                title="Limpar período"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {selectedNotificationIds.length > 0 && (
@@ -791,6 +868,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider">Aluno</th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider">Turma / Período</th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total Ocorrências</th>
+                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Última Ocorrência</th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Ações</th>
               </tr>
             </thead>
@@ -831,6 +909,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                           {group.items.length}
                         </span>
                       </td>
+                      <td className="px-6 py-5 text-center">
+                        <span className="text-xs font-bold text-gray-500">
+                          {fmtDate(group.items[0].date)}
+                        </span>
+                      </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -848,7 +931,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                     </tr>
                     {expandedGroups.has(group.student_matricula) && (
                       <tr className="bg-gray-50/30">
-                        <td colSpan={5} className="px-6 py-3">
+                        <td colSpan={6} className="px-6 py-3">
                           <div className="space-y-2">
                             {group.items.map((n: StudentNotification) => {
                               const types = n.notification_type_ids?.map(id => {
@@ -926,7 +1009,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-20 text-center">
+                  <td colSpan={6} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
                         <ShieldAlert size={32} className="text-gray-300" />

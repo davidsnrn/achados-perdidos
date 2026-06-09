@@ -266,6 +266,12 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     return name || matricula || 'Não informado';
   };
 
+  const fmtDateTime = (isoString?: string) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    return d.toLocaleDateString('pt-BR') + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  };
+
   const handlePrintNotification = (n: StudentNotification) => {
     // Usa iframe oculto para evitar bloqueio de popup
     const iframe = document.createElement('iframe');
@@ -964,7 +970,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                       )}
                                       {n.deleted_at && (
                                         <span className="ml-1 text-red-400 font-bold">
-                                          · Excluído por {operatorDisplay(n.deleted_by_name, n.deleted_by_matricula)}
+                                          · Excluído por {operatorDisplay(n.deleted_by_name, n.deleted_by_matricula)} em {fmtDateTime(n.deleted_at)}
                                         </span>
                                       )}
                                     </div>
@@ -1393,7 +1399,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                         {n.deleted_at && (
                           <div className="flex items-center gap-1.5 text-red-500 font-bold">
                             <Trash2 size={12} />
-                            <span>Excluído por {operatorDisplay(n.deleted_by_name, n.deleted_by_matricula)}</span>
+                            <span>Excluído por {operatorDisplay(n.deleted_by_name, n.deleted_by_matricula)} em {fmtDateTime(n.deleted_at)}</span>
                           </div>
                         )}
                       </div>

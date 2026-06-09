@@ -227,6 +227,17 @@ export interface StudentNotification {
   teacher_referral: boolean;
   teacher_name?: string;
   operator_id: string;
+  operator_name?: string;
+  operator_matricula?: string;
+  updated_by?: string;
+  updated_by_name?: string;
+  updated_by_matricula?: string;
+  updated_at?: string;
+  deleted_at?: string;
+  deleted_by?: string;
+  deleted_by_name?: string;
+  deleted_by_matricula?: string;
+  deleted_justification?: string;
   out_of_hours?: boolean;
   mobile_use?: boolean;
   no_uniform?: boolean;

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight, Eye, List } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -30,6 +30,9 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [selectedType, setSelectedType] = useState<Partial<NotificationType> | null>(null);
   const [selectedNotificationIds, setSelectedNotificationIds] = useState<string[]>([]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteJustification, setDeleteJustification] = useState('');
   const [newSubtype, setNewSubtype] = useState('');
 
   // Form State
@@ -141,11 +144,22 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
     setIsSaving(true);
     try {
-      await StorageService.saveNotification({
+      const payload: any = {
         ...formData,
         campus_id: adminGlobalCampusId || user.campus_id || '',
-        operator_id: user.id
-      });
+        operator_id: formData.id ? formData.operator_id : user.id,
+        operator_name: formData.id ? formData.operator_name : user.name,
+        operator_matricula: formData.id ? formData.operator_matricula : user.matricula,
+      };
+
+      if (formData.id) {
+        payload.updated_by = user.id;
+        payload.updated_by_name = user.name;
+        payload.updated_by_matricula = user.matricula;
+        payload.updated_at = new Date().toISOString();
+      }
+
+      await StorageService.saveNotification(payload);
       onUpdate();
       setIsModalOpen(false);
       resetForm();
@@ -157,22 +171,45 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta notificação?")) return;
+  const openDeleteModal = (id: string) => {
+    setDeleteTargetId(id);
+    setDeleteJustification('');
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleSoftDelete = async () => {
+    if (!deleteTargetId || !deleteJustification.trim()) {
+      alert("Informe a justificativa para a exclusão.");
+      return;
+    }
 
     try {
-      await StorageService.deleteNotification(id);
+      await StorageService.softDeleteNotification(
+        deleteTargetId,
+        user.id,
+        user.name,
+        user.matricula,
+        deleteJustification.trim()
+      );
       onUpdate();
-      // If we are in student detail modal, update it
-      if (selectedStudent) {
-        setSelectedStudent((prev: any) => ({
-          ...prev,
-          items: prev.items.filter((i: any) => i.id !== id)
-        }));
-      }
+      setIsDeleteModalOpen(false);
+      setDeleteTargetId(null);
+      setDeleteJustification('');
     } catch (error) {
       console.error("Erro ao excluir notificação:", error);
       alert("Erro ao excluir.");
+    }
+  };
+
+  const handleCancelDelete = async (id: string) => {
+    if (!confirm("Cancelar a exclusão desta notificação?")) return;
+
+    try {
+      await StorageService.cancelDeleteNotification(id);
+      onUpdate();
+    } catch (error) {
+      console.error("Erro ao cancelar exclusão:", error);
+      alert("Erro ao cancelar exclusão.");
     }
   };
 
@@ -180,6 +217,12 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     if (!d) return '-';
     const [y, m, day] = d.split('-');
     return `${day}/${m}/${y}`;
+  };
+
+  const operatorDisplay = (name?: string, matricula?: string) => {
+    if (!name && !matricula) return 'Não informado';
+    if (name && matricula) return `${name} (${matricula})`;
+    return name || matricula || 'Não informado';
   };
 
   const handlePrintNotification = (n: StudentNotification) => {
@@ -284,7 +327,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
               <div class="ifrn-sub">${campusName}</div>
             </div>
           </div>
-          <div class="emitido">Emitido por: <strong>David Galdino da Silva</strong></div>
+          <div class="emitido">Registrado por: <strong>${operatorDisplay(n.operator_name, n.operator_matricula) || 'Sistema'}</strong></div>
         </div>
 
         <div class="title-block">
@@ -308,7 +351,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           </div>
         </div>
 
-        <div class="card">
+          <div class="card">
           <div class="card-header">Detalhes da Ocorrencia</div>
           <div class="ts-row">
             <span class="ts-item">
@@ -323,6 +366,10 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           <div class="tags-row">
             ${types.map(t => tagHtml(t.name, t.color)).join('')}
             ${subtypes ? subtypes.split(', ').map(s => `<span class="tag-subtle">${s}</span>`).join('') : ''}
+          </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;display:flex;gap:24px;">
+            <span>Registrado por: <strong style="color:#475569">${operatorDisplay(n.operator_name, n.operator_matricula)}</strong></span>
+            ${n.updated_by_name ? `<span>Ultima atualizacao por: <strong style="color:#475569">${operatorDisplay(n.updated_by_name, n.updated_by_matricula)}</strong></span>` : ''}
           </div>
         </div>
 
@@ -434,6 +481,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                 <div class="tags-row">${tagsHtml}</div>
                 ${justHtml}
                 ${teacherHtml}
+                <div class="card-operator">Registrado por: ${operatorDisplay(n.operator_name, n.operator_matricula)}${n.updated_by_name ? ' | Editado por: ' + operatorDisplay(n.updated_by_name, n.updated_by_matricula) : ''}</div>
               </div>
               <div class="card-body-right">
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(verificationUrl)}" alt="QR" class="card-qr" />
@@ -476,6 +524,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
           .tag-sub { display: inline-block; padding: 1px 6px; border-radius: 100px; font-size: 7px; font-weight: 700; color: #94a3b8; background: #f1f5f9; border: 1px solid #e2e8f0; }
           .just { font-size: 8px; font-weight: 500; color: #475569; font-style: italic; background: #f8fafc; padding: 4px 6px; border-radius: 6px; margin-bottom: 2px; line-height: 1.3; }
           .teacher { font-size: 8px; font-weight: 700; color: #dc2626; margin-bottom: 2px; }
+          .card-operator { font-size: 6.5px; font-weight: 600; color: #94a3b8; margin-top: 3px; }
           .card-qr { width: 52px; height: 52px; flex-shrink: 0; border-radius: 4px; }
           .card-code { font-size: 7px; font-weight: 900; color: #1e293b; letter-spacing: 1px; text-align: center; }
           .card-footer { margin-top: 3px; padding-top: 3px; border-top: 1px solid #e5e7eb; text-align: left; }
@@ -530,7 +579,9 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
       notification_type_ids: n.notification_type_ids || [],
       selected_subtypes: n.selected_subtypes || [],
       campus_id: n.campus_id,
-      operator_id: n.operator_id
+      operator_id: n.operator_id,
+      operator_name: n.operator_name,
+      operator_matricula: n.operator_matricula
     });
     setPersonSearch(n.student_name);
     setIsStudentDetailOpen(false); // Fecha o modal de detalhes
@@ -753,18 +804,20 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => toggleExpandGroup(group.student_matricula)}
-                            className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-all"
+                            className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                            title="Selecionar"
                           >
-                            Selecionar
+                            <List size={18} />
                           </button>
                           <button
                             onClick={() => {
                               setSelectedStudent(group);
                               setIsStudentDetailOpen(true);
                             }}
-                            className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-xs transition-all"
+                            className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                            title="Ver Detalhes"
                           >
-                            Ver Detalhes
+                            <Eye size={18} />
                           </button>
                         </div>
                       </td>
@@ -779,33 +832,65 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                 return { name: t?.name || '', color: t?.color || '#309B41' };
                               }).filter(t => t.name) || [];
                               return (
-                                <div key={n.id} className="flex items-center gap-3 px-4 py-2.5 bg-white rounded-xl border border-gray-100 hover:border-red-200 transition-all">
+                                <div key={n.id} className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all ${n.deleted_at ? 'bg-red-50/50 border-red-200 opacity-70' : 'bg-white border-gray-100 hover:border-red-200'}`}>
                                   <input
                                     type="checkbox"
                                     className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 cursor-pointer"
                                     checked={selectedNotificationIds.includes(n.id)}
                                     onChange={() => toggleSelectNotification(n.id)}
+                                    disabled={!!n.deleted_at}
                                   />
-                                  <div className="flex items-center gap-3 text-xs font-bold text-gray-600 min-w-[120px]">
-                                    <Calendar size={12} className="text-gray-400" />
-                                    {new Date(n.date + 'T12:00:00').toLocaleDateString('pt-BR')}
-                                    <Clock size={12} className="text-gray-400 ml-1" />
-                                    {n.time}
+                                  <div className="flex flex-col min-w-[180px]">
+                                    <div className={`flex items-center gap-3 text-xs font-bold ${n.deleted_at ? 'text-gray-400 line-through' : 'text-gray-600'}`}>
+                                      <Calendar size={12} className="text-gray-400" />
+                                      {new Date(n.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                      <Clock size={12} className="text-gray-400 ml-1" />
+                                      {n.time}
+                                    </div>
+                                    <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-400">
+                                      <UserIcon size={10} className="text-gray-300" />
+                                      <span>{operatorDisplay(n.operator_name, n.operator_matricula)}</span>
+                                      {n.updated_by_name && (
+                                        <span className="ml-1 text-gray-300">
+                                          · Editado por {operatorDisplay(n.updated_by_name, n.updated_by_matricula)}
+                                        </span>
+                                      )}
+                                      {n.deleted_at && (
+                                        <span className="ml-1 text-red-400 font-bold">
+                                          · Excluído por {operatorDisplay(n.deleted_by_name, n.deleted_by_matricula)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {n.deleted_at && n.deleted_justification && (
+                                      <div className="text-[10px] text-red-300 italic mt-0.5">
+                                        "{n.deleted_justification}"
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex flex-wrap gap-1.5 flex-1">
                                     {types.map(t => (
-                                      <span key={t.name} className="px-2 py-0.5 text-[10px] font-bold text-white rounded-full" style={{ backgroundColor: t.color }}>
+                                      <span key={t.name} className={`px-2 py-0.5 text-[10px] font-bold text-white rounded-full ${n.deleted_at ? 'opacity-50' : ''}`} style={{ backgroundColor: t.color }}>
                                         {t.name}
                                       </span>
                                     ))}
                                   </div>
-                                  <button
-                                    onClick={() => handlePrintNotification(n)}
-                                    className="p-1.5 text-green-500 bg-green-50 hover:bg-green-500 hover:text-white rounded-lg transition-all"
-                                    title="Imprimir"
-                                  >
-                                    <Printer size={14} />
-                                  </button>
+                                  {!n.deleted_at ? (
+                                    <button
+                                      onClick={() => handlePrintNotification(n)}
+                                      className="p-1.5 text-green-500 bg-green-50 hover:bg-green-500 hover:text-white rounded-lg transition-all"
+                                      title="Imprimir"
+                                    >
+                                      <Printer size={14} />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleCancelDelete(n.id)}
+                                      className="p-1.5 text-amber-500 bg-amber-50 hover:bg-amber-500 hover:text-white rounded-lg transition-all"
+                                      title="Cancelar Exclusão"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1122,50 +1207,101 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
             <div className="space-y-6 relative before:absolute before:left-[19px] before:top-4 before:bottom-4 before:w-0.5 before:bg-gray-100">
               {selectedStudent.items.map((n: StudentNotification) => (
-                <div key={n.id} className="relative pl-12 group animate-fade-in">
-                  <div className="absolute left-0 top-6 w-10 h-10 bg-white border-4 border-gray-50 rounded-2xl flex items-center justify-center text-gray-300 group-hover:border-red-100 group-hover:text-red-500 transition-all z-10 shadow-sm">
+                <div key={n.id} className={`relative pl-12 group animate-fade-in ${n.deleted_at ? 'opacity-60' : ''}`}>
+                  <div className={`absolute left-0 top-6 w-10 h-10 border-4 rounded-2xl flex items-center justify-center transition-all z-10 shadow-sm ${n.deleted_at ? 'bg-red-50 border-red-100 text-red-300' : 'bg-white border-gray-50 text-gray-300 group-hover:border-red-100 group-hover:text-red-500'}`}>
                     <AlertCircle size={20} />
                   </div>
                   
-                  <div className="p-6 bg-white border-2 border-gray-100 rounded-3xl hover:border-red-200 transition-all shadow-sm hover:shadow-xl hover:shadow-red-500/5">
+                  <div className={`p-6 border-2 rounded-3xl transition-all shadow-sm ${n.deleted_at ? 'bg-red-50/30 border-red-200' : 'bg-white border-gray-100 hover:border-red-200 hover:shadow-xl hover:shadow-red-500/5'}`}>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                       <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-xl">
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${n.deleted_at ? 'bg-red-100' : 'bg-gray-50'}`}>
                           <Calendar size={14} className="text-gray-400" />
-                          <span className="text-xs font-black text-gray-600 uppercase">{fmtDate(n.date)}</span>
+                          <span className={`text-xs font-black uppercase ${n.deleted_at ? 'text-red-400 line-through' : 'text-gray-600'}`}>{fmtDate(n.date)}</span>
                         </div>
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-xl">
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${n.deleted_at ? 'bg-red-100' : 'bg-gray-50'}`}>
                           <Clock size={14} className="text-gray-400" />
-                          <span className="text-xs font-black text-gray-600 uppercase">{n.time}</span>
+                          <span className={`text-xs font-black uppercase ${n.deleted_at ? 'text-red-400 line-through' : 'text-gray-600'}`}>{n.time}</span>
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handlePrintNotification(n)}
-                          className="p-3 text-green-500 bg-green-50 hover:bg-green-500 hover:text-white rounded-2xl transition-all shadow-sm"
-                          title="Imprimir Comprovante"
-                        >
-                          <Printer size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleEditNotification(n)}
-                          className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-500 hover:text-white rounded-2xl transition-all shadow-sm"
-                          title="Editar Registro"
-                        >
-                          <Pencil size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(n.id)}
-                          className="p-3 text-red-500 bg-red-50 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm"
-                          title="Excluir Registro"
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {!n.deleted_at && (
+                          <button
+                            onClick={() => handlePrintNotification(n)}
+                            className="p-3 text-green-500 bg-green-50 hover:bg-green-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                            title="Imprimir Comprovante"
+                          >
+                            <Printer size={18} />
+                          </button>
+                        )}
+                        {!n.deleted_at && (
+                          <button
+                            onClick={() => handleEditNotification(n)}
+                            className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                            title="Editar Registro"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                        )}
+                        {!n.deleted_at ? (
+                          <button
+                            onClick={() => openDeleteModal(n.id)}
+                            className="p-3 text-red-500 bg-red-50 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                            title="Excluir Registro"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleCancelDelete(n.id)}
+                            className="p-3 text-amber-500 bg-amber-50 hover:bg-amber-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                            title="Cancelar Exclusão"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     </div>
 
                     <div className="space-y-6">
+                      <div className={`flex flex-wrap items-center gap-4 text-xs px-4 py-2 rounded-xl ${n.deleted_at ? 'bg-red-100' : 'bg-gray-50'}`}>
+                        <div className="flex items-center gap-1.5">
+                          <UserIcon size={12} className="text-gray-300" />
+                          <span className="font-bold text-gray-500">Registrado por:</span>
+                          <span>{operatorDisplay(n.operator_name, n.operator_matricula)}</span>
+                        </div>
+                        {n.updated_by_name && (
+                          <div className="flex items-center gap-1.5">
+                            <Pencil size={12} className="text-gray-300" />
+                            <span className="font-bold text-gray-500">Última atualização por:</span>
+                            <span>{operatorDisplay(n.updated_by_name, n.updated_by_matricula)}</span>
+                            {n.updated_at && (
+                              <span className="text-gray-300">
+                                · {new Date(n.updated_at).toLocaleString('pt-BR')}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {n.deleted_at && (
+                          <div className="flex items-center gap-1.5 text-red-500 font-bold">
+                            <Trash2 size={12} />
+                            <span>Excluído por {operatorDisplay(n.deleted_by_name, n.deleted_by_matricula)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {n.deleted_at && n.deleted_justification && (
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-black text-red-400 uppercase tracking-widest px-1">Motivo da Exclusão</p>
+                          <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                            <p className="text-sm text-red-700 leading-relaxed font-bold italic">
+                              "{n.deleted_justification}"
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-3">
                         <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-1">Categorias e Classificações</p>
                         <div className="space-y-4">
@@ -1175,11 +1311,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                             const relatedSubtypes = n.selected_subtypes?.filter(s => type.subtypes?.includes(s)) || [];
                             return (
                               <div key={id} className="flex flex-wrap items-center gap-2">
-                                <span className="px-4 py-2 text-xs font-black rounded-xl uppercase tracking-tight shadow-sm" style={{ backgroundColor: type.color, color: 'white' }}>
+                                <span className={`px-4 py-2 text-xs font-black rounded-xl uppercase tracking-tight shadow-sm ${n.deleted_at ? 'opacity-50 line-through' : ''}`} style={{ backgroundColor: type.color, color: 'white' }}>
                                   {type.name}
                                 </span>
                                 {relatedSubtypes.map(sub => (
-                                  <span key={sub} className="px-3 py-1.5 bg-gray-50 text-gray-500 text-[10px] font-black rounded-lg uppercase tracking-tight border border-gray-100">
+                                  <span key={sub} className={`px-3 py-1.5 text-[10px] font-black rounded-lg uppercase tracking-tight border ${n.deleted_at ? 'bg-red-50 text-red-300 line-through border-red-100' : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
                                     {sub}
                                   </span>
                                 ))}
@@ -1194,9 +1330,9 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                       {n.justification && (
                         <div className="space-y-3">
                           <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest px-1">Justificativa / Descrição</p>
-                          <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 relative">
-                            <MessageSquare size={20} className="absolute -top-3 -right-3 text-red-100 rotate-180" />
-                            <p className="text-sm text-gray-700 leading-relaxed font-bold italic">
+                          <div className={`p-5 rounded-2xl border relative ${n.deleted_at ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+                            <MessageSquare size={20} className={`absolute -top-3 -right-3 rotate-180 ${n.deleted_at ? 'text-red-200' : 'text-red-100'}`} />
+                            <p className={`text-sm leading-relaxed font-bold italic ${n.deleted_at ? 'text-red-400 line-through' : 'text-gray-700'}`}>
                               "{n.justification}"
                             </p>
                           </div>
@@ -1204,13 +1340,13 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                       )}
 
                       {n.teacher_referral && (
-                        <div className="flex items-center gap-3 p-4 bg-red-50 rounded-2xl border border-red-100 border-dashed">
-                          <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-red-500 shadow-sm">
+                        <div className={`flex items-center gap-3 p-4 rounded-2xl border ${n.deleted_at ? 'bg-red-50 border-red-100 border-dashed opacity-60' : 'bg-red-50 border-red-100 border-dashed'}`}>
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm ${n.deleted_at ? 'bg-red-100 text-red-300' : 'bg-white text-red-500'}`}>
                             <UserPlus size={20} />
                           </div>
                           <div>
                             <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Encaminhamento</p>
-                            <p className="text-sm font-black text-red-700">Prof. {n.teacher_name}</p>
+                            <p className={`text-sm font-black ${n.deleted_at ? 'text-red-400 line-through' : 'text-red-700'}`}>Prof. {n.teacher_name}</p>
                           </div>
                         </div>
                       )}
@@ -1221,6 +1357,62 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeleteTargetId(null);
+          setDeleteJustification('');
+        }}
+        title="Excluir Notificação"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 p-4 bg-red-50 rounded-2xl border border-red-100">
+            <Trash2 size={24} className="text-red-500 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-red-700">Tem certeza que deseja excluir esta notificação?</p>
+              <p className="text-xs text-red-500 mt-1">A exclusão será definitiva após 24 horas. Você pode cancelar dentro deste período.</p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-400 uppercase ml-2">
+              Justificativa para a exclusão <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={deleteJustification}
+              onChange={e => setDeleteJustification(e.target.value)}
+              placeholder="Descreva o motivo da exclusão..."
+              className="w-full bg-gray-50 border-2 border-gray-100 focus:border-red-500 focus:bg-white rounded-2xl px-5 py-4 outline-none transition-all font-medium resize-none"
+              rows={3}
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setDeleteTargetId(null);
+                setDeleteJustification('');
+              }}
+              className="flex-1 py-4 bg-gray-100 text-gray-600 rounded-2xl font-bold hover:bg-gray-200 transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSoftDelete}
+              disabled={!deleteJustification.trim()}
+              className="flex-[2] py-4 bg-red-600 text-white rounded-2xl font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Trash2 size={18} />
+              Confirmar Exclusão
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Config Modal */}

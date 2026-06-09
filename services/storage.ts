@@ -1865,6 +1865,14 @@ export const StorageService = {
 
   // Student Notifications
   getNotifications: async (campusId?: string): Promise<StudentNotification[]> => {
+    // Permanently delete expired soft-deletes (>24h)
+    const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    await supabase
+      .from('student_notifications')
+      .delete()
+      .not('deleted_at', 'is', null)
+      .lt('deleted_at', expiryThreshold);
+
     let query = supabase
       .from('student_notifications')
       .select('*, notification_types(*)')
@@ -1890,10 +1898,21 @@ export const StorageService = {
       teacher_referral: d.teacher_referral,
       teacher_name: d.teacher_name,
       operator_id: d.operator_id,
+      operator_name: d.operator_name,
+      operator_matricula: d.operator_matricula,
+      updated_by: d.updated_by,
+      updated_by_name: d.updated_by_name,
+      updated_by_matricula: d.updated_by_matricula,
+      updated_at: d.updated_at,
       out_of_hours: d.out_of_hours,
       mobile_use: d.mobile_use,
       no_uniform: d.no_uniform,
       no_sneakers: d.no_sneakers,
+      deleted_at: d.deleted_at,
+      deleted_by: d.deleted_by,
+      deleted_by_name: d.deleted_by_name,
+      deleted_by_matricula: d.deleted_by_matricula,
+      deleted_justification: d.deleted_justification,
       created_at: d.created_at
     }));
   },
@@ -1915,6 +1934,17 @@ export const StorageService = {
       teacher_referral: notification.teacher_referral,
       teacher_name: notification.teacher_name,
       operator_id: notification.operator_id,
+      operator_name: notification.operator_name,
+      operator_matricula: notification.operator_matricula,
+      updated_by: notification.updated_by,
+      updated_by_name: notification.updated_by_name,
+      updated_by_matricula: notification.updated_by_matricula,
+      updated_at: notification.updated_at,
+      deleted_at: notification.deleted_at,
+      deleted_by: notification.deleted_by,
+      deleted_by_name: notification.deleted_by_name,
+      deleted_by_matricula: notification.deleted_by_matricula,
+      deleted_justification: notification.deleted_justification,
       out_of_hours: notification.out_of_hours || false,
       mobile_use: notification.mobile_use || false,
       no_uniform: notification.no_uniform || false,
@@ -1925,7 +1955,35 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  deleteNotification: async (id: string) => {
+  softDeleteNotification: async (id: string, userId: string, userName: string, userMatricula: string, justification: string) => {
+    const { error } = await supabase
+      .from('student_notifications')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: userId,
+        deleted_by_name: userName,
+        deleted_by_matricula: userMatricula,
+        deleted_justification: justification
+      })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  cancelDeleteNotification: async (id: string) => {
+    const { error } = await supabase
+      .from('student_notifications')
+      .update({
+        deleted_at: null,
+        deleted_by: null,
+        deleted_by_name: null,
+        deleted_by_matricula: null,
+        deleted_justification: null
+      })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  deleteNotificationExpired: async (id: string) => {
     const { error } = await supabase.from('student_notifications').delete().eq('id', id);
     if (error) throw error;
   },

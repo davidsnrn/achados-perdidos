@@ -46,13 +46,58 @@
     const docId = urlParams.get('id');
     const content = document.getElementById('content');
 
-    function renderError(message) {
+    function renderError(message, showInput) {
       content.innerHTML = `
         <div class="status-icon invalid">&#10007;</div>
         <h1>Documento nao encontrado</h1>
         <p class="subtitle">${message}</p>
+        ${showInput ? `
+          <div style="margin:20px 0">
+            <div style="display:flex;gap:8px;max-width:360px;margin:0 auto">
+              <input type="text" id="codeInput" placeholder="Cole ou digite o codigo de verificacao" onkeydown="if(event.key==='Enter')buscarPorCodigo()" style="flex:1;padding:12px 16px;border:2px solid #e2e8f0;border-radius:12px;font-size:14px;font-weight:600;outline:none;font-family:monospace;text-transform:uppercase;letter-spacing:1px" />
+              <button onclick="buscarPorCodigo()" style="padding:12px 20px;background:#dc2626;color:#fff;border:none;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap">Buscar</button>
+            </div>
+            <p style="font-size:11px;color:#94a3b8;margin-top:8px">Digite o codigo de 12 caracteres que aparece no comprovante impresso.</p>
+          </div>
+        ` : ''}
         <p class="footer-text">Verifique o codigo informado e tente novamente.</p>
       `;
+      if (showInput) {
+        setTimeout(() => {
+          const inp = document.getElementById('codeInput');
+          if (inp) inp.focus();
+        }, 100);
+      }
+    }
+
+    function buscarPorCodigo() {
+      const code = document.getElementById('codeInput')?.value?.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!code || code.length < 3) {
+        alert('Digite um codigo valido.');
+        return;
+      }
+      content.innerHTML = '<div class="status-icon loading" style="margin-top:24px"><div class="loader"></div></div><h1 style="margin-top:16px">Buscando documento...</h1>';
+      fetch(`${SUPABASE_URL}/rest/v1/student_notifications?select=id,student_name,student_matricula,date,time,class_name,period`, {
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        const found = data.find((n) => {
+          const shortCode = n.id ? n.id.replace(/-/g, '').slice(0, 12).toUpperCase() : '';
+          return shortCode === code || n.id.toUpperCase().includes(code);
+        });
+        if (found) {
+          renderDocumento(found);
+        } else {
+          renderError('Nenhum documento encontrado com este codigo.', true);
+        }
+      })
+      .catch(() => {
+        renderError('Erro ao conectar com o servidor. Tente novamente mais tarde.', true);
+      });
     }
 
     function fmtDate(d) {
@@ -79,7 +124,7 @@
     }
 
     if (!docId) {
-      renderError('Nenhum codigo de verificacao informado na URL.');
+      renderError('Nenhum codigo de verificacao informado na URL.', true);
     } else {
       fetch(`${SUPABASE_URL}/rest/v1/student_notifications?id=eq.${encodeURIComponent(docId)}&select=*`, {
         headers: {
@@ -90,13 +135,13 @@
       .then(res => res.json())
       .then(data => {
         if (!data || data.length === 0) {
-          renderError('O documento nao foi encontrado em nossa base de dados ou o codigo informado e invalido.');
+          renderError('O documento nao foi encontrado em nossa base de dados ou o codigo informado e invalido.', true);
         } else {
           renderDocumento(data[0]);
         }
       })
       .catch(() => {
-        renderError('Erro ao conectar com o servidor. Tente novamente mais tarde.');
+        renderError('Erro ao conectar com o servidor. Tente novamente mais tarde.', true);
       });
     }
   </script>

@@ -171,10 +171,27 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }
   };
 
+  const isAdmin = user.level === UserLevel.ADMIN;
+
   const openDeleteModal = (id: string) => {
+    if (isAdmin) {
+      if (!confirm("Excluir permanentemente esta notificação?")) return;
+      handleForceDelete(id);
+      return;
+    }
     setDeleteTargetId(id);
     setDeleteJustification('');
     setIsDeleteModalOpen(true);
+  };
+
+  const handleForceDelete = async (id: string) => {
+    try {
+      await StorageService.forceDeleteNotification(id);
+      onUpdate();
+    } catch (error) {
+      console.error("Erro ao excluir notificação:", error);
+      alert("Erro ao excluir.");
+    }
   };
 
   const handleSoftDelete = async () => {

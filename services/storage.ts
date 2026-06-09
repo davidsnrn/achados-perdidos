@@ -1988,6 +1988,11 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  forceDeleteNotification: async (id: string) => {
+    const { error } = await supabase.from('student_notifications').delete().eq('id', id);
+    if (error) throw error;
+  },
+
   // Notification Types
   getNotificationTypes: async (campusId?: string): Promise<NotificationType[]> => {
     let query = supabase

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight, Eye, List } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
@@ -81,6 +81,20 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
     return Object.values(groups).sort((a, b) => b.items.length - a.items.length || a.student_name.localeCompare(b.student_name));
   }, [notifications, searchTerm]);
+
+  useEffect(() => {
+    if (selectedStudent) {
+      const updated = notifications.filter(n => n.student_matricula === selectedStudent.student_matricula);
+      if (updated.length > 0) {
+        setSelectedStudent({
+          student_name: updated[0].student_name,
+          student_matricula: updated[0].student_matricula,
+          class_name: updated[0].class_name || '-',
+          items: updated
+        });
+      }
+    }
+  }, [notifications]);
 
   const toggleSelectGroup = (items: StudentNotification[]) => {
     const ids = items.map(i => i.id);
@@ -819,13 +833,6 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => toggleExpandGroup(group.student_matricula)}
-                            className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                            title="Selecionar"
-                          >
-                            <List size={18} />
-                          </button>
                           <button
                             onClick={() => {
                               setSelectedStudent(group);

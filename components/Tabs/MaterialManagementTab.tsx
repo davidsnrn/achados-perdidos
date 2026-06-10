@@ -71,6 +71,16 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [loadingConfig, setLoadingConfig] = useState(true);
     const [sendingCharge, setSendingCharge] = useState(false);
     const [chargeHistory, setChargeHistory] = useState<import('../../types-materiais').ChargeHistory[]>([]);
+    const [showEmailRegisterModal, setShowEmailRegisterModal] = useState(false);
+    const [registerEmailMatricula, setRegisterEmailMatricula] = useState('');
+    const [registerEmailName, setRegisterEmailName] = useState('');
+    const [newEmailInput, setNewEmailInput] = useState('');
+    const [isSavingEmail, setIsSavingEmail] = useState(false);
+    const [emailRegisterAction, setEmailRegisterAction] = useState<{
+        onSave: (email: string) => Promise<void>;
+        onSkip?: () => void;
+        showSkip: boolean;
+    } | null>(null);
     const [loadingChargeHistory, setLoadingChargeHistory] = useState(false);
 
     const campusIdForConfig = user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id;
@@ -354,28 +364,15 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }
     };
 
-    const handleLoanSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!selectedPerson || selectedMaterials.length === 0) {
-            alert('Selecione pessoa e pelo menos um material.');
-            return;
-        }
-
-        // Cadastro Sem E-mail: Opção B - Alerta e pergunta se deseja prosseguir
-        if (!selectedPerson.email) {
-            const proceed = window.confirm(`Atenção: A pessoa '${selectedPerson.name}' não possui e-mail cadastrado. Deseja prosseguir com o empréstimo sem notificações por e-mail?`);
-            if (!proceed) return;
-        }
-
+    const executeLoan = async (email: string | null) => {
         const newLoans = selectedMaterials.map(mat => ({
             id: Math.random().toString(36).substr(2, 9),
             materialId: mat.id,
             materialName: mat.name,
             materialCode: mat.code,
-            personName: selectedPerson.name,
-            personMatricula: selectedPerson.matricula,
-            personEmail: selectedPerson.email,
+            personName: selectedPerson!.name,
+            personMatricula: selectedPerson!.matricula,
+            personEmail: email || selectedPerson!.email,
             loanDate: new Date().toISOString(),
             observation: observation.trim() || undefined,
             status: 'ACTIVE' as const,
@@ -395,12 +392,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setMaterialSearch('');
             setObservation('');
 
-            // Enviar e-mail único de notificação
-            if (selectedPerson.email && emailNotificationEnabled) {
+            if (email && emailNotificationEnabled) {
                 const currentCampus = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id));
                 const res = await EmailService.sendLoanBatchNotification(
-                    selectedPerson.email,
-                    selectedPerson.name,
+                    email,
+                    selectedPerson!.name,
                     newLoans.map(l => ({ materialName: l.materialName, loanDate: l.loanDate })),
                     user.name,
                     user.email,
@@ -419,19 +415,48 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }
     };
 
-    const handleReturn = async (loan: MaterialLoan) => {
-        if (loan.status === 'RETURNED') return;
+    const handleLoanSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
 
+        if (!selectedPerson || selectedMaterials.length === 0) {
+            alert('Selecione pessoa e pelo menos um material.');
+            return;
+        }
+
+        if (!selectedPerson.email) {
+            const personMatricula = selectedPerson.matricula;
+            const personName = selectedPerson.name;
+            setEmailRegisterAction({
+                showSkip: true,
+                onSave: async (email) => {
+                    await StorageService.updatePersonEmail(personMatricula, email);
+                    setSelectedPerson(prev => prev ? { ...prev, email } : null);
+                    await executeLoan(email);
+                },
+                onSkip: async () => {
+                    await executeLoan(null);
+                },
+            });
+            setRegisterEmailMatricula(personMatricula);
+            setRegisterEmailName(personName);
+            setNewEmailInput('');
+            setShowEmailRegisterModal(true);
+            return;
+        }
+
+        await executeLoan(selectedPerson.email);
+    };
+
+    const executeReturn = async (loan: MaterialLoan, email: string | null) => {
         try {
             await StorageService.returnMaterialLoan(loan.id, `${user.name} (${user.matricula})`);
             onUpdate();
             setViewingLoan(null);
 
-            // Enviar e-mail de devolução
-            if (loan.personEmail && emailNotificationEnabled) {
+            if (email && emailNotificationEnabled) {
                 const campusName = campuses.find(c => c.id === user.campus_id)?.name;
                 const res = await EmailService.sendReturnNotification(
-                    loan.personEmail,
+                    email,
                     loan.personName,
                     loan.materialName,
                     loan.materialCode,
@@ -452,6 +477,40 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }
     };
 
+    const handleReturn = async (loan: MaterialLoan) => {
+        if (loan.status === 'RETURNED') return;
+
+        let returnEmail = loan.personEmail;
+        if (!returnEmail) {
+            try {
+                returnEmail = await StorageService.getPersonEmail(loan.personMatricula);
+            } catch (e: any) {
+                alert('Erro ao buscar email: ' + (e?.message || String(e)));
+            }
+        }
+
+        if (!returnEmail && emailNotificationEnabled) {
+            const loanForAction = loan;
+            setEmailRegisterAction({
+                showSkip: true,
+                onSave: async (email) => {
+                    await StorageService.updatePersonEmail(loanForAction.personMatricula, email);
+                    await executeReturn(loanForAction, email);
+                },
+                onSkip: async () => {
+                    await executeReturn(loanForAction, null);
+                },
+            });
+            setRegisterEmailMatricula(loan.personMatricula);
+            setRegisterEmailName(loan.personName);
+            setNewEmailInput('');
+            setShowEmailRegisterModal(true);
+            return;
+        }
+
+        await executeReturn(loan, returnEmail);
+    };
+
     const handleSendCharge = async (loan: MaterialLoan) => {
         let personEmail = loan.personEmail;
         if (!personEmail) {
@@ -462,7 +521,18 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             }
         }
         if (!personEmail) {
-            alert('Esta pessoa não possui e-mail cadastrado para envio de cobrança.');
+            const loanForAction = loan;
+            setEmailRegisterAction({
+                showSkip: false,
+                onSave: async (email) => {
+                    await StorageService.updatePersonEmail(loanForAction.personMatricula, email);
+                    await handleSendCharge(loanForAction);
+                },
+            });
+            setRegisterEmailMatricula(loan.personMatricula);
+            setRegisterEmailName(loan.personName);
+            setNewEmailInput('');
+            setShowEmailRegisterModal(true);
             return;
         }
         setSendingCharge(true);
@@ -507,6 +577,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         } finally {
             setSendingCharge(false);
         }
+    };
+
+    const handleSaveEmailAndSendCharge = async () => {
+        if (!newEmailInput.trim() || !registerEmailMatricula || !emailRegisterAction) return;
+        setIsSavingEmail(true);
+        try {
+            await StorageService.updatePersonEmail(registerEmailMatricula, newEmailInput.trim());
+            setShowEmailRegisterModal(false);
+            await emailRegisterAction.onSave(newEmailInput.trim());
+        } catch (e: any) {
+            alert('Erro ao salvar e-mail: ' + (e?.message || String(e)));
+        } finally {
+            setIsSavingEmail(false);
+        }
+    };
+
+    const handleSkipEmail = async () => {
+        if (!emailRegisterAction?.onSkip) return;
+        setShowEmailRegisterModal(false);
+        await emailRegisterAction.onSkip();
     };
 
     const handleDeleteBulk = async () => {
@@ -1781,6 +1871,57 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                         </div>
                     </div>
                 )}
+            </Modal>
+
+            <Modal isOpen={showEmailRegisterModal} onClose={() => setShowEmailRegisterModal(false)} title="E-mail não cadastrado" maxWidth="max-w-md">
+                <p className="text-sm text-gray-600 mb-4">
+                    Esta pessoa não possui e-mail cadastrado. Cadastre um e-mail abaixo para prosseguir com a operação.
+                </p>
+                <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                    <p className="text-xs text-gray-500">Pessoa</p>
+                    <p className="text-sm font-bold text-gray-800">{registerEmailName} ({registerEmailMatricula})</p>
+                </div>
+                <div className="mb-4">
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">
+                        E-mail
+                    </label>
+                    <input
+                        type="email"
+                        value={newEmailInput}
+                        onChange={e => setNewEmailInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter' && newEmailInput.trim()) handleSaveEmailAndSendCharge(); }}
+                        placeholder="Ex: nome@ifrn.edu.br..."
+                        className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-emerald-500 focus:outline-none transition-colors"
+                        autoFocus
+                    />
+                </div>
+                <div className="flex gap-3 pt-4 border-t">
+                    <button
+                        onClick={() => setShowEmailRegisterModal(false)}
+                        className="py-3 px-4 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+                    >
+                        Fechar
+                    </button>
+                    {emailRegisterAction?.showSkip && (
+                        <button
+                            onClick={handleSkipEmail}
+                            className="flex-1 py-3 text-amber-600 font-bold hover:bg-amber-50 rounded-xl transition-all"
+                        >
+                            Prosseguir sem e-mail
+                        </button>
+                    )}
+                    <button
+                        onClick={handleSaveEmailAndSendCharge}
+                        disabled={isSavingEmail || !newEmailInput.trim()}
+                        className="flex-[2] py-3 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-emerald-700 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                    >
+                        {isSavingEmail ? (
+                            <><Loader2 size={18} className="animate-spin" /> Salvando...</>
+                        ) : (
+                            <><Mail size={18} /> Cadastrar e Enviar</>
+                        )}
+                    </button>
+                </div>
             </Modal>
         </div>
     );

@@ -2295,4 +2295,12 @@ export const StorageService = {
     }
     return data?.email || null;
   },
+
+  updatePersonEmail: async (matricula: string, email: string) => {
+    const { error } = await supabase
+      .from('people')
+      .update({ email })
+      .eq('matricula', matricula);
+    if (error) throw error;
+  },
 };

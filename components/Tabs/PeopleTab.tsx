@@ -176,7 +176,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         name: toTitleCase(name),
         matricula,
         type,
-        email: email.trim() || undefined,
+        email: email.trim() || null,
         campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
       });
       setName('');
@@ -208,7 +208,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       name: toTitleCase(rawName),
       matricula: newMatricula,
       type: formData.get('type') as PersonType,
-      email: rawEmail.trim() || undefined,
+      email: rawEmail.trim() || null,
       campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : (editingPerson.campus_id || user.campus_id)
     };
 
@@ -358,7 +358,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             name: cleanName,
             matricula: cleanMatricula,
             type: detectedType,
-            email: cleanEmail || undefined,
+            email: cleanEmail || null,
             campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
           });
           fileCount++;

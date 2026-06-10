@@ -185,6 +185,98 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
+  const handleReserveKeyLoan = async (locker: Locker, reason: string) => {
+    if (!locker.currentLoan) return;
+
+    const now = new Date();
+    const reserveLoan: LoanData = {
+      id: Math.random().toString(36).substr(2, 9).toUpperCase(),
+      lockerNumber: locker.number,
+      physicalLocation: locker.location,
+      registrationNumber: locker.currentLoan.registrationNumber,
+      studentName: locker.currentLoan.studentName,
+      studentClass: locker.currentLoan.studentClass,
+      loanDate: now.toLocaleDateString('en-CA'),
+      loanTime: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      loanBy: user?.name || 'Sistema',
+      observation: `Chave reserva — ${reason}`,
+      campus_id: locker.campus_id,
+      loanType: 'reserve_key'
+    };
+
+    const updatedLocker = {
+      ...locker,
+      loanHistory: [reserveLoan, ...locker.loanHistory].slice(0, 50)
+    };
+
+    setLoading(true);
+    try {
+      await StorageService.updateSingleLocker(updatedLocker);
+      onUpdate();
+      setShowDetail(false);
+      setSelectedLocker(null);
+      alert(`Chave reserva registrada para ${locker.currentLoan.studentName}!`);
+    } catch (e) {
+      alert("Erro ao registrar chave reserva.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReturnReserveKey = async (lockerNumber: string, loanId: string) => {
+    const l = lockers.find(loc => loc.number === lockerNumber);
+    if (!l) return;
+
+    const now = new Date();
+    const updatedHistory = l.loanHistory.map(loan => {
+      if (loan.id === loanId && loan.loanType === 'reserve_key' && !loan.returnDate) {
+        return {
+          ...loan,
+          returnDate: now.toLocaleDateString('en-CA'),
+          returnTime: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          returnedBy: user?.name || 'Sistema'
+        };
+      }
+      return loan;
+    });
+
+    const updatedLocker = { ...l, loanHistory: updatedHistory };
+
+    setLoading(true);
+    try {
+      await StorageService.updateSingleLocker(updatedLocker);
+      onUpdate();
+      setShowDetail(false);
+      setSelectedLocker(null);
+      alert("Chave reserva devolvida com sucesso!");
+    } catch (e) {
+      alert("Erro ao registrar devolução da chave reserva.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteLoanHistory = async (lockerNumber: string, loanId: string) => {
+    if (!isAdmin) return;
+    const l = lockers.find(loc => loc.number === lockerNumber);
+    if (!l) return;
+
+    const updatedHistory = l.loanHistory.filter(loan => loan.id !== loanId);
+    const updatedLocker = { ...l, loanHistory: updatedHistory };
+
+    setLoading(true);
+    try {
+      await StorageService.updateSingleLocker(updatedLocker);
+      onUpdate();
+      setShowDetail(false);
+      setSelectedLocker(null);
+    } catch (e) {
+      alert("Erro ao excluir registro.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateObservation = async (lockerNumber: string, newObservation: string) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l || !l.currentLoan) return;
@@ -776,6 +868,9 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           onResolveMaintenance={handleResolveMaintenance}
           onUpdateObservation={handleUpdateObservation}
           onOpenSchedule={(l) => { setSelectedLocker(l); setShowScheduleModal(true); }}
+          onReserveKeyLoan={handleReserveKeyLoan}
+          onReturnReserveKey={handleReturnReserveKey}
+          onDeleteLoanHistory={isAdmin ? handleDeleteLoanHistory : undefined}
         />
       )}
 

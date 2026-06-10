@@ -51,6 +51,7 @@ export interface LoanData {
   returnedBy?: string; // Quem realizou a devolução
   observation: string; // Observação
   campus_id?: string;
+  loanType?: 'regular' | 'reserve_key';
 }
 
 export interface MaintenanceData {

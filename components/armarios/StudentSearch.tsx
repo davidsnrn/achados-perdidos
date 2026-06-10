@@ -9,13 +9,15 @@ interface StudentSearchProps {
   onReturnLocker: (num: string) => void;
   onUpdateObservation: (num: string, obs: string) => void;
   onChangeLocker: (old: string, next: string) => void;
+  onReturnReserveKey?: (lockerNumber: string, loanId: string) => void;
 }
 
 const StudentSearch: React.FC<StudentSearchProps> = ({
   lockers,
   onReturnLocker,
   onUpdateObservation,
-  onChangeLocker
+  onChangeLocker,
+  onReturnReserveKey
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingLoan, setEditingLoan] = useState<LoanData | null>(null);
@@ -44,7 +46,11 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
       }
       locker.loanHistory.forEach(loan => {
         if (loan.registrationNumber === registration) {
-          pastHistory.push(loan);
+          if (loan.loanType === 'reserve_key' && !loan.returnDate) {
+            activeLoans.push(loan);
+          } else {
+            pastHistory.push(loan);
+          }
         }
       });
     });
@@ -172,25 +178,32 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
                   {activeLoans.length > 0 ? (
                     <div className="space-y-4">
                       {activeLoans.map(loan => (
-                        <div key={loan.id} className="p-5 bg-red-50 border-2 border-red-100 rounded-2xl relative overflow-hidden group">
-                          <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                        <div key={loan.id} className={`p-5 rounded-2xl relative overflow-hidden group border-2 ${loan.loanType === 'reserve_key' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-100'}`}>
+                          <div className={`absolute top-0 left-0 w-1 h-full ${loan.loanType === 'reserve_key' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">Armário #{loan.lockerNumber}</p>
-                              <p className="text-sm font-black text-red-800 uppercase">Chave em posse do solicitante</p>
+                              <p className="text-xs font-black uppercase tracking-widest mb-1 flex items-center gap-2">
+                                <span className={loan.loanType === 'reserve_key' ? 'text-amber-500' : 'text-red-400'}>Armário #{loan.lockerNumber}</span>
+                                {loan.loanType === 'reserve_key' && (
+                                  <span className="px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-[8px] font-black uppercase">Chave Reserva</span>
+                                )}
+                              </p>
+                              <p className={`text-sm font-black uppercase ${loan.loanType === 'reserve_key' ? 'text-amber-800' : 'text-red-800'}`}>
+                                {loan.loanType === 'reserve_key' ? 'Chave reserva em posse do solicitante' : 'Chave em posse do solicitante'}
+                              </p>
                             </div>
                             <button
                               onClick={() => openUpdateModal(loan)}
-                              className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter hover:bg-red-700 transition-colors shadow-sm"
+                              className={`text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter hover:bg-red-700 transition-colors shadow-sm ${loan.loanType === 'reserve_key' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-red-600'}`}
                             >
                               Atualizar Situação
                             </button>
                           </div>
-                          <p className="text-xs text-red-600/70 font-bold mt-2 italic">Retirada em: {loan.loanDate}</p>
+                          <p className={`text-xs font-bold mt-2 italic ${loan.loanType === 'reserve_key' ? 'text-amber-600/70' : 'text-red-600/70'}`}>Retirada em: {loan.loanDate}</p>
                           {loan.observation && (
-                            <div className="mt-3 p-3 bg-white/50 rounded-xl border border-red-100">
-                              <p className="text-[9px] font-black text-red-400 uppercase tracking-widest mb-1">Observação:</p>
-                              <p className="text-[11px] font-medium text-red-900 leading-tight">{loan.observation}</p>
+                            <div className={`mt-3 p-3 bg-white/50 rounded-xl border ${loan.loanType === 'reserve_key' ? 'border-amber-100' : 'border-red-100'}`}>
+                              <p className="text-[9px] font-black uppercase tracking-widest mb-1 text-slate-400">Observação:</p>
+                              <p className="text-[11px] font-medium text-slate-700 leading-tight">{loan.observation}</p>
                             </div>
                           )}
                         </div>
@@ -211,10 +224,15 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
                   {pastHistory.length > 0 ? (
                     <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-4">
                       {pastHistory.map((loan, i) => (
-                        <div key={i} className="p-4 bg-white border border-slate-100 rounded-xl hover:border-slate-200 transition-colors shadow-sm">
+                        <div key={i} className={`p-4 bg-white border rounded-xl hover:border-slate-200 transition-colors shadow-sm ${loan.loanType === 'reserve_key' ? 'border-amber-100' : 'border-slate-100'}`}>
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <p className="font-black text-slate-700 uppercase text-xs">Armário #{loan.lockerNumber}</p>
+                              <div className="flex items-center gap-2">
+                                <p className={`font-black uppercase text-xs ${loan.loanType === 'reserve_key' ? 'text-amber-700' : 'text-slate-700'}`}>Armário #{loan.lockerNumber}</p>
+                                {loan.loanType === 'reserve_key' && (
+                                  <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[8px] font-black uppercase">Chave Reserva</span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-3 mt-1">
                                 <p className="text-slate-400 text-[10px] font-bold uppercase tracking-tighter">Período: {loan.loanDate} — {loan.returnDate}</p>
                                 <a
@@ -227,7 +245,7 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
                                 </a>
                               </div>
                             </div>
-                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Devolvido</span>
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${loan.loanType === 'reserve_key' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{loan.loanType === 'reserve_key' ? 'Reserva Devolvida' : 'Devolvido'}</span>
                           </div>
                           {loan.observation && (
                             <div className="mt-2 pl-3 border-l-2 border-slate-100">
@@ -328,12 +346,26 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
                 </button>
 
                 <div className="flex gap-3">
-                  <button
-                    onClick={handleReturnDirectly}
-                    className="flex-1 bg-red-50 text-red-600 border border-red-100 font-black py-4 rounded-2xl hover:bg-red-100 transition-all uppercase text-[10px] tracking-widest"
-                  >
-                    Devolver Chave
-                  </button>
+                  {editingLoan.loanType === 'reserve_key' && onReturnReserveKey ? (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Confirmar devolução da chave reserva do armário #${editingLoan.lockerNumber}?`)) {
+                          onReturnReserveKey(editingLoan.lockerNumber, editingLoan.id);
+                          setEditingLoan(null);
+                        }
+                      }}
+                      className="flex-1 bg-amber-50 text-amber-600 border border-amber-100 font-black py-4 rounded-2xl hover:bg-amber-100 transition-all uppercase text-[10px] tracking-widest"
+                    >
+                      Devolver Chave Reserva
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleReturnDirectly}
+                      className="flex-1 bg-red-50 text-red-600 border border-red-100 font-black py-4 rounded-2xl hover:bg-red-100 transition-all uppercase text-[10px] tracking-widest"
+                    >
+                      Devolver Chave
+                    </button>
+                  )}
                   <button
                     onClick={() => setEditingLoan(null)}
                     className="flex-1 bg-slate-50 text-slate-500 border border-slate-100 font-black py-4 rounded-2xl hover:bg-slate-100 transition-all uppercase text-[10px] tracking-widest"

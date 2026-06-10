@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronRight, Eye, List, X } from 'lucide-react';
+import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronUp, ChevronRight, Eye, List, X } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
 import { Modal } from '../ui/Modal';
@@ -38,6 +38,9 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [filterDate, setFilterDate] = useState('');
   const [filterDateStart, setFilterDateStart] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
+  type SortColumn = 'name' | 'class' | 'total' | 'lastDate';
+  const [sortColumn, setSortColumn] = useState<SortColumn>('lastDate');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Form State
   const [formData, setFormData] = useState<Partial<StudentNotification>>({
@@ -89,8 +92,25 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
       groups[n.student_matricula].items.push(n);
     });
 
-    return Object.values(groups).sort((a, b) => b.items.length - a.items.length || a.student_name.localeCompare(b.student_name));
-  }, [notifications, searchTerm, dateFilterMode, filterDate, filterDateStart, filterDateEnd]);
+    return Object.values(groups).sort((a, b) => {
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      switch (sortColumn) {
+        case 'name':
+          return dir * a.student_name.localeCompare(b.student_name);
+        case 'class':
+          return dir * (a.class_name || '').localeCompare(b.class_name || '');
+        case 'total':
+          return dir * (a.items.length - b.items.length);
+        case 'lastDate': {
+          const aMax = Math.max(...a.items.map(i => new Date(i.date + 'T' + (i.time || '00:00')).getTime()));
+          const bMax = Math.max(...b.items.map(i => new Date(i.date + 'T' + (i.time || '00:00')).getTime()));
+          return dir * (aMax - bMax);
+        }
+        default:
+          return 0;
+      }
+    });
+  }, [notifications, searchTerm, dateFilterMode, filterDate, filterDateStart, filterDateEnd, sortColumn, sortDirection]);
 
   useEffect(() => {
     if (selectedStudent) {
@@ -258,6 +278,12 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     if (!d) return '-';
     const [y, m, day] = d.split('-');
     return `${day}/${m}/${y}`;
+  };
+
+  const getCampusName = (campusId?: string) => {
+    if (!campusId) return 'Não informado';
+    const campus = campuses.find(c => c.id === campusId);
+    return campus?.name || campusId;
   };
 
   const operatorDisplay = (name?: string, matricula?: string) => {
@@ -711,6 +737,20 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     setIsModalOpen(true);
   };
 
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection(column === 'name' || column === 'class' ? 'asc' : 'desc');
+    }
+  };
+
+  const SortIcon = ({ column }: { column: SortColumn }) => {
+    if (sortColumn !== column) return <ChevronDown size={12} className="opacity-0 group-hover:opacity-40 ml-1" />;
+    return sortDirection === 'asc' ? <ChevronDown size={12} className="ml-1" /> : <ChevronUp size={12} className="ml-1" />;
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Section */}
@@ -871,10 +911,26 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                     }}
                   />
                 </th>
-                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider">Aluno</th>
-                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider">Turma / Período</th>
-                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Total Ocorrências</th>
-                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Última Ocorrência</th>
+                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer select-none group" onClick={() => handleSort('name')}>
+                  <span className="flex items-center gap-1 hover:text-gray-700 transition-colors">
+                    Aluno <SortIcon column="name" />
+                  </span>
+                </th>
+                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider cursor-pointer select-none group" onClick={() => handleSort('class')}>
+                  <span className="flex items-center gap-1 hover:text-gray-700 transition-colors">
+                    Turma / Período <SortIcon column="class" />
+                  </span>
+                </th>
+                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center cursor-pointer select-none group" onClick={() => handleSort('total')}>
+                  <span className="inline-flex items-center gap-1 hover:text-gray-700 transition-colors">
+                    Total Ocorrências <SortIcon column="total" />
+                  </span>
+                </th>
+                <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-center cursor-pointer select-none group" onClick={() => handleSort('lastDate')}>
+                  <span className="inline-flex items-center gap-1 hover:text-gray-700 transition-colors">
+                    Última Ocorrência <SortIcon column="lastDate" />
+                  </span>
+                </th>
                 <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Ações</th>
               </tr>
             </thead>
@@ -963,6 +1019,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                     <div className="flex items-center gap-1 mt-1 text-[10px] text-gray-400">
                                       <UserIcon size={10} className="text-gray-300" />
                                       <span>{operatorDisplay(n.operator_name, n.operator_matricula)}</span>
+                                      {isAdmin && n.campus_id && (
+                                        <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold">
+                                          {getCampusName(n.campus_id)}
+                                        </span>
+                                      )}
                                       {n.updated_by_name && (
                                         <span className="ml-1 text-gray-300">
                                           · Editado por {operatorDisplay(n.updated_by_name, n.updated_by_matricula)}
@@ -1379,10 +1440,15 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
 
                     <div className="space-y-6">
                       <div className={`flex flex-wrap items-center gap-4 text-xs px-4 py-2 rounded-xl ${n.deleted_at ? 'bg-red-100' : 'bg-gray-50'}`}>
-                        <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5">
                           <UserIcon size={12} className="text-gray-300" />
                           <span className="font-bold text-gray-500">Registrado por:</span>
                           <span>{operatorDisplay(n.operator_name, n.operator_matricula)}</span>
+                          {isAdmin && n.campus_id && (
+                            <span className="ml-2 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-[11px] font-bold">
+                              {getCampusName(n.campus_id)}
+                            </span>
+                          )}
                         </div>
                         {n.updated_by_name && (
                           <div className="flex items-center gap-1.5">

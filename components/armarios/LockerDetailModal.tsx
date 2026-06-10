@@ -11,6 +11,9 @@ interface LockerDetailModalProps {
   onResolveMaintenance: (lockerNumber: string) => void;
   onUpdateObservation: (lockerNumber: string, observation: string) => void;
   onOpenSchedule: (locker: Locker) => void;
+  onReserveKeyLoan?: (locker: Locker, reason: string) => void;
+  onReturnReserveKey?: (lockerNumber: string, loanId: string) => void;
+  onDeleteLoanHistory?: (lockerNumber: string, loanId: string) => void;
 }
 
 const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
@@ -21,9 +24,14 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   onUpdateMaintenance,
   onResolveMaintenance,
   onUpdateObservation,
-  onOpenSchedule
+  onOpenSchedule,
+  onReserveKeyLoan,
+  onReturnReserveKey,
+  onDeleteLoanHistory
 }) => {
   const [isEditingObs, setIsEditingObs] = useState(false);
+  const [showReserveForm, setShowReserveForm] = useState(false);
+  const [reserveReason, setReserveReason] = useState('');
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -172,7 +180,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                     )}
                   </div>
 
-                  <div className="col-span-2 pt-4">
+                  <div className="col-span-2 pt-4 flex flex-col gap-3">
                     <button
                       onClick={() => {
                         if (window.confirm(`Confirmar devolução da chave do armário #${locker.number}?`)) {
@@ -183,6 +191,73 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                     >
                       Registrar Devolução da Chave
                     </button>
+
+                    {(() => {
+                      const activeReserve = (locker.loanHistory || []).find(l => l.loanType === 'reserve_key' && !l.returnDate);
+                      if (activeReserve && onReturnReserveKey) {
+                        return (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
+                                onReturnReserveKey(locker.number, activeReserve.id);
+                              }
+                            }}
+                            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Devolver Chave Reserva
+                          </button>
+                        );
+                      }
+                      if (onReserveKeyLoan && !showReserveForm) {
+                        return (
+                          <button
+                            onClick={() => setShowReserveForm(true)}
+                            className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                            Registrar Chave Reserva
+                          </button>
+                        );
+                      }
+                      if (onReserveKeyLoan && showReserveForm) {
+                        return (
+                          <div className="space-y-3 animate-fade-in">
+                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                              <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Motivo do Empréstimo da Chave Reserva</p>
+                              <textarea
+                                placeholder="Ex: Aluno perdeu a chave original, precisa de cópia..."
+                                className="w-full bg-white border border-amber-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:border-amber-500 outline-none resize-none"
+                                rows={3}
+                                value={reserveReason}
+                                onChange={(e) => setReserveReason(e.target.value)}
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => { setShowReserveForm(false); setReserveReason(''); }}
+                                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-black text-slate-400 uppercase text-[10px] hover:bg-slate-50"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (!reserveReason.trim()) { alert("Informe o motivo do empréstimo da chave reserva."); return; }
+                                  onReserveKeyLoan(locker, reserveReason.trim());
+                                  setShowReserveForm(false);
+                                  setReserveReason('');
+                                }}
+                                className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg hover:bg-amber-700"
+                              >
+                                Confirmar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 </div>
               ) : locker.status === LockerStatus.MAINTENANCE && locker.maintenanceRecord ? (
@@ -267,7 +342,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                           return timeB.localeCompare(timeA);
                         })
                         .map((item, idx) => (
-                          <div key={idx} className="flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                          <div key={idx} className={`flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0 ${item.loanType === 'reserve_key' ? 'bg-amber-50/50 -mx-4 px-4 py-2 rounded-xl border-l-4 border-amber-400 mb-2' : ''}`}>
                             <div className="flex justify-between items-start text-xs">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-0.5">
@@ -280,6 +355,9 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                                   >
                                     SUAP
                                   </a>
+                                  {item.loanType === 'reserve_key' && (
+                                    <span className="px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-[8px] font-black uppercase tracking-wider">Chave Reserva</span>
+                                  )}
                                 </div>
                                 <p className="text-slate-400 font-bold">{item.registrationNumber} • {item.studentClass}</p>
                                 <div className="mt-1 flex flex-col gap-0.5">
@@ -300,7 +378,34 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                                   {formatDisplayDate(item.loanDate)} {item.loanTime ? `às ${item.loanTime}` : ''}
                                   {item.returnDate ? ` — ${formatDisplayDate(item.returnDate)}${item.returnTime ? ` às ${item.returnTime}` : ''}` : ' — ...'}
                                 </p>
-                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase inline-block ${item.returnDate ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : 'Ativo'}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase inline-block ${item.returnDate ? 'bg-green-100 text-green-700' : item.loanType === 'reserve_key' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : item.loanType === 'reserve_key' ? 'Ativo (Reserva)' : 'Ativo'}</span>
+                                  {item.loanType === 'reserve_key' && !item.returnDate && onReturnReserveKey && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
+                                          onReturnReserveKey(locker.number, item.id);
+                                        }
+                                      }}
+                                      className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[8px] font-black uppercase tracking-wider transition-all"
+                                    >
+                                      Devolver
+                                    </button>
+                                  )}
+                                  {onDeleteLoanHistory && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Excluir permanentemente este registro do histórico do armário #${locker.number}?`)) {
+                                          onDeleteLoanHistory(locker.number, item.id);
+                                        }
+                                      }}
+                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      title="Excluir registro"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             {item.observation && (

@@ -1619,12 +1619,26 @@ export const StorageService = {
     const { data: lockerData } = await lockersQuery;
     const activeLockerLoans = (lockerData || []).filter(l => l.current_loan?.registrationNumber === matricula);
 
+    // 5. Check for active reserve key loans (in loan_history)
+    let allLockersQuery = supabase.from('lockers').select('*');
+    if (campusId) allLockersQuery = allLockersQuery.eq('campus_id', campusId);
+    const { data: allLockerData } = await allLockersQuery;
+    const reserveKeyLoans: any[] = [];
+    (allLockerData || []).forEach(l => {
+      (l.loan_history || []).forEach((loan: any) => {
+        if (loan.registrationNumber === matricula && loan.loanType === 'reserve_key' && !loan.returnDate) {
+          reserveKeyLoans.push({ ...loan, lockerNumber: l.number });
+        }
+      });
+    });
+
     return {
       person,
       bookLoans: bookLoans || [],
       materialLoans: materialLoans || [],
       lockerLoans: activeLockerLoans.map(l => ({ ...l.current_loan, lockerNumber: l.number })),
-      hasPendencies: (bookLoans?.length || 0) > 0 || (materialLoans?.length || 0) > 0 || activeLockerLoans.length > 0
+      reserveKeyLoans,
+      hasPendencies: (bookLoans?.length || 0) > 0 || (materialLoans?.length || 0) > 0 || activeLockerLoans.length > 0 || reserveKeyLoans.length > 0
     };
   },
 

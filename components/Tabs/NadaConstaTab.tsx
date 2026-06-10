@@ -115,6 +115,12 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
             if (locker.currentLoan?.registrationNumber === registration) {
                 activeLockerLoans.push(locker.currentLoan);
             }
+            // Check for active reserve key loans in history
+            (locker.loanHistory || []).forEach(loan => {
+                if (loan.registrationNumber === registration && loan.loanType === 'reserve_key' && !loan.returnDate) {
+                    activeLockerLoans.push({ ...loan, lockerNumber: locker.number });
+                }
+            });
         });
 
         // Check Books
@@ -242,15 +248,23 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                                     </h4>
                                     <div className="space-y-4">
                                         {activeLockerLoans.length > 0 ? (
-                                            activeLockerLoans.map(loan => (
-                                                <div key={loan.id} className="p-6 bg-red-50 border border-red-200 rounded-[2rem] flex items-center justify-between shadow-sm border-l-8 border-l-red-500">
+                                            activeLockerLoans.map(loan => {
+                                                const isReserve = loan.loanType === 'reserve_key';
+                                                return (
+                                                <div key={loan.id} className={`p-6 rounded-[2rem] flex items-center justify-between shadow-sm border-l-8 ${isReserve ? 'bg-amber-50 border-amber-200 border-l-amber-500' : 'bg-red-50 border-red-200 border-l-red-500'}`}>
                                                     <div>
-                                                        <p className="text-xs font-black text-red-600 uppercase tracking-tight">Armário #{loan.lockerNumber}</p>
-                                                        <p className="text-[10px] text-red-400 font-bold uppercase mt-1.5 flex items-center gap-1.5"><History size={10} />Retirado em: {loan.loanDate}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className={`text-xs font-black uppercase tracking-tight ${isReserve ? 'text-amber-600' : 'text-red-600'}`}>Armário #{loan.lockerNumber}</p>
+                                                            {isReserve && (
+                                                                <span className="px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-[8px] font-black uppercase">Chave Reserva</span>
+                                                            )}
+                                                        </div>
+                                                        <p className={`text-[10px] font-bold uppercase mt-1.5 flex items-center gap-1.5 ${isReserve ? 'text-amber-400' : 'text-red-400'}`}><History size={10} />Retirado em: {loan.loanDate}</p>
                                                     </div>
-                                                    <div className="bg-red-500 text-white px-3 py-1.5 rounded-xl text-[9px] font-black uppercase shadow-sm shadow-red-100">Ocupado</div>
+                                                    <div className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase shadow-sm ${isReserve ? 'bg-amber-500 text-white' : 'bg-red-500 text-white'}`}>{isReserve ? 'Chave Reserva' : 'Ocupado'}</div>
                                                 </div>
-                                            ))
+                                                );
+                                            })
                                         ) : (
                                             <div className="p-8 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-300 transition-colors hover:bg-slate-100/50">
                                                 <Key size={32} className="opacity-20 mb-3" />

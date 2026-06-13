@@ -37,6 +37,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [schedules, setSchedules] = useState<LockerSchedule[]>([]);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showLoanModal, setShowLoanModal] = useState(false);
+  const [reserveAlertOpen, setReserveAlertOpen] = useState(false);
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user?.level === UserLevel.ADMIN ? adminGlobalCampusId : user?.campus_id) || ''
   );
@@ -51,6 +52,23 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const isAdmin = user?.level === UserLevel.ADMIN;
   const isAdvanced = user?.level === UserLevel.ADVANCED;
   const canViewConfig = isAdmin || isAdvanced;
+
+  const activeReserveKeys = useMemo(() => {
+    const result: { lockerNumber: string; studentName: string; loanDate: string; loanTime?: string }[] = [];
+    lockers.forEach(locker => {
+      locker.loanHistory.forEach(loan => {
+        if (loan.loanType === 'reserve_key' && !loan.returnDate) {
+          result.push({
+            lockerNumber: locker.number,
+            studentName: loan.studentName,
+            loanDate: loan.loanDate,
+            loanTime: loan.loanTime,
+          });
+        }
+      });
+    });
+    return result;
+  }, [lockers]);
 
   useEffect(() => {
     loadSchedules();
@@ -756,6 +774,42 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
                 isActive={statusFilter === 'agendado'}
               />
             </div>
+
+            {activeReserveKeys.length > 0 && (
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-[2rem] shadow-sm overflow-hidden">
+                <button
+                  onClick={() => setReserveAlertOpen(!reserveAlertOpen)}
+                  className="w-full flex items-center justify-between p-6 hover:bg-amber-100/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-200 flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="font-black text-amber-800 text-sm uppercase tracking-widest">Chaves Reserva Pendentes</p>
+                      <p className="text-xs font-bold text-amber-600">{activeReserveKeys.length} chave(s) reserva não devolvida(s)</p>
+                    </div>
+                  </div>
+                  <svg className={`w-5 h-5 text-amber-500 transition-transform duration-300 ${reserveAlertOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                {reserveAlertOpen && (
+                  <div className="px-6 pb-6 flex flex-wrap gap-2 animate-fade-in">
+                    {activeReserveKeys.map((rk, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          const locker = lockers.find(l => l.number === rk.lockerNumber);
+                          if (locker) handleLockerClick(locker);
+                        }}
+                        className="px-4 py-2 bg-white rounded-xl border border-amber-200 text-xs font-bold text-amber-800 shadow-sm hover:shadow-md hover:border-amber-400 transition-all text-left"
+                      >
+                        #{rk.lockerNumber} — {rk.studentName}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-100">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">

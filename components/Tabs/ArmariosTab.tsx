@@ -282,12 +282,11 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     const updatedHistory = l.loanHistory.filter(loan => loan.id !== loanId);
     const updatedLocker = { ...l, loanHistory: updatedHistory };
 
+    setSelectedLocker(prev => prev?.number === lockerNumber ? updatedLocker : prev);
+
     setLoading(true);
     try {
       await StorageService.updateSingleLocker(updatedLocker);
-      onUpdate();
-      setShowDetail(false);
-      setSelectedLocker(null);
     } catch (e) {
       alert("Erro ao excluir registro.");
     } finally {

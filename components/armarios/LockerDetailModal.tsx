@@ -32,6 +32,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   const [isEditingObs, setIsEditingObs] = useState(false);
   const [showReserveForm, setShowReserveForm] = useState(false);
   const [reserveReason, setReserveReason] = useState('');
+  const [deletedLoanIds, setDeletedLoanIds] = useState<string[]>([]);
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -216,7 +217,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                             className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                            Registrar Chave Reserva
+                            Emprestar Chave Reserva
                           </button>
                         );
                       }
@@ -321,9 +322,9 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
 
               {showHistoryType === 'loans' ? (
                 <>
-                  {locker.loanHistory && locker.loanHistory.length > 0 ? (
+                  {(locker.loanHistory?.filter(l => !deletedLoanIds.includes(l.id)) ?? []).length > 0 ? (
                     <div className="space-y-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                      {[...locker.loanHistory]
+                      {[...locker.loanHistory].filter(l => !deletedLoanIds.includes(l.id))
                         .sort((a, b) => {
                           const parseDate = (dateStr: string) => {
                             if (!dateStr) return 0;
@@ -380,22 +381,11 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                                 </p>
                                 <div className="flex items-center gap-1.5">
                                   <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase inline-block ${item.returnDate ? 'bg-green-100 text-green-700' : item.loanType === 'reserve_key' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : item.loanType === 'reserve_key' ? 'Ativo (Reserva)' : 'Ativo'}</span>
-                                  {item.loanType === 'reserve_key' && !item.returnDate && onReturnReserveKey && (
-                                    <button
-                                      onClick={() => {
-                                        if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
-                                          onReturnReserveKey(locker.number, item.id);
-                                        }
-                                      }}
-                                      className="px-2 py-0.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-[8px] font-black uppercase tracking-wider transition-all"
-                                    >
-                                      Devolver
-                                    </button>
-                                  )}
                                   {onDeleteLoanHistory && (
                                     <button
                                       onClick={() => {
                                         if (window.confirm(`Excluir permanentemente este registro do histórico do armário #${locker.number}?`)) {
+                                          setDeletedLoanIds(prev => [...prev, item.id]);
                                           onDeleteLoanHistory(locker.number, item.id);
                                         }
                                       }}

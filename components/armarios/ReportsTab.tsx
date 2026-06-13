@@ -16,6 +16,7 @@ interface ReportEntry {
     actionDate: string;
     actionTime?: string;
     operatorName?: string;
+    loanType?: 'regular' | 'reserve_key';
 }
 
 const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
@@ -24,6 +25,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
     const [endDate, setEndDate] = useState('');
     const [studentFilter, setStudentFilter] = useState('');
     const [actionTypeFilter, setActionTypeFilter] = useState<'all' | 'Empréstimo' | 'Devolução'>('all');
+    const [loanTypeFilter, setLoanTypeFilter] = useState<'all' | 'regular' | 'reserve_key'>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 20;
 
@@ -65,7 +67,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                     actionType: 'Empréstimo',
                     actionDate: locker.currentLoan.loanDate,
                     actionTime: locker.currentLoan.loanTime,
-                    operatorName: locker.currentLoan.loanBy
+                    operatorName: locker.currentLoan.loanBy,
+                    loanType: locker.currentLoan.loanType
                 });
             }
 
@@ -78,7 +81,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                     actionType: 'Empréstimo',
                     actionDate: loan.loanDate,
                     actionTime: loan.loanTime,
-                    operatorName: loan.loanBy
+                    operatorName: loan.loanBy,
+                    loanType: loan.loanType
                 });
                 if (loan.returnDate) {
                     entries.push({
@@ -89,7 +93,8 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                         actionType: 'Devolução',
                         actionDate: loan.returnDate,
                         actionTime: loan.returnTime,
-                        operatorName: loan.returnedBy
+                        operatorName: loan.returnedBy,
+                        loanType: loan.loanType
                     });
                 }
             });
@@ -120,6 +125,10 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
 
             if (actionTypeFilter !== 'all') {
                 if (entry.actionType !== actionTypeFilter) return false;
+            }
+
+            if (loanTypeFilter !== 'all') {
+                if ((entry.loanType || 'regular') !== loanTypeFilter) return false;
             }
 
             if (studentFilter) {
@@ -172,11 +181,11 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
             }
             return dateB - dateA;
         });
-    }, [lockers, dateFilterType, startDate, endDate, studentFilter, actionTypeFilter]);
+    }, [lockers, dateFilterType, startDate, endDate, studentFilter, actionTypeFilter, loanTypeFilter]);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [dateFilterType, startDate, endDate, studentFilter, actionTypeFilter]);
+    }, [dateFilterType, startDate, endDate, studentFilter, actionTypeFilter, loanTypeFilter]);
 
     const paginatedData = useMemo(() => {
         const start = (currentPage - 1) * PAGE_SIZE;
@@ -189,6 +198,26 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
         <div className="space-y-6 animate-fade-in">
             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
                 <div className="flex flex-col md:flex-row gap-4 items-end mb-8">
+                    <div className="flex-1 space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2">
+                            Tipo de Chave
+                        </label>
+                        <div className="relative">
+                            <select
+                                value={loanTypeFilter}
+                                onChange={(e) => setLoanTypeFilter(e.target.value as any)}
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-green-500 transition-all appearance-none"
+                            >
+                                <option value="all">Todas</option>
+                                <option value="regular">Chave Regular</option>
+                                <option value="reserve_key">Chave Reserva</option>
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" /></svg>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="flex-1 space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 ml-2">
                             <Calendar size={12} /> Período
@@ -276,6 +305,7 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                             setEndDate('');
                             setStudentFilter('');
                             setActionTypeFilter('all');
+                            setLoanTypeFilter('all');
                         }}
                         className="px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
                     >
@@ -305,9 +335,16 @@ const ReportsTab: React.FC<ReportsTabProps> = ({ lockers }) => {
                                         <td className="py-4 px-4 text-sm font-black text-slate-800 uppercase">{entry.studentName}</td>
                                         <td className="py-4 px-2 text-sm font-bold text-slate-500">{entry.studentClass}</td>
                                         <td className="py-4 px-2 text-center">
-                                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${entry.actionType === 'Empréstimo' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-green-50 text-green-600 border border-green-100'}`}>
-                                                {entry.actionType}
-                                            </span>
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${entry.actionType === 'Empréstimo' ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-green-50 text-green-600 border border-green-100'}`}>
+                                                    {entry.actionType}
+                                                </span>
+                                                {entry.loanType === 'reserve_key' && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest bg-amber-50 text-amber-600 border border-amber-200">
+                                                        Chave Reserva
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="py-4 px-4 text-right">
                                             <p className="text-[10px] font-black text-slate-700 uppercase truncate max-w-[120px] ml-auto" title={entry.operatorName}>

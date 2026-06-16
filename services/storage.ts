@@ -1171,11 +1171,29 @@ export const StorageService = {
   },
 
   clearSession: async () => {
-    await supabase.auth.signOut();
-    sessionStorage.removeItem(SESSION_USER_KEY);
-    sessionStorage.removeItem(LAST_ACTIVE_KEY);
-    sessionStorage.removeItem('currentSystem');
-    sessionStorage.removeItem('activeTab');
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (e) {
+      console.warn('[CLEAR] Erro no signOut do Auth:', e);
+    }
+    // Limpar manualmente TUDO relacionado ao Supabase Auth
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && (key.startsWith('sb-') || key === SESSION_USER_KEY || key === LAST_ACTIVE_KEY || key === 'currentSystem' || key === 'activeTab')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    // Também limpar localStorage por segurança
+    const lbKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('sb-')) {
+        lbKeys.push(key);
+      }
+    }
+    lbKeys.forEach(key => localStorage.removeItem(key));
   },
 
   updateLastActive: () => {

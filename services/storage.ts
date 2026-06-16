@@ -112,6 +112,7 @@ export const StorageService = {
       const { error } = await supabase.from('users').update({
         matricula: user.matricula,
         name: user.name,
+        email: user.email || null,
         level: user.level,
         campus_id: user.campus_id,
         permissions: user.permissions,
@@ -132,6 +133,7 @@ export const StorageService = {
         id: user.id,
         matricula: user.matricula,
         name: user.name,
+        email: user.email || null,
         password: hashedPassword,
         level: user.level,
         campus_id: user.campus_id,
@@ -183,6 +185,130 @@ export const StorageService = {
       query = query.eq('campus_id', campusId);
     }
     await query;
+  },
+
+  updateUserEmail: async (userId: string, newEmail: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('users')
+      .update({ email: newEmail })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('[UPDATE EMAIL] Erro ao atualizar e-mail:', error);
+      return false;
+    }
+
+    // Atualizar sessão local
+    const sessionUser = sessionStorage.getItem(SESSION_USER_KEY);
+    if (sessionUser) {
+      const parsed = JSON.parse(sessionUser);
+      if (parsed.id === userId) {
+        parsed.email = newEmail;
+        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(parsed));
+      }
+    }
+
+    return true;
+  },
+
+  requestPasswordReset: async (matricula: string): Promise<{ email: string; name: string; token: string } | null> => {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('matricula', matricula.trim())
+      .single();
+
+    if (error || !user) {
+      console.warn('[RESET] Usuário não encontrado:', matricula);
+      return null;
+    }
+
+    if (!user.email) {
+      console.warn('[RESET] Usuário sem e-mail:', matricula);
+      return null;
+    }
+
+    const token = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ reset_token: token, reset_token_expires: expires })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('[RESET] Erro ao salvar token:', updateError);
+      return null;
+    }
+
+    console.log('[RESET] Token gerado e salvo para:', matricula);
+    return { email: user.email, name: user.name, token };
+  },
+
+  validateResetToken: async (token: string): Promise<User | null> => {
+    console.log('[RESET] Validando token:', token);
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('reset_token', token.trim())
+      .maybeSingle();
+
+    if (error) {
+      console.error('[RESET] Erro na consulta:', error);
+      return null;
+    }
+
+    if (!user) {
+      console.warn('[RESET] Nenhum usuário com este token');
+      return null;
+    }
+
+    console.log('[RESET] Usuário encontrado:', user.matricula, 'Expira:', user.reset_token_expires);
+
+    if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
+      console.warn('[RESET] Token expirado em:', user.reset_token_expires);
+      return null;
+    }
+
+    return user as User;
+  },
+
+  completePasswordReset: async (token: string, newPassword: string): Promise<boolean> => {
+    const user = await StorageService.validateResetToken(token);
+    if (!user) {
+      console.warn('[RESET] Token inválido ou expirado');
+      return false;
+    }
+
+    const hashedPassword = await StorageService.hashPassword(newPassword);
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        password: hashedPassword,
+        reset_token: null,
+        reset_token_expires: null
+      })
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('[RESET] Erro ao atualizar senha:', updateError);
+      return false;
+    }
+
+    // Tentar atualizar no Auth também
+    try {
+      const { error: authError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+      if (authError) {
+        console.warn('[RESET] Aviso ao atualizar Auth:', authError.message);
+      }
+    } catch (authEx) {
+      console.warn('[RESET] Exceção ao atualizar Auth:', authEx);
+    }
+
+    return true;
   },
 
   changePassword: async (userId: string, newPass: string, actorName: string): Promise<User | null> => {

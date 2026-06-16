@@ -53,6 +53,8 @@ export interface User {
   logs?: string[];
   access_logs?: string[];
   moduleOrder?: string[];
+  reset_token?: string;
+  reset_token_expires?: string;
 }
 
 export interface Person {

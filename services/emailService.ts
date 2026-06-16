@@ -438,6 +438,48 @@ export const EmailService = {
     });
   },
 
+  sendPasswordResetEmail: async (
+    toEmail: string,
+    personName: string,
+    resetLink: string,
+    campusName?: string
+  ) => {
+    const subject = `Redefinição de Senha - SIGAE`;
+    const campusLabel = campusName ? `Campus ${campusName}` : '';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #2e7d32; color: white; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px;">Redefinição de Senha</h2>
+          <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SIGAE - IFRN ${campusLabel}</p>
+        </div>
+        <div style="padding: 24px; color: #333; line-height: 1.6;">
+          <p>Olá, <strong>${personName}</strong>,</p>
+          <p>Recebemos uma solicitação de redefinição de senha para sua conta no SIGAE. Clique no botão abaixo para criar uma nova senha:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="background-color: #2e7d32; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">
+              Redefinir Minha Senha
+            </a>
+          </div>
+          <p style="color: #666; font-size: 13px;">Este link expira em 1 hora.</p>
+          <p style="color: #666; font-size: 13px;">Se você não solicitou esta redefinição, ignore este e-mail.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #888; text-align: center; margin: 0;">
+            Esta é uma mensagem automática gerada pelo Sistema de Gestão de Administração Escolar (SIGAE).
+          </p>
+        </div>
+      </div>
+    `;
+
+    return await EmailService.sendEmail({
+      to: toEmail,
+      subject,
+      html,
+      campusName,
+    });
+  },
+
   sendLockerChargeNotification: async (
     toEmail: string,
     personName: string,

@@ -4,6 +4,7 @@ import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus,
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
+import { EmailService } from './services/emailService';
 // Lazy load tabs to improve initial load performance
 const FoundItemsTab = React.lazy(() => import('./components/Tabs/FoundItemsTab').then(module => ({ default: module.FoundItemsTab })));
 const LostReportsTab = React.lazy(() => import('./components/Tabs/LostReportsTab').then(module => ({ default: module.LostReportsTab })));
@@ -20,7 +21,7 @@ const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(
 const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
 const TeacherAttendanceTab = React.lazy(() => import('./components/Tabs/TeacherAttendanceTab').then(module => ({ default: module.TeacherAttendanceTab })));
 
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Mail, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
@@ -107,6 +108,32 @@ const App: React.FC = () => {
   const [showCurrentPass, setShowCurrentPass] = useState(false);
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
+
+  // Forgot Password
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotMatricula, setForgotMatricula] = useState('');
+  const [forgotMessage, setForgotMessage] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+
+  // Reset Password (from email link)
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [resetNewPass, setResetNewPass] = useState('');
+  const [resetConfirmPass, setResetConfirmPass] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
+
+  // Account Config
+  const [showAccountConfig, setShowAccountConfig] = useState(false);
+
+  // Email Change
+  const [emailPassword, setEmailPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
+  const [showEmailPass, setShowEmailPass] = useState(false);
 
   // Drag and Drop state
   const [moduleOrder, setModuleOrder] = useState<string[]>([]);
@@ -504,6 +531,16 @@ const App: React.FC = () => {
     refreshCampuses();
   }, [loadSystemConfig, refreshCampuses]);
 
+  // Detect reset_token in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('reset_token');
+    if (token) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setResetToken(token);
+    }
+  }, []);
+
   // Handle module order
   useEffect(() => {
     if (user) {
@@ -686,6 +723,103 @@ const App: React.FC = () => {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotMatricula.trim()) return;
+
+    setForgotLoading(true);
+    setForgotError('');
+    setForgotMessage('');
+
+    try {
+      const result = await StorageService.requestPasswordReset(forgotMatricula.trim());
+      if (result) {
+        const resetLink = `${window.location.origin}${window.location.pathname}?reset_token=${result.token}`;
+        await EmailService.sendPasswordResetEmail(result.email, result.name, resetLink);
+        setForgotMessage(`E-mail de redefinição enviado para ${result.email.replace(/^(.)(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(b.length) + c)}`);
+      } else {
+        setForgotError('Matrícula não encontrada ou usuário sem e-mail cadastrado.');
+      }
+    } catch (e) {
+      setForgotError('Erro ao processar solicitação. Tente novamente.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleCompleteReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetToken) return;
+    if (resetNewPass !== resetConfirmPass) {
+      setResetError('As senhas não coincidem.');
+      return;
+    }
+    if (resetNewPass.length < 3) {
+      setResetError('A senha deve ter pelo menos 3 caracteres.');
+      return;
+    }
+
+    setResetError('');
+    try {
+      const success = await StorageService.completePasswordReset(resetToken, resetNewPass);
+      if (success) {
+        setResetSuccess(true);
+        setTimeout(() => {
+          setResetToken(null);
+          setResetNewPass('');
+          setResetConfirmPass('');
+          setResetSuccess(false);
+        }, 4000);
+      } else {
+        setResetError('Link inválido ou expirado. Solicite uma nova redefinição.');
+      }
+    } catch (e) {
+      setResetError('Erro ao redefinir senha. Tente novamente.');
+    }
+  };
+
+  const handleUpdateEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (newEmail !== confirmEmail) {
+      setEmailError('Os e-mails não coincidem.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      setEmailError('E-mail inválido.');
+      return;
+    }
+
+    const hashedCurrent = await StorageService.hashPassword(emailPassword);
+    if (user.password !== hashedCurrent) {
+      setEmailError('Senha atual incorreta.');
+      return;
+    }
+
+    setEmailLoading(true);
+    setEmailError('');
+    setEmailSuccess('');
+
+    try {
+      const updated = await StorageService.updateUserEmail(user.id, newEmail);
+      if (updated) {
+        setUser({ ...user, email: newEmail });
+        setEmailSuccess('E-mail atualizado com sucesso!');
+        setEmailPassword('');
+        setNewEmail('');
+        setConfirmEmail('');
+        setShowEmailPass(false);
+      } else {
+        setEmailError('Erro ao atualizar e-mail.');
+      }
+    } catch (e) {
+      setEmailError('Erro de conexão ao atualizar e-mail.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   const handleMobileNav = (tab: string) => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
@@ -770,67 +904,159 @@ const App: React.FC = () => {
         {/* Lado do Formulário */}
         <div className="w-full lg:w-1/2 xl:w-1/3 flex items-center justify-center p-8 lg:p-16 relative">
           <div className="w-full max-w-sm space-y-8 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            <div className="text-center lg:text-left">
-              <div className="lg:hidden mb-8 flex justify-center">
-                <IfrnLogo />
-              </div>
-              <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Bem-vindo de volta.</h2>
-              <p className="text-gray-500">Insira suas credenciais para acessar o painel.</p>
-            </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-5">
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-ifrn-green text-gray-400">
-                    <UserIcon size={20} strokeWidth={2} />
+            {resetToken ? (
+              <>
+                <div className="text-center lg:text-left">
+                  <div className="lg:hidden mb-8 flex justify-center">
+                    <IfrnLogo />
                   </div>
-                  <input
-                    type="text"
-                    value={loginMat}
-                    onChange={e => setLoginMat(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full pl-12 p-4 transition-all outline-none font-medium placeholder:text-gray-400"
-                    placeholder="Sua Matrícula"
-                    required
-                  />
+                  {resetSuccess ? (
+                    <>
+                      <div className="mx-auto w-16 h-16 bg-gradient-to-br from-ifrn-green to-emerald-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-200">
+                        <CheckCircle2 size={32} className="text-white" />
+                      </div>
+                      <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Senha redefinida!</h2>
+                      <p className="text-gray-500">Sua senha foi alterada. Você já pode fazer login.</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-200">
+                        <KeyRound size={32} className="text-white" />
+                      </div>
+                      <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Redefinir Senha</h2>
+                      <p className="text-gray-500">Crie uma nova senha para sua conta.</p>
+                    </>
+                  )}
                 </div>
 
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-ifrn-green text-gray-400">
-                    <Lock size={20} strokeWidth={2} />
-                  </div>
-                  <input
-                    type={showLoginPassword ? "text" : "password"}
-                    value={loginPass}
-                    onChange={e => setLoginPass(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full pl-12 p-4 pr-12 transition-all outline-none font-medium placeholder:text-gray-400"
-                    placeholder="Sua Senha"
-                    required
-                  />
+                {!resetSuccess && (
+                  <form onSubmit={handleCompleteReset} className="space-y-5">
+                    <div className="relative group">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Nova Senha</label>
+                      <input
+                        type="password"
+                        required
+                        value={resetNewPass}
+                        onChange={e => setResetNewPass(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full p-4 transition-all outline-none font-medium"
+                        placeholder="Mínimo de 3 caracteres"
+                        autoComplete="new-password"
+                      />
+                    </div>
+                    <div className="relative group">
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Confirmar Nova Senha</label>
+                      <input
+                        type="password"
+                        required
+                        value={resetConfirmPass}
+                        onChange={e => setResetConfirmPass(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full p-4 transition-all outline-none font-medium"
+                        placeholder="Repita a nova senha"
+                        autoComplete="new-password"
+                      />
+                    </div>
+
+                    {resetError && (
+                      <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl flex items-center gap-3 border border-red-100">
+                        <AlertCircle size={18} className="flex-shrink-0" />
+                        <span className="font-medium">{resetError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="w-full text-white bg-ifrn-green hover:bg-ifrn-darkGreen focus:ring-4 focus:ring-green-300 font-bold rounded-xl text-lg px-5 py-4 transition-all shadow-lg shadow-green-200"
+                    >
+                      Redefinir Senha
+                    </button>
+                  </form>
+                )}
+
+                {resetSuccess && (
                   <button
-                    type="button"
-                    onClick={() => setShowLoginPassword(!showLoginPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-ifrn-green cursor-pointer transition-colors"
+                    onClick={() => { setResetToken(null); setResetNewPass(''); setResetConfirmPass(''); }}
+                    className="w-full text-white bg-ifrn-green hover:bg-ifrn-darkGreen font-bold rounded-xl text-lg px-5 py-4 transition-all shadow-lg shadow-green-200"
                   >
-                    {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    Ir para o Login
                   </button>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="text-center lg:text-left">
+                  <div className="lg:hidden mb-8 flex justify-center">
+                    <IfrnLogo />
+                  </div>
+                  <h2 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Bem-vindo de volta.</h2>
+                  <p className="text-gray-500">Insira suas credenciais para acessar o painel.</p>
                 </div>
-              </div>
 
-              {loginError && (
-                <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl flex items-center gap-3 animate-scale-in border border-red-100">
-                  <AlertCircle size={18} className="flex-shrink-0" />
-                  <span className="font-medium">{loginError}</span>
-                </div>
-              )}
+                <form onSubmit={handleLogin} className="space-y-6">
+                  <div className="space-y-5">
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-ifrn-green text-gray-400">
+                        <UserIcon size={20} strokeWidth={2} />
+                      </div>
+                      <input
+                        type="text"
+                        value={loginMat}
+                        onChange={e => setLoginMat(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full pl-12 p-4 transition-all outline-none font-medium placeholder:text-gray-400"
+                        placeholder="Sua Matrícula"
+                        required
+                      />
+                    </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full text-white bg-ifrn-green hover:bg-ifrn-darkGreen focus:ring-4 focus:ring-green-300 font-bold rounded-xl text-lg px-5 py-4 text-center transition-all transform active:scale-[0.98] shadow-lg shadow-green-200 flex items-center justify-center gap-2 group"
-              >
-                {loading ? <Loader2 className="animate-spin" /> : <>Acessar Sistema <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" /></>}
-              </button>
-            </form>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-ifrn-green text-gray-400">
+                        <Lock size={20} strokeWidth={2} />
+                      </div>
+                      <input
+                        type={showLoginPassword ? "text" : "password"}
+                        value={loginPass}
+                        onChange={e => setLoginPass(e.target.value)}
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full pl-12 p-4 pr-12 transition-all outline-none font-medium placeholder:text-gray-400"
+                        placeholder="Sua Senha"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-ifrn-green cursor-pointer transition-colors"
+                      >
+                        {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end -mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotModal(true)}
+                      className="text-xs font-medium text-gray-500 hover:text-ifrn-green transition-colors"
+                    >
+                      Esqueci minha senha?
+                    </button>
+                  </div>
+
+                  {loginError && (
+                    <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl flex items-center gap-3 animate-scale-in border border-red-100">
+                      <AlertCircle size={18} className="flex-shrink-0" />
+                      <span className="font-medium">{loginError}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full text-white bg-ifrn-green hover:bg-ifrn-darkGreen focus:ring-4 focus:ring-green-300 font-bold rounded-xl text-lg px-5 py-4 text-center transition-all transform active:scale-[0.98] shadow-lg shadow-green-200 flex items-center justify-center gap-2 group"
+                  >
+                    {loading ? <Loader2 className="animate-spin" /> : <>Acessar Sistema <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" /></>}
+                  </button>
+                </form>
+              </>
+            )}
 
             <div className="text-center">
               <p className="text-xs text-gray-400 mt-8">
@@ -838,11 +1064,69 @@ const App: React.FC = () => {
                 <br /> <span className="italic">Desenvolvido por <span className="font-semibold text-gray-500">David Galdino</span></span>
               </p>
             </div>
-
-
-            {/*&copy; {new Date().getFullYear()} IFRN - Campus {systemCampus}. <br /> Todos os direitos reservados.*/}
           </div>
         </div >
+
+        {/* Forgot Password Modal */}
+        <Modal isOpen={showForgotModal} onClose={() => { setShowForgotModal(false); setForgotMatricula(''); setForgotMessage(''); setForgotError(''); }} title="">
+          <div className="space-y-6">
+            <div className="text-center pb-6 border-b border-gray-100">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-200">
+                <KeyRound size={32} className="text-white" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Recuperar Senha</h3>
+              <p className="text-sm text-gray-500">Digite sua matrícula para receber um link de redefinição.</p>
+            </div>
+
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                  <UserIcon size={20} strokeWidth={2} />
+                </div>
+                <input
+                  type="text"
+                  value={forgotMatricula}
+                  onChange={e => setForgotMatricula(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green block w-full pl-12 p-4 transition-all outline-none font-medium"
+                  placeholder="Sua Matrícula"
+                  required
+                  disabled={forgotLoading}
+                />
+              </div>
+
+              {forgotError && (
+                <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl flex items-center gap-3 border border-red-100">
+                  <AlertCircle size={18} className="flex-shrink-0" />
+                  <span className="font-medium">{forgotError}</span>
+                </div>
+              )}
+
+              {forgotMessage && (
+                <div className="p-4 bg-green-50 text-ifrn-green text-sm rounded-xl flex items-center gap-3 border border-green-100">
+                  <CheckCircle2 size={18} className="flex-shrink-0" />
+                  <span className="font-medium">{forgotMessage}</span>
+                </div>
+              )}
+
+              <div className="pt-2 flex gap-3 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => { setShowForgotModal(false); setForgotMatricula(''); setForgotMessage(''); setForgotError(''); }}
+                  className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-200 font-bold transition-all text-sm flex items-center justify-center gap-2"
+                >
+                  {forgotLoading ? <Loader2 className="animate-spin" /> : <><Send size={18} /> Enviar Link</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
       </div >
     );
   }
@@ -1143,10 +1427,10 @@ const App: React.FC = () => {
           <div className="mt-16 flex flex-col md:flex-row items-center justify-center gap-4 animate-fade-in-up">
             <div className="flex gap-4">
               <button
-                onClick={() => setShowPasswordModal(true)}
+                onClick={() => setShowAccountConfig(true)}
                 className="px-6 py-3 text-gray-600 hover:text-ifrn-green font-bold transition-all flex items-center gap-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-ifrn-green hover:-translate-y-0.5 active:translate-y-0"
               >
-                <KeyRound size={20} /> Alterar Minha Senha
+                <Settings size={20} /> Configurações da Conta
               </button>
 
               {canConfigure && (
@@ -1293,6 +1577,131 @@ const App: React.FC = () => {
           </div>
         </Modal>
 
+        {/* Account Config Modal (Password + Email) */}
+        <Modal isOpen={showAccountConfig} onClose={() => setShowAccountConfig(false)} title="">
+          <div className="space-y-6">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setShowPasswordModal(true)}
+                className="flex-1 py-3 text-center text-sm font-bold text-ifrn-green border-b-2 border-ifrn-green transition-all"
+              >
+                <KeyRound size={16} className="inline mr-2" />Senha
+              </button>
+              <button
+                className="flex-1 py-3 text-center text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 transition-all"
+              >
+                <Mail size={16} className="inline mr-2" />E-mail
+              </button>
+            </div>
+
+            {/* Email Section */}
+            <div className="text-center pb-4 border-b border-gray-100">
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-purple-200">
+                <Mail size={32} className="text-white" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Gerenciar E-mail</h3>
+              <p className="text-sm text-gray-500">
+                {user?.email ? (
+                  <>E-mail atual: <span className="font-bold text-gray-700">{user.email}</span></>
+                ) : (
+                  <>Nenhum e-mail cadastrado</>
+                )}
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateEmail} className="space-y-4">
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50/50 p-5 rounded-xl border border-purple-200">
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <Mail size={16} className="text-purple-600" />
+                  {user?.email ? 'Alterar E-mail' : 'Cadastrar E-mail'}
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  className="w-full bg-white border-2 border-purple-200 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-medium"
+                  placeholder="novo@email.com"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-indigo-50/50 p-5 rounded-xl border border-purple-200">
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <CheckCircle2 size={16} className="text-purple-600" />
+                  Confirmar E-mail
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={confirmEmail}
+                  onChange={e => setConfirmEmail(e.target.value)}
+                  className="w-full bg-white border-2 border-purple-200 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-medium"
+                  placeholder="confirme@email.com"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200">
+                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                  <Lock size={16} className="text-gray-500" />
+                  Senha Atual (para confirmar alteração)
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showEmailPass ? "text" : "password"}
+                    required
+                    value={emailPassword}
+                    onChange={e => setEmailPassword(e.target.value)}
+                    className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-medium"
+                    placeholder="Digite sua senha atual"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailPass(!showEmailPass)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-600 transition-colors p-1"
+                    tabIndex={-1}
+                  >
+                    {showEmailPass ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              {emailError && (
+                <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl flex items-center gap-3 border border-red-100">
+                  <AlertCircle size={18} className="flex-shrink-0" />
+                  <span className="font-medium">{emailError}</span>
+                </div>
+              )}
+
+              {emailSuccess && (
+                <div className="p-4 bg-green-50 text-ifrn-green text-sm rounded-xl flex items-center gap-3 border border-green-100">
+                  <CheckCircle2 size={18} className="flex-shrink-0" />
+                  <span className="font-medium">{emailSuccess}</span>
+                </div>
+              )}
+
+              <div className="pt-4 flex gap-3 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => { setShowAccountConfig(false); setNewEmail(''); setConfirmEmail(''); setEmailPassword(''); setEmailError(''); setEmailSuccess(''); setShowEmailPass(false); }}
+                  className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
+                >
+                  Fechar
+                </button>
+                <button
+                  type="submit"
+                  disabled={emailLoading}
+                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-200 font-bold transition-all text-sm flex items-center justify-center gap-2"
+                >
+                  {emailLoading ? <Loader2 className="animate-spin" /> : <><Mail size={18} /> {user?.email ? 'Atualizar E-mail' : 'Cadastrar E-mail'}</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </Modal>
 
       </div>
     );
@@ -1317,7 +1726,7 @@ const App: React.FC = () => {
                   <p className="text-xs text-gray-500 truncate">{user.level}</p>
                 </div>
               </div>
-              <button onClick={() => { setShowPasswordModal(true); setMobileMenuOpen(false); }} className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 py-1.5 rounded-lg hover:bg-gray-50"><KeyRound size={14} /> Alterar Senha</button>
+              <button onClick={() => { setShowAccountConfig(true); setMobileMenuOpen(false); }} className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 py-1.5 rounded-lg hover:bg-gray-50"><Settings size={14} /> Configurações da Conta</button>
               <button
                 onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); sessionStorage.removeItem('currentSystem'); setMobileMenuOpen(false); }}
                 className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-bold text-ifrn-green bg-green-50 border border-green-100 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
@@ -1410,7 +1819,7 @@ const App: React.FC = () => {
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-              <div className="text-sm font-bold text-gray-800 flex items-center justify-end gap-2">{user.name}<button onClick={() => setShowPasswordModal(true)} className="text-gray-400 hover:text-ifrn-green p-1 rounded-full transition-colors" title="Alterar Minha Senha"><KeyRound size={14} /></button></div>
+              <div className="text-sm font-bold text-gray-800 flex items-center justify-end gap-2">{user.name}<button onClick={() => setShowAccountConfig(true)} className="text-gray-400 hover:text-ifrn-green p-1 rounded-full transition-colors" title="Configurações da Conta"><Settings size={14} /></button></div>
               <div className="text-xs text-gray-500">{user.level} • {user.matricula}</div>
             </div>
 

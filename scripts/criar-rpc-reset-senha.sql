@@ -24,6 +24,7 @@ $$;
 -- 2. Função para concluir a redefinição de senha
 CREATE OR REPLACE FUNCTION public.complete_password_reset(
   p_token text,
+  p_new_password text,
   p_hashed_password text
 )
 RETURNS boolean
@@ -31,6 +32,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
+  v_user_id uuid;
   v_updated boolean := false;
 BEGIN
   UPDATE public.users
@@ -39,7 +41,19 @@ BEGIN
       reset_token_expires = NULL
   WHERE reset_token = p_token
     AND reset_token_expires > NOW()
-  RETURNING true INTO v_updated;
+  RETURNING id INTO v_user_id;
+  
+  IF v_user_id IS NOT NULL THEN
+    -- Atualizar também o auth.users para que o Supabase Auth reconheça a nova senha
+    BEGIN
+      UPDATE auth.users
+      SET encrypted_password = auth.crypt(p_new_password, auth.gen_salt('bf'))
+      WHERE id = v_user_id;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'Não foi possível atualizar auth.users: %', SQLERRM;
+    END;
+    v_updated := true;
+  END IF;
   
   RETURN COALESCE(v_updated, false);
 END;

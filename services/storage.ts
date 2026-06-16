@@ -285,24 +285,13 @@ export const StorageService = {
 
     const { data: rpcSuccess, error: updateError } = await supabase.rpc('complete_password_reset', {
       p_token: token.trim(),
+      p_new_password: newPassword,
       p_hashed_password: hashedPassword
     });
 
     if (updateError || !rpcSuccess) {
       console.error('[RESET] Erro ao atualizar senha via RPC:', updateError);
       return false;
-    }
-
-    // Tentar atualizar no Auth também
-    try {
-      const { error: authError } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-      if (authError) {
-        console.warn('[RESET] Aviso ao atualizar Auth:', authError.message);
-      }
-    } catch (authEx) {
-      console.warn('[RESET] Exceção ao atualizar Auth:', authEx);
     }
 
     return true;

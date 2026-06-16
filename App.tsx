@@ -101,7 +101,6 @@ const App: React.FC = () => {
   const [loginError, setLoginError] = useState('');
 
   // Change Password
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -125,6 +124,7 @@ const App: React.FC = () => {
 
   // Account Config
   const [showAccountConfig, setShowAccountConfig] = useState(false);
+  const [accountTab, setAccountTab] = useState<'email' | 'password'>('email');
 
   // Email Change
   const [emailPassword, setEmailPassword] = useState('');
@@ -134,6 +134,29 @@ const App: React.FC = () => {
   const [emailError, setEmailError] = useState('');
   const [emailSuccess, setEmailSuccess] = useState('');
   const [showEmailPass, setShowEmailPass] = useState(false);
+
+  // Password Change (inline feedback for account config modal)
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  const openAccountConfig = () => {
+    setNewEmail('');
+    setConfirmEmail('');
+    setEmailPassword('');
+    setEmailError('');
+    setEmailSuccess('');
+    setShowEmailPass(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowCurrentPass(false);
+    setShowNewPass(false);
+    setShowConfirmPass(false);
+    setPasswordError('');
+    setPasswordSuccess('');
+    setAccountTab('email');
+    setShowAccountConfig(true);
+  };
 
   // Drag and Drop state
   const [moduleOrder, setModuleOrder] = useState<string[]>([]);
@@ -690,17 +713,20 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!user) return;
 
+    setPasswordError('');
+    setPasswordSuccess('');
+
     const hashedCurrent = await StorageService.hashPassword(currentPassword);
     if (user.password !== hashedCurrent) {
-      alert("A senha atual está incorreta.");
+      setPasswordError('A senha atual está incorreta.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      alert("A nova senha e a confirmação não coincidem.");
+      setPasswordError('A nova senha e a confirmação não coincidem.');
       return;
     }
     if (newPassword.length < 3) {
-      alert("A senha deve ter pelo menos 3 caracteres.");
+      setPasswordError('A senha deve ter pelo menos 3 caracteres.');
       return;
     }
 
@@ -709,17 +735,22 @@ const App: React.FC = () => {
       if (updatedUser) {
         setUser(updatedUser);
         StorageService.setSessionUser(updatedUser);
-        alert("Senha alterada com sucesso!");
-        setShowPasswordModal(false);
+        setPasswordSuccess('Senha alterada com sucesso!');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
         setShowCurrentPass(false);
         setShowNewPass(false);
         setShowConfirmPass(false);
+        setTimeout(() => {
+          setShowAccountConfig(false);
+          setPasswordSuccess('');
+        }, 2000);
+      } else {
+        setPasswordError('Erro ao alterar senha. Tente novamente.');
       }
     } catch (e) {
-      alert("Erro ao alterar senha.");
+      setPasswordError('Erro de conexão ao alterar senha.');
     }
   };
 
@@ -1427,7 +1458,7 @@ const App: React.FC = () => {
           <div className="mt-16 flex flex-col md:flex-row items-center justify-center gap-4 animate-fade-in-up">
             <div className="flex gap-4">
               <button
-                onClick={() => setShowAccountConfig(true)}
+                onClick={openAccountConfig}
                 className="px-6 py-3 text-gray-600 hover:text-ifrn-green font-bold transition-all flex items-center gap-3 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-ifrn-green hover:-translate-y-0.5 active:translate-y-0"
               >
                 <Settings size={20} /> Configurações da Conta
@@ -1449,125 +1480,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* MODALS IN MODULE SELECTOR */}
-        <Modal isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setShowCurrentPass(false); setShowNewPass(false); setShowConfirmPass(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }} title="">
-          <div className="space-y-6">
-            {/* Header Moderno */}
-            <div className="text-center pb-6 border-b border-gray-100">
-              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-ifrn-green to-emerald-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-200">
-                <KeyRound size={32} className="text-white" />
-              </div>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">Alterar Senha</h3>
-              <p className="text-sm text-gray-500">Mantenha sua conta segura com uma senha forte</p>
-            </div>
-
-            <form onSubmit={handleChangePassword} className="space-y-5">
-              {/* Senha Atual */}
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200">
-                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <Lock size={16} className="text-gray-500" />
-                  Senha Atual
-                </label>
-                <div className="relative group">
-                  <input
-                    type={showCurrentPass ? "text" : "password"}
-                    required
-                    value={currentPassword}
-                    onChange={e => setCurrentPassword(e.target.value)}
-                    className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                    placeholder="Digite sua senha atual"
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPass(!showCurrentPass)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
-                    tabIndex={-1}
-                  >
-                    {showCurrentPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Nova Senha */}
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
-                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <Key size={16} className="text-ifrn-green" />
-                  Nova Senha
-                </label>
-                <div className="relative group">
-                  <input
-                    type={showNewPass ? "text" : "password"}
-                    required
-                    value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
-                    className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                    placeholder="Digite a nova senha"
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPass(!showNewPass)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
-                    tabIndex={-1}
-                  >
-                    {showNewPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
-                  <AlertCircle size={12} />
-                  Mínimo de 3 caracteres
-                </p>
-              </div>
-
-              {/* Confirmar Senha */}
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
-                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-emerald-600" />
-                  Confirmar Nova Senha
-                </label>
-                <div className="relative group">
-                  <input
-                    type={showConfirmPass ? "text" : "password"}
-                    required
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                    placeholder="Confirme a nova senha"
-                    autoComplete="new-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPass(!showConfirmPass)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
-                    tabIndex={-1}
-                  >
-                    {showConfirmPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Botões de Ação */}
-              <div className="pt-6 flex gap-3 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => { setShowPasswordModal(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
-                  className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-ifrn-green to-emerald-600 text-white rounded-xl hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 active:translate-y-0 font-bold transition-all text-sm flex items-center justify-center gap-2"
-                >
-                  <KeyRound size={18} />
-                  Salvar Nova Senha
-                </button>
-              </div>
-            </form>
-          </div>
-        </Modal>
-
         <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configurações do Sistema">
           <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
             {/* Seleta de campus e setor removido conforme solicitação */}
@@ -1577,129 +1489,258 @@ const App: React.FC = () => {
           </div>
         </Modal>
 
-        {/* Account Config Modal (Password + Email) */}
+        {/* Account Config Modal (Password + Email) - Tabbed */}
         <Modal isOpen={showAccountConfig} onClose={() => setShowAccountConfig(false)} title="">
-          <div className="space-y-6">
+          <div>
+            {/* Header com Avatar e nome */}
+            <div className="text-center pb-5 mb-2">
+              <div className="mx-auto w-14 h-14 bg-gradient-to-br from-ifrn-green to-emerald-600 rounded-2xl flex items-center justify-center mb-3 shadow-lg shadow-green-200">
+                <span className="text-white font-black text-2xl">{user?.name?.charAt(0)}</span>
+              </div>
+              <h3 className="text-xl font-black text-gray-900">{user?.name}</h3>
+              <p className="text-xs text-gray-400 font-medium mt-0.5">{user?.level} · Matrícula {user?.matricula}</p>
+            </div>
+
             {/* Tabs */}
-            <div className="flex border-b border-gray-200">
+            <div className="flex bg-gray-100 rounded-2xl p-1 mb-6">
               <button
-                onClick={() => setShowPasswordModal(true)}
-                className="flex-1 py-3 text-center text-sm font-bold text-ifrn-green border-b-2 border-ifrn-green transition-all"
+                type="button"
+                onClick={() => { setAccountTab('email'); setEmailError(''); setEmailSuccess(''); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                  accountTab === 'email'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
               >
-                <KeyRound size={16} className="inline mr-2" />Senha
+                <Mail size={15} />
+                E-mail
               </button>
               <button
-                className="flex-1 py-3 text-center text-sm font-bold text-gray-500 border-b-2 border-transparent hover:text-gray-700 transition-all"
+                type="button"
+                onClick={() => { setAccountTab('password'); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                  accountTab === 'password'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
               >
-                <Mail size={16} className="inline mr-2" />E-mail
+                <KeyRound size={15} />
+                Senha
               </button>
             </div>
 
-            {/* Email Section */}
-            <div className="text-center pb-4 border-b border-gray-100">
-              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-purple-200">
-                <Mail size={32} className="text-white" />
-              </div>
-              <h3 className="text-2xl font-black text-gray-900 mb-2">Gerenciar E-mail</h3>
-              <p className="text-sm text-gray-500">
-                {user?.email ? (
-                  <>E-mail atual: <span className="font-bold text-gray-700">{user.email}</span></>
-                ) : (
-                  <>Nenhum e-mail cadastrado</>
+            {/* ── ABA: E-MAIL ── */}
+            {accountTab === 'email' && (
+              <div className="space-y-4 animate-fade-in-up">
+                {user?.email && (
+                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                    <Mail size={16} className="text-blue-500 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-blue-500 font-bold uppercase tracking-wide">E-mail atual</p>
+                      <p className="text-sm font-semibold text-gray-800">{user.email}</p>
+                    </div>
+                  </div>
                 )}
-              </p>
-            </div>
 
-            <form onSubmit={handleUpdateEmail} className="space-y-4">
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50/50 p-5 rounded-xl border border-purple-200">
-                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <Mail size={16} className="text-purple-600" />
-                  {user?.email ? 'Alterar E-mail' : 'Cadastrar E-mail'}
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={newEmail}
-                  onChange={e => setNewEmail(e.target.value)}
-                  className="w-full bg-white border-2 border-purple-200 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-medium"
-                  placeholder="novo@email.com"
-                  autoComplete="email"
-                />
+                <form onSubmit={handleUpdateEmail} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Novo E-mail</label>
+                    <input
+                      type="email"
+                      required
+                      value={newEmail}
+                      onChange={e => setNewEmail(e.target.value)}
+                      className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                      placeholder="exemplo@email.com"
+                      autoComplete="off"
+                      readOnly
+                      onFocus={e => e.currentTarget.removeAttribute('readOnly')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Confirmar Novo E-mail</label>
+                    <input
+                      type="email"
+                      required
+                      value={confirmEmail}
+                      onChange={e => setConfirmEmail(e.target.value)}
+                      className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                      placeholder="confirme@email.com"
+                      autoComplete="off"
+                      readOnly
+                      onFocus={e => e.currentTarget.removeAttribute('readOnly')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Senha Atual</label>
+                    <div className="relative">
+                      <input
+                        type={showEmailPass ? 'text' : 'password'}
+                        required
+                        value={emailPassword}
+                        onChange={e => setEmailPassword(e.target.value)}
+                        className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                        placeholder="Confirme com sua senha"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={e => e.currentTarget.removeAttribute('readOnly')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowEmailPass(!showEmailPass)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showEmailPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {emailError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">
+                      <AlertCircle size={16} className="flex-shrink-0" />
+                      <span className="font-medium">{emailError}</span>
+                    </div>
+                  )}
+                  {emailSuccess && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 text-ifrn-green text-sm rounded-xl border border-green-100">
+                      <CheckCircle2 size={16} className="flex-shrink-0" />
+                      <span className="font-medium">{emailSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAccountConfig(false)}
+                      className="flex-1 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={emailLoading}
+                      className="flex-1 py-3 bg-gradient-to-r from-ifrn-green to-emerald-600 text-white rounded-xl hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 active:translate-y-0 font-bold transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                      {emailLoading ? <Loader2 size={18} className="animate-spin" /> : <><Mail size={16} /> {user?.email ? 'Atualizar E-mail' : 'Cadastrar E-mail'}</>}
+                    </button>
+                  </div>
+                </form>
               </div>
+            )}
 
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50/50 p-5 rounded-xl border border-purple-200">
-                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <CheckCircle2 size={16} className="text-purple-600" />
-                  Confirmar E-mail
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={confirmEmail}
-                  onChange={e => setConfirmEmail(e.target.value)}
-                  className="w-full bg-white border-2 border-purple-200 rounded-xl px-4 py-3.5 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-medium"
-                  placeholder="confirme@email.com"
-                  autoComplete="email"
-                />
+            {/* ── ABA: SENHA ── */}
+            {accountTab === 'password' && (
+              <div className="space-y-4 animate-fade-in-up">
+                <form onSubmit={handleChangePassword} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Senha Atual</label>
+                    <div className="relative">
+                      <input
+                        type={showCurrentPass ? 'text' : 'password'}
+                        required
+                        value={currentPassword}
+                        onChange={e => setCurrentPassword(e.target.value)}
+                        className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                        placeholder="Digite sua senha atual"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={e => e.currentTarget.removeAttribute('readOnly')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPass(!showCurrentPass)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showCurrentPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Nova Senha</label>
+                    <div className="relative">
+                      <input
+                        type={showNewPass ? 'text' : 'password'}
+                        required
+                        value={newPassword}
+                        onChange={e => setNewPassword(e.target.value)}
+                        className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                        placeholder="Mínimo de 3 caracteres"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={e => e.currentTarget.removeAttribute('readOnly')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPass(!showNewPass)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showNewPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Confirmar Nova Senha</label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPass ? 'text' : 'password'}
+                        required
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
+                        placeholder="Repita a nova senha"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={e => e.currentTarget.removeAttribute('readOnly')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPass(!showConfirmPass)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors"
+                        tabIndex={-1}
+                      >
+                        {showConfirmPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {passwordError && (
+                    <div className="flex items-center gap-2 p-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-100">
+                      <AlertCircle size={16} className="flex-shrink-0" />
+                      <span className="font-medium">{passwordError}</span>
+                    </div>
+                  )}
+                  {passwordSuccess && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 text-ifrn-green text-sm rounded-xl border border-green-100">
+                      <CheckCircle2 size={16} className="flex-shrink-0" />
+                      <span className="font-medium">{passwordSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAccountConfig(false)}
+                      className="flex-1 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 py-3 bg-gradient-to-r from-ifrn-green to-emerald-600 text-white rounded-xl hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 active:translate-y-0 font-bold transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                      <KeyRound size={16} /> Salvar Nova Senha
+                    </button>
+                  </div>
+                </form>
               </div>
-
-              <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200">
-                <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                  <Lock size={16} className="text-gray-500" />
-                  Senha Atual (para confirmar alteração)
-                </label>
-                <div className="relative group">
-                  <input
-                    type={showEmailPass ? "text" : "password"}
-                    required
-                    value={emailPassword}
-                    onChange={e => setEmailPassword(e.target.value)}
-                    className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none transition-all font-medium"
-                    placeholder="Digite sua senha atual"
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEmailPass(!showEmailPass)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-purple-600 transition-colors p-1"
-                    tabIndex={-1}
-                  >
-                    {showEmailPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
-                </div>
-              </div>
-
-              {emailError && (
-                <div className="p-4 bg-red-50 text-red-600 text-sm rounded-xl flex items-center gap-3 border border-red-100">
-                  <AlertCircle size={18} className="flex-shrink-0" />
-                  <span className="font-medium">{emailError}</span>
-                </div>
-              )}
-
-              {emailSuccess && (
-                <div className="p-4 bg-green-50 text-ifrn-green text-sm rounded-xl flex items-center gap-3 border border-green-100">
-                  <CheckCircle2 size={18} className="flex-shrink-0" />
-                  <span className="font-medium">{emailSuccess}</span>
-                </div>
-              )}
-
-              <div className="pt-4 flex gap-3 border-t border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => { setShowAccountConfig(false); setNewEmail(''); setConfirmEmail(''); setEmailPassword(''); setEmailError(''); setEmailSuccess(''); setShowEmailPass(false); }}
-                  className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
-                >
-                  Fechar
-                </button>
-                <button
-                  type="submit"
-                  disabled={emailLoading}
-                  className="flex-1 px-6 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-200 font-bold transition-all text-sm flex items-center justify-center gap-2"
-                >
-                  {emailLoading ? <Loader2 className="animate-spin" /> : <><Mail size={18} /> {user?.email ? 'Atualizar E-mail' : 'Cadastrar E-mail'}</>}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         </Modal>
 
@@ -1726,7 +1767,7 @@ const App: React.FC = () => {
                   <p className="text-xs text-gray-500 truncate">{user.level}</p>
                 </div>
               </div>
-              <button onClick={() => { setShowAccountConfig(true); setMobileMenuOpen(false); }} className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 py-1.5 rounded-lg hover:bg-gray-50"><Settings size={14} /> Configurações da Conta</button>
+              <button onClick={() => { openAccountConfig(); setMobileMenuOpen(false); }} className="mt-3 w-full flex items-center justify-center gap-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 py-1.5 rounded-lg hover:bg-gray-50"><Settings size={14} /> Configurações da Conta</button>
               <button
                 onClick={() => { setShowModuleSelector(true); setCurrentSystem(null); sessionStorage.removeItem('currentSystem'); setMobileMenuOpen(false); }}
                 className="mt-2 w-full flex items-center justify-center gap-2 text-xs font-bold text-ifrn-green bg-green-50 border border-green-100 py-1.5 rounded-lg hover:bg-green-100 transition-colors"
@@ -1819,7 +1860,7 @@ const App: React.FC = () => {
 
           <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-              <div className="text-sm font-bold text-gray-800 flex items-center justify-end gap-2">{user.name}<button onClick={() => setShowAccountConfig(true)} className="text-gray-400 hover:text-ifrn-green p-1 rounded-full transition-colors" title="Configurações da Conta"><Settings size={14} /></button></div>
+              <div className="text-sm font-bold text-gray-800 flex items-center justify-end gap-2">{user.name}<button onClick={openAccountConfig} className="text-gray-400 hover:text-ifrn-green p-1 rounded-full transition-colors" title="Configurações da Conta"><Settings size={14} /></button></div>
               <div className="text-xs text-gray-500">{user.level} • {user.matricula}</div>
             </div>
 
@@ -1999,124 +2040,6 @@ const App: React.FC = () => {
           <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} Desenvolvido por David Galdino</p>
         </div>
       </footer>
-
-      <Modal isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setShowCurrentPass(false); setShowNewPass(false); setShowConfirmPass(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }} title="">
-        <div className="space-y-6">
-          {/* Header Moderno */}
-          <div className="text-center pb-6 border-b border-gray-100">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-ifrn-green to-emerald-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-green-200">
-              <KeyRound size={32} className="text-white" />
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 mb-2">Alterar Senha</h3>
-            <p className="text-sm text-gray-500">Mantenha sua conta segura com uma senha forte</p>
-          </div>
-
-          <form onSubmit={handleChangePassword} className="space-y-5">
-            {/* Senha Atual */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 p-5 rounded-xl border border-gray-200">
-              <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                <Lock size={16} className="text-gray-500" />
-                Senha Atual
-              </label>
-              <div className="relative group">
-                <input
-                  type={showCurrentPass ? "text" : "password"}
-                  required
-                  value={currentPassword}
-                  onChange={e => setCurrentPassword(e.target.value)}
-                  className="w-full bg-white border-2 border-gray-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                  placeholder="Digite sua senha atual"
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPass(!showCurrentPass)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
-                  tabIndex={-1}
-                >
-                  {showCurrentPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Nova Senha */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
-              <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                <Key size={16} className="text-ifrn-green" />
-                Nova Senha
-              </label>
-              <div className="relative group">
-                <input
-                  type={showNewPass ? "text" : "password"}
-                  required
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                  placeholder="Digite a nova senha"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPass(!showNewPass)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
-                  tabIndex={-1}
-                >
-                  {showNewPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
-                <AlertCircle size={12} />
-                Mínimo de 3 caracteres
-              </p>
-            </div>
-
-            {/* Confirmar Senha */}
-            <div className="bg-gradient-to-br from-green-50 to-emerald-50/50 p-5 rounded-xl border border-green-200">
-              <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-emerald-600" />
-                Confirmar Nova Senha
-              </label>
-              <div className="relative group">
-                <input
-                  type={showConfirmPass ? "text" : "password"}
-                  required
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  className="w-full bg-white border-2 border-green-200 rounded-xl px-4 py-3.5 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                  placeholder="Confirme a nova senha"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPass(!showConfirmPass)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors p-1"
-                  tabIndex={-1}
-                >
-                  {showConfirmPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            {/* Botões de Ação */}
-            <div className="pt-6 flex gap-3 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => { setShowPasswordModal(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}
-                className="flex-1 px-6 py-3.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold transition-all text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-6 py-3.5 bg-gradient-to-r from-ifrn-green to-emerald-600 text-white rounded-xl hover:shadow-lg hover:shadow-green-200 hover:-translate-y-0.5 active:translate-y-0 font-bold transition-all text-sm flex items-center justify-center gap-2"
-              >
-                <KeyRound size={18} />
-                Salvar Nova Senha
-              </button>
-            </div>
-          </form>
-        </div>
-      </Modal>
 
       <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configurações do Sistema">
         <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">

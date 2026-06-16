@@ -1187,8 +1187,9 @@ export const StorageService = {
   },
 
   isSessionExpired: async (): Promise<boolean> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return !session;
+    const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
+    if (!lastActive) return true;
+    return Date.now() - parseInt(lastActive, 10) > TIMEOUT_MS;
   },
 
   factoryReset: async (currentAdminId: string) => {

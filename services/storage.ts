@@ -231,23 +231,16 @@ export const StorageService = {
     const token = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
 
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({ reset_token: token, reset_token_expires: expires })
-      .eq('id', user.id);
+    const { data: rpcData, error: updateError } = await supabase.rpc('request_password_reset', {
+      p_matricula: matricula.trim(),
+      p_token: token,
+      p_expires: expires
+    });
 
     if (updateError) {
-      console.error('[RESET] Erro ao salvar token:', updateError);
+      console.error('[RESET] Erro ao salvar token via RPC:', updateError);
       return null;
     }
-
-    // DEBUG: verificar se o token foi realmente salvo
-    const { data: verify } = await supabase
-      .from('users')
-      .select('id, reset_token')
-      .eq('id', user.id)
-      .maybeSingle();
-    console.log('[RESET DEBUG] Token salvo como:', verify?.reset_token, '| Esperado:', token, '| Match:', verify?.reset_token === token);
 
     console.log('[RESET] Token gerado e salvo para:', matricula);
     return { email: user.email, name: user.name, token };
@@ -255,9 +248,6 @@ export const StorageService = {
 
   validateResetToken: async (token: string): Promise<User | null> => {
     console.log('[RESET] Validando token:', token);
-    // DEBUG: ver todos os tokens existentes
-    const { data: allTokens } = await supabase.from('users').select('matricula, reset_token');
-    console.log('[RESET DEBUG] Todos os tokens no DB:', JSON.stringify(allTokens));
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -293,17 +283,13 @@ export const StorageService = {
 
     const hashedPassword = await StorageService.hashPassword(newPassword);
 
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({
-        password: hashedPassword,
-        reset_token: null,
-        reset_token_expires: null
-      })
-      .eq('id', user.id);
+    const { data: rpcSuccess, error: updateError } = await supabase.rpc('complete_password_reset', {
+      p_token: token.trim(),
+      p_hashed_password: hashedPassword
+    });
 
-    if (updateError) {
-      console.error('[RESET] Erro ao atualizar senha:', updateError);
+    if (updateError || !rpcSuccess) {
+      console.error('[RESET] Erro ao atualizar senha via RPC:', updateError);
       return false;
     }
 

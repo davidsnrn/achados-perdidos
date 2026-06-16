@@ -241,12 +241,23 @@ export const StorageService = {
       return null;
     }
 
+    // DEBUG: verificar se o token foi realmente salvo
+    const { data: verify } = await supabase
+      .from('users')
+      .select('id, reset_token')
+      .eq('id', user.id)
+      .maybeSingle();
+    console.log('[RESET DEBUG] Token salvo como:', verify?.reset_token, '| Esperado:', token, '| Match:', verify?.reset_token === token);
+
     console.log('[RESET] Token gerado e salvo para:', matricula);
     return { email: user.email, name: user.name, token };
   },
 
   validateResetToken: async (token: string): Promise<User | null> => {
     console.log('[RESET] Validando token:', token);
+    // DEBUG: ver todos os tokens existentes
+    const { data: allTokens } = await supabase.from('users').select('matricula, reset_token');
+    console.log('[RESET DEBUG] Todos os tokens no DB:', JSON.stringify(allTokens));
     const { data: user, error } = await supabase
       .from('users')
       .select('*')

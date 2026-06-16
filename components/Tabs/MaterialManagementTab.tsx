@@ -3,7 +3,7 @@ import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel } from '../../types';
 import { StorageService } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -50,6 +50,44 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
     const [observation, setObservation] = useState('');
     const [viewingItem, setViewingItem] = useState<(Material & { status: 'LOANED' | 'AVAILABLE'; activeLoan: MaterialLoan | null }) | null>(null);
+
+    // Inventory Sort
+    type InventorySortKey = 'code' | 'name' | 'status' | 'personName' | 'loanDate';
+    const [inventorySortConfig, setInventorySortConfig] = useState<{ key: InventorySortKey; direction: 'asc' | 'desc' }>({ key: 'status', direction: 'desc' });
+
+    // Reports Sort
+    type ReportSortKey = 'materialName' | 'personName' | 'loanDate' | 'returnDate' | 'status';
+    const [reportSortConfig, setReportSortConfig] = useState<{ key: ReportSortKey; direction: 'asc' | 'desc' }>({ key: 'loanDate', direction: 'desc' });
+
+    const requestInventorySort = (key: InventorySortKey) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (inventorySortConfig.key === key && inventorySortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setInventorySortConfig({ key, direction });
+    };
+
+    const getInventorySortIcon = (name: InventorySortKey) => {
+        if (inventorySortConfig.key !== name) {
+            return <div className="w-3 h-3 ml-1"></div>;
+        }
+        return inventorySortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />;
+    };
+
+    const requestReportSort = (key: ReportSortKey) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (reportSortConfig.key === key && reportSortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setReportSortConfig({ key, direction });
+    };
+
+    const getReportSortIcon = (name: ReportSortKey) => {
+        if (reportSortConfig.key !== name) {
+            return <div className="w-3 h-3 ml-1"></div>;
+        }
+        return reportSortConfig.direction === 'asc' ? <ChevronUp size={14} className="ml-1" /> : <ChevronDown size={14} className="ml-1" />;
+    };
 
     // Reports Filter
     const [reportSearch, setReportSearch] = useState('');
@@ -195,10 +233,57 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         });
     }, [inventory, searchTerm, filterStatus]);
 
+    const sortedInventory = useMemo(() => {
+        const sorted = [...filteredInventory];
+        sorted.sort((a, b) => {
+            let aValue: any, bValue: any;
+
+            switch (inventorySortConfig.key) {
+                case 'code':
+                    aValue = a.code;
+                    bValue = b.code;
+                    break;
+                case 'name':
+                    aValue = a.name;
+                    bValue = b.name;
+                    break;
+                case 'status':
+                    aValue = a.status;
+                    bValue = b.status;
+                    if (aValue === bValue) {
+                        const aDate = a.activeLoan?.loanDate || '';
+                        const bDate = b.activeLoan?.loanDate || '';
+                        return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
+                    }
+                    break;
+                case 'personName':
+                    aValue = a.activeLoan?.personName || '';
+                    bValue = b.activeLoan?.personName || '';
+                    break;
+                case 'loanDate':
+                    aValue = a.activeLoan?.loanDate || '';
+                    bValue = b.activeLoan?.loanDate || '';
+                    break;
+                default:
+                    aValue = a.code;
+                    bValue = b.code;
+            }
+
+            if (aValue < bValue) {
+                return inventorySortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return inventorySortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+        return sorted;
+    }, [filteredInventory, inventorySortConfig]);
+
     const paginatedInventory = useMemo(() => {
         const start = (currentPageInventory - 1) * ITEMS_PER_PAGE;
-        return filteredInventory.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredInventory, currentPageInventory]);
+        return sortedInventory.slice(start, start + ITEMS_PER_PAGE);
+    }, [sortedInventory, currentPageInventory]);
 
     const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
@@ -879,11 +964,21 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 onChange={toggleSelectAll}
                                             />
                                         </th>
-                                        <th className="p-4 text-left">Código</th>
-                                        <th className="p-4 text-left">Material</th>
-                                        <th className="p-4 text-left">Status</th>
-                                        <th className="p-4 text-left">Emprestado Para</th>
-                                        <th className="p-4 text-left">Desde</th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('code')}>
+                                            <div className="flex items-center">Código {getInventorySortIcon('code')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('name')}>
+                                            <div className="flex items-center">Material {getInventorySortIcon('name')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('status')}>
+                                            <div className="flex items-center">Status {getInventorySortIcon('status')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('personName')}>
+                                            <div className="flex items-center">Emprestado Para {getInventorySortIcon('personName')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('loanDate')}>
+                                            <div className="flex items-center">Desde {getInventorySortIcon('loanDate')}</div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -1069,7 +1164,20 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                                     `#${loan.materialCode}`.includes(search) ||
                                                                     loan.materialCode.includes(search));
                                                             })
-                                                            .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+                                                            .sort((a, b) => {
+                                                                let aValue: any, bValue: any;
+                                                                switch (reportSortConfig.key) {
+                                                                    case 'materialName': aValue = a.materialName; bValue = b.materialName; break;
+                                                                    case 'personName': aValue = a.personName; bValue = b.personName; break;
+                                                                    case 'loanDate': aValue = a.loanDate; bValue = b.loanDate; break;
+                                                                    case 'returnDate': aValue = a.returnDate || ''; bValue = b.returnDate || ''; break;
+                                                                    case 'status': aValue = a.status; bValue = b.status; break;
+                                                                    default: aValue = a.loanDate; bValue = b.loanDate;
+                                                                }
+                                                                if (aValue < bValue) return reportSortConfig.direction === 'asc' ? -1 : 1;
+                                                                if (aValue > bValue) return reportSortConfig.direction === 'asc' ? 1 : -1;
+                                                                return 0;
+                                                            })
                                                             .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE);
                                                         return filtered.length > 0 && filtered.every(l => selectedReportIds.includes(l.id));
                                                     })()}
@@ -1086,7 +1194,20 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                                     `#${loan.materialCode}`.includes(search) ||
                                                                     loan.materialCode.includes(search));
                                                             })
-                                                            .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+                                                            .sort((a, b) => {
+                                                                let aValue: any, bValue: any;
+                                                                switch (reportSortConfig.key) {
+                                                                    case 'materialName': aValue = a.materialName; bValue = b.materialName; break;
+                                                                    case 'personName': aValue = a.personName; bValue = b.personName; break;
+                                                                    case 'loanDate': aValue = a.loanDate; bValue = b.loanDate; break;
+                                                                    case 'returnDate': aValue = a.returnDate || ''; bValue = b.returnDate || ''; break;
+                                                                    case 'status': aValue = a.status; bValue = b.status; break;
+                                                                    default: aValue = a.loanDate; bValue = b.loanDate;
+                                                                }
+                                                                if (aValue < bValue) return reportSortConfig.direction === 'asc' ? -1 : 1;
+                                                                if (aValue > bValue) return reportSortConfig.direction === 'asc' ? 1 : -1;
+                                                                return 0;
+                                                            })
                                                             .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE);
                                                         const allSelected = filtered.every(l => selectedReportIds.includes(l.id));
                                                         if (allSelected) {
@@ -1098,11 +1219,21 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 />
                                             </th>
                                         )}
-                                        <th className="p-4 text-left">Material</th>
-                                        <th className="p-4 text-left">Pessoa</th>
-                                        <th className="p-4 text-left">Data Empréstimo</th>
-                                        <th className="p-4 text-left">Data Devolução</th>
-                                        <th className="p-4 text-center">Status</th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('materialName')}>
+                                            <div className="flex items-center">Material {getReportSortIcon('materialName')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('personName')}>
+                                            <div className="flex items-center">Pessoa {getReportSortIcon('personName')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('loanDate')}>
+                                            <div className="flex items-center">Data Empréstimo {getReportSortIcon('loanDate')}</div>
+                                        </th>
+                                        <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('returnDate')}>
+                                            <div className="flex items-center">Data Devolução {getReportSortIcon('returnDate')}</div>
+                                        </th>
+                                        <th className="p-4 text-center cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('status')}>
+                                            <div className="flex items-center justify-center">Status {getReportSortIcon('status')}</div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -1124,7 +1255,41 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
                                             return matchesText && matchesStart && matchesEnd;
                                         })
-                                        .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+                                        .sort((a, b) => {
+                                            let aValue: any, bValue: any;
+                                            switch (reportSortConfig.key) {
+                                                case 'materialName':
+                                                    aValue = a.materialName;
+                                                    bValue = b.materialName;
+                                                    break;
+                                                case 'personName':
+                                                    aValue = a.personName;
+                                                    bValue = b.personName;
+                                                    break;
+                                                case 'loanDate':
+                                                    aValue = a.loanDate;
+                                                    bValue = b.loanDate;
+                                                    break;
+                                                case 'returnDate':
+                                                    aValue = a.returnDate || '';
+                                                    bValue = b.returnDate || '';
+                                                    break;
+                                                case 'status':
+                                                    aValue = a.status;
+                                                    bValue = b.status;
+                                                    break;
+                                                default:
+                                                    aValue = a.loanDate;
+                                                    bValue = b.loanDate;
+                                            }
+                                            if (aValue < bValue) {
+                                                return reportSortConfig.direction === 'asc' ? -1 : 1;
+                                            }
+                                            if (aValue > bValue) {
+                                                return reportSortConfig.direction === 'asc' ? 1 : -1;
+                                            }
+                                            return 0;
+                                        })
                                         .slice((currentPageReports - 1) * ITEMS_PER_PAGE, currentPageReports * ITEMS_PER_PAGE)
                                         .map(loan => (
                                             <tr key={loan.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setViewingLoan(loan)}>

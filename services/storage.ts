@@ -298,49 +298,58 @@ export const StorageService = {
   },
 
   changePassword: async (userId: string, newPass: string, actorName: string): Promise<User | null> => {
+    // Busca o usuário atual para ter os dados completos
     const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
 
-    if (user) {
-      const dateStr = new Date().toLocaleString('pt-BR');
-      const log = `Senha alterada pelo próprio usuário em ${dateStr}.`;
-      const updatedLogs = [...(user.logs || []), log];
+    if (!user) {
+      console.error('[CHANGE PASSWORD] Usuário não encontrado:', userId);
+      return null;
+    }
 
-      const hashedPassword = await StorageService.hashPassword(newPass);
+    const hashedPassword = await StorageService.hashPassword(newPass);
+    const dateStr = new Date().toLocaleString('pt-BR');
+    const log = `Senha alterada pelo próprio usuário em ${dateStr}.`;
 
-      // 1. Atualizar senha no banco de dados local
-      const { data, error } = await supabase
+    // Usa RPC com SECURITY DEFINER para contornar RLS (evita erro de SELECT pós-update)
+    const { data: rpcOk, error: rpcError } = await supabase.rpc('change_user_password', {
+      p_user_id: userId,
+      p_hashed_password: hashedPassword,
+      p_log_message: log
+    });
+
+    if (rpcError || !rpcOk) {
+      console.error('[CHANGE PASSWORD] Erro ao atualizar senha via RPC:', rpcError);
+
+      // Fallback: tenta update direto (caso a RPC não exista ainda)
+      const { error: directError } = await supabase
         .from('users')
-        .update({ password: hashedPassword, logs: updatedLogs })
-        .eq('id', userId)
-        .select()
-        .single();
+        .update({ password: hashedPassword })
+        .eq('id', userId);
 
-      if (error) {
-        console.error('[CHANGE PASSWORD] Erro ao atualizar senha no DB local:', error);
+      if (directError) {
+        console.error('[CHANGE PASSWORD] Fallback também falhou:', directError);
         return null;
       }
-
-      // 2. Atualizar senha no Supabase Auth
-      try {
-        const { error: authError } = await supabase.auth.updateUser({
-          password: newPass
-        });
-
-        if (authError) {
-          console.warn('[CHANGE PASSWORD] Aviso ao atualizar senha no Auth:', authError.message);
-          // Não retorna null aqui - a senha local já foi alterada com sucesso
-          // O Auth pode falhar se o usuário não estiver autenticado via Auth ainda
-        } else {
-          console.log('[CHANGE PASSWORD] Senha atualizada com sucesso no Supabase Auth');
-        }
-      } catch (authEx) {
-        console.error('[CHANGE PASSWORD] Exceção ao atualizar Auth:', authEx);
-        // Mesmo se falhar no Auth, mantenha a alteração local
-      }
-
-      return data as User;
     }
-    return null;
+
+    // Retorna o user com a senha atualizada localmente (sem depender de SELECT pós-update)
+    const updatedUser: User = {
+      ...user,
+      password: hashedPassword,
+      logs: [...(user.logs || []), log]
+    };
+
+    // Atualiza sessão local imediatamente
+    const sessionUser = sessionStorage.getItem(SESSION_USER_KEY);
+    if (sessionUser) {
+      const parsed = JSON.parse(sessionUser);
+      if (parsed.id === userId) {
+        parsed.password = hashedPassword;
+        sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(parsed));
+      }
+    }
+
+    return updatedUser as User;
   },
 
   // People
@@ -1188,9 +1197,11 @@ export const StorageService = {
 
   isSessionExpired: async (): Promise<boolean> => {
     const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
-    if (!lastActive) return true;
+    // Se não existe lastActive, o usuário acabou de logar — não expirou
+    if (!lastActive) return false;
     return Date.now() - parseInt(lastActive, 10) > TIMEOUT_MS;
   },
+
 
   factoryReset: async (currentAdminId: string) => {
     const { error } = await supabase.rpc('admin_reset_db');

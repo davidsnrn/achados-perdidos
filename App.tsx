@@ -655,7 +655,7 @@ const App: React.FC = () => {
         handleLogout();
         alert("Sua sessão expirou por inatividade.");
       }
-    }, 30000);
+    }, 300000); // Verifica a cada 5 minutos
 
     return () => {
       window.removeEventListener('mousemove', handleActivity);
@@ -695,6 +695,7 @@ const App: React.FC = () => {
     try {
       const loggedUser = await StorageService.login(mat, pass);
       if (loggedUser) {
+        StorageService.updateLastActive(); // Inicializa o timer a partir do login
         StorageService.setSessionUser(loggedUser);
         setUser(loggedUser);
         setLoginError('');

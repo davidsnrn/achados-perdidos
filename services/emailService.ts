@@ -436,5 +436,62 @@ export const EmailService = {
       replyTo: operatorEmail,
       campusName,
     });
+  },
+
+  sendLockerChargeNotification: async (
+    toEmail: string,
+    personName: string,
+    lockerNumber: string,
+    loanDateStr: string,
+    operatorEmail?: string,
+    campusName?: string
+  ) => {
+    const formattedDate = new Date(loanDateStr).toLocaleString("pt-BR");
+    const subject = `Lembrete - Devolução de Chave Reserva - Armário ${lockerNumber}`;
+
+    const campusLabel = campusName ? `Campus ${campusName}` : '';
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #e67e22; color: white; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px;">Lembrete de Devolução - Chave Reserva</h2>
+          <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">SIGAE - IFRN ${campusLabel}</p>
+        </div>
+        <div style="padding: 24px; color: #333; line-height: 1.6;">
+          <p>Olá, <strong>${personName}</strong>,</p>
+          <p>Identificamos em nosso sistema que a <strong>chave reserva</strong> do armário listado abaixo ainda não foi devolvida:</p>
+
+          <div style="background-color: #fff8f0; border-left: 4px solid #e67e22; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 4px 0; color: #666; font-size: 14px; width: 120px;"><strong>Armário:</strong></td>
+                <td style="padding: 4px 0; color: #333; font-weight: bold;">#${lockerNumber}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0; color: #666; font-size: 14px;"><strong>Retirada em:</strong></td>
+                <td style="padding: 4px 0; color: #333;">${formattedDate}</td>
+              </tr>
+            </table>
+          </div>
+
+          <p>Solicitamos que, ao encerrar a utilização da chave reserva, efetue a devolução na <strong>COADESC</strong> para a devida baixa no sistema.</p>
+          <p style="font-size: 13px; color: #666;">Estamos à disposição para qualquer dúvida.</p>
+
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #888; text-align: center; margin: 0;">
+            Esta é uma mensagem automática gerada pelo Sistema de Gestão de Administração Escolar (SIGAE).<br />
+            Para dúvidas, entre em contato diretamente com a COADESC.
+          </p>
+        </div>
+      </div>
+    `;
+
+    return await EmailService.sendEmail({
+      to: toEmail,
+      subject,
+      html,
+      replyTo: operatorEmail,
+      campusName,
+    });
   }
 };

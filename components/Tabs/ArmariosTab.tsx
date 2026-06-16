@@ -14,8 +14,10 @@ import ExportTab from '../armarios/ExportTab';
 import AgendamentosTab from '../armarios/AgendamentosTab';
 import ScheduleLockerModal from '../armarios/ScheduleLockerModal';
 import LockerLoanModal from '../armarios/LockerLoanModal';
-import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet, Calendar } from 'lucide-react';
+import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet, Calendar, Mail } from 'lucide-react';
 import { LockerSchedule, LockerScheduleStatus } from '../../types-armarios';
+import { EmailService } from '../../services/emailService';
+import { ChargeHistory } from '../../types-materiais';
 
 interface ArmariosTabProps {
   user: any; // User from Achados system
@@ -41,6 +43,31 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user?.level === UserLevel.ADMIN ? adminGlobalCampusId : user?.campus_id) || ''
   );
+
+  // Reserve key charge state
+  const [reserveKeyChargeHistory, setReserveKeyChargeHistory] = useState<ChargeHistory[]>([]);
+  const [sendingReserveKeyCharge, setSendingReserveKeyCharge] = useState(false);
+  const [showEmailRegisterModal, setShowEmailRegisterModal] = useState(false);
+  const [registerEmailMatricula, setRegisterEmailMatricula] = useState('');
+  const [registerEmailName, setRegisterEmailName] = useState('');
+  const [newEmailInput, setNewEmailInput] = useState('');
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [pendingChargeLoanId, setPendingChargeLoanId] = useState<string | null>(null);
+  const [pendingChargeLockerNumber, setPendingChargeLockerNumber] = useState<string | null>(null);
+
+  // Load charge history when detail modal opens with an active reserve key
+  useEffect(() => {
+    if (showDetail && selectedLocker) {
+      const activeReserve = (selectedLocker.loanHistory || []).find(l => l.loanType === 'reserve_key' && !l.returnDate);
+      if (activeReserve) {
+        StorageService.getChargeHistory(activeReserve.id).then(history => {
+          setReserveKeyChargeHistory(history);
+        }).catch(() => setReserveKeyChargeHistory([]));
+      } else {
+        setReserveKeyChargeHistory([]);
+      }
+    }
+  }, [showDetail, selectedLocker]);
 
   // Sync with global admin campus selector
   useEffect(() => {
@@ -271,6 +298,102 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       alert("Erro ao registrar devolução da chave reserva.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendReserveKeyCharge = async (lockerNumber: string, loanId: string) => {
+    const l = lockers.find(loc => loc.number === lockerNumber);
+    if (!l) return;
+
+    const reserveLoan = l.loanHistory.find(loan => loan.id === loanId && loan.loanType === 'reserve_key');
+    if (!reserveLoan) return;
+
+    const personName = reserveLoan.studentName;
+    const personMatricula = reserveLoan.registrationNumber;
+
+    setSendingReserveKeyCharge(true);
+    try {
+      let personEmail = '';
+      const loanPersonEmail = (reserveLoan as any).personEmail;
+      if (loanPersonEmail) {
+        personEmail = loanPersonEmail;
+      } else {
+        const emailResult = await StorageService.getPersonEmail(personMatricula);
+        personEmail = emailResult || '';
+      }
+
+      if (!personEmail) {
+        setRegisterEmailMatricula(personMatricula);
+        setRegisterEmailName(personName);
+        setPendingChargeLoanId(loanId);
+        setPendingChargeLockerNumber(lockerNumber);
+        setShowEmailRegisterModal(true);
+        return;
+      }
+
+      await executeSendReserveKeyCharge(lockerNumber, loanId, personEmail, personName);
+    } catch (err) {
+      alert('Erro ao enviar lembrete: ' + ((err as any)?.message || 'Erro desconhecido'));
+    } finally {
+      setSendingReserveKeyCharge(false);
+    }
+  };
+
+  const executeSendReserveKeyCharge = async (lockerNumber: string, loanId: string, personEmail: string, personName: string) => {
+    const l = lockers.find(loc => loc.number === lockerNumber);
+    if (!l) return;
+
+    const reserveLoan = l.loanHistory.find(loan => loan.id === loanId && loan.loanType === 'reserve_key');
+    if (!reserveLoan) return;
+
+    const campusName = campuses.find(c => c.id === (selectedCampusId || l.campus_id))?.name;
+
+    const result = await EmailService.sendLockerChargeNotification(
+      personEmail,
+      personName,
+      lockerNumber,
+      reserveLoan.loanDate,
+      user?.email,
+      campusName
+    );
+
+    if (!result.success) {
+      alert('Erro ao enviar e-mail: ' + (result.error || 'Falha no envio'));
+      return;
+    }
+
+    await StorageService.logChargeSent({
+      loan_id: loanId,
+      material_id: `ARMARIO-${lockerNumber}`,
+      person_email: personEmail,
+      person_name: personName,
+      triggered_by_name: user?.name || 'Sistema',
+      triggered_by_email: user?.email,
+      campus_id: selectedCampusId || l.campus_id,
+    });
+
+    const updatedHistory = await StorageService.getChargeHistory(loanId);
+    setReserveKeyChargeHistory(updatedHistory);
+    alert('Lembrete enviado com sucesso!');
+  };
+
+  const handleSaveEmailAndSendCharge = async () => {
+    if (!newEmailInput.trim()) {
+      alert('Informe um e-mail.');
+      return;
+    }
+    setIsSavingEmail(true);
+    try {
+      await StorageService.updatePersonEmail(registerEmailMatricula, newEmailInput.trim());
+      if (pendingChargeLoanId && pendingChargeLockerNumber) {
+        await executeSendReserveKeyCharge(pendingChargeLockerNumber, pendingChargeLoanId, newEmailInput.trim(), registerEmailName);
+      }
+      setShowEmailRegisterModal(false);
+      setNewEmailInput('');
+    } catch (err) {
+      alert('Erro ao salvar e-mail: ' + ((err as any)?.message || ''));
+    } finally {
+      setIsSavingEmail(false);
     }
   };
 
@@ -924,6 +1047,9 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           onReserveKeyLoan={handleReserveKeyLoan}
           onReturnReserveKey={handleReturnReserveKey}
           onDeleteLoanHistory={isAdmin ? handleDeleteLoanHistory : undefined}
+          onSendReserveKeyCharge={handleSendReserveKeyCharge}
+          reserveKeyChargeHistory={reserveKeyChargeHistory}
+          sendingReserveKeyCharge={sendingReserveKeyCharge}
         />
       )}
 
@@ -943,6 +1069,42 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           onClose={() => setShowLoanModal(false)}
           onSubmit={handleLoanSubmit}
         />
+      )}
+
+      {/* Email Registration Modal for Reserve Key Charge */}
+      {showEmailRegisterModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-100">
+            <h3 className="text-lg font-black text-slate-800 mb-4">Cadastrar E-mail</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              O aluno <strong>{registerEmailName}</strong> ({registerEmailMatricula}) não possui e-mail cadastrado. Informe um e-mail para enviar o lembrete.
+            </p>
+            <input
+              type="email"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 mb-4"
+              placeholder="email@exemplo.com"
+              value={newEmailInput}
+              onChange={(e) => setNewEmailInput(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowEmailRegisterModal(false); setNewEmailInput(''); }}
+                className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-black text-slate-400 uppercase text-[10px] hover:bg-slate-50 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveEmailAndSendCharge}
+                disabled={isSavingEmail}
+                className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg hover:bg-amber-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isSavingEmail ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+                Cadastrar e Enviar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

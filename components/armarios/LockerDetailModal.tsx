@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Locker, LockerStatus } from '../../types-armarios';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Mail, Loader2 } from 'lucide-react';
+import { ChargeHistory } from '../../types-materiais';
 
 interface LockerDetailModalProps {
   locker: Locker;
@@ -14,6 +15,9 @@ interface LockerDetailModalProps {
   onReserveKeyLoan?: (locker: Locker, reason: string) => void;
   onReturnReserveKey?: (lockerNumber: string, loanId: string) => void;
   onDeleteLoanHistory?: (lockerNumber: string, loanId: string) => void;
+  onSendReserveKeyCharge?: (lockerNumber: string, loanId: string) => Promise<void>;
+  reserveKeyChargeHistory?: ChargeHistory[];
+  sendingReserveKeyCharge?: boolean;
 }
 
 const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
@@ -27,7 +31,10 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   onOpenSchedule,
   onReserveKeyLoan,
   onReturnReserveKey,
-  onDeleteLoanHistory
+  onDeleteLoanHistory,
+  onSendReserveKeyCharge,
+  reserveKeyChargeHistory = [],
+  sendingReserveKeyCharge = false
 }) => {
   const [isEditingObs, setIsEditingObs] = useState(false);
   const [showReserveForm, setShowReserveForm] = useState(false);
@@ -197,17 +204,53 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                       const activeReserve = (locker.loanHistory || []).find(l => l.loanType === 'reserve_key' && !l.returnDate);
                       if (activeReserve && onReturnReserveKey) {
                         return (
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
-                                onReturnReserveKey(locker.number, activeReserve.id);
-                              }
-                            }}
-                            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Devolver Chave Reserva
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
+                                  onReturnReserveKey(locker.number, activeReserve.id);
+                                }
+                              }}
+                              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                              Devolver Chave Reserva
+                            </button>
+
+                            {onSendReserveKeyCharge && (
+                              <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Lembretes Enviados</p>
+                                  <button
+                                    onClick={() => onSendReserveKeyCharge(locker.number, activeReserve.id)}
+                                    disabled={sendingReserveKeyCharge}
+                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-lg transition-all flex items-center gap-1.5 uppercase text-[9px] tracking-wider"
+                                  >
+                                    {sendingReserveKeyCharge ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+                                    Enviar Lembrete
+                                  </button>
+                                </div>
+                                {reserveKeyChargeHistory.length > 0 ? (
+                                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                    {reserveKeyChargeHistory.map((ch, i) => (
+                                      <div key={ch.id || i} className="flex items-start gap-2 text-[10px] bg-white rounded-lg p-2 border border-amber-100">
+                                        <Mail size={10} className="text-amber-500 mt-0.5 shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-bold text-slate-700 truncate">{ch.person_name} — {ch.person_email}</p>
+                                          <p className="text-slate-400 font-medium">
+                                            {new Date(ch.sent_at).toLocaleString('pt-BR')}
+                                            {ch.triggered_by_name ? ` por ${ch.triggered_by_name}` : ''}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-[10px] text-slate-400 italic text-center">Nenhum lembrete enviado ainda.</p>
+                                )}
+                              </div>
+                            )}
+                          </>
                         );
                       }
                       if (onReserveKeyLoan && !showReserveForm) {

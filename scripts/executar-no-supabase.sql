@@ -54,7 +54,7 @@ BEGIN
   IF v_matricula IS NOT NULL THEN
     BEGIN
       UPDATE auth.users
-      SET encrypted_password = auth.crypt(p_new_password, auth.gen_salt('bf'))
+      SET encrypted_password = crypt(p_new_password, gen_salt('bf'))
       WHERE email = v_matricula || '@sistema.local';
     EXCEPTION WHEN OTHERS THEN
       RAISE WARNING 'Erro ao atualizar auth.users: %', SQLERRM;

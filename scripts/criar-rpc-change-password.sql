@@ -3,39 +3,45 @@
 -- Esta função bypassa o RLS usando SECURITY DEFINER.
 
 CREATE OR REPLACE FUNCTION public.change_user_password(
-  p_user_id uuid,
+  p_user_id text,
   p_hashed_password text,
-  p_log_message text
+  p_log_message text,
+  p_new_password text DEFAULT NULL
 )
 RETURNS boolean
 LANGUAGE plpgsql
-SECURITY DEFINER -- Permite rodar com privilégios de admin (bypassa RLS)
+SECURITY DEFINER
 AS $$
 DECLARE
-  v_current_logs text[];
+  v_current_logs jsonb;
+  v_matricula text;
   v_updated boolean := false;
 BEGIN
-  -- Busca os logs atuais
-  SELECT COALESCE(logs, '{}') INTO v_current_logs
+  SELECT COALESCE(logs, '[]'::jsonb), matricula INTO v_current_logs, v_matricula
   FROM public.users
   WHERE id = p_user_id;
 
-  -- Atualiza a senha e adiciona ao log
   UPDATE public.users
-  SET
-    password = p_hashed_password,
-    logs = array_append(v_current_logs, p_log_message)
+  SET password = p_hashed_password,
+      logs = v_current_logs || jsonb_build_array(p_log_message)
   WHERE id = p_user_id;
 
   IF FOUND THEN
     v_updated := true;
+    IF p_new_password IS NOT NULL THEN
+      BEGIN
+        UPDATE auth.users
+        SET encrypted_password = crypt(p_new_password, gen_salt('bf'))
+        WHERE email = v_matricula || '@sistema.local';
+      EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'Erro ao atualizar auth.users: %', SQLERRM;
+      END;
+    END IF;
   END IF;
 
   RETURN v_updated;
 END;
 $$;
 
--- Garante que a função só pode ser executada por usuários autenticados ou anon
--- (o SECURITY DEFINER cuida do acesso à tabela)
-GRANT EXECUTE ON FUNCTION public.change_user_password(uuid, text, text) TO anon;
-GRANT EXECUTE ON FUNCTION public.change_user_password(uuid, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.change_user_password(text, text, text, text) TO anon;
+GRANT EXECUTE ON FUNCTION public.change_user_password(text, text, text, text) TO authenticated;

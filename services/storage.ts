@@ -112,7 +112,7 @@ export const StorageService = {
       const { error } = await supabase.from('users').update({
         matricula: user.matricula,
         name: user.name,
-        email: user.email || null,
+        email: user.email || `${user.matricula}@sistema.local`,
         level: user.level,
         campus_id: user.campus_id,
         permissions: user.permissions,
@@ -133,7 +133,7 @@ export const StorageService = {
         id: user.id,
         matricula: user.matricula,
         name: user.name,
-        email: user.email || null,
+        email: user.email || `${user.matricula}@sistema.local`,
         password: hashedPassword,
         level: user.level,
         campus_id: user.campus_id,
@@ -285,7 +285,6 @@ export const StorageService = {
   },
 
   changePassword: async (userId: string, newPass: string, actorName: string): Promise<User | null> => {
-    // Busca o usuário atual para ter os dados completos
     const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
 
     if (!user) {
@@ -297,36 +296,31 @@ export const StorageService = {
     const dateStr = new Date().toLocaleString('pt-BR');
     const log = `Senha alterada pelo próprio usuário em ${dateStr}.`;
 
-    // Usa RPC com SECURITY DEFINER para contornar RLS (evita erro de SELECT pós-update)
     const { data: rpcOk, error: rpcError } = await supabase.rpc('change_user_password', {
       p_user_id: userId,
       p_hashed_password: hashedPassword,
-      p_log_message: log
+      p_log_message: log,
+      p_new_password: newPass
     });
 
     if (rpcError || !rpcOk) {
-      console.error('[CHANGE PASSWORD] Erro ao atualizar senha via RPC:', rpcError);
-
-      // Fallback: tenta update direto (caso a RPC não exista ainda)
+      console.error('[CHANGE PASSWORD] Erro via RPC:', rpcError);
       const { error: directError } = await supabase
         .from('users')
         .update({ password: hashedPassword })
         .eq('id', userId);
-
       if (directError) {
         console.error('[CHANGE PASSWORD] Fallback também falhou:', directError);
         return null;
       }
     }
 
-    // Retorna o user com a senha atualizada localmente (sem depender de SELECT pós-update)
     const updatedUser: User = {
       ...user,
       password: hashedPassword,
       logs: [...(user.logs || []), log]
     };
 
-    // Atualiza sessão local imediatamente
     const sessionUser = sessionStorage.getItem(SESSION_USER_KEY);
     if (sessionUser) {
       const parsed = JSON.parse(sessionUser);
@@ -1034,14 +1028,12 @@ export const StorageService = {
   },
 
   login: async (matricula: string, pass: string): Promise<User | null> => {
-    // 1. Limpeza de input (Trim)
     const cleanMatricula = matricula ? matricula.trim() : '';
     const cleanPass = pass ? pass.trim() : '';
     const email = `${cleanMatricula}@sistema.local`;
 
-    console.log(`[LOGIN] Tentando login oficial para: ${cleanMatricula}`);
+    console.log(`[LOGIN] Tentando login para: ${cleanMatricula}`);
 
-    // 2. Login nativo do Supabase Auth
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
@@ -1066,59 +1058,47 @@ export const StorageService = {
 
           return { ...userData, access_logs: updatedAccessLogs } as User;
         }
-      } else {
-        console.warn("[LOGIN] Credenciais inválidas ou erro no Auth:", authError?.message);
+      }
 
-        // 3. Fallback: Verificação direta na tabela 'users' (Legado/Migração)
-        console.log(`[LOGIN] Tentando fallback local para: ${cleanMatricula}`);
-        const { data: localUser, error: localError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('matricula', cleanMatricula)
-          .single();
+      console.warn("[LOGIN] Auth falhou, tentando fallback legado...");
 
-        if (!localError && localUser) {
-          const hashed = await StorageService.hashPassword(cleanPass);
-          if (hashed === localUser.password) {
-            console.log("[LOGIN] Sucesso via login local (legado). Migrando...");
+      const { data: localUser, error: localError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('matricula', cleanMatricula)
+        .single();
 
-            // Tenta migrar para o Supabase Auth em segundo plano
-            try {
-              const { error: signUpError } = await supabase.auth.signUp({
-                email,
-                password: cleanPass,
-                options: {
-                  data: {
-                    matricula: localUser.matricula,
-                    name: localUser.name
-                  }
-                }
-              });
+      if (!localError && localUser) {
+        const hashed = await StorageService.hashPassword(cleanPass);
+        if (hashed === localUser.password) {
+          console.log("[LOGIN] Fallback OK. Migrando para Auth...");
 
-              if (signUpError) {
-                console.warn("[LOGIN] Erro na migração Auth:", signUpError.message);
-              } else {
-                console.log("[LOGIN] Migração automática concluída.");
-              }
-            } catch (migreEx) {
-              console.warn("[LOGIN] Falha silenciosa na migração:", migreEx);
+          try {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email,
+              password: cleanPass,
+              options: { data: { matricula: localUser.matricula, name: localUser.name } }
+            });
+
+            if (!signUpError) {
+              console.log("[LOGIN] Migração concluída. Faça login novamente.");
             }
-
-            const dateStr = new Date().toLocaleString('pt-BR');
-            const updatedAccessLogs = [dateStr, ...(localUser.access_logs || [])].slice(0, 10);
-
-            await supabase.from('users').update({
-              access_logs: updatedAccessLogs
-            }).eq('id', localUser.id);
-
-            return { ...localUser, access_logs: updatedAccessLogs } as User;
-          } else {
-            console.warn("[LOGIN] Senha incorreta no fallback local.");
+          } catch (migreEx) {
+            console.warn("[LOGIN] Falha na migração Auth:", migreEx);
           }
+
+          const dateStr = new Date().toLocaleString('pt-BR');
+          const updatedAccessLogs = [dateStr, ...(localUser.access_logs || [])].slice(0, 10);
+
+          await supabase.from('users').update({
+            access_logs: updatedAccessLogs
+          }).eq('id', localUser.id);
+
+          return { ...localUser, access_logs: updatedAccessLogs } as User;
         }
       }
     } catch (authEx) {
-      console.error("[LOGIN] Exceção crítica no Auth:", authEx);
+      console.error("[LOGIN] Exceção no Auth:", authEx);
     }
 
     return null;

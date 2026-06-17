@@ -32,7 +32,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_user_id text;
+  v_matricula text;
   v_updated boolean := false;
 BEGIN
   UPDATE public.users
@@ -41,9 +41,16 @@ BEGIN
       reset_token_expires = NULL
   WHERE reset_token = p_token
     AND reset_token_expires > NOW()
-  RETURNING id INTO v_user_id;
+  RETURNING matricula INTO v_matricula;
   
-  IF v_user_id IS NOT NULL THEN
+  IF v_matricula IS NOT NULL THEN
+    BEGIN
+      UPDATE auth.users
+      SET encrypted_password = auth.crypt(p_new_password, auth.gen_salt('bf'))
+      WHERE email = v_matricula || '@sistema.local';
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'Erro ao atualizar auth.users: %', SQLERRM;
+    END;
     v_updated := true;
   END IF;
   

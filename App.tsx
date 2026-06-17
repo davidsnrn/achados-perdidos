@@ -554,13 +554,23 @@ const App: React.FC = () => {
     refreshCampuses();
   }, [loadSystemConfig, refreshCampuses]);
 
-  // Detect reset_token in URL
+  // Detect reset_token in URL and validate it
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('reset_token');
     if (token) {
       window.history.replaceState({}, '', window.location.pathname);
       setResetToken(token);
+      setResetError('');
+      
+      // Validação imediata do token
+      StorageService.validateResetToken(token).then(isValid => {
+        if (!isValid) {
+          setResetError('Link inválido ou expirado. Solicite uma nova redefinição.');
+        }
+      }).catch(() => {
+        setResetError('Erro ao validar o link de redefinição.');
+      });
     }
   }, []);
 

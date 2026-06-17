@@ -252,6 +252,10 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
   const processImport = async () => {
     if (selectedFiles.length === 0) return;
+    if (user.level === UserLevel.ADMIN && !selectedCampusId) {
+      alert('Selecione um Câmpus do Cadastro antes de importar.');
+      return;
+    }
     setIsProcessing(true);
 
     const newPeople: Person[] = [];
@@ -685,6 +689,23 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                   </p>
                 </div>
               </div>
+
+              {user.level === UserLevel.ADMIN && (
+                <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-xl space-y-2">
+                  <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Câmpus do Cadastro</label>
+                  <select
+                    value={selectedCampusId}
+                    onChange={e => setSelectedCampusId(e.target.value)}
+                    className="w-full border border-amber-200 rounded-lg p-2 text-sm bg-white outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                  >
+                    <option value="">Selecione um Câmpus...</option>
+                    {campuses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-3xl p-10 bg-gray-50/50 hover:bg-white hover:border-ifrn-green/30 transition-all cursor-pointer group" onClick={handleSelectFiles}>
                 <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx,.xls" multiple onChange={handleFileChange} />

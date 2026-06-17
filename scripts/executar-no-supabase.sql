@@ -40,7 +40,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_user_id uuid;
+  v_user_id text;
   v_updated boolean := false;
 BEGIN
   UPDATE public.users
@@ -52,13 +52,6 @@ BEGIN
   RETURNING id INTO v_user_id;
   
   IF v_user_id IS NOT NULL THEN
-    BEGIN
-      UPDATE auth.users
-      SET encrypted_password = auth.crypt(p_new_password, auth.gen_salt('bf'))
-      WHERE id = v_user_id;
-    EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'Nao foi possivel atualizar auth.users: %', SQLERRM;
-    END;
     v_updated := true;
   END IF;
   

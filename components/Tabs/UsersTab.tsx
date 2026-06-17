@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserLevel, Person, Campus } from '../../types';
 import { StorageService } from '../../services/storage';
 import { DEFAULT_PASSWORD } from '../../constants';
-import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer, Truck, ShieldAlert, ClipboardList } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer, Truck, ShieldAlert, ClipboardList, Mail, CheckSquare, Square } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -17,6 +17,11 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncItems, setSyncItems] = useState<{ userId: string; matricula: string; name: string; currentEmail: string; proposedEmail: string }[]>([]);
+  const [selectedSyncIds, setSelectedSyncIds] = useState<Set<string>>(new Set());
+  const [isSyncingEmails, setIsSyncingEmails] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
@@ -267,6 +272,66 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     setSearchResultsPeople([]); // Clear search results after selection
   };
 
+  const handleSyncEmails = async () => {
+    setIsLoadingPreview(true);
+    try {
+      const items = await StorageService.previewUserEmailSync();
+      if (items.length === 0) {
+        alert('Nenhum usuário com e-mail @sistema.local encontrado para sincronizar.');
+        return;
+      }
+      setSyncItems(items);
+      setSelectedSyncIds(new Set(items.map(i => i.userId)));
+      setShowSyncModal(true);
+    } catch (e) {
+      alert('Erro ao buscar preview: ' + (e as Error).message);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleToggleSyncItem = (userId: string) => {
+    setSelectedSyncIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const handleToggleAllSync = () => {
+    if (selectedSyncIds.size === syncItems.length) {
+      setSelectedSyncIds(new Set());
+    } else {
+      setSelectedSyncIds(new Set(syncItems.map(i => i.userId)));
+    }
+  };
+
+  const handleConfirmSync = async () => {
+    const itemsToApply = syncItems
+      .filter(i => selectedSyncIds.has(i.userId))
+      .map(i => ({ userId: i.userId, proposedEmail: i.proposedEmail }));
+
+    if (itemsToApply.length === 0) {
+      alert('Nenhum e-mail selecionado para atualizar.');
+      return;
+    }
+
+    setIsSyncingEmails(true);
+    try {
+      const result = await StorageService.applyEmailSync(itemsToApply);
+      alert(`Concluído!\n\nE-mails atualizados: ${result.updated}\nErros: ${result.errors}`);
+      setShowSyncModal(false);
+      setSyncItems([]);
+      setSelectedSyncIds(new Set());
+      onUpdate();
+    } catch (e) {
+      alert('Erro ao sincronizar: ' + (e as Error).message);
+    } finally {
+      setIsSyncingEmails(false);
+    }
+  };
+
   const clearSelection = () => {
     setSelectedPerson(null);
     setFormName('');
@@ -308,6 +373,15 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen transition-colors text-sm whitespace-nowrap"
             >
               <Plus size={18} /> Novo Usuário
+            </button>
+          )}
+          {currentUser.level === UserLevel.ADMIN && (
+            <button
+              onClick={handleSyncEmails}
+              disabled={isSyncingEmails || isLoadingPreview}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap disabled:opacity-50"
+            >
+              {isLoadingPreview ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />} Sincronizar E-mails
             </button>
           )}
         </div>
@@ -708,6 +782,70 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
             <div className="flex justify-end pt-2"><button onClick={() => { setShowDetailModal(false); setSelectedUser(null); }} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">Fechar</button></div>
           </div>
         )}
+      </Modal>
+
+      {/* Sync Email Modal */}
+      <Modal isOpen={showSyncModal} onClose={() => { setShowSyncModal(false); setSyncItems([]); setSelectedSyncIds(new Set()); }} title="Sincronizar E-mails">
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
+            <p className="font-medium">E-mails reais encontrados na tabela de pessoas para vincular aos usuários.</p>
+            <p className="text-xs mt-1 text-blue-500">Desmarque os que não deseja atualizar.</p>
+          </div>
+
+          <div className="flex items-center gap-2 pb-2 border-b">
+            <button onClick={handleToggleAllSync} className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-ifrn-green transition-colors">
+              {selectedSyncIds.size === syncItems.length ? <CheckSquare size={18} className="text-ifrn-green" /> : <Square size={18} className="text-gray-400" />}
+              {selectedSyncIds.size === syncItems.length ? 'Desmarcar Todos' : 'Marcar Todos'}
+            </button>
+            <span className="text-xs text-gray-400 ml-auto">{selectedSyncIds.size} de {syncItems.length} selecionados</span>
+          </div>
+
+          <div className="max-h-[40vh] overflow-y-auto space-y-2">
+            {syncItems.map(item => (
+              <div
+                key={item.userId}
+                onClick={() => handleToggleSyncItem(item.userId)}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                  selectedSyncIds.has(item.userId)
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-gray-50 border-gray-200 opacity-60'
+                }`}
+              >
+                <div className="flex-shrink-0">
+                  {selectedSyncIds.has(item.userId) ? <CheckSquare size={18} className="text-ifrn-green" /> : <Square size={18} className="text-gray-400" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-gray-800">{item.name}</span>
+                    <span className="text-xs text-gray-400 font-mono">{item.matricula}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs">
+                    <span className="text-red-500 line-through">{item.currentEmail}</span>
+                    <span className="text-gray-400">→</span>
+                    <span className="text-green-600 font-medium">{item.proposedEmail}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
+            <button
+              onClick={() => { setShowSyncModal(false); setSyncItems([]); setSelectedSyncIds(new Set()); }}
+              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirmSync}
+              disabled={isSyncingEmails || selectedSyncIds.size === 0}
+              className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              {isSyncingEmails ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+              Confirmar ({selectedSyncIds.size})
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

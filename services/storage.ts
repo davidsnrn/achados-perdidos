@@ -2426,4 +2426,56 @@ export const StorageService = {
       .eq('matricula', matricula);
     if (error) throw error;
   },
+
+  previewUserEmailSync: async (): Promise<{ userId: string; matricula: string; name: string; currentEmail: string; proposedEmail: string }[]> => {
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, matricula, name, email')
+      .like('email', '%@sistema.local');
+
+    if (usersError) throw usersError;
+    if (!users || users.length === 0) return [];
+
+    const matriculas = users.map(u => u.matricula);
+
+    const { data: people, error: peopleError } = await supabase
+      .from('people')
+      .select('matricula, email')
+      .in('matricula', matriculas)
+      .not('email', 'is', null)
+      .neq('email', '');
+
+    if (peopleError) throw peopleError;
+
+    const emailMap: Record<string, string> = {};
+    if (people) {
+      people.forEach(p => { emailMap[p.matricula] = p.email; });
+    }
+
+    return users
+      .filter(u => emailMap[u.matricula])
+      .map(u => ({
+        userId: u.id,
+        matricula: u.matricula,
+        name: u.name,
+        currentEmail: u.email || '',
+        proposedEmail: emailMap[u.matricula],
+      }));
+  },
+
+  applyEmailSync: async (items: { userId: string; proposedEmail: string }[]): Promise<{ updated: number; errors: number }> => {
+    let updated = 0;
+    let errors = 0;
+
+    for (const item of items) {
+      const { error } = await supabase
+        .from('users')
+        .update({ email: item.proposedEmail })
+        .eq('id', item.userId);
+      if (!error) updated++;
+      else errors++;
+    }
+
+    return { updated, errors };
+  },
 };

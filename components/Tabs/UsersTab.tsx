@@ -23,6 +23,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
   // Form States
   const [formName, setFormName] = useState('');
   const [formMatricula, setFormMatricula] = useState('');
+  const [formEmail, setFormEmail] = useState('');
 
   // Search States (Same as LostReportsTab)
   const [personSearch, setPersonSearch] = useState('');
@@ -141,6 +142,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       id: selectedUser ? selectedUser.id : Math.random().toString(36).substr(2, 9),
       matricula: formMatricula,
       name: formName,
+      email: formEmail || `${formMatricula}@sistema.local`,
       password: password,
       level: formLevel,
       campus_id: formLevel === UserLevel.ADMIN ? undefined : (selectedCampusId || undefined),
@@ -213,6 +215,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     if (user) {
       setFormName(user.name);
       setFormMatricula(user.matricula);
+      setFormEmail(user.email || '');
       setSelectedPerson(null);
       setPermissions({
         achados: user.permissions?.achados ?? (user.level !== UserLevel.STANDARD),
@@ -232,6 +235,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
     } else {
       setFormName('');
       setFormMatricula('');
+      setFormEmail('');
       setSelectedPerson(null);
       // Pre-select current user's campus if they are ADVANCED
       setFormLevel(UserLevel.STANDARD);
@@ -509,6 +513,19 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               />
             </div>
 
+            {currentUser.level === UserLevel.ADMIN && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+                <input
+                  type="email"
+                  value={formEmail}
+                  onChange={e => setFormEmail(e.target.value)}
+                  className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                  placeholder="exemplo@email.com"
+                />
+              </div>
+            )}
+
             {!selectedUser && (<p className="text-xs text-gray-500 bg-gray-50 p-2 rounded"><span className="font-bold">Nota:</span> A senha inicial será definida automaticamente como <strong>{DEFAULT_PASSWORD}</strong>.</p>)}
 
             {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && (
@@ -648,6 +665,9 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               <div><span className="block text-xs font-bold text-gray-400 uppercase">Matrícula</span><p className="font-mono">{selectedUser.matricula}</p></div>
               <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Nível</span><span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${selectedUser.level === UserLevel.ADMIN ? 'bg-red-100 text-red-800' : selectedUser.level === UserLevel.ADVANCED ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>{selectedUser.level}</span></div>
               <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Câmpus</span><p className="font-medium text-gray-700">{selectedUser.level === UserLevel.ADMIN ? 'Todos' : (campuses.find(c => c.id === selectedUser.campus_id)?.name || 'Sem Câmpus')}</p></div>
+              {currentUser.level === UserLevel.ADMIN && selectedUser.email && (
+                <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">E-mail</span><p className="font-medium text-gray-700">{selectedUser.email}</p></div>
+              )}
             </div>
             <div>
               <h4 className="flex items-center gap-2 font-bold text-gray-700 mb-3 border-b pb-2"><FileText size={18} /> Log de Auditoria</h4>

@@ -1891,7 +1891,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+      <main className="flex-1 w-full mx-auto p-4 md:p-6 space-y-6">
         <div className="hidden md:flex flex-wrap gap-2 border-b border-gray-200 pb-1">
           {currentSystem === 'achados' && (
             <>

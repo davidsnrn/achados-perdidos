@@ -833,12 +833,6 @@ const App: React.FC = () => {
       return;
     }
 
-    const hashedCurrent = await StorageService.hashPassword(emailPassword);
-    if (user.password !== hashedCurrent) {
-      setEmailError('Senha atual incorreta.');
-      return;
-    }
-
     setEmailLoading(true);
     setEmailError('');
     setEmailSuccess('');
@@ -848,10 +842,8 @@ const App: React.FC = () => {
       if (updated) {
         setUser({ ...user, email: newEmail });
         setEmailSuccess('E-mail atualizado com sucesso!');
-        setEmailPassword('');
         setNewEmail('');
         setConfirmEmail('');
-        setShowEmailPass(false);
       } else {
         setEmailError('Erro ao atualizar e-mail.');
       }
@@ -1582,31 +1574,6 @@ const App: React.FC = () => {
                       readOnly
                       onFocus={e => e.currentTarget.removeAttribute('readOnly')}
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide">Senha Atual</label>
-                    <div className="relative">
-                      <input
-                        type={showEmailPass ? 'text' : 'password'}
-                        required
-                        value={emailPassword}
-                        onChange={e => setEmailPassword(e.target.value)}
-                        className="w-full bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all font-medium placeholder:text-gray-400"
-                        placeholder="Confirme com sua senha"
-                        autoComplete="off"
-                        readOnly
-                        onFocus={e => e.currentTarget.removeAttribute('readOnly')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowEmailPass(!showEmailPass)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-ifrn-green transition-colors"
-                        tabIndex={-1}
-                      >
-                        {showEmailPass ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
                   </div>
 
                   {emailError && (

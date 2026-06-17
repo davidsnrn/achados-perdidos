@@ -58,3 +58,24 @@ BEGIN
   RETURN COALESCE(v_updated, false);
 END;
 $$;
+
+-- 3. Função para validar o token contornando as restrições do RLS
+CREATE OR REPLACE FUNCTION public.validate_reset_token(
+  p_token text
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_is_valid boolean;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE reset_token = p_token
+      AND reset_token_expires > NOW()
+  ) INTO v_is_valid;
+  
+  RETURN COALESCE(v_is_valid, false);
+END;
+$$;

@@ -246,37 +246,24 @@ export const StorageService = {
     return { email: user.email, name: user.name, token };
   },
 
-  validateResetToken: async (token: string): Promise<User | null> => {
-    console.log('[RESET] Validando token:', token);
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('reset_token', token.trim())
-      .maybeSingle();
+  validateResetToken: async (token: string): Promise<boolean> => {
+    console.log('[RESET] Validando token via RPC:', token);
+    
+    const { data: isValid, error } = await supabase.rpc('validate_reset_token', {
+      p_token: token.trim()
+    });
 
     if (error) {
-      console.error('[RESET] Erro na consulta:', error);
-      return null;
+      console.error('[RESET] Erro na validação RPC:', error);
+      return false;
     }
 
-    if (!user) {
-      console.warn('[RESET] Nenhum usuário com este token');
-      return null;
-    }
-
-    console.log('[RESET] Usuário encontrado:', user.matricula, 'Expira:', user.reset_token_expires);
-
-    if (user.reset_token_expires && new Date(user.reset_token_expires) < new Date()) {
-      console.warn('[RESET] Token expirado em:', user.reset_token_expires);
-      return null;
-    }
-
-    return user as User;
+    return !!isValid;
   },
 
   completePasswordReset: async (token: string, newPassword: string): Promise<boolean> => {
-    const user = await StorageService.validateResetToken(token);
-    if (!user) {
+    const isValid = await StorageService.validateResetToken(token);
+    if (!isValid) {
       console.warn('[RESET] Token inválido ou expirado');
       return false;
     }

@@ -62,7 +62,7 @@ export const EmailService = {
         </div>
         <div style="padding: 24px; color: #333; line-height: 1.6;">
           <p>Olá, <strong>${personName}</strong>,</p>
-          <p>Confirmamos que você realizou o empréstimo do seguinte material pedagógico/institucional:</p>
+          <p>Seu empréstimo foi realizado com sucesso. Confira os detalhes abaixo:</p>
           
           <div style="background-color: #f9f9f9; border-left: 4px solid #2e7d32; padding: 15px; margin: 20px 0; border-radius: 0 4px 4px 0;">
             <table style="width: 100%; border-collapse: collapse;">
@@ -203,7 +203,7 @@ export const EmailService = {
         </div>
         <div style="padding: 24px; color: #333; line-height: 1.6;">
           <p>Olá, <strong>${personName}</strong>,</p>
-          <p>Confirmamos que você realizou o empréstimo do(s) seguinte(s) material(is) pedagógico(s)/institucional(is):</p>
+          <p>Seu empréstimo foi realizado com sucesso. Confira os detalhes abaixo:</p>
 
           <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
             <thead>

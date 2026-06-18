@@ -1270,7 +1270,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                   </div>
                   <div>
                     <p className="font-bold text-green-900 text-sm">{selectedPerson.name}</p>
-                    <p className="text-xs text-green-700">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                    <p className="text-xs text-green-700">{selectedPerson.matricula} • {selectedPerson.type}{selectedPerson.campus_id ? ` • ${campuses.find(c => c.id === selectedPerson.campus_id)?.name || selectedPerson.campus_id}` : ''}</p>
                   </div>
                   <CheckCircle size={20} className="text-green-600 ml-auto" />
                   <button
@@ -1295,7 +1295,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                         className={`p-3 cursor-pointer transition-colors ${selectedResultIndex === index ? 'bg-ifrn-green/10 border-l-4 border-ifrn-green' : 'hover:bg-gray-50'}`}
                       >
                         <p className="text-sm font-medium text-gray-800">{p.name}</p>
-                        <p className="text-xs text-gray-500">{p.matricula}</p>
+                        <p className="text-xs text-gray-500">{p.matricula}{searchAllCampuses && p.campus_id ? ` • ${campuses.find(c => c.id === p.campus_id)?.name || p.campus_id}` : ''}</p>
                       </div>
                     ))}
                   </div>

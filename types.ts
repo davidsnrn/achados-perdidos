@@ -63,6 +63,9 @@ export interface Person {
   type: PersonType;
   campus_id?: string;
   email?: string;
+  document?: string;
+  document_type?: string;
+  phone?: string;
 }
 
 export interface ItemHistory {

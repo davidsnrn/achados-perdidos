@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -503,7 +503,10 @@ export const StorageService = {
           name: person.name,
           type: person.type,
           campus_id: person.campus_id,
-          email: person.email
+          email: person.email,
+          document: person.document || null,
+          document_type: person.document_type || null,
+          phone: person.phone || null,
         })
         .eq('matricula', oldMatricula);
 
@@ -541,7 +544,10 @@ export const StorageService = {
         name: person.name,
         type: person.type,
         campus_id: person.campus_id,
-        email: person.email
+        email: person.email,
+        document: person.document || null,
+        document_type: person.document_type || null,
+        phone: person.phone || null,
       }, { onConflict: 'matricula' });
 
       if (error) throw error;
@@ -717,6 +723,16 @@ export const StorageService = {
       error = res.error;
     }
     if (error) throw error;
+  },
+
+  deleteItemHistoryEntry: async (itemId: number, entryIndex: number) => {
+    const { data, error: fetchError } = await supabase.from('items').select('history').eq('id', itemId).single();
+    if (fetchError) throw fetchError;
+    const history: ItemHistory[] = data?.history || [];
+    if (entryIndex < 0 || entryIndex >= history.length) throw new Error('Índice de histórico inválido.');
+    history.splice(entryIndex, 1);
+    const { error: updateError } = await supabase.from('items').update({ history }).eq('id', itemId);
+    if (updateError) throw updateError;
   },
 
   uploadItemImage: async (file: Blob): Promise<string> => {

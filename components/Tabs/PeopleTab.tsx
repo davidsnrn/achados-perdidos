@@ -30,6 +30,27 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
   const [matricula, setMatricula] = useState('');
   const [type, setType] = useState<PersonType>(PersonType.STUDENT);
   const [email, setEmail] = useState('');
+  const [document, setDocument] = useState('');
+  const [documentType, setDocumentType] = useState<'CPF' | 'RG' | 'Outros'>('CPF');
+  const [phone, setPhone] = useState('');
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return `(${digits}`;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const formatDocument = (value: string, docType: string) => {
+    if (docType === 'CPF') {
+      const digits = value.replace(/\D/g, '').slice(0, 11);
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+      if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+      return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+    }
+    return value;
+  };
 
   // Import State
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -158,7 +179,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
   // Debounce matricula check
   React.useEffect(() => {
-    if (activeTab === 'manual' && matricula.length >= 3) {
+    if (activeTab === 'manual' && type !== PersonType.EXTERNAL && matricula.length >= 3) {
       const timer = setTimeout(() => {
         performMatriculaCheck(matricula);
       }, 600);
@@ -166,7 +187,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     } else {
       setMatriculaCheck(null);
     }
-  }, [matricula, activeTab, selectedCampusId]);
+  }, [matricula, activeTab, selectedCampusId, type]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,14 +195,19 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     try {
       await StorageService.savePerson({
         name: toTitleCase(name),
-        matricula,
+        matricula: type === PersonType.EXTERNAL ? document : matricula,
         type,
-        email: email.trim() || null,
-        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+        email: email.trim() || undefined,
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+        document: type === PersonType.EXTERNAL ? document : undefined,
+        document_type: type === PersonType.EXTERNAL ? documentType : undefined,
+        phone: type === PersonType.EXTERNAL ? phone || undefined : undefined,
       });
       setName('');
       setMatricula('');
       setEmail('');
+      setDocument('');
+      setPhone('');
       onUpdate();
       fetchData(); // Recarregar dados após cadastro
       alert('Pessoa cadastrada!');
@@ -202,14 +228,18 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     const rawName = formData.get('name') as string;
     const newMatricula = formData.get('matricula') as string;
     const rawEmail = formData.get('email') as string;
+    const personType = formData.get('type') as PersonType;
 
     const updatedPerson: Person = {
       ...editingPerson,
       name: toTitleCase(rawName),
-      matricula: newMatricula,
-      type: formData.get('type') as PersonType,
-      email: rawEmail.trim() || null,
-      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : (editingPerson.campus_id || user.campus_id)
+      matricula: personType === PersonType.EXTERNAL ? (formData.get('document') as string || editingPerson.matricula) : newMatricula,
+      type: personType,
+      email: rawEmail.trim() || undefined,
+      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : (editingPerson.campus_id || user.campus_id),
+      document: personType === PersonType.EXTERNAL ? (formData.get('document') as string || editingPerson.document) : undefined,
+      document_type: personType === PersonType.EXTERNAL ? (formData.get('document_type') as string || editingPerson.document_type) : undefined,
+      phone: personType === PersonType.EXTERNAL ? (formData.get('phone') as string || editingPerson.phone) : undefined,
     };
 
     try {
@@ -362,7 +392,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             name: cleanName,
             matricula: cleanMatricula,
             type: detectedType,
-            email: cleanEmail || null,
+            email: cleanEmail || undefined,
             campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
           });
           fileCount++;
@@ -544,24 +574,51 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           {activeTab === 'manual' ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="relative">
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Matrícula</label>
+                {type !== PersonType.EXTERNAL ? (
                   <div className="relative">
-                    <input 
-                      required 
-                      value={matricula} 
-                      onChange={e => setMatricula(e.target.value)} 
-                      className={`w-full border-2 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all ${matriculaCheck?.person ? 'border-amber-400 bg-amber-50' : matriculaCheck?.hasPendencies ? 'border-red-400 bg-red-50' : 'border-gray-100'}`} 
-                      placeholder="Ex: 2023..." 
-                    />
-                    {isCheckingMatricula && <Loader2 size={16} className="animate-spin absolute right-3 top-3.5 text-ifrn-green" />}
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Matrícula</label>
+                    <div className="relative">
+                      <input 
+                        required 
+                        value={matricula} 
+                        onChange={e => setMatricula(e.target.value)} 
+                        className={`w-full border-2 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all ${matriculaCheck?.person ? 'border-amber-400 bg-amber-50' : matriculaCheck?.hasPendencies ? 'border-red-400 bg-red-50' : 'border-gray-100'}`} 
+                        placeholder="Ex: 2023..." 
+                      />
+                      {isCheckingMatricula && <Loader2 size={16} className="animate-spin absolute right-3 top-3.5 text-ifrn-green" />}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Tipo de Documento</label>
+                      <select
+                        value={documentType}
+                        onChange={e => { setDocumentType(e.target.value as 'CPF' | 'RG' | 'Outros'); setDocument(formatDocument(document, e.target.value)); }}
+                        className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm bg-white focus:border-ifrn-green outline-none"
+                      >
+                        <option value="CPF">CPF</option>
+                        <option value="RG">RG</option>
+                        <option value="Outros">Outros</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Nº do Documento</label>
+                      <input
+                        required
+                        value={document}
+                        onChange={e => setDocument(formatDocument(e.target.value, documentType))}
+                        className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all"
+                        placeholder={documentType === 'CPF' ? '000.000.000-00' : 'Número do documento...'}
+                      />
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Vínculo</label>
                   <select 
                     value={type} 
-                    onChange={e => setType(e.target.value as PersonType)} 
+                    onChange={e => { setType(e.target.value as PersonType); if (e.target.value !== PersonType.EXTERNAL) setMatriculaCheck(null); }} 
                     className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm bg-white focus:border-ifrn-green outline-none"
                   >
                     <option value={PersonType.STUDENT}>Aluno</option>
@@ -589,6 +646,17 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                     placeholder="Ex: nome@ifrn.edu.br..." 
                   />
                 </div>
+                {type === PersonType.EXTERNAL && (
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Telefone (opcional)</label>
+                    <input
+                      value={phone}
+                      onChange={e => setPhone(formatPhone(e.target.value))}
+                      className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all"
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Feedback de Verificação dentro do Modal */}
@@ -758,7 +826,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-600 font-semibold uppercase text-xs">
                 <tr>
-                  <th className="p-3 whitespace-nowrap">Matrícula</th>
+                  <th className="p-3 whitespace-nowrap">Matrícula / Documento</th>
                   <th className="p-3 whitespace-nowrap">Nome</th>
                   <th className="p-3 whitespace-nowrap">Vínculo</th>
                   {user.level === UserLevel.ADMIN && <th className="p-3 whitespace-nowrap">Câmpus</th>}
@@ -786,7 +854,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                       className="hover:bg-gray-50 cursor-pointer group"
                       onClick={() => { setEditingPerson(p); setShowEditModal(true); }}
                     >
-                      <td className="p-3 font-mono text-gray-600 whitespace-nowrap">{p.matricula}</td>
+                      <td className="p-3 font-mono text-gray-600 whitespace-nowrap">{p.type === PersonType.EXTERNAL && p.document ? `${p.document_type ? p.document_type + ': ' : ''}${p.document}` : p.matricula}</td>
                       <td className="p-3 font-medium text-gray-900 whitespace-nowrap">{p.name}</td>
                       <td className="p-3 whitespace-nowrap">
                         <span className={`text-xs px-2 py-1 rounded-full ${p.type === PersonType.STUDENT ? 'bg-blue-50 text-blue-700' : 'bg-purple-50 text-purple-700'}`}>
@@ -874,9 +942,38 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label><input name="name" required defaultValue={editingPerson?.name} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">E-mail (opcional)</label><input name="email" type="email" defaultValue={editingPerson?.email} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Ex: nome@ifrn.edu.br..." /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Matrícula</label><input name="matricula" required defaultValue={editingPerson?.matricula} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
+            {editingPerson?.type !== PersonType.EXTERNAL ? (
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">Matrícula</label><input name="matricula" required defaultValue={editingPerson?.matricula} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Documento</label>
+                  <select name="document_type" defaultValue={editingPerson?.document_type || 'CPF'} className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none">
+                    <option value="CPF">CPF</option>
+                    <option value="RG">RG</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nº do Documento</label>
+                  <input name="document" required defaultValue={editingPerson?.document} onChange={e => { const input = e.target as HTMLInputElement; const docType = (input.closest('form')?.querySelector('[name="document_type"]') as HTMLSelectElement)?.value || 'CPF'; input.value = formatDocument(input.value, docType); }} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Número do documento..." />
+                </div>
+              </>
+            )}
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Vínculo</label><select name="type" defaultValue={editingPerson?.type} className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"><option value={PersonType.STUDENT}>Aluno</option><option value={PersonType.SERVER}>Servidor</option><option value={PersonType.EXTERNAL}>Externo</option></select></div>
           </div>
+          {editingPerson?.type === PersonType.EXTERNAL && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (opcional)</label>
+              <input
+                name="phone"
+                defaultValue={editingPerson?.phone}
+                onChange={e => { const input = e.target as HTMLInputElement; input.value = formatPhone(input.value); }}
+                className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                placeholder="(00) 00000-0000"
+              />
+            </div>
+          )}
           {user.level === UserLevel.ADMIN && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus</label>

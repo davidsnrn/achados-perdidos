@@ -44,10 +44,34 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [selectedReport, setSelectedReport] = useState<LostReport | null>(null);
+  const [isExternalPerson, setIsExternalPerson] = useState(false);
+  const [externalName, setExternalName] = useState('');
+  const [externalDocument, setExternalDocument] = useState('');
+  const [externalDocumentType, setExternalDocumentType] = useState<'CPF' | 'RG' | 'Outros'>('CPF');
+  const [externalPhone, setExternalPhone] = useState('');
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return `(${digits}`;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const formatDocument = (value: string, docType: string) => {
+    if (docType === 'CPF') {
+      const digits = value.replace(/\D/g, '').slice(0, 11);
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+      if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+      return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+    }
+    return value;
+  };
 
   const [editingItem, setEditingItem] = useState<FoundItem | null>(null);
   const [viewingItem, setViewingItem] = useState<FoundItem | null>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [selectedHistoryEntries, setSelectedHistoryEntries] = useState<number[]>([]);
 
   // Date Filtering State
   const [dateFilter, setDateFilter] = useState<DateFilterType>('ALL');
@@ -513,6 +537,38 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     }
   };
 
+  const handleDeleteHistoryEntry = async (item: FoundItem, entryIndex: number) => {
+    if (!confirm('Excluir este registro do histórico?')) return;
+    try {
+      await StorageService.deleteItemHistoryEntry(item.id, entryIndex);
+      const updatedItem = { ...viewingItem!, history: viewingItem!.history!.filter((_, i) => i !== entryIndex) };
+      setViewingItem(updatedItem);
+      setSelectedHistoryEntries(prev => prev.filter(i => i !== entryIndex).map(i => i > entryIndex ? i - 1 : i));
+    } catch (err: any) {
+      alert(`Erro ao excluir histórico: ${err.message}`);
+    }
+  };
+
+  const toggleHistorySelection = (index: number) => {
+    setSelectedHistoryEntries(prev => prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]);
+  };
+
+  const handleBatchDeleteHistory = async () => {
+    if (!viewingItem || selectedHistoryEntries.length === 0) return;
+    if (!confirm(`Excluir ${selectedHistoryEntries.length} registro(s) do histórico?`)) return;
+    try {
+      const sorted = [...selectedHistoryEntries].sort((a, b) => b - a);
+      for (const idx of sorted) {
+        await StorageService.deleteItemHistoryEntry(viewingItem.id, idx);
+      }
+      const remainingHistory = viewingItem.history!.filter((_, i) => !selectedHistoryEntries.includes(i));
+      setViewingItem({ ...viewingItem, history: remainingHistory });
+      setSelectedHistoryEntries([]);
+    } catch (err: any) {
+      alert(`Erro ao excluir histórico: ${err.message}`);
+    }
+  };
+
   const handleOpenReturnModal = (e: React.MouseEvent, item: FoundItem) => {
     e.stopPropagation();
     setItemToReturn(item);
@@ -521,6 +577,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     setSelectedPerson(null);
     setSelectedReport(null);
     setReturnType('PERSON');
+    setIsExternalPerson(false);
+    setExternalName('');
+    setExternalDocument('');
+    setExternalPhone('');
   };
 
   const handleConfirmReturn = async () => {
@@ -531,13 +591,25 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     let logMessage = '';
 
     if (returnType === 'PERSON') {
-      if (!selectedPerson) {
-        alert("Selecione uma pessoa.");
-        setIsLoading(false);
-        return;
+      if (isExternalPerson) {
+        if (!externalName.trim()) {
+          alert("Informe o nome da pessoa.");
+          setIsLoading(false);
+          return;
+        }
+        receiverName = externalName.trim();
+        const docStr = externalDocument.trim() ? `${externalDocumentType}: ${externalDocument.trim()}` : '';
+        const phoneStr = externalPhone.trim() ? `Tel: ${externalPhone.trim()}` : '';
+        logMessage = `Item devolvido para: ${externalName.trim()}${docStr || phoneStr ? ` (${[docStr, phoneStr].filter(Boolean).join(', ')})` : ''}`;
+      } else {
+        if (!selectedPerson) {
+          alert("Selecione uma pessoa.");
+          setIsLoading(false);
+          return;
+        }
+        receiverName = selectedPerson.name;
+        logMessage = `Item devolvido para: ${selectedPerson.name} (${selectedPerson.matricula})`;
       }
-      receiverName = selectedPerson.name;
-      logMessage = `Item devolvido para: ${selectedPerson.name} (${selectedPerson.matricula})`;
     } else {
       if (!selectedReport) {
         alert("Selecione um relato.");
@@ -673,9 +745,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               <button
                 key={status}
                 onClick={() => { setActiveSubTab(status); setSelectedItems([]); }}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${activeSubTab === status
-                  ? 'bg-white text-ifrn-darkGreen shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all duration-200 ${activeSubTab === status
+                  ? 'bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white shadow-md shadow-green-200'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                   }`}
               >
                 {status}
@@ -688,14 +760,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               <button
                 onClick={handleBatchDonate}
                 disabled={isLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm shadow-md shadow-amber-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200"
               >
                 <Gift size={16} /> Doar ({selectedItems.length})
               </button>
             )}
             <button
               onClick={() => openEditModal(null)}
-              className="flex items-center gap-2 px-4 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen transition-colors text-sm w-full md:w-auto justify-center"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white rounded-lg shadow-md shadow-green-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-sm w-full md:w-auto justify-center"
             >
               <Plus size={18} /> Novo Item
             </button>
@@ -947,7 +1019,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${currentPage === pageNum ? 'bg-ifrn-green text-white shadow-md shadow-green-100' : 'hover:bg-gray-100 text-gray-600'}`}
+                        className={`w-8 h-8 rounded-lg text-xs font-bold transition-all duration-200 ${currentPage === pageNum ? 'bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white shadow-md shadow-green-200' : 'hover:bg-gray-100 text-gray-600'}`}
                       >
                         {pageNum}
                       </button>
@@ -1064,7 +1136,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           )}
           <div className="col-span-2 pt-4 flex justify-end gap-3">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>
-            <button type="submit" disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium">{isLoading ? 'Salvando...' : 'Salvar'}</button>
+            <button type="submit" disabled={isLoading} className="px-6 py-2 bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white rounded-lg shadow-md shadow-green-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 font-medium">{isLoading ? 'Salvando...' : 'Salvar'}</button>
           </div>
         </form>
       </Modal>
@@ -1081,11 +1153,59 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           </p>
 
           <div className="flex gap-4 p-1 bg-gray-100 rounded-lg">
-            <button onClick={() => setReturnType('PERSON')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'PERSON' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><UserIcon size={16} /> Selecionar Pessoa</button>
-            <button onClick={() => setReturnType('REPORT')} className={`flex-1 py-2 text-sm font-medium rounded-md flex items-center justify-center gap-2 ${returnType === 'REPORT' ? 'bg-white shadow-sm text-ifrn-darkGreen' : 'text-gray-500'}`}><FileText size={16} /> Vincular a Relato</button>
+            <button onClick={() => setReturnType('PERSON')} className={`flex-1 py-2 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-200 ${returnType === 'PERSON' ? 'bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'}`}><UserIcon size={16} /> Selecionar Pessoa</button>
+            <button onClick={() => setReturnType('REPORT')} className={`flex-1 py-2 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-200 ${returnType === 'REPORT' ? 'bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white shadow-md' : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'}`}><FileText size={16} /> Vincular a Relato</button>
           </div>
 
           {returnType === 'PERSON' && (
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isExternalPerson}
+                onChange={e => { setIsExternalPerson(e.target.checked); setSelectedPerson(null); setPersonSearch(''); setSearchResultsPeople([]); setExternalDocument(''); setExternalPhone(''); }}
+                className="rounded border-gray-300 text-ifrn-green focus:ring-ifrn-green"
+              />
+              Pessoa Externa (não cadastrada)
+            </label>
+          )}
+
+          {returnType === 'PERSON' && isExternalPerson ? (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase">Dados da Pessoa Externa</label>
+              <input
+                type="text"
+                placeholder="Nome completo *"
+                value={externalName}
+                onChange={e => setExternalName(e.target.value)}
+                className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={externalDocumentType}
+                  onChange={e => { setExternalDocumentType(e.target.value as 'CPF' | 'RG' | 'Outros'); setExternalDocument(formatDocument(externalDocument, e.target.value)); }}
+                  className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
+                >
+                  <option value="CPF">CPF</option>
+                  <option value="RG">RG</option>
+                  <option value="Outros">Outros</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder={externalDocumentType === 'CPF' ? '000.000.000-00' : 'Nº do documento'}
+                  value={externalDocument}
+                  onChange={e => setExternalDocument(formatDocument(e.target.value, externalDocumentType))}
+                  className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+                />
+              </div>
+              <input
+                type="text"
+                placeholder="Telefone (opcional)"
+                value={externalPhone}
+                onChange={e => setExternalPhone(formatPhone(e.target.value))}
+                className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+              />
+            </div>
+          ) : returnType === 'PERSON' && (
             <div className="relative space-y-2">
               <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
                 <div className="relative flex-1">
@@ -1196,14 +1316,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
 
           <div className="pt-4 flex justify-end gap-3 border-t">
             <button onClick={() => setShowReturnModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm">Cancelar</button>
-            <button onClick={handleConfirmReturn} disabled={isLoading} className="px-6 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-medium text-sm flex items-center gap-2">{isLoading ? '...' : <><CornerUpRight size={16} /> Confirmar Devolução</>}</button>
+            <button onClick={handleConfirmReturn} disabled={isLoading} className="px-6 py-2 bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white rounded-lg shadow-md shadow-green-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 font-medium text-sm flex items-center gap-2">{isLoading ? '...' : <><CornerUpRight size={16} /> Confirmar Devolução</>}</button>
           </div>
         </div>
       </Modal>
 
       <Modal
         isOpen={showDetailModal}
-        onClose={() => { setShowDetailModal(false); }}
+        onClose={() => { setShowDetailModal(false); setSelectedHistoryEntries([]); }}
         title="Detalhes do Objeto"
       >
         {viewingItem && (
@@ -1263,29 +1383,74 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
             </div>
 
             <div>
-              <h4 className="flex items-center gap-2 font-bold text-gray-700 mb-3 border-b pb-2">
-                <History size={18} /> Histórico do Objeto
-              </h4>
+              <div className="flex items-center justify-between mb-3 border-b pb-2">
+                <h4 className="flex items-center gap-2 font-bold text-gray-700">
+                  <History size={18} /> Histórico do Objeto
+                </h4>
+                {user.level === UserLevel.ADMIN && viewingItem.history && viewingItem.history.length > 0 && selectedHistoryEntries.length > 0 && (
+                  <button
+                    onClick={handleBatchDeleteHistory}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-xs font-bold transition-all"
+                  >
+                    <Trash2 size={14} /> Excluir ({selectedHistoryEntries.length})
+                  </button>
+                )}
+              </div>
               <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
                 {viewingItem.history && viewingItem.history.length > 0 ? (
-                  viewingItem.history.slice().reverse().map((log, index) => (
-                    <div key={index} className="flex gap-3 text-sm">
-                      <div className="flex flex-col items-center">
-                        <div className="w-2 h-2 rounded-full bg-gray-300 mt-1.5"></div>
-                        {index !== viewingItem.history!.length - 1 && <div className="w-px h-full bg-gray-200 my-1"></div>}
+                  viewingItem.history.slice().reverse().map((log, index) => {
+                    const realIndex = viewingItem.history!.length - 1 - index;
+                    return (
+                      <div key={index} className="flex gap-3 text-sm group items-start">
+                        {user.level === UserLevel.ADMIN && (
+                          <input
+                            type="checkbox"
+                            checked={selectedHistoryEntries.includes(realIndex)}
+                            onChange={() => toggleHistorySelection(realIndex)}
+                            className="mt-1.5 rounded border-gray-300 text-ifrn-green focus:ring-ifrn-green"
+                          />
+                        )}
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 rounded-full bg-gray-300 mt-1.5"></div>
+                          {index !== viewingItem.history!.length - 1 && <div className="w-px h-full bg-gray-200 my-1"></div>}
+                        </div>
+                        <div className="flex-1 flex justify-between items-start">
+                          <div>
+                            <p className="text-gray-800">{log.action}</p>
+                            <p className="text-xs text-gray-400">
+                              {new Date(log.date).toLocaleString()} • Por: {log.user || 'Sistema'}
+                            </p>
+                          </div>
+                          {user.level === UserLevel.ADMIN && (
+                            <button
+                              onClick={() => handleDeleteHistoryEntry(viewingItem, realIndex)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-500"
+                              title="Excluir este registro do histórico"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-gray-800">{log.action}</p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(log.date).toLocaleString()} • Por: {log.user || 'Sistema'}
-                        </p>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <p className="text-xs text-gray-400 italic">Nenhum histórico registrado para este item.</p>
                 )}
               </div>
+              {user.level === UserLevel.ADMIN && viewingItem.history && viewingItem.history.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                  <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={viewingItem.history.length > 0 && selectedHistoryEntries.length === viewingItem.history.length}
+                      onChange={(e) => setSelectedHistoryEntries(e.target.checked ? viewingItem.history!.map((_, i) => i) : [])}
+                      className="rounded border-gray-300 text-ifrn-green focus:ring-ifrn-green"
+                    />
+                    Selecionar todos
+                  </label>
+                </div>
+              )}
             </div>
 
             {user.level === UserLevel.ADMIN && (
@@ -1308,7 +1473,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                   <>
                     <button
                       onClick={(e) => { setShowDetailModal(false); handleOpenReturnModal(e, viewingItem); }}
-                      className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                      className="px-3 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md shadow-blue-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-sm font-medium flex items-center gap-2"
                       title="Devolver ou dar baixa neste item"
                     >
                       <CornerUpRight size={16} /> Devolver
@@ -1316,7 +1481,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
 
                     <button
                       onClick={() => { setShowDetailModal(false); openEditModal(viewingItem); }}
-                      className="px-3 py-2 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-md text-sm font-medium flex items-center gap-2 border border-gray-200 transition-colors"
+                      className="px-3 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg shadow-md shadow-orange-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-sm font-medium flex items-center gap-2"
                       title="Editar detalhes do item"
                     >
                       <Pencil size={16} /> Editar
@@ -1325,7 +1490,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                     {user.level !== UserLevel.STANDARD && (
                       <button
                         onClick={(e) => { setShowDetailModal(false); handleDelete(e, viewingItem.id); }}
-                        className="px-3 py-2 bg-red-50 text-red-700 hover:bg-red-100 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
+                        className="px-3 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-md shadow-red-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-sm font-medium flex items-center gap-2"
                         title={user.level === UserLevel.ADMIN ? "Excluir item permanentemente" : "Excluir ou Descartar item"}
                       >
                         <Trash2 size={16} /> {user.level === UserLevel.ADMIN ? "Excluir" : "Excluir"}
@@ -1336,7 +1501,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                 {(viewingItem.status === ItemStatus.RETURNED || viewingItem.status === ItemStatus.DISCARDED) && user.level !== UserLevel.STANDARD && (
                   <button
                     onClick={(e) => { setShowDetailModal(false); handleCancelReturn(e, viewingItem); }}
-                    className="px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-md text-sm font-medium flex items-center gap-2 border border-amber-200 transition-colors"
+                      className="px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-lg shadow-md shadow-amber-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-sm font-medium flex items-center gap-2"
                   >
                     <RotateCcw size={16} /> Estornar
                   </button>
@@ -1376,7 +1541,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               </button>
               <button
                 onClick={() => handleShareImage(zoomImage!, `item-${viewingItem?.id || 'foto'}`)}
-                className="flex items-center gap-2 px-8 py-2 bg-ifrn-green text-white rounded-lg hover:bg-ifrn-darkGreen font-bold text-sm shadow-lg transition-all active:scale-95 uppercase tracking-wider"
+                className="flex items-center gap-2 px-8 py-2 bg-gradient-to-r from-ifrn-green to-ifrn-darkGreen text-white rounded-lg font-bold text-sm shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 uppercase tracking-wider"
               >
                 <Share size={18} /> Enviar Imagem
               </button>
@@ -1431,7 +1596,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           <div className="flex flex-col gap-3 pt-4 border-t">
             <button
               onClick={() => handleConfirmDiscard('SOFT')}
-              className="w-full py-3 bg-amber-600 text-white rounded-xl font-bold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-amber-200"
             >
               Confirmar Movimentação
             </button>

@@ -43,6 +43,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
 
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [searchAllCampuses, setSearchAllCampuses] = useState(false);
   const [selectedReport, setSelectedReport] = useState<LostReport | null>(null);
   const [isExternalPerson, setIsExternalPerson] = useState(false);
   const [externalName, setExternalName] = useState('');
@@ -369,7 +370,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     if (isTriggered && query.trim().length >= 2) {
       setIsSearchingPeople(true);
       try {
-        const results = await StorageService.searchPeople(query, 10, user.campus_id);
+        const results = await StorageService.searchPeople(query, 10, searchAllCampuses ? undefined : user.campus_id);
         setSearchResultsPeople(results);
         setHasSearchedPeople(true);
         setSelectedResultIndex(results.length > 0 ? 0 : -1);
@@ -1207,7 +1208,18 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
             </div>
           ) : returnType === 'PERSON' && (
             <div className="relative space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
+                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer hover:text-ifrn-green transition-colors select-none">
+                  <input
+                    type="checkbox"
+                    checked={searchAllCampuses}
+                    onChange={e => { setSearchAllCampuses(e.target.checked); setSearchResultsPeople([]); setSelectedResultIndex(-1); setHasSearchedPeople(false); }}
+                    className="rounded border-gray-300 text-ifrn-green focus:ring-ifrn-green w-3 h-3"
+                  />
+                  Todos os câmpus
+                </label>
+              </div>
                 <div className="relative flex-1">
                   <input
                     type="text"

@@ -582,6 +582,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     setExternalName('');
     setExternalDocument('');
     setExternalPhone('');
+    setSearchResultsPeople([]);
+    setHasSearchedPeople(false);
+    setSelectedResultIndex(-1);
+    setSearchAllCampuses(false);
   };
 
   const handleConfirmReturn = async () => {
@@ -1144,7 +1148,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
 
       <Modal
         isOpen={showReturnModal}
-        onClose={() => { setShowReturnModal(false); }}
+        onClose={() => { setShowReturnModal(false); setItemToReturn(null); setPersonSearch(''); setSelectedPerson(null); setSelectedReport(null); setReturnType('PERSON'); setIsExternalPerson(false); setExternalName(''); setExternalDocument(''); setExternalPhone(''); setSearchResultsPeople([]); setHasSearchedPeople(false); setSelectedResultIndex(-1); setSearchAllCampuses(false); }}
         title="Realizar Devolução do Item"
       >
         {/* Conteúdo do Modal de Devolução (mantém-se estruturalmente igual, apenas botões usam handleConfirmReturn que é async) */}

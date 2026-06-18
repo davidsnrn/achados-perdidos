@@ -444,6 +444,24 @@ export const StorageService = {
     if (!query || query.trim().length < 2) return [];
 
     const searchTerm = query.trim();
+
+    // Quando não há filtro de campus, usar RPC para bypassar RLS
+    if (!campusId) {
+      const { data, error } = await supabase.rpc('search_people_global', {
+        p_query: searchTerm,
+        p_limit: limit
+      });
+      if (error) {
+        console.error("Erro ao pesquisar pessoas (global):", error);
+        return [];
+      }
+      let results = data || [];
+      if (type && type !== 'ALL') {
+        results = results.filter((p: any) => p.type === type);
+      }
+      return results;
+    }
+
     const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
 
     let supabaseQuery = supabase

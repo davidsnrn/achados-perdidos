@@ -64,6 +64,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [personSearch, setPersonSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Person[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
+  const [searchedOnce, setSearchedOnce] = useState(false);
 
   const groupedNotifications = useMemo(() => {
     let filtered = notifications.filter(n => 
@@ -151,16 +152,18 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     });
   };
 
-  const handleSearchPeople = async (query: string) => {
-    setPersonSearch(query);
-    if (query.length < 3) {
+  const handleSearchPeople = async (query?: string) => {
+    const searchQuery = query ?? personSearch;
+    if (searchQuery.length < 3) {
       setSearchResults([]);
+      setSearchedOnce(false);
       return;
     }
 
+    setSearchedOnce(true);
     setIsSearchingPeople(true);
     try {
-      const results = await StorageService.searchPeople(query, 5, adminGlobalCampusId || user.campus_id);
+      const results = await StorageService.searchPeople(searchQuery, 5, adminGlobalCampusId || user.campus_id);
       setSearchResults(results);
     } catch (error) {
       console.error("Erro ao buscar pessoas:", error);
@@ -177,6 +180,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }));
     setPersonSearch(person.name);
     setSearchResults([]);
+    setSearchedOnce(false);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -730,6 +734,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     });
     setPersonSearch('');
     setSearchResults([]);
+    setSearchedOnce(false);
   };
 
   const openNewModal = () => {
@@ -1112,15 +1117,32 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                 
                 {!formData.student_matricula ? (
                   <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                     <input
                       type="text"
                       placeholder="Nome ou Matrícula..."
                       value={personSearch}
-                      onChange={e => handleSearchPeople(e.target.value)}
-                      className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-red-500 outline-none font-bold transition-all"
+                      onChange={e => { setPersonSearch(e.target.value); if (e.target.value.length === 0) { setSearchResults([]); setSearchedOnce(false); } }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchPeople(); } }}
+                      className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl pl-12 pr-12 py-4 text-sm focus:border-red-500 outline-none font-bold transition-all"
                     />
-                    {searchResults.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSearchPeople()}
+                      disabled={isSearchingPeople}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                    >
+                      {isSearchingPeople ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <Search size={20} />
+                      )}
+                    </button>
+                    {isSearchingPeople && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-4 text-center">
+                        <p className="text-sm text-gray-400 font-bold">Buscando...</p>
+                      </div>
+                    )}
+                    {!isSearchingPeople && searchedOnce && searchResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto">
                         {searchResults.map(p => (
                           <button
@@ -1133,6 +1155,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                             <p className="text-xs text-gray-400 font-mono">{p.matricula}</p>
                           </button>
                         ))}
+                      </div>
+                    )}
+                    {!isSearchingPeople && searchedOnce && searchResults.length === 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-4 text-center">
+                        <p className="text-sm text-gray-400 font-bold">Nenhum aluno encontrado</p>
                       </div>
                     )}
                   </div>

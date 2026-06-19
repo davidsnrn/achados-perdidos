@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel, Person } from '../../types';
+import { Book, User, BookLoan, BookLoanStatus, Campus, UserLevel, Person, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Plus, Search, Trash2, Pencil, Loader2, FileText, Printer, ArrowRight, X, ChevronUp, ChevronDown, ChevronsUpDown, User as UserIcon } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -14,10 +14,12 @@ interface Props {
     onUpdate: () => void;
     user: User;
     campuses: Campus[];
+    setores: Setor[];
     people?: Person[];
     isPeopleLoading?: boolean;
     peopleSearchIndex?: { id: string, searchStr: string }[];
     adminGlobalCampusId?: string | null;
+    adminGlobalSetorId?: string | null;
 }
 
 interface BookTableProps {
@@ -30,6 +32,7 @@ interface BookTableProps {
     sortConfig: SortEntry[];
     onSort: (col: SortCol) => void;
     onViewBorrowers: (book: Book) => void;
+    setores: Setor[];
 }
 
 const SORT_COLS: { col: SortCol; label: string }[] = [
@@ -41,7 +44,7 @@ const SORT_COLS: { col: SortCol; label: string }[] = [
     { col: 'publisher', label: 'Editora' },
 ];
 
-const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount, sortConfig, onSort, onViewBorrowers }) => {
+const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, onLoan, getBorrowedCount, sortConfig, onSort, onViewBorrowers, setores }) => {
     const SortIcon = ({ col }: { col: SortCol }) => {
         const entry = sortConfig.find(s => s.col === col);
         const priority = sortConfig.findIndex(s => s.col === col);
@@ -68,6 +71,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                                         <span className="inline-flex items-center">{label}<SortIcon col={col} /></span>
                                     </th>
                                 ))}
+                                <th className="p-4 text-gray-500">Setor</th>
                                 <th className="p-4 text-center">QTD EMP.</th>
                                 <th className="p-4 text-center">QTD ATUAL</th>
                                 <th className="p-4 text-center">Ações</th>
@@ -76,7 +80,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                         <tbody className="divide-y divide-gray-100">
                             {books.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="p-8 text-center text-gray-400">Nenhum livro encontrado nesta categoria.</td>
+                                    <td colSpan={10} className="p-8 text-center text-gray-400">Nenhum livro encontrado nesta categoria.</td>
                                 </tr>
                             ) : (
                                 books.map(book => {
@@ -93,6 +97,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
                                             <td className="p-4 font-bold text-gray-800">{book.title}</td>
                                             <td className="p-4">{book.series}</td>
                                             <td className="p-4">{book.publisher}</td>
+                                            <td className="p-4 text-gray-500 text-xs">{book.setor_id ? (setores.find(s => s.id === book.setor_id)?.name || '---') : '---'}</td>
                                             <td className="p-4 text-center">
                                                 <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getBorrowedCount(book.id) > 0 ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-500'}`}>
                                                     {getBorrowedCount(book.id)}
@@ -181,6 +186,9 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
     );
+    const [selectedSetorId, setSelectedSetorId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
+    );
 
     // Sync with global admin campus selector
     React.useEffect(() => {
@@ -188,6 +196,14 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             setSelectedCampusId(adminGlobalCampusId || '');
         }
     }, [adminGlobalCampusId, user.level]);
+
+    React.useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+            setSelectedSetorId(adminGlobalSetorId || '');
+        }
+    }, [adminGlobalSetorId, user.level]);
+
+    const isAdmin = user.level === UserLevel.ADMIN;
 
     const getBorrowedCount = (bookId: string) => {
         return bookLoans.reduce((total, loan) => {
@@ -260,6 +276,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         setSeries(book.series);
         setPublisher(book.publisher);
         setQuantity(book.quantity);
+        setSelectedSetorId(book.setor_id || '');
         setShowModal(true);
     };
 
@@ -276,7 +293,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 series,
                 publisher,
                 quantity,
-                campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+                campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+                setor_id: isAdmin ? selectedSetorId : user.setor_id || null
             });
             onUpdate();
             setShowModal(false);
@@ -448,6 +466,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         status: BookLoanStatus.ACTIVE,
                         observation: loanObs,
                         campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+                        setor_id: isAdmin ? selectedSetorId : user.setor_id || null,
                         history: booksToAdd.map(b => ({
                             action: `Empréstimo: ${b.title} (#${b.code || 'S/C'})`,
                             user: user.name,
@@ -775,6 +794,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         setSelectedBookForBorrowers(book);
                         setShowBorrowersModal(true);
                     }}
+                    setores={setores}
                 />
 
                 <BookTable
@@ -795,6 +815,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                         setSelectedBookForBorrowers(book);
                         setShowBorrowersModal(true);
                     }}
+                    setores={setores}
                 />
             </div>
 
@@ -921,19 +942,36 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     </div>
 
                     {user.level === UserLevel.ADMIN && (
-                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4">
-                            <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Livro</label>
-                            <select
-                                value={selectedCampusId}
-                                onChange={e => setSelectedCampusId(e.target.value)}
-                                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                                required
-                            >
-                                <option value="">Selecione um Câmpus...</option>
-                                {campuses.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Livro</label>
+                                <select
+                                    value={selectedCampusId}
+                                    onChange={e => { setSelectedCampusId(e.target.value); setSelectedSetorId(''); }}
+                                    className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                    required
+                                >
+                                    <option value="">Selecione um Câmpus...</option>
+                                    {campuses.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                                <div>
+                                    <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Setor do Livro</label>
+                                    <select
+                                        value={selectedSetorId}
+                                        onChange={e => setSelectedSetorId(e.target.value)}
+                                        className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                    >
+                                        <option value="">Selecione um Setor...</option>
+                                        {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     )}
 

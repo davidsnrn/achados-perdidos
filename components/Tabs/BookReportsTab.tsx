@@ -1,19 +1,21 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel, PersonType } from '../../types';
-import { Search, Calendar, User as UserIcon, Book as BookIcon, TrendingUp, CheckCircle, AlertCircle, FileText, LayoutGrid, List, ChevronRight, Download, BarChart3, Filter, Clock } from 'lucide-react';
+import { Book, BookLoan, BookLoanStatus, Person, User, Campus, UserLevel, PersonType, Setor } from '../../types';
+import { Search, Calendar, User as UserIcon, Book as BookIcon, TrendingUp, CheckCircle, AlertCircle, FileText, LayoutGrid, List, ChevronRight, Download, BarChart3, Filter, Clock, Building2 } from 'lucide-react';
 
 interface Props {
     books: Book[];
     loans: BookLoan[];
     user: User;
     campuses: Campus[];
+    setores: Setor[];
     adminGlobalCampusId?: string | null;
+    adminGlobalSetorId?: string | null;
 }
 
 type ReportView = 'general' | 'detailed';
 type BookDisplayStyle = 'table' | 'cards';
 
-export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, adminGlobalCampusId }) => {
+export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
     const [activeView, setActiveView] = useState<ReportView>('general');
     const [bookStyle, setBookStyle] = useState<BookDisplayStyle>('table');
     // Filters State
@@ -34,6 +36,17 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
         setCurrentPage(1);
     }, [startDate, endDate, startTime, endTime, personSearch, bookSearch, operatorSearch]);
 
+    const [selectedSetorId, setSelectedSetorId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
+    );
+
+    useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+            setSelectedSetorId(adminGlobalSetorId || '');
+        }
+    }, [adminGlobalSetorId, user.level]);
+
+    const isAdmin = user.level === UserLevel.ADMIN;
     
     // Base stats
     const stats = useMemo(() => {
@@ -658,6 +671,19 @@ export const BookReportsTab: React.FC<Props> = ({ books, loans, user, campuses, 
                     </div>
                 </div>
             </div>
+
+            {/* Setor Info Banner */}
+            {isAdmin && selectedSetorId ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm text-amber-800 flex items-center gap-2">
+                    <Building2 size={16} />
+                    <span className="font-bold">Setor:</span> {setores.find(s => s.id === selectedSetorId)?.name || '---'}
+                </div>
+            ) : user.setor_id ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-sm text-amber-800 flex items-center gap-2">
+                    <Building2 size={16} />
+                    <span className="font-bold">Setor:</span> {setores.find(s => s.id === user.setor_id)?.name || '---'}
+                </div>
+            ) : null}
 
             {/* Dynamic Content Rendering */}
             <main className="min-h-[600px]">

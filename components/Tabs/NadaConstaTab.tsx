@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Locker, LoanData } from '../../types-armarios';
-import { Person, BookLoan, BookLoanStatus, User, Campus, UserLevel } from '../../types';
+import { Person, BookLoan, BookLoanStatus, User, Campus, Setor, UserLevel } from '../../types';
 import { MaterialLoan } from '../../types-materiais';
 import { Search, ExternalLink, CheckCircle, AlertTriangle, User as UserIcon, BookOpen, Key, Info, History, Hash, Loader2 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
@@ -11,7 +11,9 @@ interface NadaConstaTabProps {
     materialLoans: MaterialLoan[];
     user: User;
     campuses: Campus[];
+    setores: Setor[];
     adminGlobalCampusId?: string | null;
+    adminGlobalSetorId?: string | null;
 }
 
 export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
@@ -20,13 +22,28 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
     materialLoans,
     user,
     campuses,
-    adminGlobalCampusId
+    setores,
+    adminGlobalCampusId,
+    adminGlobalSetorId
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const [selectedSetorId, setSelectedSetorId] = useState<string>(
+        (user?.level === UserLevel.ADMIN ? adminGlobalSetorId : user?.setor_id) || ''
+    );
+
+    useEffect(() => {
+        if (user?.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+            setSelectedSetorId(adminGlobalSetorId || '');
+        }
+    }, [adminGlobalSetorId, user?.level]);
+
+    const isAdmin = user.level === UserLevel.ADMIN;
+    const activeSetorId = isAdmin ? selectedSetorId : user.setor_id;
 
     useEffect(() => {
         if (textareaRef.current) {
@@ -65,11 +82,12 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 : [rawSearch];
 
             const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+            const searchSetorId = isAdmin ? activeSetorId || undefined : user.setor_id;
             let allResults: Person[] = [];
 
             // Buscar cada grupo no servidor de forma assíncrona
             const searchPromises = searchGroups.map(group =>
-                StorageService.searchPeople(group, 50, campusId)
+                StorageService.searchPeople(group, 50, campusId, undefined, searchSetorId)
             );
 
             const promiseResults = await Promise.all(searchPromises);
@@ -190,6 +208,11 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 </div>
                 <div className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-2 ml-4">
                     <Info size={12} /> Dica: Separe por vírgula para buscar vários alunos. Pressione <span className="text-blue-500 underline font-black">Enter</span> para pesquisar.
+                    {isAdmin && activeSetorId && (
+                        <span className="ml-auto text-amber-600 flex items-center gap-1">
+                            <Info size={12} /> Setor: {setores.find(s => s.id === activeSetorId)?.name || '---'}
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -217,6 +240,12 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                                             <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                                 <Info size={14} className="text-slate-300" />
                                                 Câmpus: <span className="text-slate-600">{campuses.find(c => c.id === student.campus_id)?.name || '---'}</span>
+                                            </span>
+                                        )}
+                                        {activeSetorId && (
+                                            <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                                <Info size={14} className="text-slate-300" />
+                                                Setor: <span className="text-slate-600">{setores.find(s => s.id === activeSetorId)?.name || '---'}</span>
                                             </span>
                                         )}
                                         <a

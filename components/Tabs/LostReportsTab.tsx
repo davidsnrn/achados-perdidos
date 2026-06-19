@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { LostReport, ReportStatus, Person, PersonType, User, UserLevel, FoundItem, ItemStatus, Campus } from '../../types';
+import { LostReport, ReportStatus, Person, PersonType, User, UserLevel, FoundItem, ItemStatus, Campus, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, Send, Clock, CheckCircle, User as UserIcon, Trash2, AlertTriangle, RotateCcw, Loader2, Link as LinkIcon, Package, X, CornerUpRight, FileText, Plus, Building2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -10,10 +10,12 @@ interface Props {
   onUpdate: () => void;
   user: User;
   campuses: Campus[];
+  setores: Setor[];
   adminGlobalCampusId?: string | null;
+  adminGlobalSetorId?: string | null;
 }
 
-export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user, campuses, adminGlobalCampusId }) => {
+export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [personSearch, setPersonSearch] = useState('');
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -38,6 +40,9 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
   );
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
+  );
 
   // Sync with global admin campus selector
   React.useEffect(() => {
@@ -46,6 +51,13 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
     }
   }, [adminGlobalCampusId, user.level]);
 
+  React.useEffect(() => {
+    if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, user.level]);
+
+  const isAdmin = user.level === UserLevel.ADMIN;
   const userString = `${user.name} (${user.matricula})`;
 
   const normalizeText = (text: string) => {
@@ -101,7 +113,8 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
       email: newEmail,
       status: ReportStatus.OPEN,
       createdAt: new Date().toISOString(),
-      campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+      campus_id: isAdmin ? selectedCampusId : user.campus_id,
+      setor_id: isAdmin ? selectedSetorId : user.setor_id,
       history: [{ date: new Date().toISOString(), note: 'Relato de perda criado.', user: userString }]
     };
 
@@ -232,6 +245,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
                 <th className="p-4 whitespace-nowrap">Data</th>
                 <th className="p-4 whitespace-nowrap">Item</th>
                 <th className="p-4 whitespace-nowrap">Quem</th>
+                <th className="p-4 whitespace-nowrap">Setor</th>
                 <th className="p-4 whitespace-nowrap">Status</th>
               </tr>
             </thead>
@@ -252,6 +266,9 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
                     <td className="p-4 text-gray-500 whitespace-nowrap">{new Date(report.createdAt).toLocaleDateString()}</td>
                     <td className="p-4 font-bold text-gray-800 whitespace-nowrap">{report.itemDescription}</td>
                     <td className="p-4 text-gray-600 whitespace-nowrap">{report.personName}</td>
+                    <td className="p-4 text-gray-500 text-xs whitespace-nowrap">
+                      {report.setor_id ? (setores.find(s => s.id === report.setor_id)?.name || '---') : '---'}
+                    </td>
                     <td className="p-4 whitespace-nowrap">
                       <span className={`px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 ${report.status === ReportStatus.OPEN ? 'bg-yellow-100 text-yellow-800' :
                         report.status === ReportStatus.FOUND ? 'bg-blue-100 text-blue-800' :
@@ -265,7 +282,7 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
                 ))}
               {reports.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-12 text-center text-gray-400 italic">Nenhum relato encontrado.</td>
+                  <td colSpan={5} className="p-12 text-center text-gray-400 italic">Nenhum relato encontrado.</td>
                 </tr>
               )}
             </tbody>
@@ -395,19 +412,40 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
           </div>
 
           {user.level === UserLevel.ADMIN && (
-            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <label className="block text-xs font-bold text-amber-900 mb-2">Câmpus do Relato *</label>
-              <select
-                value={selectedCampusId}
-                onChange={e => setSelectedCampusId(e.target.value)}
-                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                required
-              >
-                <option value="">Selecione um Câmpus...</option>
-                {campuses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-2">
+                  <Building2 size={14} /> Câmpus do Relato *
+                </label>
+                <select
+                  value={selectedCampusId}
+                  onChange={e => { setSelectedCampusId(e.target.value); setSelectedSetorId(''); }}
+                  className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  required
+                >
+                  <option value="">Selecione um Câmpus...</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              {selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-amber-900 mb-2 flex items-center gap-2">
+                    <Building2 size={14} /> Setor
+                  </label>
+                  <select
+                    value={selectedSetorId}
+                    onChange={e => setSelectedSetorId(e.target.value)}
+                    className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  >
+                    <option value="">Selecione um setor...</option>
+                    {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -452,6 +490,16 @@ export const LostReportsTab: React.FC<Props> = ({ reports, items, onUpdate, user
                   <p className="text-amber-900 font-bold">
                     {campuses.find(c => c.id === viewingReport.campus_id)?.name || 'Câmpus não identificado'}
                   </p>
+                  {viewingReport.setor_id && (
+                    <>
+                      <span className="block text-amber-900 text-xs uppercase font-bold tracking-wider mt-3 mb-1 flex items-center gap-2">
+                        <Building2 size={14} /> Setor
+                      </span>
+                      <p className="text-amber-900 font-bold">
+                        {setores.find(s => s.id === viewingReport.setor_id)?.name || 'Setor não identificado'}
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
-import { Person, User, Campus, UserLevel } from '../../types';
+import { Person, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
 import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown } from 'lucide-react';
@@ -12,10 +12,12 @@ interface Props {
     user: User;
     onUpdate: () => void;
     campuses: Campus[];
+    setores: Setor[];
     adminGlobalCampusId?: string | null;
+    adminGlobalSetorId?: string | null;
 }
 
-export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], user, onUpdate, campuses, adminGlobalCampusId }) => {
+export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans = [], user, onUpdate, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
@@ -105,6 +107,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
     );
+    const [selectedSetorId, setSelectedSetorId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
+    );
     const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(false);
     const [loadingConfig, setLoadingConfig] = useState(true);
     const [sendingCharge, setSendingCharge] = useState(false);
@@ -122,6 +127,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [loadingChargeHistory, setLoadingChargeHistory] = useState(false);
 
     const campusIdForConfig = user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id;
+    const isAdmin = user.level === UserLevel.ADMIN;
+    const activeSetorId = isAdmin ? selectedSetorId : user.setor_id;
 
     useEffect(() => {
         if (!campusIdForConfig) {
@@ -170,6 +177,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setSelectedCampusId(adminGlobalCampusId || '');
         }
     }, [adminGlobalCampusId, user.level]);
+
+    useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+            setSelectedSetorId(adminGlobalSetorId || '');
+        }
+    }, [adminGlobalSetorId, user.level]);
 
     // Reset pagination on search or tab changes
     useMemo(() => {
@@ -389,7 +402,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 code: code,
                 name: formMaterialName.trim(),
                 createdAt: editingMaterial?.createdAt || new Date().toISOString(),
-                campus_id: campusId
+                campus_id: campusId,
+                setor_id: isAdmin ? selectedSetorId : user.setor_id || null
             };
 
             try {
@@ -426,7 +440,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                     code: code,
                     name: name,
                     createdAt: new Date().toISOString(),
-                    campus_id: campusId
+                    campus_id: campusId,
+                    setor_id: isAdmin ? selectedSetorId : user.setor_id || null
                 });
                 nextNum++;
             });
@@ -462,7 +477,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             observation: observation.trim() || undefined,
             status: 'ACTIVE' as const,
             loanedBy: `${user.name} (${user.matricula})`,
-            campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id
+            campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id,
+            setor_id: isAdmin ? selectedSetorId : user.setor_id || null
         }));
 
         try {
@@ -970,6 +986,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('name')}>
                                             <div className="flex items-center">Material {getInventorySortIcon('name')}</div>
                                         </th>
+                                        <th className="p-4 text-left">
+                                            <div className="flex items-center">Setor</div>
+                                        </th>
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('status')}>
                                             <div className="flex items-center">Status {getInventorySortIcon('status')}</div>
                                         </th>
@@ -1003,6 +1022,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 </div>
                                             </td>
                                             <td className="p-4 font-bold text-gray-800">{item.name}</td>
+                                            <td className="p-4 text-xs text-gray-500">
+                                                {item.setor_id ? (setores.find(s => s.id === item.setor_id)?.name || '---') : '---'}
+                                            </td>
                                             <td className="p-4">
                                                 <span className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${item.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
                                                     {item.status === 'AVAILABLE' ? <CheckCircle size={10} /> : <AlertTriangle size={10} />}
@@ -1035,7 +1057,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     ))}
                                     {filteredInventory.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="p-12 text-center text-gray-400 italic">Nenhum material encontrado.</td>
+                                            <td colSpan={7} className="p-12 text-center text-gray-400 italic">Nenhum material encontrado.</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -1222,6 +1244,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('materialName')}>
                                             <div className="flex items-center">Material {getReportSortIcon('materialName')}</div>
                                         </th>
+                                        <th className="p-4 text-left">
+                                            <div className="flex items-center">Setor</div>
+                                        </th>
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('personName')}>
                                             <div className="flex items-center">Pessoa {getReportSortIcon('personName')}</div>
                                         </th>
@@ -1313,6 +1338,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                     <div className="font-bold text-gray-800">{loan.materialName}</div>
                                                     <div className="text-xs text-gray-500 font-mono">#{stripPrefix(loan.materialCode)}</div>
                                                 </td>
+                                                <td className="p-4 text-xs text-gray-500">
+                                                    {loan.setor_id ? (setores.find(s => s.id === loan.setor_id)?.name || '---') : '---'}
+                                                </td>
                                                 <td className="p-4">
                                                     <div className="font-medium text-gray-800">{loan.personName}</div>
                                                     <div className="text-xs text-gray-500">{loan.personMatricula}</div>
@@ -1344,7 +1372,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         ))}
                                     {loans.length === 0 && (
                                         <tr>
-                                            <td colSpan={user.level === UserLevel.ADMIN ? 6 : 5} className="p-12 text-center text-gray-400 italic">Nenhum histórico disponível.</td>
+                                            <td colSpan={user.level === UserLevel.ADMIN ? 7 : 6} className="p-12 text-center text-gray-400 italic">Nenhum histórico disponível.</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -1517,6 +1545,21 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <option value="">Selecione um Câmpus...</option>
                                 {campuses.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    {user.level === UserLevel.ADMIN && selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
+                            <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Setor do Material</label>
+                            <select
+                                value={selectedSetorId}
+                                onChange={e => setSelectedSetorId(e.target.value)}
+                                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                            >
+                                <option value="">Selecione um setor...</option>
+                                {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                             </select>
                         </div>
@@ -1813,6 +1856,21 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <option value="">Selecione um Câmpus...</option>
                                 {campuses.map(c => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    {user.level === UserLevel.ADMIN && selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Setor do Empréstimo</label>
+                            <select
+                                value={selectedSetorId}
+                                onChange={e => setSelectedSetorId(e.target.value)}
+                                className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 bg-white"
+                            >
+                                <option value="">Selecione um setor...</option>
+                                {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
                                 ))}
                             </select>
                         </div>

@@ -73,6 +73,7 @@ const ScheduleLockerModal: React.FC<ScheduleLockerModalProps> = ({
         lockerNumber: locker.number,
         lockerLocation: locker.location,
         campusId: locker.campus_id,
+        setor_id: locker.setor_id,
         studentName: selectedStudent.name,
         registrationNumber: selectedStudent.registration,
         studentClass: studentClass,

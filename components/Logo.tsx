@@ -44,11 +44,18 @@ export const IfrnLogo: React.FC<LogoProps> = ({ className = "", sector = "", cam
       </svg>
 
       {/* Text */}
-      <div className="flex flex-col leading-none items-start text-left">
+      <div className="flex flex-col leading-tight items-start text-left">
         <span className={`font-bold text-xl tracking-tight whitespace-nowrap ${textColor}`}>IFRN</span>
-        <span className={`text-[10px] sm:text-xs tracking-wider uppercase ${boldSubtext ? `font-black ${textColor}` : `font-semibold ${subtextColor}`}`}>
-          {sector}{sector && campus && " - "}{campus}
-        </span>
+        {campus && (
+          <span className={`text-[10px] sm:text-xs tracking-wider uppercase ${boldSubtext ? `font-black ${textColor}` : `font-semibold ${subtextColor}`}`}>
+            {campus}
+          </span>
+        )}
+        {sector && (
+          <span className={`text-[9px] sm:text-[10px] tracking-wider uppercase font-semibold ${subtextColor}`}>
+            {sector}
+          </span>
+        )}
       </div>
     </div>
   );

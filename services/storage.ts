@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao, Setor } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -77,6 +77,141 @@ export const StorageService = {
   deleteSetor: async (id: string) => {
     const { error } = await supabase.from('setores').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  getMovePreview: async (fromSetorId: string): Promise<{ table: string; count: number; label: string }[]> => {
+    const tables: { table: string; label: string; pk: string }[] = [
+      { table: 'lockers', label: 'Armários', pk: 'number' },
+      { table: 'items', label: 'Achados - Itens', pk: 'id' },
+      { table: 'reports', label: 'Achados - Relatos', pk: 'id' },
+      { table: 'locker_schedules', label: 'Agendamentos de Armários', pk: 'id' },
+      { table: 'books', label: 'Livros', pk: 'id' },
+      { table: 'book_loans', label: 'Empréstimos de Livros', pk: 'id' },
+      { table: 'materials', label: 'Materiais', pk: 'id' },
+      { table: 'material_loans', label: 'Empréstimos de Materiais', pk: 'id' },
+      { table: 'copy_records', label: 'Registros de Cópias', pk: 'id' },
+      { table: 'supplies', label: 'Insumos (Estoque)', pk: 'id' },
+      { table: 'supply_records', label: 'Registros de Insumos', pk: 'id' },
+      { table: 'student_notifications', label: 'Notificações de Alunos', pk: 'id' },
+      { table: 'notification_types', label: 'Tipos de Notificação', pk: 'id' },
+      { table: 'users', label: 'Usuários', pk: 'id' },
+    ];
+    const results: { table: string; count: number; label: string }[] = [];
+    for (const { table, label, pk } of tables) {
+      const { count, error } = await supabase
+        .from(table)
+        .select(pk, { count: 'exact', head: true })
+        .eq('setor_id', fromSetorId);
+      if (error) {
+        console.warn(`Erro ao contar ${table}:`, error.message);
+      } else {
+        results.push({ table, count: count || 0, label });
+      }
+    }
+    return results;
+  },
+
+  getMovePreviewItems: async (fromSetorId: string, table: string): Promise<{ id: string | number; label: string; currentSetorId: string | null }[]> => {
+    const pkMap: Record<string, string> = {
+      items: 'id',
+      reports: 'id',
+      lockers: 'number',
+      locker_schedules: 'id',
+      books: 'id',
+      book_loans: 'id',
+      materials: 'id',
+      material_loans: 'id',
+      copy_records: 'id',
+      supplies: 'id',
+      supply_records: 'id',
+      student_notifications: 'id',
+      notification_types: 'id',
+      users: 'id',
+    };
+    const selectMap: Record<string, string> = {
+      items: 'id, description, campus_item_id, setor_id',
+      reports: 'id, item_description, setor_id',
+      lockers: 'number, location, setor_id',
+      locker_schedules: 'id, locker_number, student_name, setor_id',
+      books: 'id, title, setor_id',
+      book_loans: 'id, person_name, setor_id',
+      materials: 'id, name, code, setor_id',
+      material_loans: 'id, materialName, personName, setor_id',
+      copy_records: 'id, person_name, setor_id',
+      supplies: 'id, name, setor_id',
+      supply_records: 'id, person_name, setor_id',
+      student_notifications: 'id, student_name, setor_id',
+      notification_types: 'id, name, setor_id',
+      users: 'id, name, matricula, setor_id',
+    };
+    const columns = selectMap[table];
+    const pk = pkMap[table] || 'id';
+    if (!columns) return [];
+    const { data, error } = await supabase
+      .from(table)
+      .select(columns)
+      .or(`setor_id.eq.${fromSetorId},setor_id.is.null`)
+      .order(pk, { ascending: true });
+    if (error) return [];
+    return (data || []).map((item: any) => {
+      let label = '';
+      const itemId = item[pk];
+      switch (table) {
+        case 'items': label = `#${item.campus_item_id ?? item.id} - ${item.description}`; break;
+        case 'reports': label = item.item_description; break;
+        case 'lockers': label = `Armário ${item.number}${item.location ? ` (${item.location})` : ''}`; break;
+        case 'locker_schedules': label = `${item.locker_number} - ${item.student_name}`; break;
+        case 'books': label = item.title; break;
+        case 'book_loans': label = item.person_name; break;
+        case 'materials': label = item.code ? `${item.name} (${item.code})` : item.name; break;
+        case 'material_loans': label = `${item.materialName} - ${item.personName}`; break;
+        case 'copy_records': label = item.person_name; break;
+        case 'supplies': label = item.name; break;
+        case 'supply_records': label = item.person_name || 'Sem nome'; break;
+        case 'student_notifications': label = item.student_name; break;
+        case 'notification_types': label = item.name; break;
+        case 'users': label = `${item.name} (${item.matricula})`; break;
+        default: label = item.id?.toString() || '';
+      }
+      return { id: itemId, label, currentSetorId: item.setor_id || null };
+    });
+  },
+
+  moveSetorData: async (fromSetorId: string, toSetorId: string, selections?: { table: string; ids?: (string | number)[] }[]) => {
+    const pkMap: Record<string, string> = {
+      items: 'id',
+      reports: 'id',
+      lockers: 'number',
+      locker_schedules: 'id',
+      books: 'id',
+      book_loans: 'id',
+      materials: 'id',
+      material_loans: 'id',
+      copy_records: 'id',
+      supplies: 'id',
+      supply_records: 'id',
+      student_notifications: 'id',
+      notification_types: 'id',
+      users: 'id',
+    };
+    const tablesToProcess = selections ? selections.filter(s => s.ids === undefined || s.ids.length > 0) : Object.keys(pkMap).map(t => ({ table: t }));
+    const results: { table: string; count: number }[] = [];
+    for (const sel of tablesToProcess) {
+      const pk = pkMap[sel.table] || 'id';
+      let query = supabase.from(sel.table).update({ setor_id: toSetorId }).select(pk);
+      if (sel.ids) {
+        query = query.in(pk, sel.ids);
+      } else {
+        query = query.eq('setor_id', fromSetorId);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.warn(`Erro ao mover dados da tabela ${sel.table}:`, error.message);
+      } else {
+        results.push({ table: sel.table, count: data?.length || 0 });
+      }
+    }
+    return results;
   },
 
   getUsers: async (campusId?: string, setorId?: string): Promise<User[]> => {
@@ -477,7 +612,7 @@ export const StorageService = {
     return count || 0;
   },
 
-  searchPeople: async (query: string, limit: number = 20, campusId?: string, type?: string): Promise<Person[]> => {
+  searchPeople: async (query: string, limit: number = 20, campusId?: string, type?: string, setorId?: string): Promise<Person[]> => {
     if (!query || query.trim().length < 2) return [];
 
     const searchTerm = query.trim();
@@ -503,7 +638,7 @@ export const StorageService = {
 
     let supabaseQuery = supabase
       .from('people')
-      .select('name, matricula, campus_id, type, email');
+      .select('name, matricula, campus_id, type, email, setor_id');
 
     if (tokens.length > 0) {
       tokens.forEach(t => {
@@ -521,6 +656,10 @@ export const StorageService = {
 
     if (type && type !== 'ALL') {
       supabaseQuery = supabaseQuery.eq('type', type);
+    }
+
+    if (setorId) {
+      supabaseQuery = supabaseQuery.eq('setor_id', setorId);
     }
 
     const { data, error } = await supabaseQuery
@@ -553,17 +692,18 @@ export const StorageService = {
       // 2. Atualizar a matrícula na tabela principal (PK)
       const { error: updateError } = await supabase
         .from('people')
-        .update({
-          matricula: person.matricula,
-          name: person.name,
-          type: person.type,
-          campus_id: person.campus_id,
-          email: person.email,
-          document: person.document || null,
-          document_type: person.document_type || null,
-          phone: person.phone || null,
-        })
-        .eq('matricula', oldMatricula);
+            .update({
+              matricula: person.matricula,
+              name: person.name,
+              type: person.type,
+              campus_id: person.campus_id,
+              setor_id: person.setor_id || null,
+              email: person.email,
+              document: person.document || null,
+              document_type: person.document_type || null,
+              phone: person.phone || null,
+            })
+            .eq('matricula', oldMatricula);
 
       if (updateError) throw updateError;
 
@@ -599,6 +739,7 @@ export const StorageService = {
         name: person.name,
         type: person.type,
         campus_id: person.campus_id,
+        setor_id: person.setor_id || null,
         email: person.email,
         document: person.document || null,
         document_type: person.document_type || null,
@@ -644,7 +785,8 @@ export const StorageService = {
             name: p.name,
             type: p.type,
             email: p.email || null,
-            campus_id: p.campus_id
+            campus_id: p.campus_id,
+            setor_id: p.setor_id || null
           }))
         });
         if (error) {
@@ -678,7 +820,7 @@ export const StorageService = {
   },
 
   // Items
-  getItems: async (campusId?: string): Promise<FoundItem[]> => {
+  getItems: async (campusId?: string, setorId?: string): Promise<FoundItem[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
@@ -692,6 +834,10 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -722,7 +868,8 @@ export const StorageService = {
       discardType: d.discard_type,
       history: d.history,
       imageUrl: d.image_url,
-      campus_id: d.campus_id
+      campus_id: d.campus_id,
+      setor_id: d.setor_id
     }));
   },
 
@@ -766,6 +913,7 @@ export const StorageService = {
       history: history,
       image_url: item.imageUrl,
       campus_id: item.campus_id,
+      setor_id: item.setor_id || null,
       ...(campusItemId !== undefined ? { campus_item_id: campusItemId } : {})
     };
 
@@ -843,7 +991,7 @@ export const StorageService = {
   },
 
   // Reports
-  getReports: async (campusId?: string): Promise<LostReport[]> => {
+  getReports: async (campusId?: string, setorId?: string): Promise<LostReport[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
@@ -857,6 +1005,10 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -879,7 +1031,8 @@ export const StorageService = {
       status: d.status as ReportStatus,
       createdAt: d.created_at,
       history: d.history,
-      campus_id: d.campus_id
+      campus_id: d.campus_id,
+      setor_id: d.setor_id
     }));
   },
 
@@ -894,7 +1047,8 @@ export const StorageService = {
       status: report.status,
       created_at: report.createdAt,
       history: report.history,
-      campus_id: report.campus_id
+      campus_id: report.campus_id,
+      setor_id: report.setor_id || null
     };
     const { error } = await supabase.from('reports').upsert(payload);
     if (error) throw error;
@@ -1273,7 +1427,7 @@ export const StorageService = {
   },
 
   // Books
-  getBooks: async (campusId?: string): Promise<Book[]> => {
+  getBooks: async (campusId?: string, setorId?: string): Promise<Book[]> => {
     let allData: Book[] = [];
     let from = 0;
     const limit = 1000;
@@ -1287,6 +1441,9 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -1310,7 +1467,8 @@ export const StorageService = {
       series: book.series,
       publisher: book.publisher,
       quantity: book.quantity,
-      campus_id: book.campus_id
+      campus_id: book.campus_id,
+      setor_id: book.setor_id || null
     });
 
     if (error) throw error;
@@ -1329,7 +1487,7 @@ export const StorageService = {
   },
 
   // Book Loans
-  getBookLoans: async (campusId?: string): Promise<BookLoan[]> => {
+  getBookLoans: async (campusId?: string, setorId?: string): Promise<BookLoan[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
@@ -1343,6 +1501,9 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -1379,7 +1540,8 @@ export const StorageService = {
       returnDate: d.return_date,
       observation: d.observation,
       history: d.history,
-      campus_id: d.campus_id
+      campus_id: d.campus_id,
+      setor_id: d.setor_id
     }));
   },
 
@@ -1395,14 +1557,15 @@ export const StorageService = {
       return_date: loan.returnDate,
       observation: loan.observation,
       history: loan.history || [],
-      campus_id: loan.campus_id
+      campus_id: loan.campus_id,
+      setor_id: loan.setor_id || null
     };
     const { error } = await supabase.from('book_loans').upsert(payload);
     if (error) throw error;
   },
 
   // Materials
-  getMaterials: async (campusId?: string): Promise<Material[]> => {
+  getMaterials: async (campusId?: string, setorId?: string): Promise<Material[]> => {
     let allData: Material[] = [];
     let from = 0;
     const limit = 1000;
@@ -1416,6 +1579,9 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -1435,7 +1601,8 @@ export const StorageService = {
       code: material.code,
       name: material.name,
       createdAt: material.createdAt,
-      campus_id: material.campus_id
+      campus_id: material.campus_id,
+      setor_id: material.setor_id || null
     });
 
     if (error) throw error;
@@ -1447,7 +1614,8 @@ export const StorageService = {
       code: m.code,
       name: m.name,
       createdAt: m.createdAt,
-      campus_id: m.campus_id
+      campus_id: m.campus_id,
+      setor_id: m.setor_id || null
     })));
     if (error) throw error;
   },
@@ -1509,7 +1677,7 @@ export const StorageService = {
   },
 
   // Material Loans
-  getMaterialLoans: async (campusId?: string): Promise<MaterialLoan[]> => {
+  getMaterialLoans: async (campusId?: string, setorId?: string): Promise<MaterialLoan[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
@@ -1523,6 +1691,9 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -1548,7 +1719,8 @@ export const StorageService = {
       status: d.status,
       loanedBy: d.loanedBy,
       returnedBy: d.returnedBy,
-      campus_id: d.campus_id
+      campus_id: d.campus_id,
+      setor_id: d.setor_id
     }));
   },
 
@@ -1567,7 +1739,8 @@ export const StorageService = {
       status: loan.status,
       loanedBy: loan.loanedBy,
       returnedBy: loan.returnedBy,
-      campus_id: loan.campus_id
+      campus_id: loan.campus_id,
+      setor_id: loan.setor_id || null
     };
     const { error } = await supabase.from('material_loans').upsert(payload);
     if (error) throw error;
@@ -1699,13 +1872,16 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  getCopyRecords: async (campusId: string, startDate?: string, endDate?: string): Promise<CopyRecord[]> => {
+  getCopyRecords: async (campusId: string, setorId?: string, startDate?: string, endDate?: string): Promise<CopyRecord[]> => {
     let query = supabase
       .from('copy_records')
       .select('*')
       .eq('campus_id', campusId)
       .order('date', { ascending: false });
 
+    if (setorId) {
+      query = query.eq('setor_id', setorId);
+    }
     if (startDate) {
       query = query.gte('date', startDate);
     }
@@ -1731,7 +1907,8 @@ export const StorageService = {
 
     return (records || []).map((record: any) => ({
       ...record,
-      person_type: peopleMap[record.person_matricula]
+      person_type: peopleMap[record.person_matricula],
+      setor_id: record.setor_id
     }));
   },
 
@@ -1739,6 +1916,7 @@ export const StorageService = {
     const payload = {
       id: record.id || undefined,
       campus_id: record.campus_id,
+      setor_id: record.setor_id || null,
       person_name: record.person_name,
       person_matricula: record.person_matricula,
       sector: record.sector,
@@ -1842,9 +2020,10 @@ export const StorageService = {
   },
 
   // Supply Distribution Methods
-  getSupplies: async (campusId?: string): Promise<Supply[]> => {
+  getSupplies: async (campusId?: string, setorId?: string): Promise<Supply[]> => {
     let query = supabase.from('supplies').select('*').order('name', { ascending: true });
     if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
     const { data, error } = await query;
     if (error) throw error;
     return data || [];
@@ -1877,6 +2056,7 @@ export const StorageService = {
     const payload = {
       id: supply.id || undefined,
       campus_id: supply.campus_id,
+      setor_id: supply.setor_id || null,
       name: supply.name,
       quantity: supply.quantity || 0,
       unit: supply.unit,
@@ -1904,9 +2084,10 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  getSupplyRecords: async (campusId?: string, startDate?: string, endDate?: string): Promise<SupplyRecord[]> => {
+  getSupplyRecords: async (campusId?: string, setorId?: string, startDate?: string, endDate?: string): Promise<SupplyRecord[]> => {
     let query = supabase.from('supply_records').select('*').order('date', { ascending: false });
     if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
     if (startDate) query = query.gte('date', startDate);
     if (endDate) query = query.lte('date', endDate);
     
@@ -1935,6 +2116,7 @@ export const StorageService = {
     const payload = {
       id: record.id || undefined,
       campus_id: record.campus_id,
+      setor_id: record.setor_id || null,
       person_name: record.person_name,
       person_matricula: record.person_matricula,
       environment: record.environment,
@@ -2077,7 +2259,7 @@ export const StorageService = {
   },
 
   // Student Notifications
-  getNotifications: async (campusId?: string): Promise<StudentNotification[]> => {
+  getNotifications: async (campusId?: string, setorId?: string): Promise<StudentNotification[]> => {
     // Permanently delete expired soft-deletes (>24h)
     const expiryThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     await supabase
@@ -2092,6 +2274,7 @@ export const StorageService = {
       .order('date', { ascending: false })
       .order('time', { ascending: false });
     if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -2099,6 +2282,7 @@ export const StorageService = {
     return (data || []).map((d: any) => ({
       id: d.id,
       campus_id: d.campus_id,
+      setor_id: d.setor_id,
       date: d.date,
       time: d.time,
       student_matricula: d.student_matricula,
@@ -2207,17 +2391,19 @@ export const StorageService = {
   },
 
   // Notification Types
-  getNotificationTypes: async (campusId?: string): Promise<NotificationType[]> => {
+  getNotificationTypes: async (campusId?: string, setorId?: string): Promise<NotificationType[]> => {
     let query = supabase
       .from('notification_types')
       .select('*')
       .order('name', { ascending: true });
     if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
 
     const { data, error } = await query;
     if (error) throw error;
     return (data || []).map((d: any) => ({
       ...d,
+      setor_id: d.setor_id,
       subtypes: d.subtypes || []
     }));
   },
@@ -2229,6 +2415,7 @@ export const StorageService = {
       etep_threshold: type.etep_threshold ?? 3,
       subtypes: type.subtypes || [],
       campus_id: type.campus_id || null,
+      setor_id: type.setor_id || null,
     };
     if (type.id) payload.id = type.id;
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from '../../services/storage';
-import { Supply, SupplyRecord, User, UserLevel, Person, SupplyRestock } from '../../types';
+import { Supply, SupplyRecord, User, UserLevel, Person, SupplyRestock, Setor } from '../../types';
 import {
   Truck,
   Plus,
@@ -32,10 +32,12 @@ import { Modal } from '../ui/Modal';
 interface InsumosTabProps {
   user: User;
   onRefresh?: () => void;
+  setores: Setor[];
   adminGlobalCampusId?: string | null;
+  adminGlobalSetorId?: string | null;
 }
 
-export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusId }) => {
+export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [activeSubTab, setActiveSubTab] = useState<'estoque' | 'historico'>('estoque');
   const [historyMode, setHistoryMode] = useState<'saida' | 'entrada'>('saida');
   const [supplies, setSupplies] = useState<Supply[]>([]);
@@ -85,13 +87,26 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
   const campusId = adminGlobalCampusId || user.campus_id;
+  const isAdmin = user.level === UserLevel.ADMIN;
+
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (isAdmin ? adminGlobalSetorId : user.setor_id) || ''
+  );
+
+  useEffect(() => {
+    if (isAdmin && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, isAdmin]);
+
+  const activeSetorId = isAdmin ? selectedSetorId : user.setor_id;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [sData, rData, hData] = await Promise.all([
-        StorageService.getSupplies(campusId),
-        StorageService.getSupplyRecords(campusId),
+        StorageService.getSupplies(campusId, activeSetorId),
+        StorageService.getSupplyRecords(campusId, activeSetorId),
         StorageService.getRestockHistory(campusId)
       ]);
       setSupplies(sData);
@@ -102,7 +117,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
     } finally {
       setLoading(false);
     }
-  }, [campusId]);
+  }, [campusId, activeSetorId]);
 
   useEffect(() => {
     loadData();
@@ -124,6 +139,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
         await StorageService.saveSupply({
           id: editingSupply.id,
           campus_id: campusId,
+          setor_id: activeSetorId || null,
           name: supplyName,
           quantity: supplyQuantity,
           unit: supplyUnit,
@@ -136,6 +152,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
         for (const item of validItems) {
           await StorageService.saveSupply({
             campus_id: campusId,
+            setor_id: activeSetorId || null,
             name: item.name.trim(),
             quantity: item.quantity,
             unit: item.unit,
@@ -163,6 +180,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
     try {
       await StorageService.saveSupplyRecord({
         campus_id: campusId,
+        setor_id: activeSetorId || null,
         person_name: deliveryMode === 'pessoa' ? recipientName : undefined,
         person_matricula: deliveryMode === 'pessoa' ? recipientMatricula : undefined,
         environment: deliveryMode === 'ambiente' ? recipientEnvironment : undefined,
@@ -406,6 +424,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                   <th className="px-6 py-4">Item</th>
                   <th className="px-6 py-4">Quantidade</th>
                   <th className="px-6 py-4">Unidade</th>
+                  <th className="px-6 py-4">Setor</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-center">Ações</th>
                 </tr>
@@ -431,6 +450,11 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                     <td className="px-6 py-5">
                       <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold uppercase">
                         {supply.unit}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <span className="text-xs text-gray-500 font-bold">
+                        {supply.setor_id ? (setores.find(s => s.id === supply.setor_id)?.name || '---') : '---'}
                       </span>
                     </td>
                     <td className="px-6 py-5">
@@ -493,6 +517,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                       <tr className="text-gray-400 text-xs font-black uppercase tracking-widest px-6">
                         <th className="px-6 py-4">Destinatário / Local</th>
                         <th className="px-6 py-4">Item</th>
+                        <th className="px-6 py-4">Setor</th>
                         <th className="px-6 py-4">Qtd</th>
                         <th className="px-6 py-4">Data</th>
                         <th className="px-6 py-4 text-center">Ações</th>
@@ -527,6 +552,11 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                             </div>
                           </td>
                           <td className={`px-6 py-5 ${record.cancelled_at ? 'opacity-50' : ''}`}>
+                            <span className="text-xs text-gray-500 font-bold">
+                              {record.setor_id ? (setores.find(s => s.id === record.setor_id)?.name || '---') : '---'}
+                            </span>
+                          </td>
+                          <td className={`px-6 py-5 ${record.cancelled_at ? 'opacity-50' : ''}`}>
                             <div className={`w-fit px-3 py-1 text-white rounded-lg text-sm font-black shadow-sm ${record.cancelled_at ? 'bg-gray-400' : 'bg-indigo-600'}`}>
                               {record.quantity}
                             </div>
@@ -556,7 +586,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
                       ))}
                       {filteredRecords.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="py-20 text-center text-gray-400 font-medium">Nenhuma distribuição registrada.</td>
+                          <td colSpan={6} className="py-20 text-center text-gray-400 font-medium">Nenhuma distribuição registrada.</td>
                         </tr>
                       )}
                     </tbody>
@@ -1236,6 +1266,24 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, adminGlobalCampusI
               </>
             )}
           </div>
+
+          {isAdmin && setores.length > 0 && (
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 space-y-3">
+              <label className="flex items-center gap-2 text-xs font-black text-amber-600 uppercase tracking-widest">
+                <Building2 size={14} /> Setor
+              </label>
+              <select
+                value={selectedSetorId}
+                onChange={e => setSelectedSetorId(e.target.value)}
+                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none font-bold"
+              >
+                <option value="">Selecione um setor...</option>
+                {setores.filter(s => s.campus_id === campusId).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button

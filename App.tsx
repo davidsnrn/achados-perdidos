@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StorageService, supabase } from './services/storage';
-import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, StudentNotification, NotificationType } from './types';
+import { User, UserLevel, FoundItem, LostReport, Person, Book, BookLoan, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, StudentNotification, NotificationType, Setor } from './types';
 import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
@@ -21,7 +21,7 @@ const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(
 const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
 const TeacherAttendanceTab = React.lazy(() => import('./components/Tabs/TeacherAttendanceTab').then(module => ({ default: module.TeacherAttendanceTab })));
 
-import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Mail, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck } from 'lucide-react';
+import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Mail, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck, Pencil } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 
@@ -64,6 +64,7 @@ const App: React.FC = () => {
   const [configMenuOpen, setConfigMenuOpen] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [isPeopleLoading, setIsPeopleLoading] = useState(false);
+  const [configMode, setConfigMode] = useState<'setores' | 'mover'>('setores');
 
   // Data State
   const [items, setItems] = useState<FoundItem[]>([]);
@@ -95,6 +96,34 @@ const App: React.FC = () => {
   const [adminGlobalCampusId, setAdminGlobalCampusId] = useState<string | null>(null);
   const [adminGlobalSetorId, setAdminGlobalSetorId] = useState<string | null>(null);
 
+  // Setor Management (Config Modal)
+  const [configCampusId, setConfigCampusId] = useState<string>('');
+  const [editingSetor, setEditingSetor] = useState<Setor | null>(null);
+  const [newSetorName, setNewSetorName] = useState('');
+  const [deletingSetorId, setDeletingSetorId] = useState<string | null>(null);
+  const [moveFromSetorId, setMoveFromSetorId] = useState<string>('');
+  const [moveToSetorId, setMoveToSetorId] = useState<string>('');
+  const [isMovingData, setIsMovingData] = useState(false);
+  const [moveResults, setMoveResults] = useState<{ table: string; count: number }[] | null>(null);
+  const [movePreview, setMovePreview] = useState<{ table: string; count: number; label: string }[] | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [selectedMoveTables, setSelectedMoveTables] = useState<Set<string>>(new Set());
+  const [expandedTable, setExpandedTable] = useState<string | null>(null);
+  const [previewItems, setPreviewItems] = useState<Record<string, { id: string | number; label: string; checked: boolean; currentSetorId: string | null }[]>>({});
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [moveSistema, setMoveSistema] = useState<string>('Todos');
+
+  const moveSistemas: Record<string, { tables: string[]; label: string }> = {
+    Todos: { tables: [], label: 'Todos os Sistemas' },
+    Armários: { tables: ['lockers', 'locker_schedules'], label: 'Armários' },
+    'Achados e Perdidos': { tables: ['items', 'reports'], label: 'Achados e Perdidos' },
+    Livros: { tables: ['books', 'book_loans'], label: 'Livros' },
+    Materiais: { tables: ['materials', 'material_loans'], label: 'Materiais' },
+    Cópias: { tables: ['copy_records'], label: 'Cópias' },
+    Insumos: { tables: ['supplies', 'supply_records'], label: 'Insumos' },
+    Notificações: { tables: ['student_notifications', 'notification_types'], label: 'Notificações' },
+    Usuários: { tables: ['users'], label: 'Usuários' },
+  };
 
   // Login State
   const [loginMat, setLoginMat] = useState('');
@@ -190,14 +219,16 @@ const App: React.FC = () => {
   const refreshItems = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setItems(await StorageService.getItems(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setItems(await StorageService.getItems(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshReports = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setReports(await StorageService.getReports(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setReports(await StorageService.getReports(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   // Removido refreshPeople massivo
 
@@ -219,14 +250,16 @@ const App: React.FC = () => {
   const refreshBooks = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setBooks(await StorageService.getBooks(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setBooks(await StorageService.getBooks(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshBookLoans = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setBookLoans(await StorageService.getBookLoans(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setBookLoans(await StorageService.getBookLoans(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshLockers = useCallback(async () => {
     if (!user) return;
@@ -238,20 +271,23 @@ const App: React.FC = () => {
   const refreshMaterials = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setMaterials(await StorageService.getMaterials(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setMaterials(await StorageService.getMaterials(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshMaterialLoans = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setMaterialLoans(await StorageService.getMaterialLoans(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setMaterialLoans(await StorageService.getMaterialLoans(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshCopyRecords = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setCopyRecords(await StorageService.getCopyRecords(campusId || ''));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setCopyRecords(await StorageService.getCopyRecords(campusId || '', setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshCopyConfigs = useCallback(async () => {
     if (!user) return;
@@ -265,25 +301,28 @@ const App: React.FC = () => {
   const refreshSupplies = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setSupplies(await StorageService.getSupplies(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setSupplies(await StorageService.getSupplies(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshSupplyRecords = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setSupplyRecords(await StorageService.getSupplyRecords(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setSupplyRecords(await StorageService.getSupplyRecords(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
     const [notifs, types] = await Promise.all([
-      StorageService.getNotifications(campusId),
-      StorageService.getNotificationTypes(campusId)
+      StorageService.getNotifications(campusId, setorId),
+      StorageService.getNotificationTypes(campusId, setorId)
     ]);
     setNotifications(notifs);
     setNotificationTypes(types);
-  }, [user, adminGlobalCampusId]);
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   // Refresh Data Helper (Async) with Timeout
   const refreshData = useCallback(async () => {
@@ -297,17 +336,18 @@ const App: React.FC = () => {
       // Lazy Loading: Só carrega dados do sistema atual
       // Isso reduz drasticamente o uso de memória no Android
 
+      const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+
       if (currentSystem === 'achados' || activeTab === 'achados' || activeTab === 'relatos') {
         const [fetchedItems, fetchedReports] = await Promise.all([
-          StorageService.getItems(campusId),
-          StorageService.getReports(campusId)
+          StorageService.getItems(campusId, setorId),
+          StorageService.getReports(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
 
         setItems(fetchedItems);
         setReports(fetchedReports);
-        // Limpar outros dados pesados
         setBooks([]);
         setBookLoans([]);
         setLockers([]);
@@ -315,7 +355,7 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'armarios' || activeTab === 'armarios') {
         const [fetchedLockers] = await Promise.all([
-          StorageService.getLockers(campusId)
+          StorageService.getLockers(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
@@ -329,8 +369,8 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'livros' || activeTab.startsWith('livros')) {
         const [fetchedBooks, fetchedLoans] = await Promise.all([
-          StorageService.getBooks(campusId),
-          StorageService.getBookLoans(campusId)
+          StorageService.getBooks(campusId, setorId),
+          StorageService.getBookLoans(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
@@ -344,11 +384,11 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'nadaconsta' || activeTab === 'nadaconsta') {
         const [fetchedLockers, fetchedBooks, fetchedBookLoans, fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
-          StorageService.getLockers(campusId),
-          StorageService.getBooks(campusId),
-          StorageService.getBookLoans(campusId),
-          StorageService.getMaterials(campusId),
-          StorageService.getMaterialLoans(campusId)
+          StorageService.getLockers(campusId, setorId),
+          StorageService.getBooks(campusId, setorId),
+          StorageService.getBookLoans(campusId, setorId),
+          StorageService.getMaterials(campusId, setorId),
+          StorageService.getMaterialLoans(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
@@ -362,8 +402,8 @@ const App: React.FC = () => {
         setReports([]);
       } else if (currentSystem === 'materiais' || activeTab === 'materiais') {
         const [fetchedMaterials, fetchedMaterialLoans] = await Promise.all([
-          StorageService.getMaterials(campusId),
-          StorageService.getMaterialLoans(campusId)
+          StorageService.getMaterials(campusId, setorId),
+          StorageService.getMaterialLoans(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
@@ -377,8 +417,8 @@ const App: React.FC = () => {
         setBookLoans([]);
       } else if (currentSystem === 'insumos' || activeTab === 'insumos') {
         const [fetchedSupplies, fetchedSupplyRecords] = await Promise.all([
-          StorageService.getSupplies(campusId),
-          StorageService.getSupplyRecords(campusId)
+          StorageService.getSupplies(campusId, setorId),
+          StorageService.getSupplyRecords(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
@@ -394,8 +434,8 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'notificacoes' || activeTab === 'notificacoes') {
         const [fetchedNotifications, fetchedTypes] = await Promise.all([
-          StorageService.getNotifications(campusId),
-          StorageService.getNotificationTypes(campusId)
+          StorageService.getNotifications(campusId, setorId),
+          StorageService.getNotificationTypes(campusId, setorId)
         ]);
 
         if (fetchId !== lastFetchIdRef.current) return;
@@ -411,7 +451,7 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (currentSystem === 'copias' || activeTab === 'copias') {
         const [fetchedRecords, fetchedConfig] = await Promise.all([
-          StorageService.getCopyRecords(campusId || ''),
+          StorageService.getCopyRecords(campusId || '', setorId),
           campusId ? StorageService.getCopyConfig(campusId) : Promise.resolve(null)
         ]);
 
@@ -428,7 +468,7 @@ const App: React.FC = () => {
         setMaterialLoans([]);
       } else if (activeTab === 'usuarios') {
         const [fetchedUsers, fetchedCampuses] = await Promise.all([
-          StorageService.getUsers(campusId),
+          StorageService.getUsers(campusId, setorId),
           StorageService.getCampuses()
         ]);
 
@@ -446,7 +486,7 @@ const App: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [user, currentSystem, activeTab, adminGlobalCampusId]);
+  }, [user, currentSystem, activeTab, adminGlobalCampusId, adminGlobalSetorId]);
 
   const normalizeText = (text: string) => {
     return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -483,9 +523,10 @@ const App: React.FC = () => {
         case 'student_notifications': refreshNotifications(); break;
         case 'teacher_schedules':
         case 'teacher_attendance': refreshData(); break;
+        case 'setores': refreshSetores(adminGlobalCampusId || undefined); break;
       }
     }, 1000); // 1 second debounce
-  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans, refreshNotifications]);
+  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans, refreshSupplies, refreshSupplyRecords, refreshCopyRecords, refreshNotifications, refreshSetores, adminGlobalCampusId]);
 
   // 0. Setup Realtime Listeners
   useEffect(() => {
@@ -875,8 +916,29 @@ const App: React.FC = () => {
     setMobileMenuOpen(false);
   };
 
+  const resetConfigState = () => {
+    setConfigCampusId('');
+    setEditingSetor(null);
+    setNewSetorName('');
+    setDeletingSetorId(null);
+    setMoveFromSetorId('');
+    setMoveToSetorId('');
+    setMovePreview(null);
+    setMoveResults(null);
+    setSelectedMoveTables(new Set());
+    setExpandedTable(null);
+    setPreviewItems({});
+    setMoveSistema('Todos');
+    setConfigMode('setores');
+  };
+
   const openConfigModal = () => {
+    resetConfigState();
     setShowConfigModal(true);
+  };
+
+  const closeConfigModal = () => {
+    setShowConfigModal(false);
   };
 
   const handleSaveSystemConfig = async (e: React.FormEvent) => {
@@ -1516,11 +1578,477 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configurações do Sistema">
+        <Modal isOpen={showConfigModal} onClose={closeConfigModal} title="Configurações do Sistema" maxWidth="max-w-2xl">
           <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
-            {/* Seleta de campus e setor removido conforme solicitação */}
 
+            {/* Mode selector */}
+            <div className="flex bg-gray-100 rounded-2xl p-1 mb-4">
+              <button
+                type="button"
+                onClick={() => setConfigMode('setores')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                  configMode === 'setores'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Building2 size={15} />
+                Gerenciar Setores
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfigMode('mover')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${
+                  configMode === 'mover'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <ArrowRight size={15} />
+                Mover / Atribuir Dados
+              </button>
+            </div>
 
+            <div>
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-2">
+                <Building2 size={14} /> Selecione o Câmpus
+              </label>
+              <div className="relative group">
+                <select
+                  value={configCampusId}
+                  onChange={e => { setConfigCampusId(e.target.value); setEditingSetor(null); setNewSetorName(''); setDeletingSetorId(null); refreshSetores(e.target.value || undefined); }}
+                  className="w-full bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold rounded-xl px-4 py-3 focus:ring-4 focus:ring-ifrn-green/10 focus:border-ifrn-green outline-none transition-all cursor-pointer shadow-sm hover:border-gray-300 appearance-none"
+                >
+                  <option value="">Selecione um câmpus</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
+                  <ChevronDown size={20} />
+                </div>
+              </div>
+            </div>
+
+            {configCampusId && (
+              <>
+                {configMode === 'setores' && (
+                <>
+                {/* Add / Edit form */}
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <h4 className="text-sm font-bold text-gray-700 mb-3">
+                    {editingSetor ? 'Editar Setor' : 'Novo Setor'}
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newSetorName}
+                      onChange={e => setNewSetorName(e.target.value)}
+                      placeholder="Nome do setor"
+                      className="flex-1 bg-white border-2 border-gray-200 text-gray-800 text-sm rounded-lg px-4 py-2.5 focus:ring-4 focus:ring-ifrn-green/10 focus:border-ifrn-green outline-none transition-all"
+                      onKeyDown={async e => {
+                        if (e.key === 'Enter' && newSetorName.trim()) {
+                          const name = newSetorName.trim();
+                          const exists = setores.some(s => s.campus_id === configCampusId && s.name.toLowerCase() === name.toLowerCase() && s.id !== editingSetor?.id);
+                          if (exists) { alert('Já existe um setor com este nome neste câmpus.'); return; }
+                          try {
+                            const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                            await StorageService.saveSetor({
+                              id: editingSetor?.id,
+                              campus_id: configCampusId,
+                              name,
+                              slug
+                            });
+                            setNewSetorName('');
+                            setEditingSetor(null);
+                            await refreshSetores(configCampusId);
+                          } catch (e: any) {
+                            alert('Erro ao salvar setor: ' + (e.message || 'Erro desconhecido'));
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!newSetorName.trim()) return;
+                        const name = newSetorName.trim();
+                        const exists = setores.some(s => s.campus_id === configCampusId && s.name.toLowerCase() === name.toLowerCase() && s.id !== editingSetor?.id);
+                        if (exists) { alert('Já existe um setor com este nome neste câmpus.'); return; }
+                        try {
+                          const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+                          await StorageService.saveSetor({
+                            id: editingSetor?.id,
+                            campus_id: configCampusId,
+                            name,
+                            slug
+                          });
+                          setNewSetorName('');
+                          setEditingSetor(null);
+                          await refreshSetores(configCampusId);
+                        } catch (e: any) {
+                          alert('Erro ao salvar setor: ' + (e.message || 'Erro desconhecido'));
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-ifrn-green text-white text-sm font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                    >
+                      <Save size={16} /> {editingSetor ? 'Salvar' : 'Adicionar'}
+                    </button>
+                    {editingSetor && (
+                      <button
+                        onClick={() => { setEditingSetor(null); setNewSetorName(''); }}
+                        className="px-4 py-2.5 bg-gray-200 text-gray-600 text-sm font-bold rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Setores list */}
+                <div className="space-y-2">
+                  {setores.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-8 font-medium">
+                      Nenhum setor cadastrado neste câmpus.
+                    </p>
+                  )}
+                  {setores.map(setor => (
+                    <div key={setor.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3 hover:border-gray-300 transition-colors">
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">{setor.name}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingSetor(setor);
+                              setNewSetorName(setor.name);
+                            }}
+                            className="p-2 text-gray-400 hover:text-ifrn-green transition-colors rounded-lg hover:bg-green-50"
+                            title="Editar"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        {deletingSetorId === setor.id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await StorageService.deleteSetor(setor.id);
+                                  setDeletingSetorId(null);
+                                  await refreshSetores(configCampusId);
+                                  if (adminGlobalSetorId === setor.id) setAdminGlobalSetorId(null);
+                                } catch (e: any) {
+                                  alert('Erro ao excluir setor: ' + (e.message || 'Erro desconhecido'));
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                            >
+                              Confirmar
+                            </button>
+                            <button
+                              onClick={() => setDeletingSetorId(null)}
+                              className="px-3 py-1.5 bg-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-300 transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeletingSetorId(setor.id)}
+                            className="p-2 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50"
+                            title="Excluir"
+                          >
+                            <Trash size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
+                )}
+
+                {configMode === 'mover' && (
+                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+                  <h4 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
+                    <ArrowRight size={16} /> Mover / Atribuir Dados entre Setores
+                  </h4>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 mb-3">
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-amber-700 mb-1">Origem</label>
+                      <select
+                        value={moveFromSetorId}
+                        onChange={e => {
+                          setMoveFromSetorId(e.target.value);
+                          setMovePreview(null);
+                          setMoveResults(null);
+                          setSelectedMoveTables(new Set());
+                          setExpandedTable(null);
+                          setPreviewItems({});
+                        }}
+                        className="w-full bg-white border-2 border-amber-200 text-sm rounded-lg px-3 py-2 focus:ring-4 focus:ring-amber-200 focus:border-amber-400 outline-none"
+                      >
+                        <option value="">{moveSistema === 'Usuários' ? 'Selecione um setor...' : 'Selecione ou deixe vazio (sem setor)'}</option>
+                        {setores.filter(s => s.id !== moveToSetorId).map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center justify-center py-2 sm:py-0">
+                      <ArrowRight size={20} className="text-amber-400" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold text-amber-700 mb-1">Destino</label>
+                      <select
+                        value={moveToSetorId}
+                        onChange={e => {
+                          setMoveToSetorId(e.target.value);
+                          setMoveResults(null);
+                        }}
+                        className="w-full bg-white border-2 border-amber-200 text-sm rounded-lg px-3 py-2 focus:ring-4 focus:ring-amber-200 focus:border-amber-400 outline-none"
+                      >
+                        <option value="">Selecione...</option>
+                        {setores.filter(s => s.id !== moveFromSetorId).map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Sistema selector */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-amber-700 mb-1">Sistema</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(moveSistemas).map(([key, sys]) => (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setMoveSistema(key);
+                            setExpandedTable(null);
+                          }}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                            moveSistema === key
+                              ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                              : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-100'
+                          }`}
+                        >
+                          {sys.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    disabled={isLoadingPreview}
+                    onClick={async () => {
+                      if (!moveFromSetorId && moveSistema !== 'Usuários') {
+                        // Allow loading without source setor to see unassigned items
+                      }
+                      setIsLoadingPreview(true);
+                      setMovePreview(null);
+                      setSelectedMoveTables(new Set());
+                      setExpandedTable(null);
+                      setPreviewItems({});
+                      setMoveResults(null);
+                      try {
+                        const sid = moveFromSetorId || 'unassigned';
+                        const preview = await StorageService.getMovePreview(sid);
+                        setMovePreview(preview);
+                        const allTables = moveSistema === 'Todos'
+                          ? preview.map(p => p.table)
+                          : (moveSistemas[moveSistema]?.tables || []);
+                        setSelectedMoveTables(new Set(allTables));
+                      } catch (e: any) {
+                        alert('Erro ao carregar preview: ' + (e.message || 'Erro desconhecido'));
+                      } finally {
+                        setIsLoadingPreview(false);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 bg-amber-100 text-amber-800 text-sm font-bold rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-amber-300 mb-3"
+                  >
+                    {isLoadingPreview ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                    Carregar Itens
+                  </button>
+
+                  {movePreview && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-amber-700">
+                          {moveSistema === 'Todos' ? 'Todos os sistemas' : moveSistemas[moveSistema]?.label}:
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const filtered = moveSistema === 'Todos'
+                                ? movePreview.map(p => p.table)
+                                : (moveSistemas[moveSistema]?.tables || []);
+                              setSelectedMoveTables(new Set(filtered));
+                            }}
+                            className="text-xs text-amber-700 hover:text-amber-900 underline font-medium"
+                          >
+                            Selecionar todos
+                          </button>
+                          <button
+                            onClick={() => { setSelectedMoveTables(new Set()); setPreviewItems({}); }}
+                            className="text-xs text-amber-700 hover:text-amber-900 underline font-medium"
+                          >
+                            Limpar seleção
+                          </button>
+                        </div>
+                      </div>
+                      {movePreview.filter(p => {
+                        if (moveSistema === 'Todos') return true;
+                        return (moveSistemas[moveSistema]?.tables || []).includes(p.table);
+                      }).map(p => {
+                        const items = previewItems[p.table] || [];
+                        const checkedCount = items.filter(i => i.checked).length;
+                        const isIndeterminate = items.length > 0 && checkedCount > 0 && checkedCount < items.length;
+                        const isExpanded = expandedTable === p.table;
+                        return (
+                          <div key={p.table} className="bg-white rounded-lg border border-amber-100 overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-2.5">
+                              <input
+                                type="checkbox"
+                                checked={selectedMoveTables.has(p.table)}
+                                ref={el => { if (el) el.indeterminate = isIndeterminate && selectedMoveTables.has(p.table); }}
+                                onChange={() => {
+                                  const next = new Set(selectedMoveTables);
+                                  if (next.has(p.table)) {
+                                    next.delete(p.table);
+                                    setPreviewItems(prev => ({ ...prev, [p.table]: (prev[p.table] || []).map(i => ({ ...i, checked: false })) }));
+                                  } else {
+                                    next.add(p.table);
+                                  }
+                                  setSelectedMoveTables(next);
+                                }}
+                                className="accent-amber-600 cursor-pointer"
+                              />
+                              <span className="flex-1 text-sm font-medium text-gray-800">{p.label}</span>
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${p.count > 0 ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-gray-400 bg-gray-50 border-gray-200'}`}>
+                                {p.count} no setor
+                              </span>
+                              <button
+                                onClick={async () => {
+                                  if (isExpanded) {
+                                    setExpandedTable(null);
+                                  } else {
+                                    setExpandedTable(p.table);
+                                    if (!previewItems[p.table]) {
+                                      setIsLoadingItems(true);
+                                      try {
+                                        const sid = moveFromSetorId || '';
+                                        const list = await StorageService.getMovePreviewItems(sid, p.table);
+                                        setPreviewItems(prev => ({
+                                          ...prev,
+                                          [p.table]: list.map(i => ({ ...i, checked: selectedMoveTables.has(p.table) }))
+                                        }));
+                                      } catch { /* ignore */ }
+                                      setIsLoadingItems(false);
+                                    }
+                                  }
+                                }}
+                                className="p-1 text-gray-400 hover:text-amber-700 transition-colors"
+                                title={isExpanded ? 'Recolher' : 'Ver itens'}
+                              >
+                                {isLoadingItems && isExpanded ? <Loader2 size={14} className="animate-spin" /> : isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            </div>
+                            {isExpanded && items.length > 0 && (
+                              <div className="border-t border-amber-50 max-h-48 overflow-y-auto divide-y divide-amber-50">
+                                {items.map(item => (
+                                  <label key={String(item.id)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 cursor-pointer text-xs">
+                                    <input
+                                      type="checkbox"
+                                      checked={item.checked}
+                                      onChange={() => {
+                                        setPreviewItems(prev => ({
+                                          ...prev,
+                                          [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
+                                        }));
+                                      }}
+                                      className="accent-amber-600 cursor-pointer"
+                                    />
+                                    <span className="flex-1 truncate text-gray-600">{item.label}</span>
+                                    {!item.currentSetorId && (
+                                      <span className="text-xs text-gray-400 italic font-medium shrink-0">sem setor</span>
+                                    )}
+                                    {item.currentSetorId && item.currentSetorId !== moveFromSetorId && moveFromSetorId && (
+                                      <span className="text-xs text-amber-600 font-medium shrink-0">
+                                        {setores.find(s => s.id === item.currentSetorId)?.name || 'outro setor'}
+                                      </span>
+                                    )}
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                            {isExpanded && items.length === 0 && (
+                              <div className="border-t border-amber-50 px-3 py-4 text-center text-xs text-gray-400 italic">
+                                Nenhum item encontrado.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {movePreview && (
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-amber-200">
+                      <span className="text-xs text-amber-700 font-medium">
+                        {Array.from(selectedMoveTables).reduce((sum, t) => sum + (previewItems[t]?.filter(i => i.checked).length || 0), 0)} item(ns) selecionado(s) em {selectedMoveTables.size} categoria(s)
+                      </span>
+                      <button
+                        disabled={selectedMoveTables.size === 0 || !moveToSetorId || isMovingData}
+                        onClick={async () => {
+                          const fromName = moveFromSetorId ? (setores.find(s => s.id === moveFromSetorId)?.name || setores.find(s => s.id === moveFromSetorId)?.name) : 'sem setor';
+                          const toName = setores.find(s => s.id === moveToSetorId)?.name;
+                          if (!confirm(`ATENÇÃO: Esta operação não pode ser desfeita.\n\nMover dados selecionados para "${toName}"?`)) return;
+                          setIsMovingData(true);
+                          setMoveResults(null);
+                          try {
+                            const selections: { table: string; ids?: (string | number)[] }[] = Array.from(selectedMoveTables).flatMap(table => {
+                              const items = previewItems[table] || [];
+                              const checkedItems = items.filter(i => i.checked);
+                              if (items.length > 0) {
+                                return checkedItems.length > 0 ? [{ table, ids: checkedItems.map(i => i.id) }] : [];
+                              }
+                              if (!moveFromSetorId) return [];
+                              return [{ table }];
+                            });
+                            const results = await StorageService.moveSetorData(moveFromSetorId || '', moveToSetorId, selections);
+                            setMoveResults(results);
+                            await refreshData();
+                            if (moveFromSetorId && adminGlobalSetorId === moveFromSetorId) setAdminGlobalSetorId(moveToSetorId);
+                          } catch (e: any) {
+                            alert('Erro ao mover dados: ' + (e.message || 'Erro desconhecido'));
+                          } finally {
+                            setIsMovingData(false);
+                          }
+                        }}
+                        className="px-5 py-2 bg-amber-600 text-white text-sm font-bold rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isMovingData ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+                        {moveFromSetorId ? 'Mover para' : 'Atribuir para'} {setores.find(s => s.id === moveToSetorId)?.name || '...'}
+                      </button>
+                    </div>
+                  )}
+
+                  {moveResults && (
+                    <div className="mt-3 bg-white rounded-lg border border-amber-100 p-3 text-xs space-y-1 max-h-40 overflow-y-auto">
+                      <p className="font-semibold text-amber-800 mb-1">Registros movidos:</p>
+                      {moveResults.filter(r => r.count > 0).map(r => (
+                        <p key={r.table} className="text-gray-700">
+                          <span className="font-medium">{r.table}:</span> {r.count}
+                        </p>
+                      ))}
+                      {moveResults.every(r => r.count === 0) && (
+                        <p className="text-gray-400 italic">Nenhum registro encontrado.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                )}
+              </>
+            )}
 
           </div>
         </Modal>
@@ -1767,7 +2295,7 @@ const App: React.FC = () => {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={() => setMobileMenuOpen(false)}></div>
           <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col animate-slideInLeft overflow-y-auto">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <IfrnLogo className="scale-90 origin-left flex-shrink-0" campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} />
+              <IfrnLogo className="scale-90 origin-left flex-shrink-0" campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} sector={user?.level === UserLevel.ADMIN ? "" : (setores.find(s => s.id === user?.setor_id)?.name || '')} />
               <button onClick={() => setMobileMenuOpen(false)} className="text-gray-400 hover:text-red-500 p-1"><X size={24} /></button>
             </div>
             <div className="p-4 bg-gray-50 border-b border-gray-100">
@@ -1845,7 +2373,7 @@ const App: React.FC = () => {
               className="hover:opacity-80 transition-opacity"
               title="Ir para tela inicial"
             >
-              <IfrnLogo campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} className="flex-shrink-0 cursor-pointer" />
+              <IfrnLogo campus={user?.level === UserLevel.ADMIN ? "" : (campuses.find(c => c.id === user?.campus_id)?.name || '')} sector={user?.level === UserLevel.ADMIN ? "" : (setores.find(s => s.id === user?.setor_id)?.name || '')} className="flex-shrink-0 cursor-pointer" />
             </button>
           </div>
           <div className="flex items-center gap-4 flex-1 justify-center md:justify-start max-w-sm ml-4">
@@ -1965,7 +2493,7 @@ const App: React.FC = () => {
                     adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}
+                {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
                 {activeTab === 'pessoas' && (
                   <PeopleTab
                     onUpdate={refreshData}
@@ -1974,7 +2502,7 @@ const App: React.FC = () => {
                     adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
+                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
                 {activeTab === 'livros-catalogo' && (
                   <BooksTab
                     books={books}
@@ -1982,7 +2510,9 @@ const App: React.FC = () => {
                     onUpdate={refreshData}
                     user={user}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'livros-emprestimos' && (
@@ -1992,7 +2522,9 @@ const App: React.FC = () => {
                     onUpdate={refreshBookLoans}
                     user={user}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'livros-relatorios' && (
@@ -2001,7 +2533,9 @@ const App: React.FC = () => {
                     loans={bookLoans}
                     user={user}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'copias' && (
@@ -2010,7 +2544,9 @@ const App: React.FC = () => {
                     config={copyConfigs[0]}
                     user={user}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                     onUpdate={refreshData}
                   />
                 )}
@@ -2021,7 +2557,9 @@ const App: React.FC = () => {
                     materialLoans={materialLoans}
                     user={user}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'materiais' && (
@@ -2031,14 +2569,18 @@ const App: React.FC = () => {
                     user={user}
                     onUpdate={refreshData}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'insumos' && (
                   <InsumosTab
                     user={user}
                     onRefresh={refreshData}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'notificacoes' && (
@@ -2048,14 +2590,18 @@ const App: React.FC = () => {
                     user={user}
                     onUpdate={refreshNotifications}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'frequencia' && (
                   <TeacherAttendanceTab
                     user={user}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
@@ -2070,18 +2616,6 @@ const App: React.FC = () => {
           <p className="text-xs text-gray-400">&copy; {new Date().getFullYear()} Desenvolvido por David Galdino</p>
         </div>
       </footer>
-
-      <Modal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} title="Configurações do Sistema">
-        <div className="space-y-6 max-h-[70vh] overflow-y-auto p-1">
-          {/* Seletor de campus e setor removido conforme solicitação */}
-
-
-
-
-
-        </div>
-      </Modal>
-
 
     </div >
   );

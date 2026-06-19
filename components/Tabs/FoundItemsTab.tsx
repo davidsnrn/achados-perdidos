@@ -15,9 +15,6 @@ interface Props {
   adminGlobalCampusId?: string | null;
 }
 
-type DateFilterType = 'ALL' | 'TODAY' | 'WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'CUSTOM' | 'SPECIFIC';
-type SortKey = 'id' | 'description' | 'locationFound' | 'locationStored' | 'dateFound' | 'returnedDate';
-
 export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses, adminGlobalCampusId }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
@@ -455,7 +452,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
         dateRegistered: editingItem ? editingItem.dateRegistered : new Date().toISOString(),
         status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
         imageUrl: finalImageUrl || undefined,
-        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
       };
 
       await StorageService.saveItem(newItem, isNew ? 'Novo item cadastrado.' : 'Detalhes do item editados.', userString);
@@ -1119,22 +1116,24 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           </div>
 
           {user.level === UserLevel.ADMIN && (
-            <div className="col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
-                <Building2 size={16} /> Câmpus do Item *
-              </label>
-              <select
-                value={selectedCampusId}
-                onChange={e => setSelectedCampusId(e.target.value)}
-                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                required
-              >
-                <option value="">Selecione para qual campus este item pertence...</option>
-                {campuses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <p className="text-[10px] text-amber-700 mt-2 font-medium">
+            <div className="col-span-2 bg-amber-50 p-4 rounded-xl border border-amber-200 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
+                  <Building2 size={16} /> Câmpus do Item *
+                </label>
+                <select
+                  value={selectedCampusId}
+                  onChange={e => setSelectedCampusId(e.target.value)}
+                  className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  required
+                >
+                  <option value="">Selecione para qual campus este item pertence...</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[10px] text-amber-700 font-medium">
                 Como administrador, você deve selecionar obrigatoriamente um câmpus.
               </p>
             </div>

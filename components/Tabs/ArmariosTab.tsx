@@ -1,10 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Locker, ViewType, LockerStatus, LoanData, MaintenanceData, Student } from '../../types-armarios';
-import { Person, PersonType, UserLevel, Campus } from '../../types';
+import { Person, PersonType, UserLevel, Campus, Setor } from '../../types';
 import { TOTAL_LOCKERS, generateInitialLockers } from '../../constants-armarios';
 import { StorageService } from '../../services/storage';
 import StatCard from '../armarios/StatCard';
-import LockerForm from '../armarios/LockerForm';
 import LockerDetailModal from '../armarios/LockerDetailModal';
 import CSVImport from '../armarios/CSVImport';
 import StudentSearch from '../armarios/StudentSearch';
@@ -14,7 +13,7 @@ import ExportTab from '../armarios/ExportTab';
 import AgendamentosTab from '../armarios/AgendamentosTab';
 import ScheduleLockerModal from '../armarios/ScheduleLockerModal';
 import LockerLoanModal from '../armarios/LockerLoanModal';
-import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet, Calendar, Mail } from 'lucide-react';
+import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSpreadsheet, Calendar, Mail, Building2 } from 'lucide-react';
 import { LockerSchedule, LockerScheduleStatus } from '../../types-armarios';
 import { EmailService } from '../../services/emailService';
 import { ChargeHistory } from '../../types-materiais';
@@ -24,11 +23,12 @@ interface ArmariosTabProps {
   lockers: Locker[];
   onUpdate: () => void;
   campuses: Campus[];
+  setores: Setor[];
   adminGlobalCampusId?: string | null;
   adminGlobalSetorId?: string | null;
 }
 
-export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses, adminGlobalCampusId, adminGlobalSetorId }) => {
+export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [loading, setLoading] = useState(false);
 
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -197,7 +197,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
         ...locker,
         status: LockerStatus.OCCUPIED,
         currentLoan: loan,
-        campus_id: locker.campus_id || (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id)
+        campus_id: locker.campus_id || (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id),
+        setor_id: locker.setor_id || (user.level === UserLevel.ADMIN ? selectedSetorId : user.setor_id) || null
       };
 
       await StorageService.updateSingleLocker(updatedLocker);
@@ -625,7 +626,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
         loanTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
         loanBy: user.name,
         observation: s.observation || '',
-        campus_id: s.campusId
+        campus_id: s.campusId,
+        setor_id: s.setor_id
       };
 
       // 2. Atualizar o armário para OCUPADO e anexar o empréstimo
@@ -635,7 +637,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           ...l,
           status: LockerStatus.OCCUPIED,
           currentLoan: loan,
-          activeScheduleId: undefined
+          activeScheduleId: undefined,
+          setor_id: s.setor_id || l.setor_id
         };
         await StorageService.updateSingleLocker(updatedLocker);
       }
@@ -1016,19 +1019,38 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
         {currentView === 'config' && canViewConfig && (
           <div className="space-y-12">
             {isAdmin && (
-              <div className="bg-amber-50 p-6 rounded-[1.5rem] border border-amber-200">
-                <label className="block text-sm font-bold text-amber-900 mb-2 uppercase tracking-wider">Câmpus Alvo da Configuração</label>
-                <select
-                  value={selectedCampusId}
-                  onChange={e => setSelectedCampusId(e.target.value)}
-                  className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
-                  required
-                >
-                  <option value="">Selecione um Câmpus...</option>
-                  {campuses.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+              <div className="bg-amber-50 p-6 rounded-[1.5rem] border border-amber-200 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-amber-900 mb-2 uppercase tracking-wider">Câmpus Alvo da Configuração</label>
+                  <select
+                    value={selectedCampusId}
+                    onChange={e => { setSelectedCampusId(e.target.value); setSelectedSetorId(''); }}
+                    className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                    required
+                  >
+                    <option value="">Selecione um Câmpus...</option>
+                    {campuses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                  <div>
+                    <label className="block text-sm font-bold text-amber-900 mb-2 uppercase tracking-wider flex items-center gap-2">
+                      <Building2 size={14} /> Setor Alvo
+                    </label>
+                    <select
+                      value={selectedSetorId}
+                      onChange={e => setSelectedSetorId(e.target.value)}
+                      className="w-full bg-white border-2 border-amber-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                    >
+                      <option value="">Todos os Setores</option>
+                      {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
             <LockerManagement

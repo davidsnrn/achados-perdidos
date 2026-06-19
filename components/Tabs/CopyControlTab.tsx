@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { CopyRecord, CopyConfig, User, Campus, UserLevel, PersonType, Person } from '../../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { CopyRecord, CopyConfig, User, Campus, UserLevel, PersonType, Person, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   Plus,
@@ -38,6 +38,8 @@ interface CopyControlTabProps {
   user: User | null;
   campuses: Campus[];
   adminGlobalCampusId: string | null;
+  setores: Setor[];
+  adminGlobalSetorId?: string | null;
   onUpdate: () => Promise<void>;
 }
 
@@ -47,6 +49,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   user,
   campuses,
   adminGlobalCampusId,
+  setores,
+  adminGlobalSetorId,
   onUpdate
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -110,6 +114,16 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (user?.level === UserLevel.ADMIN ? adminGlobalSetorId : user?.setor_id) || ''
+  );
+  useEffect(() => {
+    if (user?.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, user?.level]);
+  const isAdmin = user?.level === UserLevel.ADMIN;
+  const activeSetorId = isAdmin ? selectedSetorId : user?.setor_id;
 
   // Calculate period dates
   const periodRange = useMemo(() => {
@@ -258,6 +272,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         id: editingRecord?.id,
         date: new Date(selectedDate + "T12:00:00").toISOString(),
         campus_id: adminGlobalCampusId || user!.campus_id!,
+        setor_id: isAdmin ? selectedSetorId : user?.setor_id || undefined,
         operator_id: user!.id
       });
       await onUpdate();
@@ -351,6 +366,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
 
       const allRecords = await StorageService.getCopyRecords(
         campusId,
+        activeSetorId || undefined,
         startDate.toISOString(),
         endDate.toISOString()
       );
@@ -864,6 +880,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Informações do Solicitante</th>
                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo / Finalidade</th>
                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Quantidade</th>
+                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Setor</th>
                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Data / Registro</th>
                 <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Ações</th>
               </tr>
@@ -924,6 +941,19 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                       </div>
                     </td>
                     <td className="px-8 py-6">
+                      <div className="flex flex-col">
+                        {(() => {
+                          const setorIds = Array.from(new Set(group.records.map(r => r.setor_id).filter(Boolean)));
+                          if (setorIds.length > 1) return <span className="text-xs font-bold text-gray-500">{setorIds.length} setores</span>;
+                          if (setorIds.length === 1) {
+                            const setor = setores.find(s => s.id === setorIds[0]);
+                            return <span className="text-xs font-bold text-gray-700">{setor?.name || setorIds[0]}</span>;
+                          }
+                          return <span className="text-xs text-gray-400 italic">---</span>;
+                        })()}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 uppercase">
                           <Calendar size={12} className="text-gray-400" />
@@ -963,6 +993,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               person_matricula: record.person_matricula,
                               sector: record.sector
                             });
+                            setSelectedSetorId(record.setor_id || '');
                             setSelectedDate(new Date(record.date).toISOString().split('T')[0]);
                             setSelectedPerson({
                               name: record.person_name,
@@ -990,7 +1021,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 );
               }) : (
                 <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center">
+                  <td colSpan={6} className="px-8 py-20 text-center">
                     <div className="max-w-xs mx-auto">
                       <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-dashed border-gray-100">
                         <TableIcon size={24} className="text-gray-300" />
@@ -1162,6 +1193,24 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               </div>
             </div>
 
+            {isAdmin && (
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <Building2 size={16} className="text-rose-500" />
+                  Setor (vínculo)
+                </label>
+                <select
+                  value={selectedSetorId}
+                  onChange={e => setSelectedSetorId(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm text-gray-700"
+                >
+                  <option value="">Selecione um setor...</option>
+                  {setores.filter(s => s.campus_id === (adminGlobalCampusId || user?.campus_id)).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-3">
               <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
                 <Building2 size={16} className="text-rose-500" />
@@ -1423,6 +1472,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               person_matricula: record.person_matricula,
                               sector: record.sector
                             });
+                            setSelectedSetorId(record.setor_id || '');
                             setSelectedDate(new Date(record.date).toISOString().split('T')[0]);
                             setSelectedPerson({
                               name: record.person_name,

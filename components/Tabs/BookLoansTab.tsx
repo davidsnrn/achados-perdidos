@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, BookLoan, BookLoanStatus, Person, PersonType, User, Campus, UserLevel } from '../../types';
+import { Book, BookLoan, BookLoanStatus, Person, PersonType, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -10,7 +10,9 @@ interface Props {
     onUpdate: () => void;
     user: User;
     campuses: Campus[];
+    setores: Setor[];
     adminGlobalCampusId?: string | null;
+    adminGlobalSetorId?: string | null;
 }
 
 // ── LoanRow ──────────────────────────────────────────────────────────────────
@@ -18,9 +20,10 @@ interface LoanRowProps {
     loan: BookLoan;
     onViewDetail: () => void;
     onReturn: () => void;
+    setores: Setor[];
 }
 
-const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn }) => {
+const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, setores }) => {
     const [expanded, setExpanded] = useState(false);
     const activeBooks = loan.books.filter(b => b.status === 'Ativo');
     const returnedBooks = loan.books.filter(b => b.status === 'Devolvido');
@@ -30,7 +33,7 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn }) => {
         <div className={`transition-colors ${isReturned ? 'bg-white' : 'bg-white hover:bg-gray-50/70'}`}>
             {/* Main Row */}
             <div
-                className="grid grid-cols-[32px_1fr_90px_80px_140px_120px] gap-x-4 items-center px-4 py-3 cursor-pointer"
+                className="grid grid-cols-[32px_1fr_80px_60px_100px_100px_80px] gap-x-3 items-center px-4 py-3 cursor-pointer"
                 onClick={() => setExpanded(prev => !prev)}
             >
                 {/* Expand chevron */}
@@ -71,6 +74,11 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn }) => {
                 {/* Operator */}
                 <div className="hidden lg:block text-right">
                     <p className="text-[10px] text-gray-400 font-medium truncate max-w-[120px]">{loan.loanedBy}</p>
+                </div>
+
+                {/* Setor */}
+                <div className="hidden lg:block text-xs text-gray-500">
+                    {loan.setor_id ? (setores.find(s => s.id === loan.setor_id)?.name || '---') : '---'}
                 </div>
 
                 {/* Actions */}
@@ -137,9 +145,10 @@ interface StudentLoanGroupProps {
     loans: BookLoan[];
     onViewDetail: (loan: BookLoan) => void;
     onReturn: (loan: BookLoan) => void;
+    setores: Setor[];
 }
 
-const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail, onReturn }) => {
+const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail, onReturn, setores }) => {
     const [expanded, setExpanded] = useState(false);
     const first = loans[0];
     const totalBooks = loans.reduce((acc, l) => acc + l.books.length, 0);
@@ -153,7 +162,7 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
         <div className="transition-colors">
             {/* Group Header */}
             <div
-                className="grid grid-cols-[32px_1fr_90px_80px_140px_120px] gap-x-4 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
+                className="grid grid-cols-[32px_1fr_80px_60px_100px_100px_80px] gap-x-3 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
                 onClick={() => setExpanded(prev => !prev)}
             >
                 <span className="text-gray-400 w-5">
@@ -199,6 +208,11 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
                 {/* Operator */}
                 <div className="hidden lg:block text-right">
                     <p className="text-[10px] text-gray-400 font-medium truncate max-w-[120px]">{first.loanedBy}</p>
+                </div>
+
+                {/* Setor */}
+                <div className="hidden lg:block text-xs text-gray-500">
+                    {first.setor_id ? (setores.find(s => s.id === first.setor_id)?.name || '---') : '---'}
                 </div>
 
                 {/* Actions placeholder */}
@@ -251,6 +265,9 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [selectedCampusId, setSelectedCampusId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
     );
+    const [selectedSetorId, setSelectedSetorId] = useState<string>(
+        (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
+    );
 
     // Sync with global admin campus selector
     React.useEffect(() => {
@@ -258,6 +275,12 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             setSelectedCampusId(adminGlobalCampusId || '');
         }
     }, [adminGlobalCampusId, user.level]);
+
+    React.useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+            setSelectedSetorId(adminGlobalSetorId || '');
+        }
+    }, [adminGlobalSetorId, user.level]);
     const [selectedSeries, setSelectedSeries] = useState<string>('');
     const [isBookInputFocused, setIsBookInputFocused] = useState(false);
     const [isSeriesSelectFocused, setIsSeriesSelectFocused] = useState(false);
@@ -265,6 +288,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const [isBookListExpanded, setIsBookListExpanded] = useState(false);
     const [showMPBooks, setShowMPBooks] = useState(false);
 
+
+    const isAdmin = user.level === UserLevel.ADMIN;
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -325,6 +350,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 // Atualizar empréstimo existente
                 const updatedLoan: BookLoan = {
                     ...existingActiveLoan,
+                    setor_id: isAdmin ? selectedSetorId : existingActiveLoan.setor_id,
                     books: [
                         ...existingActiveLoan.books, 
                         ...selectedBooks.map(b => ({ 
@@ -365,6 +391,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                     status: BookLoanStatus.ACTIVE,
                     observation,
                     campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id,
+                    setor_id: isAdmin ? selectedSetorId : user.setor_id || null,
                     history: [{
                         action: `Empréstimo inicial: ${selectedBooks.map(b => `${b.title} (#${b.code || 'S/C'})`).join(', ')}`,
                         user: user.name,
@@ -692,12 +719,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 ) : (
                     <>
                         {/* Table Header */}
-                        <div className="grid grid-cols-[32px_1fr_90px_80px_140px_120px] gap-x-4 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        <div className="grid grid-cols-[32px_1fr_80px_60px_100px_100px_80px] gap-x-3 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                             <span className="w-6" />
                             <span>Aluno</span>
                             <span className="hidden md:block text-right">Data</span>
                             <span className="text-center">Livros</span>
                             <span className="hidden lg:block text-right">Operador</span>
+                            <span className="hidden lg:block">Setor</span>
                             <div className="w-[60px]" />
                         </div>
 
@@ -713,6 +741,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                             setSelectedLoanForReturn(loan);
                                             setShowPartialReturnModal(true);
                                         }}
+                                        setores={setores}
                                     />
                                 ))
                                 : paginatedHistory.map(group => (
@@ -725,6 +754,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                 setSelectedLoanForReturn(group[0]);
                                                 setShowPartialReturnModal(true);
                                             }}
+                                            setores={setores}
                                           />
                                         : <StudentLoanGroup
                                             key={group[0].personMatricula || group[0].personName}
@@ -734,6 +764,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                 setSelectedLoanForReturn(loan);
                                                 setShowPartialReturnModal(true);
                                             }}
+                                            setores={setores}
                                           />
                                 ))
                             }
@@ -1006,20 +1037,37 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                     </div>
 
                     {user.level === UserLevel.ADMIN && (
-                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4">
-                            <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Empréstimo</label>
-                            <select
-                                value={selectedCampusId}
-                                onChange={e => setSelectedCampusId(e.target.value)}
-                                className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
-                                required
-                            >
-                                <option value="">Selecione um Câmpus...</option>
-                                {campuses.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
-                            <p className="text-[10px] text-amber-700 mt-1 italic">Administrador: Isto definirá em qual campus este empréstimo será contabilizado.</p>
+                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 mt-4 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Câmpus do Empréstimo</label>
+                                <select
+                                    value={selectedCampusId}
+                                    onChange={e => { setSelectedCampusId(e.target.value); setSelectedSetorId(''); }}
+                                    className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                    required
+                                >
+                                    <option value="">Selecione um Câmpus...</option>
+                                    {campuses.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-amber-700 mt-1 italic">Administrador: Isto definirá em qual campus este empréstimo será contabilizado.</p>
+                            </div>
+                            {selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                                <div>
+                                    <label className="block text-xs font-bold text-amber-900 mb-2 uppercase tracking-tight">Setor do Empréstimo</label>
+                                    <select
+                                        value={selectedSetorId}
+                                        onChange={e => setSelectedSetorId(e.target.value)}
+                                        className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                                    >
+                                        <option value="">Selecione um Setor...</option>
+                                        {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1202,6 +1250,9 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             <div>
                                 <h3 className="font-bold text-gray-800 text-lg">{viewingLoan.personName}</h3>
                                 <p className="text-sm text-gray-500 font-medium">Matrícula: {viewingLoan.personMatricula || 'Não informada'}</p>
+                                {viewingLoan.setor_id && (
+                                    <p className="text-xs text-gray-400 font-medium mt-1">Setor: {setores.find(s => s.id === viewingLoan.setor_id)?.name || '---'}</p>
+                                )}
                             </div>
                         </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, UserLevel, Person, Campus } from '../../types';
+import { User, UserLevel, Person, Campus, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { DEFAULT_PASSWORD } from '../../constants';
 import { Shield, Plus, Pencil, Trash2, UserCog, Lock, FileText, Loader2, Search, User as UserIcon, CheckCircle, Package, Key, BookOpen, FileCheck, History, Printer, Truck, ShieldAlert, ClipboardList, Mail, CheckSquare, Square } from 'lucide-react';
@@ -410,6 +410,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                 <th className="p-4 whitespace-nowrap">Matrícula (Login)</th>
                 <th className="p-4 whitespace-nowrap">Nome</th>
                 {currentUser.level === UserLevel.ADMIN && <th className="p-4 whitespace-nowrap">Câmpus</th>}
+                {currentUser.level === UserLevel.ADMIN && <th className="p-4 whitespace-nowrap">Setor</th>}
                 <th className="p-4 whitespace-nowrap">Nível de Acesso</th>
                 <th className="p-4 whitespace-nowrap text-center">Módulos Liberados</th>
                 <th className="p-4 text-center whitespace-nowrap">Ações</th>
@@ -432,6 +433,13 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                     <td className="p-4 whitespace-nowrap">
                       <span className="text-xs text-gray-500 font-medium">
                         {u.level === UserLevel.ADMIN ? 'Todos' : (campuses.find(c => c.id === u.campus_id)?.name || 'Sem Câmpus')}
+                      </span>
+                    </td>
+                  )}
+                  {currentUser.level === UserLevel.ADMIN && (
+                    <td className="p-4 whitespace-nowrap">
+                      <span className="text-xs text-gray-500 font-medium">
+                        {u.level === UserLevel.ADMIN ? '-' : (setores.find(s => s.id === u.setor_id)?.name || 'Sem setor')}
                       </span>
                     </td>
                   )}
@@ -633,6 +641,22 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               </div>
             )}
 
+            {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Setor</label>
+                <select
+                  value={selectedSetorId}
+                  onChange={e => setSelectedSetorId(e.target.value)}
+                  className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
+                >
+                  <option value="">Sem setor definido</option>
+                  {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nível de Acesso</label>
@@ -753,6 +777,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               <div><span className="block text-xs font-bold text-gray-400 uppercase">Matrícula</span><p className="font-mono">{selectedUser.matricula}</p></div>
               <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Nível</span><span className={`inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold ${selectedUser.level === UserLevel.ADMIN ? 'bg-red-100 text-red-800' : selectedUser.level === UserLevel.ADVANCED ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>{selectedUser.level}</span></div>
               <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Câmpus</span><p className="font-medium text-gray-700">{selectedUser.level === UserLevel.ADMIN ? 'Todos' : (campuses.find(c => c.id === selectedUser.campus_id)?.name || 'Sem Câmpus')}</p></div>
+              <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">Setor</span><p className="font-medium text-gray-700">{selectedUser.level === UserLevel.ADMIN ? '-' : (setores.find(s => s.id === selectedUser.setor_id)?.name || 'Sem setor')}</p></div>
               {currentUser.level === UserLevel.ADMIN && selectedUser.email && (
                 <div className="col-span-2"><span className="block text-xs font-bold text-gray-400 uppercase">E-mail</span><p className="font-medium text-gray-700">{selectedUser.email}</p></div>
               )}
@@ -797,21 +822,6 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               </div>
             )}
 
-            {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Setor</label>
-                <select
-                  value={selectedSetorId}
-                  onChange={e => setSelectedSetorId(e.target.value)}
-                  className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
-                >
-                  <option value="">Sem setor definido</option>
-                  {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-            )}
       </Modal>
 
       {/* Sync Email Modal */}

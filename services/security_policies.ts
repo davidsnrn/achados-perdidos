@@ -20,6 +20,7 @@ ALTER TABLE IF EXISTS public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.people ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.setores ENABLE ROW LEVEL SECURITY;
 
 -- 2. LIMPAR POLÍTICAS ANTIGAS
 DROP POLICY IF EXISTS "Acesso Total Items" ON public.items;
@@ -27,6 +28,7 @@ DROP POLICY IF EXISTS "Acesso Total Reports" ON public.reports;
 DROP POLICY IF EXISTS "Acesso Total People" ON public.people;
 DROP POLICY IF EXISTS "Acesso Total Users" ON public.users;
 DROP POLICY IF EXISTS "Acesso Total Config" ON public.config;
+DROP POLICY IF EXISTS "Acesso Total Setores" ON public.setores;
 
 -------------------------------------------------------------------------
 -- OPÇÃO A: MODO COMPATIBILIDADE (ATUAL - MANTÉM O APP FUNCIONANDO)
@@ -38,6 +40,7 @@ CREATE POLICY "Acesso Total Reports" ON public.reports FOR ALL TO anon, authenti
 CREATE POLICY "Acesso Total People" ON public.people FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Acesso Total Users" ON public.users FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Acesso Total Config" ON public.config FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Acesso Total Setores" ON public.setores FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 
 -------------------------------------------------------------------------

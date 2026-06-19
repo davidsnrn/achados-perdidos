@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Filter, Download, Trash2, Calendar, Clock, User as UserIcon, BookOpen, AlertCircle, CheckCircle2, MoreVertical, ShieldAlert, FileText, UserPlus, ClipboardList, Printer, Settings, Loader2, Pencil, MessageSquare, ChevronDown, ChevronUp, ChevronRight, Eye, List, X } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { StudentNotification, User, UserLevel, Campus, Person, NotificationType } from '../../types';
+import { StudentNotification, User, UserLevel, Campus, Person, NotificationType, Setor } from '../../types';
 import { Modal } from '../ui/Modal';
 
 interface NotificationsTabProps {
@@ -11,6 +11,8 @@ interface NotificationsTabProps {
   onUpdate: () => void;
   campuses: Campus[];
   adminGlobalCampusId: string | null;
+  setores: Setor[];
+  adminGlobalSetorId?: string | null;
 }
 
 export const NotificationsTab: React.FC<NotificationsTabProps> = ({
@@ -19,7 +21,9 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   user,
   onUpdate,
   campuses,
-  adminGlobalCampusId
+  adminGlobalCampusId,
+  setores,
+  adminGlobalSetorId
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -195,6 +199,7 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
       const payload: any = {
         ...formData,
         campus_id: adminGlobalCampusId || user.campus_id || '',
+        setor_id: isAdmin ? selectedSetorId : user.setor_id || null,
         operator_id: formData.id ? formData.operator_id : user.id,
         operator_name: formData.id ? formData.operator_name : user.name,
         operator_matricula: formData.id ? formData.operator_matricula : user.matricula,
@@ -219,7 +224,16 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }
   };
 
-  const isAdmin = user.level === UserLevel.ADMIN;
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (user?.level === UserLevel.ADMIN ? adminGlobalSetorId : user?.setor_id) || ''
+  );
+  useEffect(() => {
+    if (user?.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, user?.level]);
+  const isAdmin = user?.level === UserLevel.ADMIN;
+  const activeSetorId = isAdmin ? selectedSetorId : user?.setor_id;
 
   const openDeleteModal = (id: string) => {
     if (isAdmin) {
@@ -1029,6 +1043,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                                           {getCampusName(n.campus_id)}
                                         </span>
                                       )}
+                                      {isAdmin && n.setor_id && (
+                                        <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-md text-[10px] font-bold">
+                                          {setores.find(s => s.id === n.setor_id)?.name || n.setor_id}
+                                        </span>
+                                      )}
                                       {n.updated_by_name && (
                                         <span className="ml-1 text-gray-300">
                                           · Editado por {operatorDisplay(n.updated_by_name, n.updated_by_matricula)}
@@ -1208,6 +1227,22 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                   </div>
                 </div>
               </div>
+
+              {isAdmin && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase ml-2 tracking-wider">Setor</label>
+                  <select
+                    value={selectedSetorId}
+                    onChange={e => setSelectedSetorId(e.target.value)}
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-sm focus:border-red-500 outline-none font-bold"
+                  >
+                    <option value="">Selecione um setor...</option>
+                    {setores.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Right Column: Date, Time & Types */}
@@ -1474,6 +1509,11 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                           {isAdmin && n.campus_id && (
                             <span className="ml-2 px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg text-[11px] font-bold">
                               {getCampusName(n.campus_id)}
+                            </span>
+                          )}
+                          {isAdmin && n.setor_id && (
+                            <span className="ml-2 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-lg text-[11px] font-bold">
+                              {setores.find(s => s.id === n.setor_id)?.name || n.setor_id}
                             </span>
                           )}
                         </div>

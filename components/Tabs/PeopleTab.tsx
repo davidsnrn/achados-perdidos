@@ -393,7 +393,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             matricula: cleanMatricula,
             type: detectedType,
             email: cleanEmail || undefined,
-            campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+            campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
           });
           fileCount++;
         }
@@ -758,7 +758,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 </div>
               </div>
 
-              {user.level === UserLevel.ADMIN && (
+               {user.level === UserLevel.ADMIN && (
                 <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-xl space-y-2">
                   <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest">Câmpus do Cadastro</label>
                   <select
@@ -852,7 +852,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                     <tr
                       key={p.matricula}
                       className="hover:bg-gray-50 cursor-pointer group"
-                      onClick={() => { setEditingPerson(p); setShowEditModal(true); }}
+                      onClick={() => { setEditingPerson(p); setSelectedCampusId(p.campus_id || ''); setShowEditModal(true); }}
                     >
                       <td className="p-3 font-mono text-gray-600 whitespace-nowrap">{p.type === PersonType.EXTERNAL && p.document ? `${p.document_type ? p.document_type + ': ' : ''}${p.document}` : p.matricula}</td>
                       <td className="p-3 font-medium text-gray-900 whitespace-nowrap">{p.name}</td>
@@ -975,20 +975,22 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             </div>
           )}
           {user.level === UserLevel.ADMIN && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus</label>
-              <select
-                value={selectedCampusId}
-                onChange={e => setSelectedCampusId(e.target.value)}
-                className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
-                required
-              >
-                <option value="">Selecione um Câmpus...</option>
-                {campuses.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Câmpus</label>
+                <select
+                  value={selectedCampusId}
+                  onChange={e => setSelectedCampusId(e.target.value)}
+                  className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
+                  required
+                >
+                  <option value="">Selecione um Câmpus...</option>
+                  {campuses.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            </> 
           )}
           <div className="pt-4 flex justify-end gap-3 border-t mt-4">
             <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Cancelar</button>

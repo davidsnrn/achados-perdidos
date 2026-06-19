@@ -17,6 +17,7 @@ export interface LockerSchedule {
   lockerNumber: string;
   lockerLocation: string;
   campusId?: string;
+  setor_id?: string;
   studentName: string;
   registrationNumber: string;
   studentClass: string;
@@ -51,6 +52,7 @@ export interface LoanData {
   returnedBy?: string; // Quem realizou a devolução
   observation: string; // Observação
   campus_id?: string;
+  setor_id?: string;
   loanType?: 'regular' | 'reserve_key';
 }
 
@@ -72,6 +74,7 @@ export interface Locker {
   maintenanceHistory: MaintenanceData[];
   location: string;
   campus_id?: string;
+  setor_id?: string;
   activeScheduleId?: string; // Reference to pending LockerSchedule
 }
 

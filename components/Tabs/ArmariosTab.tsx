@@ -20,14 +20,15 @@ import { EmailService } from '../../services/emailService';
 import { ChargeHistory } from '../../types-materiais';
 
 interface ArmariosTabProps {
-  user: any; // User from Achados system
+  user: any;
   lockers: Locker[];
   onUpdate: () => void;
   campuses: Campus[];
   adminGlobalCampusId?: string | null;
+  adminGlobalSetorId?: string | null;
 }
 
-export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses, adminGlobalCampusId }) => {
+export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdate, campuses, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [loading, setLoading] = useState(false);
 
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -42,6 +43,9 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [reserveAlertOpen, setReserveAlertOpen] = useState(false);
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user?.level === UserLevel.ADMIN ? adminGlobalCampusId : user?.campus_id) || ''
+  );
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (user?.level === UserLevel.ADMIN ? adminGlobalSetorId : user?.setor_id) || ''
   );
 
   // Reserve key charge state
@@ -69,12 +73,18 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   }, [showDetail, selectedLocker]);
 
-  // Sync with global admin campus selector
+  // Sync with global admin campus and setor selectors
   useEffect(() => {
     if (user?.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
       setSelectedCampusId(adminGlobalCampusId || '');
     }
   }, [adminGlobalCampusId, user?.level]);
+
+  useEffect(() => {
+    if (user?.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, user?.level]);
 
   const isAdmin = user?.level === UserLevel.ADMIN;
   const isAdvanced = user?.level === UserLevel.ADVANCED;
@@ -104,7 +114,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const loadSchedules = async () => {
     try {
       const activeCampusId = isAdmin ? selectedCampusId : user.campus_id;
-      const data = await StorageService.getLockerSchedules(activeCampusId || undefined);
+      const activeSetorId = isAdmin ? selectedSetorId : user.setor_id;
+      const data = await StorageService.getLockerSchedules(activeCampusId || undefined, activeSetorId || undefined);
       setSchedules(data);
     } catch (e) {
       console.error("Erro ao carregar agendamentos:", e);
@@ -125,10 +136,11 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     if (!isAdmin) return;
     setLoading(true);
     try {
-      // Adicionar campus_id a cada armário importado
+      // Adicionar campus_id e setor_id a cada armário importado
       const lockersWithCampus = newData.map(l => ({
         ...l,
-        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+        setor_id: user.level === UserLevel.ADMIN ? selectedSetorId : user.setor_id
       }));
       await StorageService.saveLockers(lockersWithCampus);
 
@@ -148,7 +160,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     try {
       const lockersWithCampus = newLockers.map(l => ({
         ...l,
-        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id
+        campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+        setor_id: user.level === UserLevel.ADMIN ? selectedSetorId : user.setor_id
       }));
       await StorageService.saveLockers(lockersWithCampus);
       onUpdate();

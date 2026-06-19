@@ -10,10 +10,12 @@ interface Props {
   currentUser: User;
   onUpdate: () => void;
   campuses: Campus[];
+  setores: Setor[];
   adminGlobalCampusId?: string | null;
+  adminGlobalSetorId?: string | null;
 }
 
-export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses, adminGlobalCampusId }) => {
+export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +56,9 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (currentUser.level === UserLevel.ADMIN ? adminGlobalCampusId : currentUser.campus_id) || ''
   );
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (currentUser.level === UserLevel.ADMIN ? adminGlobalSetorId : currentUser.setor_id) || ''
+  );
 
   // Sync with global admin campus selector
   useEffect(() => {
@@ -61,6 +66,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       setSelectedCampusId(adminGlobalCampusId || '');
     }
   }, [adminGlobalCampusId, currentUser.level]);
+
+  useEffect(() => {
+    if (currentUser.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, currentUser.level]);
 
   const userString = `${currentUser.name} (${currentUser.matricula})`;
 
@@ -151,6 +162,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       password: password,
       level: formLevel,
       campus_id: formLevel === UserLevel.ADMIN ? undefined : (selectedCampusId || undefined),
+      setor_id: formLevel === UserLevel.ADMIN ? undefined : (selectedSetorId || undefined),
       permissions: permissions,
       logs: selectedUser ? selectedUser.logs : [],
       access_logs: selectedUser ? selectedUser.access_logs : [],
@@ -237,6 +249,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       });
       setFormLevel(user.level);
       setSelectedCampusId(user.campus_id || '');
+      setSelectedSetorId(user.setor_id || '');
     } else {
       setFormName('');
       setFormMatricula('');
@@ -245,6 +258,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       // Pre-select current user's campus if they are ADVANCED
       setFormLevel(UserLevel.STANDARD);
       setSelectedCampusId(currentUser.level === UserLevel.ADVANCED ? (currentUser.campus_id || '') : '');
+      setSelectedSetorId('');
       setPermissions({
         achados: false,
         armarios: false,
@@ -780,8 +794,24 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               </div>
             )}
             <div className="flex justify-end pt-2"><button onClick={() => { setShowDetailModal(false); setSelectedUser(null); }} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium">Fechar</button></div>
-          </div>
-        )}
+              </div>
+            )}
+
+            {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Setor</label>
+                <select
+                  value={selectedSetorId}
+                  onChange={e => setSelectedSetorId(e.target.value)}
+                  className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
+                >
+                  <option value="">Sem setor definido</option>
+                  {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
       </Modal>
 
       {/* Sync Email Modal */}

@@ -1,9 +1,10 @@
 export interface Material {
     id: string;
-    code: string; // Unique tracking code (e.g., "MAT-001")
+    code: string;
     name: string;
     createdAt: string;
     campus_id?: string;
+    setor_id?: string;
 }
 
 export interface MaterialLoan {
@@ -21,6 +22,7 @@ export interface MaterialLoan {
     loanedBy: string; // User who registered the loan
     returnedBy?: string; // User who registered the return
     campus_id?: string;
+    setor_id?: string;
 }
 
 export interface ChargeHistory {
@@ -33,4 +35,5 @@ export interface ChargeHistory {
     triggered_by_name: string;
     triggered_by_email?: string;
     campus_id?: string;
+    setor_id?: string;
 }

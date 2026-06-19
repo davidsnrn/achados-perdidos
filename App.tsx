@@ -82,6 +82,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
   const [notificationTypes, setNotificationTypes] = useState<NotificationType[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
+  const [setores, setSetores] = useState<Setor[]>([]);
 
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
   // Manter em Ref evita overhead de renderização e permite busca ultra-rápida
@@ -92,6 +93,7 @@ const App: React.FC = () => {
 
   // Global Admin Campus Switcher
   const [adminGlobalCampusId, setAdminGlobalCampusId] = useState<string | null>(null);
+  const [adminGlobalSetorId, setAdminGlobalSetorId] = useState<string | null>(null);
 
 
   // Login State
@@ -202,11 +204,16 @@ const App: React.FC = () => {
   const refreshUsers = useCallback(async () => {
     if (!user || user.level !== UserLevel.ADMIN) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setUsers(await StorageService.getUsers(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setUsers(await StorageService.getUsers(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshCampuses = useCallback(async () => {
     setCampuses(await StorageService.getCampuses());
+  }, []);
+
+  const refreshSetores = useCallback(async (campusId?: string) => {
+    setSetores(await StorageService.getSetores(campusId));
   }, []);
 
   const refreshBooks = useCallback(async () => {
@@ -224,8 +231,9 @@ const App: React.FC = () => {
   const refreshLockers = useCallback(async () => {
     if (!user) return;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    setLockers(await StorageService.getLockers(campusId));
-  }, [user, adminGlobalCampusId]);
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    setLockers(await StorageService.getLockers(campusId, setorId));
+  }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshMaterials = useCallback(async () => {
     if (!user) return;
@@ -553,6 +561,14 @@ const App: React.FC = () => {
     initSession();
     refreshCampuses();
   }, [loadSystemConfig, refreshCampuses]);
+
+  // Load setores after campuses and user are available
+  useEffect(() => {
+    if (user) {
+      const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
+      if (campusId) refreshSetores(campusId);
+    }
+  }, [user, adminGlobalCampusId, refreshSetores]);
 
   // Detect reset_token in URL and validate it
   useEffect(() => {
@@ -1180,14 +1196,14 @@ const App: React.FC = () => {
               </div>
 
               {user.level === UserLevel.ADMIN && (
-                <div className="w-full md:w-80 space-y-3 px-4 animate-fade-in-right">
+                <div className="w-full md:w-96 space-y-3 px-4 animate-fade-in-right">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
                     <Building2 size={14} /> Visualizar Câmpus
                   </label>
                   <div className="relative group">
                     <select
                       value={adminGlobalCampusId || ''}
-                      onChange={e => setAdminGlobalCampusId(e.target.value || null)}
+                      onChange={e => { setAdminGlobalCampusId(e.target.value || null); setAdminGlobalSetorId(null); refreshSetores(e.target.value || undefined); }}
                       className="w-full bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold rounded-2xl px-4 py-3.5 focus:ring-4 focus:ring-ifrn-green/10 focus:border-ifrn-green outline-none transition-all cursor-pointer shadow-sm hover:border-gray-300 appearance-none"
                     >
                       <option value="">🌎 Todos os Câmpus</option>
@@ -1199,6 +1215,23 @@ const App: React.FC = () => {
                       <ChevronDown size={20} />
                     </div>
                   </div>
+                  {adminGlobalCampusId && setores.length > 0 && (
+                    <div className="relative group">
+                      <select
+                        value={adminGlobalSetorId || ''}
+                        onChange={e => setAdminGlobalSetorId(e.target.value || null)}
+                        className="w-full bg-white border-2 border-gray-200 text-gray-800 text-sm font-bold rounded-2xl px-4 py-3.5 focus:ring-4 focus:ring-ifrn-green/10 focus:border-ifrn-green outline-none transition-all cursor-pointer shadow-sm hover:border-gray-300 appearance-none"
+                      >
+                        <option value="">📋 Todos os Setores</option>
+                        {setores.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
+                        <ChevronDown size={20} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1817,20 +1850,39 @@ const App: React.FC = () => {
           </div>
           <div className="flex items-center gap-4 flex-1 justify-center md:justify-start max-w-sm ml-4">
             {user.level === UserLevel.ADMIN && (
-              <div className="relative group w-full hidden md:block">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
-                  <Building2 size={16} />
+              <div className="relative group w-full hidden md:flex items-center gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-hover:text-ifrn-green transition-colors">
+                    <Building2 size={16} />
+                  </div>
+                  <select
+                    value={adminGlobalCampusId || ''}
+                    onChange={e => { setAdminGlobalCampusId(e.target.value || null); setAdminGlobalSetorId(null); refreshSetores(e.target.value || undefined); }}
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold rounded-lg pl-9 pr-3 py-1.5 focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all cursor-pointer hover:bg-white"
+                  >
+                    <option value="">🌎 Todos os Câmpus</option>
+                    {campuses.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <select
-                  value={adminGlobalCampusId || ''}
-                  onChange={e => setAdminGlobalCampusId(e.target.value || null)}
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold rounded-lg pl-9 pr-3 py-1.5 focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all cursor-pointer hover:bg-white"
-                >
-                  <option value="">🌎 Todos os Câmpus</option>
-                  {campuses.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                {adminGlobalCampusId && setores.length > 0 && (
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                      <Building2 size={16} />
+                    </div>
+                    <select
+                      value={adminGlobalSetorId || ''}
+                      onChange={e => setAdminGlobalSetorId(e.target.value || null)}
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold rounded-lg pl-9 pr-3 py-1.5 focus:ring-2 focus:ring-ifrn-green/20 focus:border-ifrn-green outline-none transition-all cursor-pointer hover:bg-white"
+                    >
+                      <option value="">📋 Todos os Setores</option>
+                      {setores.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
             {loading && <Loader2 className="animate-spin text-ifrn-green" size={20} />}
@@ -1922,7 +1974,7 @@ const App: React.FC = () => {
                     adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}
+                {activeTab === 'armarios' && <ArmariosTab user={user} lockers={lockers} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
                 {activeTab === 'livros-catalogo' && (
                   <BooksTab
                     books={books}
@@ -2006,7 +2058,7 @@ const App: React.FC = () => {
                     adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
-                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} adminGlobalCampusId={adminGlobalCampusId} />}
+                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
               </React.Suspense>
             )}
           </ErrorBoundary>

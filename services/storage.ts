@@ -56,7 +56,30 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  getUsers: async (campusId?: string): Promise<User[]> => {
+  getSetores: async (campusId?: string): Promise<Setor[]> => {
+    let query = supabase.from('setores').select('*').order('name', { ascending: true });
+    if (campusId) query = query.eq('campus_id', campusId);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveSetor: async (setor: Partial<Setor>) => {
+    const { error } = await supabase.from('setores').upsert({
+      id: setor.id || undefined,
+      campus_id: setor.campus_id,
+      name: setor.name,
+      slug: setor.slug
+    });
+    if (error) throw error;
+  },
+
+  deleteSetor: async (id: string) => {
+    const { error } = await supabase.from('setores').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  getUsers: async (campusId?: string, setorId?: string): Promise<User[]> => {
     let allData: User[] = [];
     let from = 0;
     const limit = 1000;
@@ -69,6 +92,10 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -115,6 +142,7 @@ export const StorageService = {
         email: user.email || `${user.matricula}@sistema.local`,
         level: user.level,
         campus_id: user.campus_id,
+        setor_id: user.setor_id || null,
         permissions: user.permissions,
         password: finalPassword,
         logs: updatedLogs,
@@ -137,6 +165,7 @@ export const StorageService = {
         password: hashedPassword,
         level: user.level,
         campus_id: user.campus_id,
+        setor_id: user.setor_id || null,
         permissions: user.permissions,
         moduleOrder: user.moduleOrder || [],
         logs: [logMessage],
@@ -179,12 +208,16 @@ export const StorageService = {
     await supabase.from('users').delete().eq('id', id);
   },
 
-  deleteAllUsers: async (currentAdminId: string, campusId?: string) => {
-    let query = supabase.from('users').delete().neq('id', currentAdminId);
+  deleteAllUsers: async (currentAdminId: string, campusId?: string, setorId?: string) => {
+    let query = supabase.from('users').delete();
     if (campusId) {
       query = query.eq('campus_id', campusId);
     }
-    await query;
+    if (setorId) {
+      query = query.eq('setor_id', setorId);
+    }
+    const { error } = await query;
+    if (error) throw error;
   },
 
   updateUserEmail: async (userId: string, newEmail: string): Promise<boolean> => {
@@ -334,7 +367,7 @@ export const StorageService = {
   },
 
   // People
-  getAllPeople: async (campusId?: string): Promise<Person[]> => {
+  getAllPeople: async (campusId?: string, setorId?: string): Promise<Person[]> => {
     let allData: Person[] = [];
     let from = 0;
     const limit = 1000;
@@ -342,11 +375,15 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('people')
-        .select('id, name, matricula, campus_id, type, email')
+        .select('id, name, matricula, campus_id, setor_id, type, email')
         .range(from, from + limit - 1);
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -876,7 +913,7 @@ export const StorageService = {
   },
 
   // Lockers
-  getLockers: async (campusId?: string): Promise<Locker[]> => {
+  getLockers: async (campusId?: string, setorId?: string): Promise<Locker[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
@@ -890,6 +927,10 @@ export const StorageService = {
 
       if (campusId) {
         query = query.eq('campus_id', campusId);
+      }
+
+      if (setorId) {
+        query = query.eq('setor_id', setorId);
       }
 
       const { data, error } = await query;
@@ -910,7 +951,8 @@ export const StorageService = {
       loanHistory: d.loan_history || [],
       maintenanceHistory: d.maintenance_history || [],
       location: d.location,
-      campus_id: d.campus_id
+      campus_id: d.campus_id,
+      setor_id: d.setor_id
     }));
   },
 
@@ -923,7 +965,8 @@ export const StorageService = {
       loan_history: l.loanHistory || [],
       maintenance_history: l.maintenanceHistory || [],
       location: l.location,
-      campus_id: l.campus_id
+      campus_id: l.campus_id,
+      setor_id: l.setor_id || null
     }));
 
     const BATCH_SIZE = 50;
@@ -942,7 +985,8 @@ export const StorageService = {
       loan_history: locker.loanHistory,
       maintenance_history: locker.maintenanceHistory,
       location: locker.location,
-      campus_id: locker.campus_id
+      campus_id: locker.campus_id,
+      setor_id: locker.setor_id || null
     };
 
     let query = supabase.from('lockers').update(payload).eq('number', locker.number);
@@ -954,10 +998,13 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  clearAllLockerLoans: async (campusId?: string) => {
+  clearAllLockerLoans: async (campusId?: string, setorId?: string) => {
     let query = supabase.from('lockers').select('*');
     if (campusId) {
       query = query.eq('campus_id', campusId);
+    }
+    if (setorId) {
+      query = query.eq('setor_id', setorId);
     }
     const { data: lockers, error: fetchError } = await query;
     if (fetchError || !lockers) throw new Error("Erro ao buscar armários para limpeza.");
@@ -975,20 +1022,26 @@ export const StorageService = {
     if (upsertError) throw upsertError;
   },
 
-  deleteEmptyLockers: async (campusId?: string) => {
+  deleteEmptyLockers: async (campusId?: string, setorId?: string) => {
     let query = supabase.from('lockers').delete().eq('status', LockerStatus.AVAILABLE);
     if (campusId) {
       query = query.eq('campus_id', campusId);
+    }
+    if (setorId) {
+      query = query.eq('setor_id', setorId);
     }
     const { error } = await query;
     if (error) throw error;
   },
 
   // Locker Schedules
-  getLockerSchedules: async (campusId?: string): Promise<LockerSchedule[]> => {
+  getLockerSchedules: async (campusId?: string, setorId?: string): Promise<LockerSchedule[]> => {
     let query = supabase.from('locker_schedules').select('*').order('scheduled_at', { ascending: false });
     if (campusId) {
       query = query.eq('campus_id', campusId);
+    }
+    if (setorId) {
+      query = query.eq('setor_id', setorId);
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -997,6 +1050,7 @@ export const StorageService = {
       lockerNumber: d.locker_number,
       lockerLocation: d.locker_location || '',
       campusId: d.campus_id,
+      setor_id: d.setor_id,
       studentName: d.student_name,
       registrationNumber: d.registration_number,
       studentClass: d.student_class || '',
@@ -1014,6 +1068,7 @@ export const StorageService = {
       locker_number: schedule.lockerNumber,
       locker_location: schedule.lockerLocation,
       campus_id: schedule.campusId,
+      setor_id: schedule.setor_id || null,
       student_name: schedule.studentName,
       registration_number: schedule.registrationNumber,
       student_class: schedule.studentClass,
@@ -1034,6 +1089,7 @@ export const StorageService = {
       lockerNumber: data.locker_number,
       lockerLocation: data.locker_location || '',
       campusId: data.campus_id,
+      setor_id: data.setor_id,
       studentName: data.student_name,
       registrationNumber: data.registration_number,
       studentClass: data.student_class || '',

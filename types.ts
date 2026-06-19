@@ -29,6 +29,14 @@ export interface Campus {
   created_at?: string;
 }
 
+export interface Setor {
+  id: string;
+  campus_id: string;
+  name: string;
+  slug: string;
+  created_at?: string;
+}
+
 export interface User {
   id: string;
   matricula: string;
@@ -37,6 +45,7 @@ export interface User {
   password?: string;
   level: UserLevel;
   campus_id?: string;
+  setor_id?: string;
   permissions?: {
     achados?: boolean;
     armarios?: boolean;
@@ -62,6 +71,7 @@ export interface Person {
   name: string;
   type: PersonType;
   campus_id?: string;
+  setor_id?: string;
   email?: string;
   document?: string;
   document_type?: string;
@@ -90,6 +100,7 @@ export interface FoundItem {
   history?: ItemHistory[]; // Log de auditoria do objeto
   imageUrl?: string; // Base64 or URL
   campus_id?: string;
+  setor_id?: string;
 }
 
 export interface LostReport {
@@ -103,6 +114,7 @@ export interface LostReport {
   createdAt: string;
   history: { date: string; note: string; user?: string }[];
   campus_id?: string;
+  setor_id?: string;
 }
 
 export interface AuditLog {
@@ -128,6 +140,7 @@ export interface Book {
   publisher: string;
   quantity: string;
   campus_id?: string;
+  setor_id?: string;
 }
 
 export interface BookLoan {
@@ -158,10 +171,12 @@ export interface BookLoan {
   }[];
   personType?: PersonType;
   campus_id?: string;
+  setor_id?: string;
 }
 
 export interface CopyConfig {
   campus_id: string;
+  setor_id?: string;
   start_day: number;
   end_day: number;
   created_at?: string;
@@ -171,6 +186,7 @@ export interface CopyConfig {
 export interface CopyRecord {
   id: string;
   campus_id: string;
+  setor_id?: string;
   person_name: string;
   person_matricula: string;
   person_type?: PersonType; // For statistics and display
@@ -185,6 +201,7 @@ export interface CopyRecord {
 export interface Supply {
   id: string;
   campus_id: string;
+  setor_id?: string;
   name: string;
   quantity: number;
   unit: string;
@@ -198,6 +215,7 @@ export interface SupplyRestock {
   id: string;
   supply_id: string;
   campus_id: string;
+  setor_id?: string;
   quantity_added: number;
   date: string;
   operator_id: string;
@@ -210,6 +228,7 @@ export interface SupplyRestock {
 export interface NotificationType {
   id: string;
   campus_id?: string;
+  setor_id?: string;
   name: string;
   color: string;
   etep_threshold: number;
@@ -220,6 +239,7 @@ export interface NotificationType {
 export interface StudentNotification {
   id: string;
   campus_id: string;
+  setor_id?: string;
   date: string;
   time: string;
   student_matricula: string;
@@ -253,6 +273,7 @@ export interface StudentNotification {
 export interface SupplyRecord {
   id: string;
   campus_id: string;
+  setor_id?: string;
   person_name?: string;
   person_matricula?: string;
   environment?: string;
@@ -269,6 +290,7 @@ export interface SupplyRecord {
 export interface TeacherSchedule {
   id: string;
   campus_id: string;
+  setor_id?: string;
   class_name: string;
   subject?: string;
   teacher_name: string;
@@ -285,6 +307,7 @@ export interface TeacherSchedule {
 export interface TeacherAttendance {
   id?: string;
   campus_id: string;
+  setor_id?: string;
   schedule_id: string;
   period: number;
   date: string; // ISO date
@@ -297,6 +320,7 @@ export interface TeacherAttendance {
 export interface TeacherClass {
   id?: string;
   campus_id: string;
+  setor_id?: string;
   name: string;
   room?: string;
   created_at?: string;
@@ -305,6 +329,7 @@ export interface TeacherClass {
 export interface TeacherPlannedAbsence {
   id?: string;
   campus_id: string;
+  setor_id?: string;
   teacher_name: string;
   date: string;
   schedule_id: string;
@@ -319,6 +344,7 @@ export interface TeacherPlannedAbsence {
 export interface TeacherReposicao {
   id?: string;
   campus_id: string;
+  setor_id?: string;
   attendance_id?: string;
   planned_absence_id?: string;
   schedule_id: string;

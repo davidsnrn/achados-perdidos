@@ -607,7 +607,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (user) {
       const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-      if (campusId) refreshSetores(campusId);
+      refreshSetores(campusId);
     }
   }, [user, adminGlobalCampusId, refreshSetores]);
 

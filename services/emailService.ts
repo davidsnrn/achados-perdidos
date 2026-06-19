@@ -390,7 +390,7 @@ export const EmailService = {
     campusName?: string
   ) => {
     const formattedDate = new Date(loanDateStr).toLocaleString("pt-BR");
-    const subject = `Lembrete - Devolução de Material - ${materialName} (${materialCode})`;
+    const subject = `Lembrete - Devolução de Material`;
 
     const campusLabel = campusName ? `Campus ${campusName}` : '';
 

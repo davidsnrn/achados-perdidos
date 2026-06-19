@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel, Campus } from '../../types';
+import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel, Campus, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share, Building2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -12,10 +12,12 @@ interface Props {
   user: User;
   onToggleSleep?: (sleep: boolean) => void;
   campuses: Campus[];
+  setores: Setor[];
   adminGlobalCampusId?: string | null;
+  adminGlobalSetorId?: string | null;
 }
 
-export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses, adminGlobalCampusId }) => {
+export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user, onToggleSleep, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [activeSubTab, setActiveSubTab] = useState<ItemStatus>(ItemStatus.AVAILABLE);
   const [searchTerm, setSearchTerm] = useState('');
   const [recipientSearch, setRecipientSearch] = useState('');
@@ -82,6 +84,9 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   const [selectedCampusId, setSelectedCampusId] = useState<string>(
     (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || ''
   );
+  const [selectedSetorId, setSelectedSetorId] = useState<string>(
+    (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
+  );
 
   // Sync with global admin campus selector
   React.useEffect(() => {
@@ -89,6 +94,12 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       setSelectedCampusId(adminGlobalCampusId || '');
     }
   }, [adminGlobalCampusId, user.level]);
+
+  React.useEffect(() => {
+    if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+      setSelectedSetorId(adminGlobalSetorId || '');
+    }
+  }, [adminGlobalSetorId, user.level]);
 
   // Discard modal state (for Advanced users choosing between soft/hard delete)
   const [showDiscardModal, setShowDiscardModal] = useState(false);
@@ -453,6 +464,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
         status: editingItem ? editingItem.status : ItemStatus.AVAILABLE,
         imageUrl: finalImageUrl || undefined,
         campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
+        setor_id: user.level === UserLevel.ADMIN ? selectedSetorId : user.setor_id,
       };
 
       await StorageService.saveItem(newItem, isNew ? 'Novo item cadastrado.' : 'Detalhes do item editados.', userString);
@@ -716,6 +728,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     setImageBlob(null);
     setZoomImage(null);
     setSelectedCampusId(item?.campus_id || '');
+    setSelectedSetorId(item?.setor_id || '');
     setShowEditModal(true);
 
     // Forçar coleta de lixo (garbage collection) se disponível
@@ -1123,7 +1136,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                 </label>
                 <select
                   value={selectedCampusId}
-                  onChange={e => setSelectedCampusId(e.target.value)}
+                  onChange={e => { setSelectedCampusId(e.target.value); setSelectedSetorId(''); }}
                   className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
                   required
                 >
@@ -1133,6 +1146,23 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                   ))}
                 </select>
               </div>
+              {selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+                <div>
+                  <label className="block text-sm font-bold text-amber-900 mb-2 flex items-center gap-2">
+                    <Building2 size={16} /> Setor
+                  </label>
+                  <select
+                    value={selectedSetorId}
+                    onChange={e => setSelectedSetorId(e.target.value)}
+                    className="w-full bg-white border-2 border-amber-200 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+                  >
+                    <option value="">Selecione um setor...</option>
+                    {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <p className="text-[10px] text-amber-700 font-medium">
                 Como administrador, você deve selecionar obrigatoriamente um câmpus.
               </p>

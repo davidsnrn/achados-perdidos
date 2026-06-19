@@ -228,6 +228,7 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
                                 loan={loan}
                                 onViewDetail={() => onViewDetail(loan)}
                                 onReturn={() => onReturn(loan)}
+                                setores={setores}
                             />
                         </div>
                     ))}
@@ -239,7 +240,7 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
 // ─────────────────────────────────────────────────────────────────────────────
 
 
-export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, campuses, adminGlobalCampusId }) => {
+export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
     const [activeSubTab, setActiveSubTab] = useState<'current' | 'history'>('current');
     const [showLoanModal, setShowLoanModal] = useState(false);
     const [showPartialReturnModal, setShowPartialReturnModal] = useState(false);

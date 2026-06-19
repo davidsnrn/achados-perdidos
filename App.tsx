@@ -2490,7 +2490,9 @@ const App: React.FC = () => {
                     user={user}
                     onToggleSleep={setIsBackdropSleep}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}

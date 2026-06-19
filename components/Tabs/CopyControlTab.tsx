@@ -272,7 +272,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         id: editingRecord?.id,
         date: new Date(selectedDate + "T12:00:00").toISOString(),
         campus_id: adminGlobalCampusId || user!.campus_id!,
-        setor_id: isAdmin ? selectedSetorId : user?.setor_id || undefined,
+        setor_id: isAdmin ? adminGlobalSetorId : (selectedSetorId || undefined),
         operator_id: user!.id
       });
       await onUpdate();

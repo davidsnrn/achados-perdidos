@@ -520,6 +520,7 @@ const App: React.FC = () => {
         case 'material_loans': refreshMaterialLoans(); break;
         case 'supplies': refreshSupplies(); break;
         case 'supply_records': refreshSupplyRecords(); break;
+        case 'copy_records': refreshCopyRecords(); break;
         case 'student_notifications': refreshNotifications(); break;
         case 'teacher_schedules':
         case 'teacher_attendance': refreshData(); break;

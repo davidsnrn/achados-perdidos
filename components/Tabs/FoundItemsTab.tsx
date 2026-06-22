@@ -1788,14 +1788,14 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
 
             <div
               onClick={() => setDiscardType('Doado')}
-              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Doado' ? 'border-emerald-400 bg-emerald-50' : 'border-gray-100 hover:bg-gray-50'}`}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Doado' ? 'border-amber-400 bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
             >
               <div className="flex items-start gap-3">
-                <div className={`p-2 rounded-lg mt-0.5 ${discardType === 'Doado' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <div className={`p-2 rounded-lg mt-0.5 ${discardType === 'Doado' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
                   <Gift size={20} />
                 </div>
                 <div>
-                  <p className={`font-bold ${discardType === 'Doado' ? 'text-emerald-800' : 'text-gray-800'}`}>Doação</p>
+                  <p className={`font-bold ${discardType === 'Doado' ? 'text-amber-800' : 'text-gray-800'}`}>Doação</p>
                   <p className="text-xs text-gray-500 mt-1">O item será registrado como doação e excluído automaticamente em <strong>30 dias</strong>. É possível emitir um relatório dos itens doados nesse período.</p>
                 </div>
               </div>

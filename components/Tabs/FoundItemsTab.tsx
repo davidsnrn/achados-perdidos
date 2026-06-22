@@ -742,11 +742,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     try {
       const { jsPDF } = await import('jspdf');
       const autoTable = (await import('jspdf-autotable')).default;
-      const doc = new jsPDF('l', 'mm', 'a4');
+      const doc = new jsPDF('p', 'mm', 'a4');
       const pageW = doc.internal.pageSize.getWidth();
 
       // Header background
-      doc.setFillColor(4, 120, 87);
+      doc.setFillColor(104, 185, 44);
       doc.rect(0, 0, pageW, 38, 'F');
 
       // IFRN Logo
@@ -782,10 +782,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       const boxH = 14;
       doc.setFillColor(240, 253, 244);
       doc.roundedRect(14, statsY, 55, boxH, 2, 2, 'F');
-      doc.setFillColor(4, 120, 87);
-      doc.setTextColor(4, 120, 87);
+      doc.setFillColor(104, 185, 44);
+      doc.setTextColor(104, 185, 44);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
+
       doc.text(String(donatedItems.length), 26, statsY + 10);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -796,23 +797,21 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       const tableData = donatedItems.map(item => [
         `#${item.campusItemId ?? item.id}`,
         item.description,
-        item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-',
-        item.returnedTo || '-',
-        item.locationFound
+        item.detailedDescription || '-',
+        item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-'
       ]);
       autoTable(doc, {
         startY: statsY + boxH + 10,
-        head: [['ID', 'Descrição', 'Data da Doação', 'Recebedor', 'Local Encontrado']],
+        head: [['ID', 'Descrição', 'Detalhe', 'Data da Doação']],
         body: tableData,
         theme: 'striped',
-        headStyles: { fillColor: [4, 120, 87], fontSize: 9, fontStyle: 'bold' },
+        headStyles: { fillColor: [104, 185, 44], fontSize: 9, fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: {
-          0: { cellWidth: 25 },
-          1: { cellWidth: 120 },
-          2: { cellWidth: 35 },
-          3: { cellWidth: 55 },
-          4: { cellWidth: 45 }
+          0: { cellWidth: 20 },
+          1: { cellWidth: 75 },
+          2: { cellWidth: 55 },
+          3: { cellWidth: 30 }
         }
       });
 

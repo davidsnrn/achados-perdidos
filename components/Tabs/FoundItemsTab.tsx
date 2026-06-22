@@ -754,8 +754,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       const logoY = 8;
       const sq = 2.6;
       const gap = 3;
-      doc.setFillColor(237, 47, 53);
-      doc.circle(logoX + sq / 2, logoY + sq / 2 + 1, sq / 2, 'F');
+      doc.setFillColor(203, 22, 29);
+      doc.circle(logoX + sq / 2, logoY + sq / 2, sq / 2, 'F');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(logoX + gap, logoY, sq, sq, 0.3, 0.3, 'F');
       doc.roundedRect(logoX + gap * 2, logoY, sq, sq, 0.3, 0.3, 'F');

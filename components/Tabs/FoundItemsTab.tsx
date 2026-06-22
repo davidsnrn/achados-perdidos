@@ -738,37 +738,37 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   };
 
   const handleExportDonatedPDF = async () => {
-    if (donatedItemsReport.length === 0) {
-      alert('Nenhum item doado para exportar.');
-      return;
-    }
     try {
       const { jsPDF } = await import('jspdf');
       const autoTable = (await import('jspdf-autotable')).default;
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageW = doc.internal.pageSize.getWidth();
 
-      // IFRN logo brand mark representation (visible on white background)
+      // IFRN logo (matching page header from Logo.tsx)
       const logoX = 14;
-      const logoY = 10;
-      const sq = 3;
-      const gap = 3.5;
+      const logoY = 10.5;
+      const sq = 3.5;
+      const gap = 4.2;
       
-      // Circle Red
-      doc.setFillColor(228, 39, 36);
-      doc.circle(logoX + sq / 2, logoY + sq / 2, sq / 2, 'F');
+      // Red circle (#CB161D)
+      doc.setFillColor(203, 22, 29);
+      doc.circle(logoX + 1.75, logoY + 1.75, 1.75, 'F');
       
-      // 9 Green rounded rects
-      doc.setFillColor(0, 148, 88);
-      doc.rect(logoX + gap, logoY, sq, sq, 'F');
-      doc.rect(logoX + gap * 2, logoY, sq, sq, 'F');
-      doc.rect(logoX, logoY + gap, sq, sq, 'F');
-      doc.rect(logoX + gap, logoY + gap, sq, sq, 'F');
-      doc.rect(logoX, logoY + gap * 2, sq, sq, 'F');
-      doc.rect(logoX + gap, logoY + gap * 2, sq, sq, 'F');
-      doc.rect(logoX + gap * 2, logoY + gap * 2, sq, sq, 'F');
-      doc.rect(logoX, logoY + gap * 3, sq, sq, 'F');
-      doc.rect(logoX + gap, logoY + gap * 3, sq, sq, 'F');
+      // Green rounded rects (#78BE20)
+      doc.setFillColor(120, 190, 32);
+      // Row 0
+      doc.roundedRect(logoX + gap, logoY, sq, sq, 0.7, 0.7, 'F');
+      doc.roundedRect(logoX + gap * 2, logoY, sq, sq, 0.7, 0.7, 'F');
+      // Row 1
+      doc.roundedRect(logoX, logoY + gap, sq, sq, 0.7, 0.7, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap, sq, sq, 0.7, 0.7, 'F');
+      // Row 2
+      doc.roundedRect(logoX, logoY + gap * 2, sq, sq, 0.7, 0.7, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap * 2, sq, sq, 0.7, 0.7, 'F');
+      doc.roundedRect(logoX + gap * 2, logoY + gap * 2, sq, sq, 0.7, 0.7, 'F');
+      // Row 3
+      doc.roundedRect(logoX, logoY + gap * 3, sq, sq, 0.7, 0.7, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap * 3, sq, sq, 0.7, 0.7, 'F');
 
       // Header text (dark green and dark gray for readability)
       const textX = logoX + gap * 2 + sq + 6;
@@ -817,8 +817,19 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       doc.text('FILTRO PERÍODO', card2X + 4, 49);
       doc.setTextColor(55, 65, 81);
       doc.setFontSize(8);
-      const periodStr = dateFilter === 'ALL' ? 'Todo o período' : dateFilter === 'SPECIFIC' ? formatDate(startDate) : `${formatDate(startDate)} a ${formatDate(endDate) || ''}`;
-      doc.text(periodStr, card2X + 4, 55);
+      const getPeriodLabel = () => {
+        switch (dateFilter) {
+          case 'ALL': return 'Todo o período';
+          case 'TODAY': return 'Hoje';
+          case 'WEEK': return 'Esta semana';
+          case 'THIS_MONTH': return 'Este mês';
+          case 'THIS_YEAR': return 'Este ano';
+          case 'SPECIFIC': return startDate ? formatDate(startDate) : '-';
+          case 'CUSTOM': return `${startDate ? formatDate(startDate) : '?'} a ${endDate ? formatDate(endDate) : '?'}`;
+          default: return 'Todo o período';
+        }
+      };
+      doc.text(getPeriodLabel(), card2X + 4, 55);
 
       // Card 3: Campus / Sector
       const card3X = card2X + cardW + cardGap;
@@ -847,15 +858,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
         head: [['ID', 'Item / Descrição', 'Observação / Detalhes', 'Data de Doação']],
         body: tableData,
         theme: 'plain',
-        headStyles: { 
-          fillColor: [0, 148, 88], 
-          fontSize: 9, 
+        tableLineWidth: 0,
+        headStyles: {
+          fillColor: [0, 148, 88],
+          fontSize: 9,
           fontStyle: 'bold',
           textColor: [255, 255, 255]
         },
-        styles: { 
-          fontSize: 8.5, 
-          cellPadding: 4, 
+        styles: {
+          fontSize: 8.5,
+          cellPadding: 4,
           valign: 'middle',
           lineColor: [229, 231, 235],
           lineWidth: 0.1
@@ -867,6 +879,18 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           3: { cellWidth: 30 }
         }
       });
+
+      // Rounded outer border around table (matching modal rounded-xl ≈ 3mm)
+      try {
+        const tblInfo = (doc as any).lastAutoTable;
+        if (tblInfo?.startY && tblInfo?.finalY) {
+          doc.setDrawColor(209, 213, 219);
+          doc.setLineWidth(0.5);
+          doc.roundedRect(14, tblInfo.startY, pageW - 28, tblInfo.finalY - tblInfo.startY, 3, 3, 'S');
+        }
+      } catch (e) {
+        console.warn('Could not draw rounded table border:', e);
+      }
 
       // Signature Block (Centered for Server)
       let finalY = (doc as any).lastAutoTable.finalY + 25;
@@ -907,6 +931,263 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       console.error('Erro ao gerar PDF:', error);
       alert('Erro ao gerar o PDF. Verifique se as dependências estão instaladas.');
     }
+  };
+
+  const handlePrintReport = () => {
+    const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 150" style="width:40px;height:55px">
+      <circle cx="16" cy="16" r="16" fill="#CB161D" />
+      <rect x="38" y="0" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="76" y="0" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="0" y="38" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="38" y="38" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="0" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="38" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="76" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="0" y="114" width="32" height="32" rx="6" fill="#78BE20" />
+      <rect x="38" y="114" width="32" height="32" rx="6" fill="#78BE20" />
+    </svg>`;
+
+    const tableRows = donatedItemsReport.map(item => `
+      <tr>
+        <td class="id">#${item.campusItemId ?? item.id}</td>
+        <td class="desc">${item.description}</td>
+        <td class="detail">${item.detailedDescription || '-'}</td>
+        <td class="date">${item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-'}</td>
+      </tr>
+    `).join('');
+
+    const campusName = selectedCampusId ? (campuses.find(c => c.id === selectedCampusId)?.name || 'Todos') : 'Todos';
+    const getPeriodLabel = (f: string, s: string, e: string) => {
+      switch (f) {
+        case 'ALL': return 'Todo o período';
+        case 'TODAY': return 'Hoje';
+        case 'WEEK': return 'Esta semana';
+        case 'THIS_MONTH': return 'Este mês';
+        case 'THIS_YEAR': return 'Este ano';
+        case 'SPECIFIC': return s ? new Date(s).toLocaleDateString('pt-BR') : '-';
+        case 'CUSTOM': return `${s ? new Date(s).toLocaleDateString('pt-BR') : '?'} a ${e ? new Date(e).toLocaleDateString('pt-BR') : '?'}`;
+        default: return 'Todo o período';
+      }
+    };
+    const periodText = getPeriodLabel(dateFilter, startDate, endDate);
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatório de Itens Doados - IFRN</title>
+  <style>
+    @page { margin: 15mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      color: #333;
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding-bottom: 20px;
+      border-bottom: 4px solid #009458;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 900;
+      color: #009458;
+      text-transform: uppercase;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+    }
+    .header .sub {
+      font-size: 9px;
+      font-weight: 700;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .header .date {
+      font-size: 10px;
+      color: #999;
+      margin-top: 2px;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .metric-card {
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .metric-card.green {
+      background: #f0faf4;
+      border-color: #d6f0e4;
+    }
+    .metric-card.gray {
+      background: #f9fafb;
+    }
+    .metric-card .label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #9ca3af;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .metric-card .value {
+      font-size: 20px;
+      font-weight: 900;
+      color: #009458;
+    }
+    .metric-card .value-sm {
+      font-size: 13px;
+      font-weight: 600;
+      color: #444;
+      display: block;
+      margin-top: 2px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+    thead {
+      background: #009458;
+      color: white;
+    }
+    th {
+      padding: 12px;
+      text-align: left;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    td.id {
+      font-weight: 700;
+      color: #009458;
+      width: 60px;
+    }
+    td.desc {
+      font-weight: 600;
+      color: #111;
+    }
+    td.detail, td.date {
+      color: #666;
+    }
+    td.date {
+      width: 100px;
+    }
+    tbody tr:hover {
+      background: #f0faf4;
+    }
+    .footer {
+      margin-top: 50px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+      text-align: center;
+    }
+    .footer .line {
+      width: 200px;
+      height: 2px;
+      background: #d1d5db;
+      margin: 0 auto 8px;
+    }
+    .footer .label {
+      font-size: 10px;
+      color: #777;
+      display: block;
+    }
+    .footer .sub-label {
+      font-size: 9px;
+      color: #aaa;
+      display: block;
+    }
+    @media print {
+      body { padding: 0; }
+      .metric-card.green { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      thead { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    ${logoSvg}
+    <div>
+      <h1>Relatório de Itens Doados</h1>
+      <p class="sub">Instituto Federal de Educação, Ciência e Tecnologia do Rio Grande do Norte</p>
+      <p class="date">Gerado em: ${new Date().toLocaleString('pt-BR')} • SIGAE</p>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric-card green">
+      <span class="label">Total de Itens</span>
+      <span class="value">${donatedItemsReport.length}</span>
+    </div>
+    <div class="metric-card gray">
+      <span class="label">Filtro Período</span>
+      <span class="value-sm">${periodText}</span>
+    </div>
+    <div class="metric-card gray">
+      <span class="label">Campus / Setor</span>
+      <span class="value-sm">${campusName}</span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Item / Descrição</th>
+        <th>Observação / Detalhes</th>
+        <th>Data Doação</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <div class="line"></div>
+    <span class="label">Assinatura do Servidor Responsável</span>
+    <span class="sub-label">SIAPE / Matrícula</span>
+  </div>
+</body>
+</html>`;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;border:none;';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(html);
+      doc.close();
+    }
+    iframe.onload = () => {
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 300);
+    };
   };
 
   const toggleSelection = (id: number) => {
@@ -1916,45 +2197,23 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           {/* Printable Report Sheet */}
           <div id="printable-report" className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm font-sans text-gray-800 relative overflow-hidden">
             
-            {/* Print style overrides */}
-            <style dangerouslySetInnerHTML={{ __html: `
-              @media print {
-                body * {
-                  visibility: hidden !important;
-                }
-                #printable-report, #printable-report * {
-                  visibility: visible !important;
-                }
-                #printable-report {
-                  position: absolute;
-                  left: 0;
-                  top: 0;
-                  width: 100%;
-                  border: none !important;
-                  box-shadow: none !important;
-                  padding: 0 !important;
-                  margin: 0 !important;
-                  -webkit-print-color-adjust: exact !important;
-                  print-color-adjust: exact !important;
-                }
-              }
-            `}} />
+
 
             {/* Institutional Header resembling IFRN branding */}
             <div className="flex items-center gap-6 pb-6 border-b-4 border-[#009458]">
               {/* IFRN Logo Mark SVG */}
               <div className="flex-shrink-0">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" className="w-16 h-20">
-                  <circle cx="20" cy="20" r="10" fill="#E42724" />
-                  <rect x="45" y="10" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="75" y="10" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="15" y="40" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="45" y="40" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="15" y="70" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="45" y="70" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="75" y="70" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="15" y="100" width="20" height="20" rx="3" fill="#009458" />
-                  <rect x="45" y="100" width="20" height="20" rx="3" fill="#009458" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 150" className="w-10 h-14">
+                  <circle cx="16" cy="16" r="16" fill="#CB161D" />
+                  <rect x="38" y="0" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="76" y="0" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="0" y="38" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="38" y="38" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="0" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="38" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="76" y="76" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="0" y="114" width="32" height="32" rx="6" fill="#78BE20" />
+                  <rect x="38" y="114" width="32" height="32" rx="6" fill="#78BE20" />
                 </svg>
               </div>
 
@@ -1980,7 +2239,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block">Filtro Período</span>
                 <span className="text-sm font-semibold text-gray-700 block mt-1">
-                  {dateFilter === 'ALL' ? 'Todo o período' : dateFilter === 'SPECIFIC' ? formatDate(startDate) : `${formatDate(startDate)} a ${formatDate(endDate) || ''}`}
+                  {(() => { switch (dateFilter) {
+                    case 'ALL': return 'Todo o período';
+                    case 'TODAY': return 'Hoje';
+                    case 'WEEK': return 'Esta semana';
+                    case 'THIS_MONTH': return 'Este mês';
+                    case 'THIS_YEAR': return 'Este ano';
+                    case 'SPECIFIC': return startDate ? formatDate(startDate) : '-';
+                    case 'CUSTOM': return `${startDate ? formatDate(startDate) : '?'} a ${endDate ? formatDate(endDate) : '?'}`;
+                    default: return 'Todo o período';
+                  }})()}
                 </span>
               </div>
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
@@ -2041,7 +2309,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               Fechar
             </button>
             <button
-              onClick={() => window.print()}
+              onClick={handlePrintReport}
               className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm font-semibold transition-all shadow-sm active:scale-95"
             >
               <Printer size={16} /> Imprimir

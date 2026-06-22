@@ -777,22 +777,6 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       doc.setFontSize(10);
       doc.text(`IFRN • Gerado em: ${new Date().toLocaleString('pt-BR')}`, textX, 27);
 
-      // Stats boxes below header
-      const statsY = 48;
-      const boxH = 14;
-      doc.setFillColor(240, 253, 244);
-      doc.roundedRect(14, statsY, 55, boxH, 2, 2, 'F');
-      doc.setFillColor(104, 185, 44);
-      doc.setTextColor(104, 185, 44);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-
-      doc.text(String(donatedItems.length), 26, statsY + 10);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Total de Itens Doados', 26, statsY + boxH - 2);
-
       // Table
       const tableData = donatedItems.map(item => [
         `#${item.campusItemId ?? item.id}`,
@@ -801,7 +785,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
         item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-'
       ]);
       autoTable(doc, {
-        startY: statsY + boxH + 10,
+        startY: 42,
         head: [['ID', 'Descrição', 'Detalhe', 'Data da Doação']],
         body: tableData,
         theme: 'striped',

@@ -1564,6 +1564,14 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  deleteBookLoan: async (loanId: string) => {
+    const { error } = await supabase
+      .from('book_loans')
+      .delete()
+      .eq('id', loanId);
+    if (error) throw error;
+  },
+
   // Materials
   getMaterials: async (campusId?: string, setorId?: string): Promise<Material[]> => {
     let allData: Material[] = [];

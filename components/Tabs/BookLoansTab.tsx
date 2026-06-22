@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Book, BookLoan, BookLoanStatus, Person, PersonType, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Search, History, CheckCircle, X, Loader2, ArrowRight, User as UserIcon, Book as BookIcon, Calendar, Clock, Undo2, Plus, FileText, ChevronDown, ChevronRight } from 'lucide-react';
@@ -20,10 +20,12 @@ interface LoanRowProps {
     loan: BookLoan;
     onViewDetail: () => void;
     onReturn: () => void;
+    onDelete?: () => void;
+    isAdmin?: boolean;
     setores: Setor[];
 }
 
-const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, setores }) => {
+const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, onDelete, isAdmin, setores }) => {
     const [expanded, setExpanded] = useState(false);
     const activeBooks = loan.books.filter(b => b.status === 'Ativo');
     const returnedBooks = loan.books.filter(b => b.status === 'Devolvido');
@@ -98,6 +100,15 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, setores
                     >
                         <FileText size={15} />
                     </button>
+                    {isAdmin && onDelete && (
+                        <button
+                            onClick={onDelete}
+                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir empréstimo"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -291,6 +302,16 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
 
 
     const isAdmin = user.level === UserLevel.ADMIN;
+
+    const handleDeleteLoan = useCallback(async (loan: BookLoan) => {
+        if (!window.confirm(`Excluir permanentemente o empréstimo de ${loan.personName}?`)) return;
+        try {
+            await StorageService.deleteBookLoan(loan.id);
+            onUpdate();
+        } catch (error) {
+            console.error('Erro ao excluir empréstimo:', error);
+        }
+    }, [onUpdate]);
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -742,6 +763,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                             setSelectedLoanForReturn(loan);
                                             setShowPartialReturnModal(true);
                                         }}
+                                        onDelete={isAdmin ? () => handleDeleteLoan(loan) : undefined}
+                                        isAdmin={isAdmin}
                                         setores={setores}
                                     />
                                 ))
@@ -755,6 +778,8 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                 setSelectedLoanForReturn(group[0]);
                                                 setShowPartialReturnModal(true);
                                             }}
+                                            onDelete={isAdmin ? () => handleDeleteLoan(group[0]) : undefined}
+                                            isAdmin={isAdmin}
                                             setores={setores}
                                           />
                                         : <StudentLoanGroup

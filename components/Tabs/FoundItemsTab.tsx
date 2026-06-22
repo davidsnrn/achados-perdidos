@@ -1761,7 +1761,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       <Modal
         isOpen={showDiscardModal}
         onClose={() => setShowDiscardModal(false)}
-        title="Excluir ou Descartar Item"
+        title="Excluir ou Doar Item"
       >
         <div className="space-y-6">
           <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
@@ -1773,30 +1773,30 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
           <div className="space-y-4">
             <div
               onClick={() => setDiscardType('Descartado')}
-              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Descartado' ? 'border-amber-500 bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Descartado' ? 'border-red-400 bg-red-50' : 'border-gray-100 hover:bg-gray-50'}`}
             >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${discardType === 'Descartado' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-lg mt-0.5 ${discardType === 'Descartado' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
                   <Trash2 size={20} />
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800">Mover para Descartado</p>
-                  <p className="text-xs text-gray-500">O item será movido para a aba Descartado/Doado com histórico.</p>
+                  <p className={`font-bold ${discardType === 'Descartado' ? 'text-red-800' : 'text-gray-800'}`}>Exclusão</p>
+                  <p className="text-xs text-gray-500 mt-1">O item será movido para a aba Descartado e excluído automaticamente em <strong>7 dias</strong>. Após esse prazo não será possível recuperá-lo.</p>
                 </div>
               </div>
             </div>
 
             <div
               onClick={() => setDiscardType('Doado')}
-              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Doado' ? 'border-amber-500 bg-amber-50' : 'border-gray-100 hover:bg-gray-50'}`}
+              className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${discardType === 'Doado' ? 'border-emerald-400 bg-emerald-50' : 'border-gray-100 hover:bg-gray-50'}`}
             >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${discardType === 'Doado' ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              <div className="flex items-start gap-3">
+                <div className={`p-2 rounded-lg mt-0.5 ${discardType === 'Doado' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
                   <Gift size={20} />
                 </div>
                 <div>
-                  <p className="font-bold text-gray-800">Mover para Doado</p>
-                  <p className="text-xs text-gray-500">O item será registrado como doação para fins de auditoria.</p>
+                  <p className={`font-bold ${discardType === 'Doado' ? 'text-emerald-800' : 'text-gray-800'}`}>Doação</p>
+                  <p className="text-xs text-gray-500 mt-1">O item será registrado como doação e excluído automaticamente em <strong>30 dias</strong>. É possível emitir um relatório dos itens doados nesse período.</p>
                 </div>
               </div>
             </div>
@@ -1807,7 +1807,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               onClick={() => handleConfirmDiscard('SOFT')}
               className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl font-bold hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 flex items-center justify-center gap-2 shadow-md shadow-amber-200"
             >
-              Confirmar Movimentação
+              Confirmar {discardType === 'Doado' ? 'Doação' : 'Exclusão'}
             </button>
             {user.level === UserLevel.ADMIN && (
               <button

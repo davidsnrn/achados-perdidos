@@ -1445,9 +1445,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               )}
               {viewingItem.status === ItemStatus.DISCARDED && viewingItem.returnedDate && (
                 <>
-                  <div className="col-span-2 bg-gray-200 p-2 rounded border border-gray-300">
-                    <span className="text-xs font-bold text-gray-700 uppercase">Descartado/Doado em</span>
-                    <p className="text-gray-900 font-medium">{new Date(viewingItem.returnedDate).toLocaleString()}</p>
+                  <div className="col-span-2 bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-gray-500 text-xs font-bold mb-1">
+                      Descartado/Doado em
+                    </div>
+                    <p className="text-gray-800 font-semibold">{new Date(viewingItem.returnedDate).toLocaleString()}</p>
                   </div>
                   <div className="col-span-2 bg-red-50 border border-red-200 rounded-xl p-4">
                     <div className="flex items-center gap-2 text-red-700 text-xs font-bold mb-1">

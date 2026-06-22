@@ -742,43 +742,90 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     try {
       const { jsPDF } = await import('jspdf');
       const autoTable = (await import('jspdf-autotable')).default;
-      const doc = new jsPDF();
-      doc.setFontSize(18);
-      doc.setTextColor(40, 40, 40);
-      doc.text('Relatório de Itens Doados - IFRN', 14, 22);
-      doc.setFontSize(9);
+      const doc = new jsPDF('l', 'mm', 'a4');
+      const pageW = doc.internal.pageSize.getWidth();
+
+      // Header background
+      doc.setFillColor(4, 120, 87);
+      doc.rect(0, 0, pageW, 38, 'F');
+
+      // IFRN Logo
+      const logoX = 14;
+      const logoY = 8;
+      const sq = 2.6;
+      const gap = 3;
+      doc.setFillColor(237, 47, 53);
+      doc.circle(logoX + sq / 2, logoY + sq / 2 + 1, sq / 2, 'F');
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(logoX + gap, logoY, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX + gap * 2, logoY, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX, logoY + gap, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX, logoY + gap * 2, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap * 2, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX + gap * 2, logoY + gap * 2, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX, logoY + gap * 3, sq, sq, 0.3, 0.3, 'F');
+      doc.roundedRect(logoX + gap, logoY + gap * 3, sq, sq, 0.3, 0.3, 'F');
+
+      // Header text
+      const textX = logoX + gap * 2 + sq + 6;
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.text('Relatório de Itens Doados', textX, 17);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.text(`IFRN • Gerado em: ${new Date().toLocaleString('pt-BR')}`, textX, 27);
+
+      // Stats boxes below header
+      const statsY = 48;
+      const boxH = 14;
+      doc.setFillColor(240, 253, 244);
+      doc.roundedRect(14, statsY, 55, boxH, 2, 2, 'F');
+      doc.setFillColor(4, 120, 87);
+      doc.setTextColor(4, 120, 87);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.text(String(donatedItems.length), 26, statsY + 10);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
+      doc.text('Total de Itens Doados', 26, statsY + boxH - 2);
+
+      // Table
       const tableData = donatedItems.map(item => [
         `#${item.campusItemId ?? item.id}`,
         item.description,
         item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-',
         item.returnedTo || '-',
-        item.locationFound,
-        item.discardType || 'Doado'
+        item.locationFound
       ]);
       autoTable(doc, {
-        startY: 35,
-        head: [['ID', 'Descrição', 'Data da Doação', 'Recebedor', 'Local Encontrado', 'Tipo']],
+        startY: statsY + boxH + 10,
+        head: [['ID', 'Descrição', 'Data da Doação', 'Recebedor', 'Local Encontrado']],
         body: tableData,
         theme: 'striped',
-        headStyles: { fillColor: [4, 120, 87] },
-        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [4, 120, 87], fontSize: 9, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 3 },
         columnStyles: {
-          0: { cellWidth: 20 },
-          1: { cellWidth: 70 },
-          2: { cellWidth: 30 },
-          3: { cellWidth: 35 },
-          4: { cellWidth: 30 },
-          5: { cellWidth: 20 }
+          0: { cellWidth: 25 },
+          1: { cellWidth: 120 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 45 }
         }
       });
+
+      // Footer
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(14, doc.internal.pageSize.height - 14, pageW - 14, doc.internal.pageSize.height - 14);
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
-        doc.text(`Página ${i} de ${totalPages} | Total de itens: ${donatedItems.length}`, 14, doc.internal.pageSize.height - 10);
+        doc.text(`Página ${i} de ${totalPages}`, 14, doc.internal.pageSize.height - 6);
+        doc.text(`Total de itens: ${donatedItems.length}`, pageW - 14, doc.internal.pageSize.height - 6, { align: 'right' });
       }
       doc.save(`relatorio_doacoes_${new Date().getTime()}.pdf`);
     } catch (error) {

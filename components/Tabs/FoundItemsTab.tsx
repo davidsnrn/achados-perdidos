@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel, Campus, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
-import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share, Building2 } from 'lucide-react';
+import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share, Building2, Printer, Download } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { ImageViewer } from '../ui/ImageViewer';
 
@@ -105,6 +105,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [itemToDiscard, setItemToDiscard] = useState<FoundItem | null>(null);
   const [discardType, setDiscardType] = useState<'Doado' | 'Descartado'>('Descartado');
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const handleShareImage = async (base64Data: string, fileName: string) => {
     try {
@@ -350,6 +351,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     });
     return sorted;
   }, [filteredItems, sortConfig]);
+
+  const donatedItemsReport = useMemo(() => {
+    const activeList = activeSubTab === ItemStatus.DISCARDED ? filteredItems : items.filter(i => i.status === ItemStatus.DISCARDED);
+    return activeList.filter(i => i.discardType === 'Doado');
+  }, [items, filteredItems, activeSubTab]);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -732,10 +738,7 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
   };
 
   const handleExportDonatedPDF = async () => {
-    const donatedItems = items.filter(
-      i => i.status === ItemStatus.DISCARDED && i.discardType === 'Doado'
-    );
-    if (donatedItems.length === 0) {
+    if (donatedItemsReport.length === 0) {
       alert('Nenhum item doado para exportar.');
       return;
     }
@@ -745,71 +748,160 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageW = doc.internal.pageSize.getWidth();
 
-      // Header background
-      doc.setFillColor(104, 185, 44);
-      doc.rect(0, 0, pageW, 38, 'F');
-
-      // IFRN Logo
+      // IFRN logo brand mark representation (visible on white background)
       const logoX = 14;
-      const logoY = 8;
-      const sq = 2.6;
-      const gap = 3;
-      doc.setFillColor(203, 22, 29);
+      const logoY = 10;
+      const sq = 3;
+      const gap = 3.5;
+      
+      // Circle Red
+      doc.setFillColor(228, 39, 36);
       doc.circle(logoX + sq / 2, logoY + sq / 2, sq / 2, 'F');
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(logoX + gap, logoY, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX + gap * 2, logoY, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX, logoY + gap, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX + gap, logoY + gap, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX, logoY + gap * 2, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX + gap, logoY + gap * 2, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX + gap * 2, logoY + gap * 2, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX, logoY + gap * 3, sq, sq, 0.3, 0.3, 'F');
-      doc.roundedRect(logoX + gap, logoY + gap * 3, sq, sq, 0.3, 0.3, 'F');
+      
+      // 9 Green rounded rects
+      doc.setFillColor(0, 148, 88);
+      doc.rect(logoX + gap, logoY, sq, sq, 'F');
+      doc.rect(logoX + gap * 2, logoY, sq, sq, 'F');
+      doc.rect(logoX, logoY + gap, sq, sq, 'F');
+      doc.rect(logoX + gap, logoY + gap, sq, sq, 'F');
+      doc.rect(logoX, logoY + gap * 2, sq, sq, 'F');
+      doc.rect(logoX + gap, logoY + gap * 2, sq, sq, 'F');
+      doc.rect(logoX + gap * 2, logoY + gap * 2, sq, sq, 'F');
+      doc.rect(logoX, logoY + gap * 3, sq, sq, 'F');
+      doc.rect(logoX + gap, logoY + gap * 3, sq, sq, 'F');
 
-      // Header text
+      // Header text (dark green and dark gray for readability)
       const textX = logoX + gap * 2 + sq + 6;
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(0, 148, 88);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(20);
-      doc.text('Relatório de Itens Doados', textX, 17);
+      doc.text('RELATÓRIO DE ITENS DOADOS', textX, 18);
+      
+      doc.setTextColor(100, 110, 120);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      doc.text(`IFRN • Gerado em: ${new Date().toLocaleString('pt-BR')}`, textX, 27);
+      doc.setFontSize(8);
+      doc.text('INSTITUTO FEDERAL DE EDUCAÇÃO, CIÊNCIA E TECNOLOGIA DO RIO GRANDE DO NORTE', textX, 24);
+      doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • SIGAE`, textX, 29);
 
-      // Table
-      const tableData = donatedItems.map(item => [
+      // Top divider line (matching the green border-b-4 in the modal)
+      doc.setDrawColor(0, 148, 88);
+      doc.setLineWidth(1);
+      doc.line(14, 38, pageW - 14, 38);
+
+      // Draw the 3 Rounded Cards matching the modal preview
+      const cardW = 57;
+      const cardH = 18;
+      const cardGap = 5.5;
+
+      // Card 1: Total items
+      const card1X = 14;
+      doc.setFillColor(240, 250, 244); // light green bg
+      doc.setDrawColor(222, 247, 236); // border
+      doc.roundedRect(card1X, 44, cardW, cardH, 2, 2, 'FD');
+      doc.setTextColor(120, 130, 140);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.text('TOTAL DE ITENS', card1X + 4, 49);
+      doc.setTextColor(0, 148, 88);
+      doc.setFontSize(14);
+      doc.text(`${donatedItemsReport.length}`, card1X + 4, 57);
+
+      // Card 2: Period filter
+      const card2X = card1X + cardW + cardGap;
+      doc.setFillColor(249, 250, 251); // light gray bg
+      doc.setDrawColor(243, 244, 246); // border
+      doc.roundedRect(card2X, 44, cardW, cardH, 2, 2, 'FD');
+      doc.setTextColor(120, 130, 140);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.text('FILTRO PERÍODO', card2X + 4, 49);
+      doc.setTextColor(55, 65, 81);
+      doc.setFontSize(8);
+      const periodStr = dateFilter === 'ALL' ? 'Todo o período' : dateFilter === 'SPECIFIC' ? formatDate(startDate) : `${formatDate(startDate)} a ${formatDate(endDate) || ''}`;
+      doc.text(periodStr, card2X + 4, 55);
+
+      // Card 3: Campus / Sector
+      const card3X = card2X + cardW + cardGap;
+      doc.setFillColor(249, 250, 251); // light gray bg
+      doc.setDrawColor(243, 244, 246); // border
+      doc.roundedRect(card3X, 44, cardW, cardH, 2, 2, 'FD');
+      doc.setTextColor(120, 130, 140);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.text('CAMPUS / SETOR', card3X + 4, 49);
+      doc.setTextColor(55, 65, 81);
+      doc.setFontSize(8);
+      const campusStr = selectedCampusId ? campuses.find(c => c.id === selectedCampusId)?.name || 'Todos' : 'Todos';
+      doc.text(campusStr.length > 28 ? campusStr.substring(0, 28) + '...' : campusStr, card3X + 4, 55);
+
+      // Table Data
+      const tableData = donatedItemsReport.map(item => [
         `#${item.campusItemId ?? item.id}`,
         item.description,
         item.detailedDescription || '-',
         item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-'
       ]);
+
       autoTable(doc, {
-        startY: 42,
-        head: [['ID', 'Descrição', 'Detalhe', 'Data da Doação']],
+        startY: 68,
+        head: [['ID', 'Item / Descrição', 'Observação / Detalhes', 'Data de Doação']],
         body: tableData,
-        theme: 'striped',
-        headStyles: { fillColor: [104, 185, 44], fontSize: 9, fontStyle: 'bold' },
-        styles: { fontSize: 8, cellPadding: 3 },
+        theme: 'plain',
+        headStyles: { 
+          fillColor: [0, 148, 88], 
+          fontSize: 9, 
+          fontStyle: 'bold',
+          textColor: [255, 255, 255]
+        },
+        styles: { 
+          fontSize: 8.5, 
+          cellPadding: 4, 
+          valign: 'middle',
+          lineColor: [229, 231, 235],
+          lineWidth: 0.1
+        },
         columnStyles: {
-          0: { cellWidth: 20 },
-          1: { cellWidth: 75 },
-          2: { cellWidth: 55 },
+          0: { cellWidth: 20, fontStyle: 'bold', textColor: [0, 148, 88] },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 70 },
           3: { cellWidth: 30 }
         }
       });
+
+      // Signature Block (Centered for Server)
+      let finalY = (doc as any).lastAutoTable.finalY + 25;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // If signature fits on the same page, draw it, else add page
+      if (finalY > pageHeight - 35) {
+        doc.addPage();
+        finalY = 35;
+      }
+
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      
+      doc.line(65, finalY, 145, finalY);
+      doc.setTextColor(100, 110, 120);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Assinatura do Servidor Responsável', 105, finalY + 4, { align: 'center' });
+      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(7);
+      doc.text('SIAPE / Matrícula', 105, finalY + 8, { align: 'center' });
 
       // Footer
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, doc.internal.pageSize.height - 14, pageW - 14, doc.internal.pageSize.height - 14);
+        doc.setDrawColor(220, 224, 230);
+        doc.line(14, pageHeight - 15, pageW - 14, pageHeight - 15);
         doc.setFontSize(8);
-        doc.setTextColor(150, 150, 150);
-        doc.text(`Página ${i} de ${totalPages}`, 14, doc.internal.pageSize.height - 6);
-        doc.text(`Total de itens: ${donatedItems.length}`, pageW - 14, doc.internal.pageSize.height - 6, { align: 'right' });
+        doc.setTextColor(108, 117, 125);
+        doc.text(`Página ${i} de ${totalPages}`, 14, pageHeight - 8);
+        doc.text('SIGAE • Sistema de Gestão de Achados e Perdidos', pageW - 14, pageHeight - 8, { align: 'right' });
       }
+      
       doc.save(`relatorio_doacoes_${new Date().getTime()}.pdf`);
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
@@ -895,10 +987,10 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
             )}
             {activeSubTab === ItemStatus.DISCARDED && items.some(i => i.discardType === 'Doado') && (
               <button
-                onClick={handleExportDonatedPDF}
+                onClick={() => setShowReportModal(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm shadow-md shadow-blue-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <FileText size={16} />
                 Relatório de Doações
               </button>
             )}
@@ -1809,6 +1901,156 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
               className="w-full py-2 text-gray-500 hover:bg-gray-100 rounded-lg text-sm"
             >
               Cancelar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        title="Visualização do Relatório"
+        maxWidth="max-w-5xl"
+      >
+        <div className="space-y-6">
+          {/* Printable Report Sheet */}
+          <div id="printable-report" className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm font-sans text-gray-800 relative overflow-hidden">
+            
+            {/* Print style overrides */}
+            <style dangerouslySetInnerHTML={{ __html: `
+              @media print {
+                body * {
+                  visibility: hidden !important;
+                }
+                #printable-report, #printable-report * {
+                  visibility: visible !important;
+                }
+                #printable-report {
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                  border: none !important;
+                  box-shadow: none !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+              }
+            `}} />
+
+            {/* Institutional Header resembling IFRN branding */}
+            <div className="flex items-center gap-6 pb-6 border-b-4 border-[#009458]">
+              {/* IFRN Logo Mark SVG */}
+              <div className="flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" className="w-16 h-20">
+                  <circle cx="20" cy="20" r="10" fill="#E42724" />
+                  <rect x="45" y="10" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="75" y="10" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="15" y="40" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="45" y="40" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="15" y="70" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="45" y="70" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="75" y="70" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="15" y="100" width="20" height="20" rx="3" fill="#009458" />
+                  <rect x="45" y="100" width="20" height="20" rx="3" fill="#009458" />
+                </svg>
+              </div>
+
+              <div>
+                <h1 className="text-2xl font-black uppercase text-[#009458] tracking-tight leading-none">
+                  Relatório de Itens Doados
+                </h1>
+                <p className="text-xs font-bold text-gray-500 mt-1 uppercase tracking-wider">
+                  Instituto Federal de Educação, Ciência e Tecnologia do Rio Grande do Norte
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Gerado em: {new Date().toLocaleString('pt-BR')} • SIGAE
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
+              <div className="bg-[#009458]/5 p-4 rounded-xl border border-[#009458]/10">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block">Total de Itens</span>
+                <span className="text-2xl font-black text-[#009458]">{donatedItemsReport.length}</span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block">Filtro Período</span>
+                <span className="text-sm font-semibold text-gray-700 block mt-1">
+                  {dateFilter === 'ALL' ? 'Todo o período' : dateFilter === 'SPECIFIC' ? formatDate(startDate) : `${formatDate(startDate)} a ${formatDate(endDate) || ''}`}
+                </span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-400 block">Campus / Setor</span>
+                <span className="text-sm font-semibold text-gray-700 block mt-1 truncate">
+                  {selectedCampusId ? campuses.find(c => c.id === selectedCampusId)?.name || 'Todos' : 'Todos'}
+                </span>
+              </div>
+            </div>
+
+            {/* Document Table */}
+            <div className="mt-6 overflow-hidden rounded-xl border border-gray-200">
+              <table className="w-full text-sm text-left">
+                <thead>
+                  <tr className="bg-[#009458] text-white font-bold text-xs uppercase tracking-wider">
+                    <th className="p-4 w-20">ID</th>
+                    <th className="p-4">Item / Descrição</th>
+                    <th className="p-4">Observação / Detalhes</th>
+                    <th className="p-4 w-36">Data Doação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {donatedItemsReport.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-400 italic">Nenhum item doado encontrado para os filtros selecionados.</td>
+                    </tr>
+                  ) : (
+                    donatedItemsReport.map(item => (
+                      <tr key={item.id} className="hover:bg-[#009458]/5 transition-colors">
+                        <td className="p-4 font-bold text-[#009458]">#{item.campusItemId ?? item.id}</td>
+                        <td className="p-4 font-semibold text-gray-900">{item.description}</td>
+                        <td className="p-4 text-gray-600">{item.detailedDescription || '-'}</td>
+                        <td className="p-4 text-gray-600">{item.returnedDate ? formatDate(item.returnedDate) : '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer Signatures */}
+            <div className="mt-12 flex justify-center pt-8 border-t border-gray-100">
+              <div className="text-center w-64">
+                <div className="h-0.5 bg-gray-300 w-full mb-2"></div>
+                <span className="text-xs text-gray-500 block">Assinatura do Servidor Responsável</span>
+                <span className="text-[10px] text-gray-400 block">SIAPE / Matrícula</span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex justify-end gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <button
+              onClick={() => setShowReportModal(false)}
+              className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              Fechar
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 text-sm font-semibold transition-all shadow-sm active:scale-95"
+            >
+              <Printer size={16} /> Imprimir
+            </button>
+            <button
+              onClick={handleExportDonatedPDF}
+              className="flex items-center gap-2 px-6 py-2 bg-[#009458] text-white rounded-lg hover:bg-[#007b49] text-sm font-semibold transition-all shadow-md shadow-[#009458]/10 hover:shadow-[#009458]/20 hover:-translate-y-0.5 active:scale-95"
+            >
+              <Download size={16} /> Exportar PDF
             </button>
           </div>
         </div>

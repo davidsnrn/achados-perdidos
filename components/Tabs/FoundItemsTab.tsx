@@ -1241,18 +1241,16 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
             </div>
           ) : returnType === 'PERSON' && (
             <div className="relative space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-gray-500 uppercase">Buscar Pessoa Cadastrada</label>
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer hover:text-ifrn-green transition-colors select-none">
-                  <input
-                    type="checkbox"
-                    checked={searchAllCampuses}
-                    onChange={e => { setSearchAllCampuses(e.target.checked); setSearchResultsPeople([]); setSelectedResultIndex(-1); setHasSearchedPeople(false); }}
-                    className="rounded border-gray-300 text-ifrn-green focus:ring-ifrn-green w-3 h-3"
-                  />
-                  Todos os câmpus
-                </label>
-              </div>
+              <label className="text-xs font-bold text-gray-500 uppercase block">Buscar Pessoa Cadastrada</label>
+              <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer hover:text-ifrn-green transition-colors select-none">
+                <input
+                  type="checkbox"
+                  checked={searchAllCampuses}
+                  onChange={e => { setSearchAllCampuses(e.target.checked); setSearchResultsPeople([]); setSelectedResultIndex(-1); setHasSearchedPeople(false); }}
+                  className="rounded border-gray-300 text-ifrn-green focus:ring-ifrn-green w-3 h-3"
+                />
+                Buscar em todos os Campi
+              </label>
                 <div className="relative flex-1">
                   <input
                     type="text"

@@ -190,8 +190,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [teacherName, setTeacherName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [gradeViewMode, setGradeViewMode] = useState<'turma' | 'sala'>('turma');
+  const [gradeViewMode, setGradeViewMode] = useState<'turma' | 'sala' | 'professor'>('turma');
   const [gradeSelectedRoom, setGradeSelectedRoom] = useState<string>('');
+  const [gradeSelectedProfessor, setGradeSelectedProfessor] = useState<string>('');
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [selectedShift, setSelectedShift] = useState<'M' | 'T' | 'N'>(() => {
     const hour = new Date().getHours();
@@ -1472,6 +1473,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const uniqueRooms = [...new Set(
     classes.filter(c => c.room?.trim()).map(c => c.room!.trim())
   )].sort();
+  const uniqueProfessors = [...new Set(schedules.map(s => s.teacher_name).filter(Boolean))].sort();
 
   const activeColumns = verificationViewMode === 'sala' ? selectedRooms : selectedClasses;
 
@@ -1655,6 +1657,12 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   >
                     Sala
                   </button>
+                  <button
+                    onClick={() => { setGradeViewMode('professor'); setGradeSelectedProfessor(''); }}
+                    className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${gradeViewMode === 'professor' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-500 hover:text-indigo-700'}`}
+                  >
+                    Professor
+                  </button>
                 </div>
                 {gradeViewMode === 'turma' ? (
                   <select
@@ -1665,7 +1673,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                     <option value="">Selecione a Turma</option>
                     {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
-                ) : (
+                ) : gradeViewMode === 'sala' ? (
                   <select
                     value={gradeSelectedRoom}
                     onChange={e => setGradeSelectedRoom(e.target.value)}
@@ -1673,6 +1681,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   >
                     <option value="">Selecione a Sala</option>
                     {uniqueRooms.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                ) : (
+                  <select
+                    value={gradeSelectedProfessor}
+                    onChange={e => setGradeSelectedProfessor(e.target.value)}
+                    className="bg-transparent border-none text-sm font-bold text-indigo-800 outline-none cursor-pointer pr-8"
+                  >
+                    <option value="">Selecione o Professor</option>
+                    {uniqueProfessors.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
                 )}
               </div>
@@ -2199,7 +2216,9 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                   <h2 className="text-4xl font-black text-gray-900">
                     {gradeViewMode === 'turma'
                       ? (selectedClass || "Selecione uma turma")
-                      : (gradeSelectedRoom || "Selecione uma sala")}
+                      : gradeViewMode === 'sala'
+                      ? (gradeSelectedRoom || "Selecione uma sala")
+                      : (gradeSelectedProfessor || "Selecione um professor")}
                   </h2>
                   {gradeViewMode === 'turma' && selectedClass && (() => {
                     const matchedClassObj = classes.find(c => c.name === selectedClass);
@@ -2308,7 +2327,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             const cellDateStr = cellDateObj.toISOString().split('T')[0];
 
                             const schedule = schedules.find(s =>
-                              (gradeViewMode === 'turma' ? s.class_name === selectedClass : s.room === gradeSelectedRoom) &&
+                              (gradeViewMode === 'turma' ? s.class_name === selectedClass : gradeViewMode === 'sala' ? s.room === gradeSelectedRoom : s.teacher_name === gradeSelectedProfessor) &&
                               s.day_of_week === day.id - 1 &&
                               (s.period === slot.id || (s.periods?.includes(slot.id)))
                             );
@@ -2339,6 +2358,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             let cellText = schedule?.teacher_name;
                             let subText = schedule?.subject;
                             let labelBadge = "";
+                            const classRoom = schedule ? classes.find(c => c.name === schedule.class_name)?.room : null;
 
                             if (cellRepo) {
                               const isAntecipacao = cellRepo.makeup_date! < cellRepo.date;
@@ -2383,8 +2403,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                         </span>
                                       </div>
                                     )}
-                                    {gradeViewMode === 'sala' && schedule && (
-                                      <div className="text-[9px] font-black text-indigo-700 truncate mb-0.5">{schedule.class_name}</div>
+                                    {(gradeViewMode === 'sala' || gradeViewMode === 'professor') && schedule && (
+                                      <div className="text-[9px] font-black text-indigo-700 truncate mb-0.5">
+                                        {schedule.class_name}
+                                        {gradeViewMode === 'professor' && classRoom && ` - ${classRoom}`}
+                                      </div>
                                     )}
                                     <div className="text-[11px] font-black uppercase leading-tight mb-1 opacity-80">{subText}</div>
                                     <div className="text-[10px] font-bold truncate">{cellText}</div>

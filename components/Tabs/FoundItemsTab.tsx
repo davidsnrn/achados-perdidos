@@ -228,10 +228,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       i => i.status === ItemStatus.DISCARDED && i.returnedDate
     );
     const now = Date.now();
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
     for (const item of discardedItems) {
+      const deadlineDays = item.discardType === 'Doado' ? 30 : 7;
+      const deadlineMs = deadlineDays * 24 * 60 * 60 * 1000;
       const returnedDate = new Date(item.returnedDate!).getTime();
-      if (now - returnedDate >= sevenDays) {
+      if (now - returnedDate >= deadlineMs) {
         try {
           if (item.imageUrl) {
             await StorageService.deleteItemImage(item.imageUrl);
@@ -730,6 +731,62 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
     }
   };
 
+  const handleExportDonatedPDF = async () => {
+    const donatedItems = items.filter(
+      i => i.status === ItemStatus.DISCARDED && i.discardType === 'Doado'
+    );
+    if (donatedItems.length === 0) {
+      alert('Nenhum item doado para exportar.');
+      return;
+    }
+    try {
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.setTextColor(40, 40, 40);
+      doc.text('Relatório de Itens Doados - IFRN', 14, 22);
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 30);
+      const tableData = donatedItems.map(item => [
+        `#${item.campusItemId ?? item.id}`,
+        item.description,
+        item.returnedDate ? new Date(item.returnedDate).toLocaleDateString('pt-BR') : '-',
+        item.returnedTo || '-',
+        item.locationFound,
+        item.discardType || 'Doado'
+      ]);
+      autoTable(doc, {
+        startY: 35,
+        head: [['ID', 'Descrição', 'Data da Doação', 'Recebedor', 'Local Encontrado', 'Tipo']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { fillColor: [4, 120, 87] },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 30 },
+          5: { cellWidth: 20 }
+        }
+      });
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Página ${i} de ${totalPages} | Total de itens: ${donatedItems.length}`, 14, doc.internal.pageSize.height - 10);
+      }
+      doc.save(`relatorio_doacoes_${new Date().getTime()}.pdf`);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('Erro ao gerar o PDF. Verifique se as dependências estão instaladas.');
+    }
+  };
+
   const toggleSelection = (id: number) => {
     setSelectedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -804,6 +861,15 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                 className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm shadow-md shadow-amber-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200"
               >
                 <Gift size={16} /> Doar ({selectedItems.length})
+              </button>
+            )}
+            {activeSubTab === ItemStatus.DISCARDED && items.some(i => i.discardType === 'Doado') && (
+              <button
+                onClick={handleExportDonatedPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm shadow-md shadow-blue-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                Relatório de Doações
               </button>
             )}
             <button
@@ -1458,7 +1524,8 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                     <p className="text-red-600 text-sm font-semibold">
                       {(function() {
                         const now = Date.now();
-                        const deletionDate = new Date(viewingItem.returnedDate!).getTime() + 7 * 24 * 60 * 60 * 1000;
+                        const deadlineDays = viewingItem.discardType === 'Doado' ? 30 : 7;
+                        const deletionDate = new Date(viewingItem.returnedDate!).getTime() + deadlineDays * 24 * 60 * 60 * 1000;
                         const diffMs = deletionDate - now;
                         if (diffMs <= 0) return 'Sendo excluído...';
                         const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));

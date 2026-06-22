@@ -149,7 +149,7 @@ const BookTable: React.FC<BookTableProps> = ({ books, title, onEdit, onDelete, o
     );
 };
 
-export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, people = [], isPeopleLoading, peopleSearchIndex = [], adminGlobalCampusId }) => {
+export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, campuses, setores, people = [], isPeopleLoading, peopleSearchIndex = [], adminGlobalCampusId, adminGlobalSetorId }) => {
     const [search, setSearch] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showModal, setShowModal] = useState(false);

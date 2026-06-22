@@ -520,6 +520,7 @@ const App: React.FC = () => {
         case 'material_loans': refreshMaterialLoans(); break;
         case 'supplies': refreshSupplies(); break;
         case 'supply_records': refreshSupplyRecords(); break;
+        case 'copy_records': refreshCopyRecords(); break;
         case 'student_notifications': refreshNotifications(); break;
         case 'teacher_schedules':
         case 'teacher_attendance': refreshData(); break;
@@ -2490,7 +2491,9 @@ const App: React.FC = () => {
                     user={user}
                     onToggleSleep={setIsBackdropSleep}
                     campuses={campuses}
+                    setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
                 {activeTab === 'relatos' && <LostReportsTab reports={reports} items={items} onUpdate={refreshData} user={user} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}

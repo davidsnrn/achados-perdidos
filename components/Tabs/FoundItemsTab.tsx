@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { FoundItem, ItemStatus, Person, LostReport, ReportStatus, User, UserLevel, Campus, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { Plus, Search, Trash2, Gift, Calendar, Pencil, Info, History, CornerUpRight, ChevronUp, ChevronDown, RotateCcw, User as UserIcon, FileText, CheckCircle, Loader2, Image as ImageIcon, X, Share, Building2 } from 'lucide-react';
@@ -222,6 +222,32 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
       }
     };
   }, [itemImage]);
+
+  const cleanupExpiredDiscarded = useCallback(async () => {
+    const discardedItems = items.filter(
+      i => i.status === ItemStatus.DISCARDED && i.returnedDate
+    );
+    const now = Date.now();
+    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+    for (const item of discardedItems) {
+      const returnedDate = new Date(item.returnedDate!).getTime();
+      if (now - returnedDate >= sevenDays) {
+        try {
+          if (item.imageUrl) {
+            await StorageService.deleteItemImage(item.imageUrl);
+          }
+          await StorageService.deleteItem(item.id);
+        } catch (err) {
+          console.error('Erro ao excluir item descartado expirado:', err);
+        }
+      }
+    }
+  }, [items]);
+
+  // Executa limpeza de itens descartados expirados ao montar e quando os itens mudarem
+  useEffect(() => {
+    cleanupExpiredDiscarded();
+  }, [cleanupExpiredDiscarded]);
 
   const normalizeText = (text: string) => {
     return text
@@ -1418,10 +1444,34 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
                 </div>
               )}
               {viewingItem.status === ItemStatus.DISCARDED && viewingItem.returnedDate && (
-                <div className="col-span-2 bg-gray-200 p-2 rounded border border-gray-300">
-                  <span className="text-xs font-bold text-gray-700 uppercase">Descartado/Doado em</span>
-                  <p className="text-gray-900 font-medium">{new Date(viewingItem.returnedDate).toLocaleString()}</p>
-                </div>
+                <>
+                  <div className="col-span-2 bg-gray-200 p-2 rounded border border-gray-300">
+                    <span className="text-xs font-bold text-gray-700 uppercase">Descartado/Doado em</span>
+                    <p className="text-gray-900 font-medium">{new Date(viewingItem.returnedDate).toLocaleString()}</p>
+                  </div>
+                  <div className="col-span-2 bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 text-red-700 text-xs font-bold mb-1">
+                      <span>⚠️</span> Exclusão automática programada
+                    </div>
+                    <p className="text-red-600 text-sm font-semibold">
+                      {(function() {
+                        const now = Date.now();
+                        const deletionDate = new Date(viewingItem.returnedDate!).getTime() + 7 * 24 * 60 * 60 * 1000;
+                        const diffMs = deletionDate - now;
+                        if (diffMs <= 0) return 'Sendo excluído...';
+                        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+                        if (days > 0) return `Este item será excluído definitivamente em ${days} dia${days > 1 ? 's' : ''} e ${hours}h`;
+                        if (hours > 0) return `Este item será excluído definitivamente em ${hours}h e ${minutes}min`;
+                        return `Este item será excluído definitivamente em ${minutes}min`;
+                      })()}
+                    </p>
+                    <p className="text-red-400 text-[10px] mt-1">
+                      Após a exclusão não será mais possível recuperar o item.
+                    </p>
+                  </div>
+                </>
               )}
             </div>
 

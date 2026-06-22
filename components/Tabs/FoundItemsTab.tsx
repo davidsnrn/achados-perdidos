@@ -1698,11 +1698,11 @@ export const FoundItemsTab: React.FC<Props> = ({ items, reports, onUpdate, user,
 
                     {user.level !== UserLevel.STANDARD && (
                       <button
-                        onClick={(e) => { setShowDetailModal(false); handleDelete(e, viewingItem.id); }}
+                        onClick={(e) => { setShowDetailModal(false); setItemToDiscard(viewingItem); setDiscardType('Descartado'); setShowDiscardModal(true); }}
                         className="px-3 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-md shadow-red-200 hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] transition-all duration-200 text-sm font-medium flex items-center gap-2"
-                        title={user.level === UserLevel.ADMIN ? "Excluir item permanentemente" : "Excluir ou Descartar item"}
+                        title="Excluir ou Doar item"
                       >
-                        <Trash2 size={16} /> {user.level === UserLevel.ADMIN ? "Excluir" : "Excluir"}
+                        <Trash2 size={16} /> Excluir / Doar
                       </button>
                     )}
                   </>

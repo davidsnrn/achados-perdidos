@@ -2008,6 +2008,7 @@ const App: React.FC = () => {
                                                     i.group === groupName ? { ...i, checked: !allChecked } : i
                                                   )
                                                 }));
+                                                setSelectedMoveTables(prev => new Set(prev).add(p.table));
                                               }}
                                               className="accent-amber-600 cursor-pointer"
                                             />
@@ -2047,6 +2048,7 @@ const App: React.FC = () => {
                                                     ...prev,
                                                     [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
                                                   }));
+                                                  setSelectedMoveTables(prev => new Set(prev).add(p.table));
                                                 }}
                                                 className="accent-amber-600 cursor-pointer"
                                               />
@@ -2074,6 +2076,7 @@ const App: React.FC = () => {
                                               ...prev,
                                               [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
                                             }));
+                                            setSelectedMoveTables(prev => new Set(prev).add(p.table));
                                           }}
                                           className="accent-amber-600 cursor-pointer"
                                         />
@@ -2100,6 +2103,7 @@ const App: React.FC = () => {
                                             ...prev,
                                             [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
                                           }));
+                                          setSelectedMoveTables(prev => new Set(prev).add(p.table));
                                         }}
                                         className="accent-amber-600 cursor-pointer"
                                       />

@@ -2663,6 +2663,7 @@ export const StorageService = {
     triggered_by_name: string;
     triggered_by_email?: string;
     campus_id?: string;
+    setor_id?: string;
   }) => {
     const { error } = await supabase.from('charge_history').insert({
       loan_id: params.loan_id,
@@ -2672,6 +2673,7 @@ export const StorageService = {
       triggered_by_name: params.triggered_by_name,
       triggered_by_email: params.triggered_by_email,
       campus_id: params.campus_id,
+      setor_id: params.setor_id || null,
     });
     if (error) {
       console.error("Erro ao registrar envio de lembrete:", error);

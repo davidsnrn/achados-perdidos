@@ -657,7 +657,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                         person_name: loan.personName,
                         triggered_by_name: `${user.name} (${user.matricula})`,
                         triggered_by_email: user.email,
-                        campus_id: user.campus_id
+                        campus_id: user.campus_id,
+                        setor_id: user.setor_id
                     });
                 } catch (logErr: any) {
                     const msg = logErr?.message || '';

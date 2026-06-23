@@ -2326,6 +2326,7 @@ export const StorageService = {
     const payload = {
       id: notification.id || undefined,
       campus_id: notification.campus_id,
+      setor_id: notification.setor_id || null,
       date: notification.date,
       time: notification.time,
       student_matricula: notification.student_matricula,

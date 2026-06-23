@@ -2193,6 +2193,7 @@ export const StorageService = {
     const { error: hError } = await supabase.from('supply_restock_history').insert({
       supply_id: restock.supply_id,
       campus_id: restock.campus_id,
+      setor_id: restock.setor_id || null,
       quantity_added: restock.quantity_added,
       operator_id: restock.operator_id,
       date: restock.date || new Date().toISOString()
@@ -2208,9 +2209,10 @@ export const StorageService = {
     if (uError) throw uError;
   },
 
-  getRestockHistory: async (campusId?: string): Promise<SupplyRestock[]> => {
+  getRestockHistory: async (campusId?: string, setorId?: string): Promise<SupplyRestock[]> => {
     let query = supabase.from('supply_restock_history').select('*').order('date', { ascending: false });
     if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
     
     const { data, error } = await query;
     if (error) throw error;
@@ -2239,7 +2241,7 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  adjustSupplyQuantity: async (supplyId: string, campusId: string, newTotal: number, operatorId: string, operatorName: string) => {
+  adjustSupplyQuantity: async (supplyId: string, campusId: string, newTotal: number, operatorId: string, operatorName: string, setorId?: string) => {
     // 1. Get current supply
     const { data: supply } = await supabase.from('supplies').select('quantity').eq('id', supplyId).single();
     if (!supply) throw new Error("Insumo não encontrado.");
@@ -2252,6 +2254,7 @@ export const StorageService = {
     const { error: hError } = await supabase.from('supply_restock_history').insert({
       supply_id: supplyId,
       campus_id: campusId,
+      setor_id: setorId || null,
       quantity_added: delta,
       operator_id: operatorId,
       date: new Date().toISOString(),

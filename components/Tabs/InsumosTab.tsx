@@ -107,7 +107,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
       const [sData, rData, hData] = await Promise.all([
         StorageService.getSupplies(campusId, activeSetorId),
         StorageService.getSupplyRecords(campusId, activeSetorId),
-        StorageService.getRestockHistory(campusId)
+        StorageService.getRestockHistory(campusId, activeSetorId)
       ]);
       setSupplies(sData);
       setRecords(rData);
@@ -131,6 +131,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
       if (restockMode === 'reposicao' && selectedItemId) {
         await StorageService.restockSupply({
           campus_id: campusId,
+          setor_id: activeSetorId,
           supply_id: selectedItemId,
           quantity_added: supplyQuantity,
           operator_id: user.id

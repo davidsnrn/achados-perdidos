@@ -124,6 +124,7 @@ const App: React.FC = () => {
     Insumos: { tables: ['supplies', 'supply_records'], label: 'Insumos' },
     Notificações: { tables: ['student_notifications', 'notification_types'], label: 'Notificações' },
     Usuários: { tables: ['users'], label: 'Usuários' },
+    Pessoas: { tables: ['people'], label: 'Pessoas' },
   };
 
   // Login State

@@ -95,6 +95,7 @@ export const StorageService = {
       { table: 'student_notifications', label: 'Notificações de Alunos', pk: 'id' },
       { table: 'notification_types', label: 'Tipos de Notificação', pk: 'id' },
       { table: 'users', label: 'Usuários', pk: 'id' },
+      { table: 'people', label: 'Pessoas', pk: 'id' },
     ];
     const results: { table: string; count: number; label: string }[] = [];
     for (const { table, label, pk } of tables) {
@@ -127,6 +128,7 @@ export const StorageService = {
       student_notifications: 'id',
       notification_types: 'id',
       users: 'id',
+      people: 'matricula',
     };
     const selectMap: Record<string, string> = {
       items: 'id, description, campus_item_id, setor_id',
@@ -143,6 +145,7 @@ export const StorageService = {
       student_notifications: 'id, student_name, setor_id',
       notification_types: 'id, name, setor_id',
       users: 'id, name, matricula, setor_id',
+      people: 'matricula, name, setor_id',
     };
     const columns = selectMap[table];
     const pk = pkMap[table] || 'id';
@@ -178,6 +181,7 @@ export const StorageService = {
         case 'student_notifications': label = item.student_name; break;
         case 'notification_types': label = item.name; break;
         case 'users': label = `${item.name} (${item.matricula})`; break;
+        case 'people': label = `${item.name} (${item.matricula})`; break;
         default: label = item.id?.toString() || '';
       }
       return { id: itemId, label, currentSetorId: item.setor_id || null, group };
@@ -200,6 +204,7 @@ export const StorageService = {
       student_notifications: 'id',
       notification_types: 'id',
       users: 'id',
+      people: 'matricula',
     };
     const tablesToProcess = selections ? selections.filter(s => s.ids === undefined || s.ids.length > 0) : Object.keys(pkMap).map(t => ({ table: t }));
     const results: { table: string; count: number }[] = [];

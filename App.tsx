@@ -1735,13 +1735,6 @@ const App: React.FC = () => {
                             <button
                               onClick={async () => {
                                 try {
-                                  const preview = await StorageService.getMovePreview(setor.id);
-                                  const withData = preview.filter(p => p.count > 0);
-                                  if (withData.length > 0) {
-                                    alert(`Não é possível excluir este setor pois existem dados vinculados a ele:\n\n${withData.map(p => `  • ${p.label}: ${p.count}`).join('\n')}\n\n Utilize a opção "Mover / Atribuir Dados" para transferir os registros para outro setor antes de excluir.`);
-                                    setDeletingSetorId(null);
-                                    return;
-                                  }
                                   await StorageService.deleteSetor(setor.id);
                                   setDeletingSetorId(null);
                                   await refreshSetores(configCampusId);
@@ -1750,7 +1743,24 @@ const App: React.FC = () => {
                                   const msg = e.message || '';
                                   const fkMatch = msg.match(/violates foreign key constraint "\w+" on table "(\w+)"/);
                                   if (fkMatch) {
-                                    alert(`Não é possível excluir este setor pois existem registros vinculados na tabela "${fkMatch[1]}".\n\nUtilize a opção "Mover / Atribuir Dados" para transferir os registros para outro setor antes de excluir.`);
+                                    const tableLabels: Record<string, string> = {
+                                      items: 'Achados - Itens',
+                                      reports: 'Achados - Relatos',
+                                      lockers: 'Armários',
+                                      locker_schedules: 'Agendamentos de Armários',
+                                      books: 'Livros',
+                                      book_loans: 'Empréstimos de Livros',
+                                      materials: 'Materiais',
+                                      material_loans: 'Empréstimos de Materiais',
+                                      copy_records: 'Registros de Cópias',
+                                      supplies: 'Insumos (Estoque)',
+                                      supply_records: 'Registros de Insumos',
+                                      student_notifications: 'Notificações de Alunos',
+                                      notification_types: 'Tipos de Notificação',
+                                      users: 'Usuários',
+                                      people: 'Pessoas',
+                                    };
+                                    alert(`Não é possível excluir este setor pois existem registros vinculados em "${tableLabels[fkMatch[1]] || fkMatch[1]}".\n\nUtilize a opção "Mover / Atribuir Dados" para transferir os registros para outro setor antes de excluir.`);
                                   } else {
                                     alert('Erro ao excluir setor: ' + msg);
                                   }

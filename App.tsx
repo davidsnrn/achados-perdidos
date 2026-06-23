@@ -1734,6 +1734,13 @@ const App: React.FC = () => {
                             <button
                               onClick={async () => {
                                 try {
+                                  const preview = await StorageService.getMovePreview(setor.id);
+                                  const withData = preview.filter(p => p.count > 0);
+                                  if (withData.length > 0) {
+                                    alert(`Não é possível excluir este setor pois existem dados vinculados a ele:\n\n${withData.map(p => `  • ${p.label}: ${p.count}`).join('\n')}\n\n Utilize a opção "Mover / Atribuir Dados" para transferir os registros para outro setor antes de excluir.`);
+                                    setDeletingSetorId(null);
+                                    return;
+                                  }
                                   await StorageService.deleteSetor(setor.id);
                                   setDeletingSetorId(null);
                                   await refreshSetores(configCampusId);

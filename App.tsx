@@ -1890,7 +1890,16 @@ const App: React.FC = () => {
                             Selecionar todos
                           </button>
                           <button
-                            onClick={() => { setSelectedMoveTables(new Set()); setPreviewItems({}); }}
+                            onClick={() => {
+                              setSelectedMoveTables(new Set());
+                              setPreviewItems(prev => {
+                                const next: typeof prev = {};
+                                for (const [table, items] of Object.entries(prev)) {
+                                  next[table] = items.map(i => ({ ...i, checked: false }));
+                                }
+                                return next;
+                              });
+                            }}
                             className="text-xs text-amber-700 hover:text-amber-900 underline font-medium"
                           >
                             Limpar seleção

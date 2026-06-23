@@ -79,6 +79,11 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  nullifySetorPeople: async (setorId: string) => {
+    const { error } = await supabase.from('people').update({ setor_id: null }).eq('setor_id', setorId);
+    if (error) throw error;
+  },
+
   getMovePreview: async (fromSetorId: string): Promise<{ table: string; count: number; label: string }[]> => {
     const tables: { table: string; label: string; pk: string }[] = [
       { table: 'lockers', label: 'Armários', pk: 'number' },
@@ -95,7 +100,7 @@ export const StorageService = {
       { table: 'student_notifications', label: 'Notificações de Alunos', pk: 'id' },
       { table: 'notification_types', label: 'Tipos de Notificação', pk: 'id' },
       { table: 'users', label: 'Usuários', pk: 'id' },
-      { table: 'people', label: 'Pessoas', pk: 'id' },
+      { table: 'people', label: 'Pessoas', pk: 'matricula' },
     ];
     const results: { table: string; count: number; label: string }[] = [];
     for (const { table, label, pk } of tables) {

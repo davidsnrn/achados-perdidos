@@ -1742,7 +1742,17 @@ const App: React.FC = () => {
                                 } catch (e: any) {
                                   const msg = e.message || '';
                                   const fkMatch = msg.match(/violates foreign key constraint "\w+" on table "(\w+)"/);
-                                  if (fkMatch) {
+                                  if (fkMatch && fkMatch[1] === 'people') {
+                                    if (confirm(`Existem pessoas vinculadas a este setor. Como as pessoas são cadastradas por campus e não por setor, o vínculo será removido automaticamente.\n\nDeseja continuar?`)) {
+                                      await StorageService.nullifySetorPeople(setor.id);
+                                      await StorageService.deleteSetor(setor.id);
+                                      setDeletingSetorId(null);
+                                      await refreshSetores(configCampusId);
+                                      if (adminGlobalSetorId === setor.id) setAdminGlobalSetorId(null);
+                                    } else {
+                                      setDeletingSetorId(null);
+                                    }
+                                  } else if (fkMatch) {
                                     const tableLabels: Record<string, string> = {
                                       items: 'Achados - Itens',
                                       reports: 'Achados - Relatos',

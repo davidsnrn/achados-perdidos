@@ -1849,6 +1849,7 @@ export const StorageService = {
       .from('copy_configs')
       .upsert({
         campus_id: config.campus_id,
+        setor_id: config.setor_id || null,
         start_day: config.start_day,
         end_day: config.end_day,
         updated_at: new Date().toISOString()

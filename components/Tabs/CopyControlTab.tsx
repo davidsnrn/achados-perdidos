@@ -215,6 +215,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     try {
       await StorageService.saveCopyConfig({
         campus_id: adminGlobalCampusId || user!.campus_id!,
+        setor_id: isAdmin ? adminGlobalSetorId : user.setor_id,
         start_day: tempConfig.start_day,
         end_day: tempConfig.end_day
       });

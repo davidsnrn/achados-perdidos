@@ -110,7 +110,7 @@ const App: React.FC = () => {
   const [selectedMoveTables, setSelectedMoveTables] = useState<Set<string>>(new Set());
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
   const [previewItems, setPreviewItems] = useState<Record<string, { id: string | number; label: string; checked: boolean; currentSetorId: string | null; group?: string }[]>>({});
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, Set<string>>>({});
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, Set<string>>>({});
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [moveSistema, setMoveSistema] = useState<string>('Todos');
 
@@ -1992,7 +1992,7 @@ const App: React.FC = () => {
                                             <span className="text-xs font-normal text-amber-500">({groupItems.length})</span>
                                             <button
                                               onClick={() => {
-                                                setCollapsedGroups(prev => {
+                                                setExpandedGroups(prev => {
                                                   const next = { ...prev };
                                                   const set = new Set(next[p.table] || []);
                                                   if (set.has(groupName)) {
@@ -2011,10 +2011,10 @@ const App: React.FC = () => {
                                               }}
                                               className="ml-auto p-1 text-gray-400 hover:text-amber-700 transition-colors"
                                             >
-                                              {collapsedGroups[p.table]?.has(groupName) ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                              {expandedGroups[p.table]?.has(groupName) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                                             </button>
                                           </div>
-                                          {!collapsedGroups[p.table]?.has(groupName) && groupItems.map(item => (
+                                          {expandedGroups[p.table]?.has(groupName) && groupItems.map(item => (
                                             <label key={String(item.id)} className="flex items-center gap-2 px-3 py-1.5 pl-8 hover:bg-amber-50 cursor-pointer text-xs">
                                               <input
                                                 type="checkbox"

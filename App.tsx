@@ -2159,6 +2159,13 @@ const App: React.FC = () => {
                             setMoveResults(results);
                             await refreshData();
                             if (moveFromSetorId && adminGlobalSetorId === moveFromSetorId) setAdminGlobalSetorId(moveToSetorId);
+                            const sid = moveFromSetorId || 'unassigned';
+                            const preview = await StorageService.getMovePreview(sid);
+                            setMovePreview(preview);
+                            setSelectedMoveTables(new Set());
+                            setPreviewItems({});
+                            setExpandedTable(null);
+                            setExpandedGroups({});
                           } catch (e: any) {
                             alert('Erro ao mover dados: ' + (e.message || 'Erro desconhecido'));
                           } finally {
@@ -2174,15 +2181,21 @@ const App: React.FC = () => {
                   )}
 
                   {moveResults && (
-                    <div className="mt-3 bg-white rounded-lg border border-amber-100 p-3 text-xs space-y-1 max-h-40 overflow-y-auto">
-                      <p className="font-semibold text-amber-800 mb-1">Registros movidos:</p>
-                      {moveResults.filter(r => r.count > 0).map(r => (
-                        <p key={r.table} className="text-gray-700">
-                          <span className="font-medium">{r.table}:</span> {r.count}
-                        </p>
-                      ))}
+                    <div className="mt-3 bg-green-50 rounded-lg border border-green-200 p-3 text-xs space-y-1.5">
+                      <p className="flex items-center gap-2 font-semibold text-green-800">
+                        <CheckCircle2 size={16} /> Operação concluída com sucesso!
+                      </p>
+                      {moveResults.filter(r => r.count > 0).length > 0 && (
+                        <div className="max-h-32 overflow-y-auto space-y-0.5 pl-6">
+                          {moveResults.filter(r => r.count > 0).map(r => (
+                            <p key={r.table} className="text-green-700">
+                              <span className="font-medium">{r.table}:</span> {r.count} registro(s) movido(s)
+                            </p>
+                          ))}
+                        </div>
+                      )}
                       {moveResults.every(r => r.count === 0) && (
-                        <p className="text-gray-400 italic">Nenhum registro encontrado.</p>
+                        <p className="text-green-600 italic pl-6">Nenhum registro foi encontrado para mover.</p>
                       )}
                     </div>
                   )}

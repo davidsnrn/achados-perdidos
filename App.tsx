@@ -1826,6 +1826,20 @@ const App: React.FC = () => {
                           onClick={() => {
                             setMoveSistema(key);
                             setExpandedTable(null);
+                            setExpandedGroups({});
+                            if (movePreview) {
+                              const tables = key === 'Todos'
+                                ? movePreview.map(p => p.table)
+                                : (moveSistemas[key]?.tables || []);
+                              setSelectedMoveTables(new Set(tables));
+                              setPreviewItems(prev => {
+                                const next: typeof prev = {};
+                                for (const [table, items] of Object.entries(prev)) {
+                                  next[table] = items.map(i => ({ ...i, checked: tables.includes(table) }));
+                                }
+                                return next;
+                              });
+                            }
                           }}
                           className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
                             moveSistema === key

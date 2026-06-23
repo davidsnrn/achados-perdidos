@@ -15,6 +15,7 @@ interface LockerDetailModalProps {
   onReserveKeyLoan?: (locker: Locker, reason: string) => void;
   onReturnReserveKey?: (lockerNumber: string, loanId: string) => void;
   onDeleteLoanHistory?: (lockerNumber: string, loanId: string) => void;
+  onDeleteMaintenanceHistory?: (lockerNumber: string, maintenanceIndex: number) => void;
   onSendReserveKeyCharge?: (lockerNumber: string, loanId: string) => Promise<void>;
   reserveKeyChargeHistory?: ChargeHistory[];
   sendingReserveKeyCharge?: boolean;
@@ -32,6 +33,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   onReserveKeyLoan,
   onReturnReserveKey,
   onDeleteLoanHistory,
+  onDeleteMaintenanceHistory,
   onSendReserveKeyCharge,
   reserveKeyChargeHistory = [],
   sendingReserveKeyCharge = false
@@ -40,6 +42,7 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   const [showReserveForm, setShowReserveForm] = useState(false);
   const [reserveReason, setReserveReason] = useState('');
   const [deletedLoanIds, setDeletedLoanIds] = useState<string[]>([]);
+  const [deletedMaintenanceIndices, setDeletedMaintenanceIndices] = useState<number[]>([]);
 
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -458,20 +461,38 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                 </>
               ) : (
                 <>
-                  {locker.maintenanceHistory && locker.maintenanceHistory.length > 0 ? (
+                  {locker.maintenanceHistory && locker.maintenanceHistory.filter((_, idx) => !deletedMaintenanceIndices.includes(idx)).length > 0 ? (
                     <div className="space-y-6 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                       {[...locker.maintenanceHistory]
-                        .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
-                        .map((m, idx) => (
-                          <div key={idx} className="flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
+                        .map((m, origIdx) => ({ m, origIdx }))
+                        .filter(({ origIdx }) => !deletedMaintenanceIndices.includes(origIdx))
+                        .sort((a, b) => new Date(b.m.registeredAt).getTime() - new Date(a.m.registeredAt).getTime())
+                        .map(({ m, origIdx }) => (
+                          <div key={origIdx} className="flex flex-col gap-2 border-b border-slate-50 pb-4 last:border-0 last:pb-0">
                             <div className="flex justify-between items-start text-xs">
                               <div className="flex-1 min-w-0">
                                 <p className="font-black text-slate-800 mb-0.5 uppercase">{m.problem}</p>
                                 <p className="text-[9px] text-slate-400 font-bold uppercase truncate">Resp: {m.registeredBy || 'Sist.'} {m.resolvedBy ? `→ Resolvido por ${m.resolvedBy}` : ''}</p>
                               </div>
-                              <div className="text-right">
-                                <p className="text-slate-500 font-black mb-1 whitespace-nowrap">{formatDisplayDate(m.registeredAt)} — {m.resolvedAt ? formatDisplayDate(m.resolvedAt) : '...'}</p>
-                                <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${m.resolvedAt ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{m.resolvedAt ? 'Resolvido' : 'Em curso'}</span>
+                              <div className="text-right flex flex-col items-end gap-1">
+                                <p className="text-slate-500 font-black whitespace-nowrap text-[11px]">{formatDisplayDate(m.registeredAt)} — {m.resolvedAt ? formatDisplayDate(m.resolvedAt) : '...'}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${m.resolvedAt ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{m.resolvedAt ? 'Resolvido' : 'Em curso'}</span>
+                                  {onDeleteMaintenanceHistory && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Excluir permanentemente este registro de manutenção do armário #${locker.number}?`)) {
+                                          setDeletedMaintenanceIndices(prev => [...prev, origIdx]);
+                                          onDeleteMaintenanceHistory(locker.number, origIdx);
+                                        }
+                                      }}
+                                      className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-all"
+                                      title="Excluir registro"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             {m.solution && (

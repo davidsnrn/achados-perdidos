@@ -431,6 +431,26 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     }
   };
 
+  const handleDeleteMaintenanceHistory = async (lockerNumber: string, maintenanceIndex: number) => {
+    if (!isAdmin) return;
+    const l = lockers.find(loc => loc.number === lockerNumber);
+    if (!l) return;
+
+    const updatedHistory = l.maintenanceHistory.filter((_, idx) => idx !== maintenanceIndex);
+    const updatedLocker = { ...l, maintenanceHistory: updatedHistory };
+
+    setSelectedLocker(prev => prev?.number === lockerNumber ? updatedLocker : prev);
+
+    setLoading(true);
+    try {
+      await StorageService.updateSingleLocker(updatedLocker);
+    } catch (e) {
+      alert("Erro ao excluir registro.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateObservation = async (lockerNumber: string, newObservation: string) => {
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l || !l.currentLoan) return;
@@ -1082,6 +1102,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           onReserveKeyLoan={handleReserveKeyLoan}
           onReturnReserveKey={handleReturnReserveKey}
           onDeleteLoanHistory={isAdmin ? handleDeleteLoanHistory : undefined}
+          onDeleteMaintenanceHistory={isAdmin ? handleDeleteMaintenanceHistory : undefined}
           onSendReserveKeyCharge={handleSendReserveKeyCharge}
           reserveKeyChargeHistory={reserveKeyChargeHistory}
           sendingReserveKeyCharge={sendingReserveKeyCharge}

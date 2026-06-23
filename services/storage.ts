@@ -155,11 +155,18 @@ export const StorageService = {
     if (error) return [];
     return (data || []).map((item: any) => {
       let label = '';
+      let group: string | undefined;
       const itemId = item[pk];
       switch (table) {
         case 'items': label = `#${item.campus_item_id ?? item.id} - ${item.description}`; break;
         case 'reports': label = item.item_description; break;
-        case 'lockers': label = `Armário ${item.number}${item.location ? ` (${item.location})` : ''}`; break;
+        case 'lockers':
+          label = `Armário ${item.number}${item.location ? ` (${item.location})` : ''}`;
+          if (item.location) {
+            const parts = item.location.split(' - ');
+            group = parts[0];
+          }
+          break;
         case 'locker_schedules': label = `${item.locker_number} - ${item.student_name}`; break;
         case 'books': label = item.title; break;
         case 'book_loans': label = item.person_name; break;
@@ -173,7 +180,7 @@ export const StorageService = {
         case 'users': label = `${item.name} (${item.matricula})`; break;
         default: label = item.id?.toString() || '';
       }
-      return { id: itemId, label, currentSetorId: item.setor_id || null };
+      return { id: itemId, label, currentSetorId: item.setor_id || null, group };
     });
   },
 

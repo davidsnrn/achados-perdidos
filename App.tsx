@@ -109,7 +109,8 @@ const App: React.FC = () => {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [selectedMoveTables, setSelectedMoveTables] = useState<Set<string>>(new Set());
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
-  const [previewItems, setPreviewItems] = useState<Record<string, { id: string | number; label: string; checked: boolean; currentSetorId: string | null }[]>>({});
+  const [previewItems, setPreviewItems] = useState<Record<string, { id: string | number; label: string; checked: boolean; currentSetorId: string | null; group?: string }[]>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, Set<string>>>({});
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [moveSistema, setMoveSistema] = useState<string>('Todos');
 
@@ -1955,30 +1956,142 @@ const App: React.FC = () => {
                             </div>
                             {isExpanded && items.length > 0 && (
                               <div className="border-t border-amber-50 max-h-48 overflow-y-auto divide-y divide-amber-50">
-                                {items.map(item => (
-                                  <label key={String(item.id)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 cursor-pointer text-xs">
-                                    <input
-                                      type="checkbox"
-                                      checked={item.checked}
-                                      onChange={() => {
-                                        setPreviewItems(prev => ({
-                                          ...prev,
-                                          [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
-                                        }));
-                                      }}
-                                      className="accent-amber-600 cursor-pointer"
-                                    />
-                                    <span className="flex-1 truncate text-gray-600">{item.label}</span>
-                                    {!item.currentSetorId && (
-                                      <span className="text-xs text-gray-400 italic font-medium shrink-0">sem setor</span>
-                                    )}
-                                    {item.currentSetorId && item.currentSetorId !== moveFromSetorId && moveFromSetorId && (
-                                      <span className="text-xs text-amber-600 font-medium shrink-0">
-                                        {setores.find(s => s.id === item.currentSetorId)?.name || 'outro setor'}
-                                      </span>
-                                    )}
-                                  </label>
-                                ))}
+                                {items.some(i => i.group) ? (() => {
+                                  const groups: Record<string, typeof items> = {};
+                                  const ungrouped: typeof items = [];
+                                  items.forEach(item => {
+                                    const g = item.group || '__ungrouped__';
+                                    if (item.group) {
+                                      (groups[g] ||= []).push(item);
+                                    } else {
+                                      ungrouped.push(item);
+                                    }
+                                  });
+                                  return <>
+                                    {Object.entries(groups).map(([groupName, groupItems]) => {
+                                      const allChecked = groupItems.every(i => i.checked);
+                                      const someChecked = groupItems.some(i => i.checked);
+                                      return (
+                                        <div key={groupName}>
+                                          <div className="flex items-center gap-2 px-3 py-2 bg-amber-50/50 hover:bg-amber-100/50 text-xs font-semibold text-amber-800 border-b border-amber-100">
+                                            <input
+                                              type="checkbox"
+                                              checked={allChecked}
+                                              ref={el => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                                              onChange={() => {
+                                                setPreviewItems(prev => ({
+                                                  ...prev,
+                                                  [p.table]: (prev[p.table] || []).map(i =>
+                                                    i.group === groupName ? { ...i, checked: !allChecked } : i
+                                                  )
+                                                }));
+                                              }}
+                                              className="accent-amber-600 cursor-pointer"
+                                            />
+                                            <span>{groupName}</span>
+                                            <span className="text-xs font-normal text-amber-500">({groupItems.length})</span>
+                                            <button
+                                              onClick={() => {
+                                                setCollapsedGroups(prev => {
+                                                  const next = { ...prev };
+                                                  const set = new Set(next[p.table] || []);
+                                                  if (set.has(groupName)) {
+                                                    set.delete(groupName);
+                                                    if (set.size === 0) {
+                                                      delete next[p.table];
+                                                    } else {
+                                                      next[p.table] = set;
+                                                    }
+                                                  } else {
+                                                    set.add(groupName);
+                                                    next[p.table] = set;
+                                                  }
+                                                  return next;
+                                                });
+                                              }}
+                                              className="ml-auto p-1 text-gray-400 hover:text-amber-700 transition-colors"
+                                            >
+                                              {collapsedGroups[p.table]?.has(groupName) ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                            </button>
+                                          </div>
+                                          {!collapsedGroups[p.table]?.has(groupName) && groupItems.map(item => (
+                                            <label key={String(item.id)} className="flex items-center gap-2 px-3 py-1.5 pl-8 hover:bg-amber-50 cursor-pointer text-xs">
+                                              <input
+                                                type="checkbox"
+                                                checked={item.checked}
+                                                onChange={() => {
+                                                  setPreviewItems(prev => ({
+                                                    ...prev,
+                                                    [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
+                                                  }));
+                                                }}
+                                                className="accent-amber-600 cursor-pointer"
+                                              />
+                                              <span className="flex-1 truncate text-gray-600">{item.label}</span>
+                                              {!item.currentSetorId && (
+                                                <span className="text-xs text-gray-400 italic font-medium shrink-0">sem setor</span>
+                                              )}
+                                              {item.currentSetorId && item.currentSetorId !== moveFromSetorId && moveFromSetorId && (
+                                                <span className="text-xs text-amber-600 font-medium shrink-0">
+                                                  {setores.find(s => s.id === item.currentSetorId)?.name || 'outro setor'}
+                                                </span>
+                                              )}
+                                            </label>
+                                          ))}
+                                        </div>
+                                      );
+                                    })}
+                                    {ungrouped.map(item => (
+                                      <label key={String(item.id)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 cursor-pointer text-xs">
+                                        <input
+                                          type="checkbox"
+                                          checked={item.checked}
+                                          onChange={() => {
+                                            setPreviewItems(prev => ({
+                                              ...prev,
+                                              [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
+                                            }));
+                                          }}
+                                          className="accent-amber-600 cursor-pointer"
+                                        />
+                                        <span className="flex-1 truncate text-gray-600">{item.label}</span>
+                                        {!item.currentSetorId && (
+                                          <span className="text-xs text-gray-400 italic font-medium shrink-0">sem setor</span>
+                                        )}
+                                        {item.currentSetorId && item.currentSetorId !== moveFromSetorId && moveFromSetorId && (
+                                          <span className="text-xs text-amber-600 font-medium shrink-0">
+                                            {setores.find(s => s.id === item.currentSetorId)?.name || 'outro setor'}
+                                          </span>
+                                        )}
+                                      </label>
+                                    ))}
+                                  </>;
+                                })() : (
+                                  items.map(item => (
+                                    <label key={String(item.id)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-amber-50 cursor-pointer text-xs">
+                                      <input
+                                        type="checkbox"
+                                        checked={item.checked}
+                                        onChange={() => {
+                                          setPreviewItems(prev => ({
+                                            ...prev,
+                                            [p.table]: (prev[p.table] || []).map(i => i.id === item.id ? { ...i, checked: !i.checked } : i)
+                                          }));
+                                        }}
+                                        className="accent-amber-600 cursor-pointer"
+                                      />
+                                      <span className="flex-1 truncate text-gray-600">{item.label}</span>
+                                      {!item.currentSetorId && (
+                                        <span className="text-xs text-gray-400 italic font-medium shrink-0">sem setor</span>
+                                      )}
+                                      {item.currentSetorId && item.currentSetorId !== moveFromSetorId && moveFromSetorId && (
+                                        <span className="text-xs text-amber-600 font-medium shrink-0">
+                                          {setores.find(s => s.id === item.currentSetorId)?.name || 'outro setor'}
+                                        </span>
+                                      )}
+                                    </label>
+                                  ))
+                                )}
                               </div>
                             )}
                             {isExpanded && items.length === 0 && (

@@ -1747,7 +1747,13 @@ const App: React.FC = () => {
                                   await refreshSetores(configCampusId);
                                   if (adminGlobalSetorId === setor.id) setAdminGlobalSetorId(null);
                                 } catch (e: any) {
-                                  alert('Erro ao excluir setor: ' + (e.message || 'Erro desconhecido'));
+                                  const msg = e.message || '';
+                                  const fkMatch = msg.match(/violates foreign key constraint "\w+" on table "(\w+)"/);
+                                  if (fkMatch) {
+                                    alert(`Não é possível excluir este setor pois existem registros vinculados na tabela "${fkMatch[1]}".\n\nUtilize a opção "Mover / Atribuir Dados" para transferir os registros para outro setor antes de excluir.`);
+                                  } else {
+                                    alert('Erro ao excluir setor: ' + msg);
+                                  }
                                 }
                               }}
                               className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"

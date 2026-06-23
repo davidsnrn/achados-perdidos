@@ -59,6 +59,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
   const [selectedSetorId, setSelectedSetorId] = useState<string>(
     (currentUser.level === UserLevel.ADMIN ? adminGlobalSetorId : currentUser.setor_id) || ''
   );
+  const [availableSetores, setAvailableSetores] = useState<Setor[]>([]);
 
   // Sync with global admin campus selector
   useEffect(() => {
@@ -66,6 +67,15 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       setSelectedCampusId(adminGlobalCampusId || '');
     }
   }, [adminGlobalCampusId, currentUser.level]);
+
+  // Fetch setores when campus changes
+  useEffect(() => {
+    if (selectedCampusId) {
+      StorageService.getSetores(selectedCampusId).then(setAvailableSetores);
+    } else {
+      setAvailableSetores([]);
+    }
+  }, [selectedCampusId]);
 
   useEffect(() => {
     if (currentUser.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
@@ -641,7 +651,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               </div>
             )}
 
-            {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && selectedCampusId && setores.filter(s => s.campus_id === selectedCampusId).length > 0 && (
+            {currentUser.level === UserLevel.ADMIN && formLevel !== UserLevel.ADMIN && selectedCampusId && availableSetores.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Setor</label>
                 <select
@@ -650,7 +660,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"
                 >
                   <option value="">Sem setor definido</option>
-                  {setores.filter(s => s.campus_id === selectedCampusId).map(s => (
+                  {availableSetores.map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>

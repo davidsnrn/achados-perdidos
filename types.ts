@@ -360,3 +360,65 @@ export interface TeacherReposicao {
   operator_id: string;
   created_at?: string;
 }
+
+export interface PrinterRegistry {
+  id?: string;
+  campus_id: string;
+  local_name: string;
+  serial_number?: string;
+  ip_address?: string;
+  model?: string;
+  supports_a4_mono: boolean;
+  supports_a4_poli: boolean;
+  supports_a3_mono: boolean;
+  supports_a3_poli: boolean;
+  active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PrinterCounterRecord {
+  id: string;
+  campus_id: string;
+  period: string;           // 'YYYY-MM'
+  printer_id?: string;
+  local_name: string;
+  serial_number?: string;
+  ip_address?: string;
+  model?: string;
+  format: 'A4' | 'A3';
+  color_mode: 'MONO' | 'POLI';
+  counter_prev: number;
+  counter_curr: number;
+  operator_id?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PrinterBillingConfig {
+  id?: string;
+  campus_id: string;
+  // A4 Mono
+  a4_mono_franchise: number;
+  a4_mono_excess_franchise: number;   // teto de excedente permitido
+  a4_mono_price_franchise: number;
+  a4_mono_price_excess: number;
+  // A4 Poli
+  a4_poli_franchise: number;
+  a4_poli_excess_franchise: number;
+  a4_poli_price_franchise: number;
+  a4_poli_price_excess: number;
+  // A3 Mono
+  a3_mono_franchise: number;
+  a3_mono_excess_franchise: number;
+  a3_mono_price_franchise: number;
+  a3_mono_price_excess: number;
+  // A3 Poli
+  a3_poli_franchise: number;
+  a3_poli_excess_franchise: number;
+  a3_poli_price_franchise: number;
+  a3_poli_price_excess: number;
+  created_at?: string;
+  updated_at?: string;
+}
+

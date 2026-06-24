@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao, Setor } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao, Setor, PrinterCounterRecord, PrinterBillingConfig, PrinterRegistry } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -2786,5 +2786,92 @@ export const StorageService = {
     }
 
     return { updated, errors };
+  },
+
+  // ── Printer NF ────────────────────────────────────────────────────────────
+
+  getPrinterCounterRecords: async (campusId: string, period: string): Promise<PrinterCounterRecord[]> => {
+    const { data, error } = await supabase
+      .from('printer_counter_records')
+      .select('*')
+      .eq('campus_id', campusId)
+      .eq('period', period)
+      .order('serial_number', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  savePrinterCounterRecord: async (record: Partial<PrinterCounterRecord>): Promise<PrinterCounterRecord> => {
+    const payload = {
+      ...record,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('printer_counter_records')
+      .upsert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deletePrinterCounterRecord: async (id: string): Promise<void> => {
+    const { error } = await supabase
+      .from('printer_counter_records')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  getPrinterBillingConfig: async (campusId: string): Promise<PrinterBillingConfig | null> => {
+    const { data, error } = await supabase
+      .from('printer_billing_configs')
+      .select('*')
+      .eq('campus_id', campusId)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  savePrinterBillingConfig: async (config: PrinterBillingConfig): Promise<void> => {
+    const payload = { ...config, updated_at: new Date().toISOString() };
+    const { error } = await supabase
+      .from('printer_billing_configs')
+      .upsert(payload, { onConflict: 'campus_id' });
+    if (error) throw error;
+  },
+
+  getPrinterRegistry: async (campusId: string): Promise<PrinterRegistry[]> => {
+    const { data, error } = await supabase
+      .from('printer_registry')
+      .select('*')
+      .eq('campus_id', campusId)
+      .eq('active', true)
+      .order('local_name', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  savePrinterRegistry: async (printer: Partial<PrinterRegistry>): Promise<PrinterRegistry> => {
+    const payload = {
+      ...printer,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from('printer_registry')
+      .upsert(payload)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deletePrinterRegistry: async (id: string): Promise<void> => {
+    // Soft delete ou hard delete? Vamos de soft delete para manter integridade das chaves estrangeiras
+    const { error } = await supabase
+      .from('printer_registry')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
   },
 };

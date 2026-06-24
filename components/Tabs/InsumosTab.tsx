@@ -93,6 +93,10 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
     (isAdmin ? adminGlobalSetorId : user.setor_id) || ''
   );
 
+  const [deletingSupplyId, setDeletingSupplyId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [supplyToDelete, setSupplyToDelete] = useState<Supply | null>(null);
+
   useEffect(() => {
     if (isAdmin && adminGlobalSetorId !== undefined) {
       setSelectedSetorId(adminGlobalSetorId || '');
@@ -262,6 +266,21 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
     setSupplyThreshold(supply.low_stock_threshold || 5);
     setRestockMode('novo');
     setShowSupplyModal(true);
+  };
+
+  const confirmDeleteSupply = async () => {
+    if (!supplyToDelete) return;
+    setDeletingSupplyId(supplyToDelete.id);
+    try {
+      await StorageService.deleteSupply(supplyToDelete.id);
+      await loadData();
+      setShowDeleteConfirm(false);
+      setSupplyToDelete(null);
+    } catch (error) {
+      alert('Erro ao excluir insumo.');
+    } finally {
+      setDeletingSupplyId(null);
+    }
   };
 
   const filteredSupplies = supplies.filter(s =>
@@ -482,6 +501,16 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
                         >
                           <Sliders size={20} />
                         </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => { setSupplyToDelete(supply); setShowDeleteConfirm(true); }}
+                            className="p-2.5 text-red-500 hover:text-white hover:bg-red-500 rounded-xl transition-all shadow-sm border border-red-100 bg-white"
+                            title="Excluir"
+                            disabled={deletingSupplyId === supply.id}
+                          >
+                            {deletingSupplyId === supply.id ? <Loader2 size={20} className="animate-spin" /> : <Trash2 size={20} />}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1302,6 +1331,37 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={showDeleteConfirm} onClose={() => { setShowDeleteConfirm(false); setSupplyToDelete(null); }} title="Confirmar Exclusão">
+        {supplyToDelete && (
+          <div className="space-y-6">
+            <p className="text-gray-600">
+              Tem certeza que deseja excluir <strong>{supplyToDelete.name}</strong>?
+              {supplyToDelete.quantity > 0 && (
+                <span className="block mt-2 text-amber-600 text-sm font-bold">
+                  ⚠️ Este insumo possui {supplyToDelete.quantity} {supplyToDelete.unit}(s) em estoque.
+                </span>
+              )}
+            </p>
+            <div className="flex gap-3 pt-4 border-t">
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setSupplyToDelete(null); }}
+                className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteSupply}
+                disabled={!!deletingSupplyId}
+                className="flex-[2] py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {deletingSupplyId ? <><Loader2 size={18} className="animate-spin" /> Excluindo...</> : <><Trash2 size={18} /> Sim, Excluir</>}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

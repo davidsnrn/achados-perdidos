@@ -4,7 +4,7 @@ import { PrinterCounterRecord, PrinterBillingConfig, User, Campus, PrinterRegist
 import {
   Printer, Plus, Trash2, Pencil, Save, Settings, ChevronLeft, ChevronRight,
   Loader2, FileText, DollarSign, AlertCircle, CheckCircle2, Download, Info,
-  BarChart3, AlertTriangle, Ban, Info as InfoIcon
+  BarChart3, AlertTriangle, Ban, Info as InfoIcon, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import jsPDF from 'jspdf';
@@ -288,6 +288,28 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   useEffect(() => { loadData(); }, [loadData]);
 
   const billing = calcBilling(records, cfg);
+
+  // Sorting state for printers
+  const [sortField, setSortField] = useState<'local_name' | 'serial_number' | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: 'local_name' | 'serial_number') => {
+    if (sortField === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const sortedPrinters = [...printers].sort((a, b) => {
+    if (!sortField) return 0;
+    const valA = (a[sortField] || '').toLowerCase();
+    const valB = (b[sortField] || '').toLowerCase();
+    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   // Open Counter Form
   const openNewCounter = () => {
@@ -943,14 +965,32 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 text-gray-500 font-bold uppercase">
                   <tr>
-                    <th className="px-4 py-3">Nome Local</th>
-                    <th className="px-4 py-3">N° Série</th>
+                    <th className="px-4 py-3 cursor-pointer select-none hover:bg-gray-100/80 transition-colors" onClick={() => handleSort('local_name')}>
+                      <div className="flex items-center gap-1">
+                        Nome Local
+                        {sortField === 'local_name' ? (
+                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-slate-700" /> : <ArrowDown size={12} className="text-slate-700" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-gray-300" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 cursor-pointer select-none hover:bg-gray-100/80 transition-colors" onClick={() => handleSort('serial_number')}>
+                      <div className="flex items-center gap-1">
+                        N° Série
+                        {sortField === 'serial_number' ? (
+                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-slate-700" /> : <ArrowDown size={12} className="text-slate-700" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-gray-300" />
+                        )}
+                      </div>
+                    </th>
                     <th className="px-4 py-3">Formatos/Cores</th>
                     <th className="px-4 py-3 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {printers.map(p => (
+                  {sortedPrinters.map(p => (
                     <tr key={p.id} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-bold text-gray-800">{p.local_name}</td>
                       <td className="px-4 py-3 text-gray-500 font-mono">{p.serial_number || '—'}</td>

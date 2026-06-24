@@ -3,7 +3,7 @@ import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown, Repeat, X } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -52,6 +52,15 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
     const [observation, setObservation] = useState('');
     const [viewingItem, setViewingItem] = useState<(Material & { status: 'LOANED' | 'AVAILABLE'; activeLoan: MaterialLoan | null }) | null>(null);
+
+    // Reloan (novo empréstimo com devolução automática)
+    const [showReloanSearch, setShowReloanSearch] = useState(false);
+    const [reloanPerson, setReloanPerson] = useState<Person | null>(null);
+    const [reloanPersonSearch, setReloanPersonSearch] = useState('');
+    const [reloanSearchResults, setReloanSearchResults] = useState<Person[]>([]);
+    const [isSearchingReloan, setIsSearchingReloan] = useState(false);
+    const [hasSearchedReloan, setHasSearchedReloan] = useState(false);
+    const [isProcessingReloan, setIsProcessingReloan] = useState(false);
 
     // Inventory Sort
     type InventorySortKey = 'code' | 'name' | 'status' | 'personName' | 'loanDate';
@@ -325,6 +334,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         } else {
             setSearchResultsPeople([]);
             setHasSearchedPeople(false);
+        }
+    };
+
+    const handleReloanPersonSearch = async (val?: string) => {
+        const query = val !== undefined ? val : reloanPersonSearch;
+        if (query.trim().length >= 2) {
+            setIsSearchingReloan(true);
+            setHasSearchedReloan(true);
+            try {
+                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined, 'ALL');
+                setReloanSearchResults(results.slice(0, 10));
+            } catch (error) {
+                console.error("Erro na busca:", error);
+            } finally {
+                setIsSearchingReloan(false);
+            }
+        } else {
+            setReloanSearchResults([]);
+            setHasSearchedReloan(false);
         }
     };
 
@@ -610,6 +638,43 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }
 
         await executeReturn(loan, returnEmail);
+    };
+
+    const handleReloan = async () => {
+        if (!viewingItem?.activeLoan || !reloanPerson) return;
+        setIsProcessingReloan(true);
+        try {
+            const activeLoan = viewingItem.activeLoan;
+
+            await StorageService.returnMaterialLoan(activeLoan.id, `${user.name} (${user.matricula})`);
+
+            const newLoan: MaterialLoan = {
+                id: Math.random().toString(36).substr(2, 9),
+                materialId: viewingItem.id,
+                materialName: viewingItem.name,
+                materialCode: viewingItem.code,
+                personName: reloanPerson.name,
+                personMatricula: reloanPerson.matricula,
+                personEmail: reloanPerson.email || null,
+                loanDate: new Date().toISOString(),
+                status: 'ACTIVE',
+                loanedBy: `${user.name} (${user.matricula})`,
+                campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id,
+                setor_id: isAdmin ? selectedSetorId : user.setor_id || null
+            };
+            await StorageService.saveMaterialLoan(newLoan);
+
+            onUpdate();
+            setViewingItem(null);
+            setShowReloanSearch(false);
+            setReloanPerson(null);
+
+            alert(`Material devolvido de ${activeLoan.personName} e emprestado para ${reloanPerson.name}!`);
+        } catch (error) {
+            alert('Erro ao processar novo empréstimo.');
+        } finally {
+            setIsProcessingReloan(false);
+        }
     };
 
     const handleSendCharge = async (loan: MaterialLoan) => {
@@ -1984,42 +2049,120 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                         </div>
 
                         <div className="flex gap-3 pt-4 border-t">
-                            <button
-                                onClick={() => setViewingItem(null)}
-                                className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
-                            >
-                                Fechar
-                            </button>
-                            {viewingItem.status === 'LOANED' && viewingItem.activeLoan && (
-                                <button
-                                    onClick={() => handleSendCharge(viewingItem.activeLoan!)}
-                                    disabled={sendingCharge}
-                                    className="py-3 px-4 text-amber-600 font-bold border-2 border-amber-200 rounded-xl hover:bg-amber-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                                >
-                                    <Mail size={18} /> {sendingCharge ? 'Enviando...' : 'Enviar Lembrete'}
-                                </button>
-                            )}
-                            {viewingItem.status === 'AVAILABLE' ? (
-                                <button
-                                    onClick={() => {
-                                        setSelectedMaterials([viewingItem]);
-                                        setViewingItem(null);
-                                        setShowLoanForm(true);
-                                    }}
-                                    className="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center gap-2 transition-all"
-                                >
-                                    <Plus size={20} /> Realizar Empréstimo
-                                </button>
+                            {viewingItem.status === 'LOANED' && !showReloanSearch ? (
+                                <>
+                                    <button
+                                        onClick={() => { setShowReloanSearch(true); setReloanPersonSearch(''); setReloanSearchResults([]); setReloanPerson(null); }}
+                                        className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                                    >
+                                        <Repeat size={18} /> Reemprestar
+                                    </button>
+                                    {viewingItem.activeLoan && (
+                                        <button
+                                            onClick={() => handleSendCharge(viewingItem.activeLoan!)}
+                                            disabled={sendingCharge}
+                                            className="py-3 px-4 text-amber-600 font-bold border-2 border-amber-200 rounded-xl hover:bg-amber-50 flex items-center justify-center gap-2 transition-all disabled:opacity-50 whitespace-nowrap"
+                                        >
+                                            <Mail size={18} /> {sendingCharge ? 'Enviando...' : 'Enviar Lembrete'}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => { handleReturn(viewingItem.activeLoan!); setViewingItem(null); }}
+                                        className="flex-1 py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
+                                    >
+                                        <CornerUpRight size={20} /> Devolver
+                                    </button>
+                                </>
+                            ) : viewingItem.status === 'LOANED' && showReloanSearch ? (
+                                <div className="w-full space-y-4">
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-400 uppercase mb-2">Selecionar Nova Pessoa para Empréstimo</p>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                className="w-full border-2 border-indigo-200 rounded-xl p-3 pl-10 text-sm outline-none focus:border-indigo-600 transition-all"
+                                                placeholder="Buscar por nome ou matrícula..."
+                                                value={reloanPersonSearch}
+                                                onChange={e => {
+                                                    setReloanPersonSearch(e.target.value);
+                                                    handleReloanPersonSearch(e.target.value);
+                                                }}
+                                                autoFocus
+                                            />
+                                            <Search size={16} className="absolute left-3 top-3.5 text-gray-400" />
+                                            {isSearchingReloan && (
+                                                <Loader2 size={16} className="absolute right-3 top-3.5 text-indigo-500 animate-spin" />
+                                            )}
+                                        </div>
+                                        {reloanSearchResults.length > 0 && (
+                                            <div className="mt-2 border border-gray-200 rounded-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
+                                                {reloanSearchResults.map((p, i) => (
+                                                    <div
+                                                        key={p.matricula}
+                                                        onClick={() => { setReloanPerson(p); setReloanPersonSearch(''); setReloanSearchResults([]); }}
+                                                        className={`p-3 cursor-pointer text-sm flex items-center gap-3 hover:bg-indigo-50 transition-colors ${reloanPerson?.matricula === p.matricula ? 'bg-indigo-100' : ''}`}
+                                                    >
+                                                        <UserIcon size={16} className="text-gray-400" />
+                                                        <div>
+                                                            <p className="font-medium">{p.name}</p>
+                                                            <p className="text-xs text-gray-500">{p.matricula} • {p.type}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {hasSearchedReloan && reloanSearchResults.length === 0 && !isSearchingReloan && (
+                                            <p className="text-xs text-gray-400 italic mt-2">Nenhuma pessoa encontrada.</p>
+                                        )}
+                                    </div>
+                                    {reloanPerson && (
+                                        <div className="flex items-center gap-2 p-3 bg-indigo-50 rounded-xl">
+                                            <UserIcon size={18} className="text-indigo-600" />
+                                            <div className="flex-1">
+                                                <p className="font-medium text-sm">{reloanPerson.name}</p>
+                                                <p className="text-xs text-gray-500">{reloanPerson.matricula}</p>
+                                            </div>
+                                            <button onClick={() => setReloanPerson(null)} className="text-gray-400 hover:text-red-500 transition-colors">
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => { setShowReloanSearch(false); setReloanPerson(null); setReloanSearchResults([]); }}
+                                            className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+                                            disabled={isProcessingReloan}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            onClick={handleReloan}
+                                            disabled={!reloanPerson || isProcessingReloan}
+                                            className="flex-[2] py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                                        >
+                                            {isProcessingReloan ? (
+                                                <><Loader2 size={18} className="animate-spin" /> Processando...</>
+                                            ) : (
+                                                <><Repeat size={18} /> Reemprestar</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
                             ) : (
-                                <button
-                                    onClick={() => {
-                                        handleReturn(viewingItem.activeLoan!);
-                                        setViewingItem(null);
-                                    }}
-                                    className="flex-[2] py-3 bg-amber-600 text-white font-bold rounded-xl hover:bg-amber-700 shadow-md flex items-center justify-center gap-2 transition-all"
-                                >
-                                    <CornerUpRight size={20} /> Realizar Devolução
-                                </button>
+                                <>
+                                    <button
+                                        onClick={() => setViewingItem(null)}
+                                        className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
+                                    >
+                                        Fechar
+                                    </button>
+                                    <button
+                                        onClick={() => { setSelectedMaterials([viewingItem]); setViewingItem(null); setShowLoanForm(true); }}
+                                        className="flex-[2] py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <Plus size={20} /> Realizar Empréstimo
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>

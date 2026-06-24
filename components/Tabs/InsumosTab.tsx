@@ -127,6 +127,18 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const channel = supabase.channel('insumos-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'supplies' },
+        () => { loadData(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadData]);
+
   const handleSaveSupply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!campusId) return;

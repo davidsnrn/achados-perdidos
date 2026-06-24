@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { StorageService, supabase } from '../../services/storage';
+import { StorageService } from '../../services/storage';
 import { Supply, SupplyRecord, User, UserLevel, Person, SupplyRestock, Setor } from '../../types';
 import {
   Truck,
@@ -35,9 +35,10 @@ interface InsumosTabProps {
   setores: Setor[];
   adminGlobalCampusId?: string | null;
   adminGlobalSetorId?: string | null;
+  suppliesRefreshKey?: number;
 }
 
-export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
+export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores, adminGlobalCampusId, adminGlobalSetorId, suppliesRefreshKey }) => {
   const [activeSubTab, setActiveSubTab] = useState<'estoque' | 'historico'>('estoque');
   const [historyMode, setHistoryMode] = useState<'saida' | 'entrada'>('saida');
   const [supplies, setSupplies] = useState<Supply[]>([]);
@@ -105,8 +106,8 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
 
   const activeSetorId = isAdmin ? selectedSetorId : user.setor_id;
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [sData, rData, hData] = await Promise.all([
         StorageService.getSupplies(campusId, activeSetorId),
@@ -119,7 +120,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
     } catch (error) {
       console.error("Erro ao carregar dados de insumos:", error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [campusId, activeSetorId]);
 
@@ -127,17 +128,15 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
     loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    const channel = supabase.channel('insumos-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'supplies' },
-        () => { loadData(); }
-      )
-      .subscribe();
+  const isInitialMount = useRef(true);
 
-    return () => { supabase.removeChannel(channel); };
-  }, [loadData]);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    loadData(true); // silent refresh
+  }, [suppliesRefreshKey, loadData]);
 
   const handleSaveSupply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +155,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
         await StorageService.saveSupply({
           id: editingSupply.id,
           campus_id: campusId,
-          setor_id: activeSetorId || null,
+          setor_id: activeSetorId || undefined,
           name: supplyName,
           quantity: supplyQuantity,
           unit: supplyUnit,
@@ -169,7 +168,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
         for (const item of validItems) {
           await StorageService.saveSupply({
             campus_id: campusId,
-            setor_id: activeSetorId || null,
+            setor_id: activeSetorId || undefined,
             name: item.name.trim(),
             quantity: item.quantity,
             unit: item.unit,
@@ -197,7 +196,7 @@ export const InsumosTab: React.FC<InsumosTabProps> = ({ user, onRefresh, setores
     try {
       await StorageService.saveSupplyRecord({
         campus_id: campusId,
-        setor_id: activeSetorId || null,
+        setor_id: activeSetorId || undefined,
         person_name: deliveryMode === 'pessoa' ? recipientName : undefined,
         person_matricula: deliveryMode === 'pessoa' ? recipientMatricula : undefined,
         environment: deliveryMode === 'ambiente' ? recipientEnvironment : undefined,

@@ -80,6 +80,7 @@ const App: React.FC = () => {
   const [copyConfigs, setCopyConfigs] = useState<CopyConfig[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [supplyRecords, setSupplyRecords] = useState<SupplyRecord[]>([]);
+  const [suppliesRefreshKey, setSuppliesRefreshKey] = useState(0);
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
   const [notificationTypes, setNotificationTypes] = useState<NotificationType[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
@@ -305,6 +306,7 @@ const App: React.FC = () => {
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
     setSupplies(await StorageService.getSupplies(campusId, setorId));
+    setSuppliesRefreshKey(k => k + 1);
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshSupplyRecords = useCallback(async () => {
@@ -2771,6 +2773,7 @@ const App: React.FC = () => {
                     setores={setores}
                     adminGlobalCampusId={adminGlobalCampusId}
                     adminGlobalSetorId={adminGlobalSetorId}
+                    suppliesRefreshKey={suppliesRefreshKey}
                   />
                 )}
                 {activeTab === 'notificacoes' && (

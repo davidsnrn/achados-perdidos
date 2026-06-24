@@ -17,6 +17,7 @@ const BookReportsTab = React.lazy(() => import('./components/Tabs/BookReportsTab
 const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
 const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
 const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
+const PrinterNFTab = React.lazy(() => import('./components/Tabs/PrinterNFTab').then(module => ({ default: module.PrinterNFTab })));
 const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(module => ({ default: module.InsumosTab })));
 const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
 const TeacherAttendanceTab = React.lazy(() => import('./components/Tabs/TeacherAttendanceTab').then(module => ({ default: module.TeacherAttendanceTab })));
@@ -2658,6 +2659,10 @@ const App: React.FC = () => {
           {currentSystem === 'copias' && (
             <button onClick={() => setActiveTab('copias')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'copias' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><Printer size={18} /> Controle de Cópias</button>
           )}
+          {currentSystem === 'copias' && (
+            <button onClick={() => setActiveTab('copias-nf')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'copias-nf' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><FileText size={18} /> Conferência de NF
+            </button>
+          )}
           {currentSystem === 'notificacoes' && (
             <button onClick={() => setActiveTab('notificacoes')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'notificacoes' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ShieldAlert size={18} /> Notificação de Alunos</button>
           )}
@@ -2740,6 +2745,13 @@ const App: React.FC = () => {
                     adminGlobalCampusId={adminGlobalCampusId}
                     adminGlobalSetorId={adminGlobalSetorId}
                     onUpdate={refreshData}
+                  />
+                )}
+                {activeTab === 'copias-nf' && (
+                  <PrinterNFTab
+                    user={user}
+                    campuses={campuses}
+                    adminGlobalCampusId={adminGlobalCampusId}
                   />
                 )}
                 {activeTab === 'nadaconsta' && (

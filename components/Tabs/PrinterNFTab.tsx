@@ -702,6 +702,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
   // Helper to check if a specific printer supports a type
   const activePrinter = printers.find(p => p.id === counterForm.printer_id);
+  const activeCampusName = campuses.find(c => c.id === campusId)?.name || campusId;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -1019,7 +1020,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       )}
 
       {/* ── Modal: Novo Contador (Leitura) ───────────────────────────────────── */}
-      <Modal isOpen={showCounterForm} onClose={() => setShowCounterForm(false)} title={editingRecord ? 'Editar Lançamento' : 'Novo Lançamento de Contador'}>
+      <Modal isOpen={showCounterForm} onClose={() => setShowCounterForm(false)} title={`${editingRecord ? 'Editar' : 'Novo'} Lançamento — ${activeCampusName}`}>
         <form onSubmit={handleSaveCounter} className="space-y-4 p-1">
           {editingRecord && (
             <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-semibold">
@@ -1186,7 +1187,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       </Modal>
 
       {/* ── Modal: Gerenciar Impressoras ─────────────────────────────────────── */}
-      <Modal isOpen={showPrintersManager} onClose={() => setShowPrintersManager(false)} title="Impressoras Cadastradas">
+      <Modal isOpen={showPrintersManager} onClose={() => setShowPrintersManager(false)} title={`Impressoras Cadastradas — ${activeCampusName}`}>
         <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
           <div className="flex justify-between items-center">
             <p className="text-xs text-gray-500 font-medium">Cadastre aqui as impressoras com o Nome Local de sua rede.</p>
@@ -1263,7 +1264,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       </Modal>
 
       {/* ── Modal: Cadastrar/Editar Impressora ────────────────────────────────── */}
-      <Modal isOpen={showPrinterModal} onClose={() => setShowPrinterModal(false)} title={editingPrinter ? 'Editar Impressora' : 'Cadastrar Impressora'}>
+      <Modal isOpen={showPrinterModal} onClose={() => setShowPrinterModal(false)} title={`${editingPrinter ? 'Editar' : 'Cadastrar'} Impressora — ${activeCampusName}`}>
         <form onSubmit={handleSavePrinter} className="space-y-4 p-1">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -1317,7 +1318,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       </Modal>
 
       {/* ── Modal: Configuração ──────────────────────────────────────────────── */}
-      <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Configuração de Franquias e Valores">
+      <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title={`Configuração — ${activeCampusName}`}>
         <form onSubmit={handleSaveConfig} className="space-y-4 p-1">
           <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl text-blue-700 text-xs">
             <InfoIcon size={14} className="shrink-0 mt-0.5"/>

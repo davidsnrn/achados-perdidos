@@ -1259,7 +1259,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <Settings size={32} className="text-white" />
             </div>
             <h3 className="text-2xl font-black text-gray-900 mb-2">Configurar Período</h3>
-            <p className="text-sm text-gray-500 font-medium">Defina os dias de corte do mês</p>
+            <p className="text-sm text-gray-500 font-medium">{campuses.find(c => c.id === (adminGlobalCampusId || user?.campus_id))?.name || ''} — Defina os dias de corte do mês</p>
           </div>
 
           <div className="bg-rose-50 rounded-2xl p-4 border border-rose-100 flex gap-3 text-rose-700">

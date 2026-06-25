@@ -192,6 +192,8 @@ export interface CopyRecord {
   person_type?: PersonType; // For statistics and display
   sector: string;
   print_type: 'PROVA' | 'OUTRAS';
+  format: 'A4' | 'A3';
+  color_mode: 'MONO' | 'POLI';
   quantity: number;
   date: string; // ISO
   operator_id: string;

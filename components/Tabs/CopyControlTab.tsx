@@ -106,6 +106,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   // New Record Form State
   const [newRecord, setNewRecord] = useState<Partial<CopyRecord>>({
     print_type: 'OUTRAS',
+    format: 'A4',
+    color_mode: 'MONO',
     quantity: 1,
     date: new Date().toISOString()
   });
@@ -286,6 +288,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       setEditingRecord(null);
       setNewRecord({
         print_type: 'OUTRAS',
+        format: 'A4',
+        color_mode: 'MONO',
         quantity: 1,
         date: new Date().toISOString()
       });
@@ -934,12 +938,17 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                           );
                         }
                         return (
+                          <>
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider ${record.print_type === 'PROVA'
                             ? 'bg-rose-100 text-rose-700 shadow-sm shadow-rose-100'
                             : 'bg-amber-100 text-amber-700 shadow-sm shadow-amber-100'
                             }`}>
                             <Printer size={12} /> {record.print_type}
                           </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600">
+                            {record.format || 'A4'} · {(record.color_mode || 'MONO') === 'MONO' ? 'P&B' : 'Cor'}
+                          </span>
+                          </>
                         );
                       })()}
                     </td>
@@ -996,6 +1005,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                             setEditingRecord(record);
                             setNewRecord({
                               print_type: record.print_type,
+                              format: record.format || 'A4',
+                              color_mode: record.color_mode || 'MONO',
                               quantity: record.quantity,
                               date: record.date,
                               person_name: record.person_name,
@@ -1158,19 +1169,51 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               )}
             </div>
 
-            <div className="space-y-3">
-              <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                <PieChart size={16} className="text-rose-500" />
-                Finalidade
-              </label>
-              <select
-                value={newRecord.print_type}
-                onChange={e => setNewRecord(v => ({ ...v, print_type: e.target.value as any }))}
-                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
-              >
-                <option value="PROVA">PROVA</option>
-                <option value="OUTRAS">OUTRAS</option>
-              </select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <PieChart size={16} className="text-rose-500" />
+                  Finalidade
+                </label>
+                <select
+                  value={newRecord.print_type}
+                  onChange={e => setNewRecord(v => ({ ...v, print_type: e.target.value as any }))}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
+                >
+                  <option value="PROVA">PROVA</option>
+                  <option value="OUTRAS">OUTRAS</option>
+                </select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <Printer size={16} className="text-rose-500" />
+                  Formato
+                </label>
+                <select
+                  value={newRecord.format}
+                  onChange={e => setNewRecord(v => ({ ...v, format: e.target.value as 'A4' | 'A3' }))}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
+                >
+                  <option value="A4">A4</option>
+                  <option value="A3">A3</option>
+                </select>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <Printer size={16} className="text-rose-500" />
+                  Cor
+                </label>
+                <select
+                  value={newRecord.color_mode}
+                  onChange={e => setNewRecord(v => ({ ...v, color_mode: e.target.value as 'MONO' | 'POLI' }))}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
+                >
+                  <option value="MONO">Preto e Branco</option>
+                  <option value="POLI">Colorido</option>
+                </select>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -1500,6 +1543,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                             setEditingRecord(record);
                             setNewRecord({
                               print_type: record.print_type,
+                              format: record.format || 'A4',
+                              color_mode: record.color_mode || 'MONO',
                               quantity: record.quantity,
                               date: record.date,
                               person_name: record.person_name,

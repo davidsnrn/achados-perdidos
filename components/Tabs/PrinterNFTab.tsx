@@ -238,6 +238,8 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const period = `${selYear}-${String(selMonth + 1).padStart(2, '0')}`;
 
   const [records, setRecords]           = useState<PrinterCounterRecord[]>([]);
+  const [prevPeriodRecords, setPrevPeriodRecords] = useState<PrinterCounterRecord[]>([]);
+  const [nextPeriodRecords, setNextPeriodRecords] = useState<PrinterCounterRecord[]>([]);
   const [printers, setPrinters]         = useState<PrinterRegistry[]>([]);
   const [cfg, setCfg]                   = useState<PrinterBillingConfig>({ campus_id: campusId, ...DEFAULT_CONFIG });
   const [loading, setLoading]           = useState(false);
@@ -268,13 +270,22 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     if (!campusId) return;
     setLoading(true);
     try {
-      const [recs, prns, billingCfg, cpCfg] = await Promise.all([
+      const prevD = new Date(selYear, selMonth - 1, 1);
+      const nextD = new Date(selYear, selMonth + 1, 1);
+      const prevPeriod = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
+      const nextPeriod = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}`;
+
+      const [recs, prevRecs, nextRecs, prns, billingCfg, cpCfg] = await Promise.all([
         StorageService.getPrinterCounterRecords(campusId, period),
+        StorageService.getPrinterCounterRecords(campusId, prevPeriod),
+        StorageService.getPrinterCounterRecords(campusId, nextPeriod),
         StorageService.getPrinterRegistry(campusId),
         StorageService.getPrinterBillingConfig(campusId),
         StorageService.getCopyConfig(campusId),
       ]);
       setRecords(recs);
+      setPrevPeriodRecords(prevRecs);
+      setNextPeriodRecords(nextRecs);
       setPrinters(prns);
       if (cpCfg) setCopyConfig(cpCfg);
       if (billingCfg) {
@@ -334,6 +345,19 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     return 0;
   });
 
+  // Load records from the previous period (for disabling printers without prior registration)
+  const loadPrevPeriodRecords = useCallback(async (m: number, y: number) => {
+    if (!campusId) return;
+    const d = new Date(y, m - 1, 1);
+    const prevPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    try {
+      const recs = await StorageService.getPrinterCounterRecords(campusId, prevPeriod);
+      setPrevPeriodRecords(recs);
+    } catch {
+      setPrevPeriodRecords([]);
+    }
+  }, [campusId]);
+
   // Open Counter Form
   const openNewCounter = () => {
     const startDay = copyConfig?.start_day || 13;
@@ -346,6 +370,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     }
     setEditingRecord(null);
     setCounterForm({ ...EMPTY_COUNTER_FORM, formMonth: m, formYear: y });
+    loadPrevPeriodRecords(m, y);
     setShowCounterForm(true);
   };
 
@@ -367,6 +392,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       formMonth: fm,
       formYear: fy,
     });
+    loadPrevPeriodRecords(fm, fy);
     setShowCounterForm(true);
   };
 
@@ -517,7 +543,8 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const findAdjacent = (printerId: string, fmt: string, color: string, month: number, year: number, dir: -1 | 1) => {
     const d = new Date(year, month + dir, 1);
     const adjPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    return records.find(r =>
+    const allRecs = [...prevPeriodRecords, ...records, ...nextPeriodRecords];
+    return allRecs.find(r =>
       r.printer_id === printerId &&
       r.period === adjPeriod &&
       r.format === fmt &&
@@ -977,10 +1004,12 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   const ny = f.formMonth === 0 ? f.formYear - 1 : f.formYear;
                   const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, ny);
                   const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, ny, cp);
+                  loadPrevPeriodRecords(nm, ny);
                   return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: cc};
                 })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft size={16}/></button>
                 <select className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.formMonth} onChange={e => {
                   const nm = Number(e.target.value);
+                  loadPrevPeriodRecords(nm, counterForm.formYear);
                   setCounterForm(f => {
                     const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, f.formYear);
                     const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, f.formYear, cp);
@@ -991,6 +1020,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 </select>
                 <select className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.formYear} onChange={e => {
                   const ny = Number(e.target.value);
+                  loadPrevPeriodRecords(counterForm.formMonth, ny);
                   setCounterForm(f => {
                     const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, f.formMonth, ny);
                     const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, f.formMonth, ny, cp);
@@ -1007,6 +1037,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   const ny = f.formMonth === 11 ? f.formYear + 1 : f.formYear;
                   const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, ny);
                   const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, ny, cp);
+                  loadPrevPeriodRecords(nm, ny);
                   return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: cc};
                 })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight size={16}/></button>
               </div>
@@ -1016,12 +1047,28 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
               {editingRecord ? (
                 <input disabled className={`${inputCls} bg-gray-50`} value={counterForm.local_name} />
               ) : (
-                <select required className={inputCls} value={counterForm.printer_id} onChange={e => handleSelectPrinter(e.target.value)}>
-                  <option value="">Selecione uma impressora...</option>
-                  {printers.map(p => (
-                    <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
-                  ))}
-                </select>
+                <>
+                  <select required className={inputCls} value={counterForm.printer_id} onChange={e => handleSelectPrinter(e.target.value)}>
+                    <option value="">Selecione uma impressora...</option>
+                    {printers.map(p => {
+                      const prevMonthPrinterIds = new Set(prevPeriodRecords.map(r => r.printer_id));
+                      const hasPrevRecord = prevPeriodRecords.length === 0 || prevMonthPrinterIds.has(p.id);
+                      return (
+                        <option key={p.id} value={p.id} disabled={!hasPrevRecord}>
+                          {p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}{!hasPrevRecord ? ' (Inativo — sem registro anterior)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {counterForm.printer_id && (() => {
+                    const prevMonthPrinterIds = new Set(prevPeriodRecords.map(r => r.printer_id));
+                    const hasPrev = prevPeriodRecords.length === 0 || prevMonthPrinterIds.has(counterForm.printer_id);
+                    if (hasPrev && prevPeriodRecords.length > 0) {
+                      return <p className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1"><CheckCircle2 size={12}/>Registro encontrado no mês anterior.</p>;
+                    }
+                    return null;
+                  })()}
+                </>
               )}
             </div>
 

@@ -417,6 +417,24 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         counter_curr: Number(counterForm.counter_curr),
         operator_id: user.id,
       });
+
+      const savedCurr = Number(counterForm.counter_curr);
+      const savedPrev = Number(counterForm.counter_prev);
+
+      if (savedCurr > 0 && counterForm.printer_id) {
+        const nextAdj = findAdjacent(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, 1);
+        if (nextAdj && nextAdj.counter_prev === 0 && nextAdj.id) {
+          await StorageService.savePrinterCounterRecord({ id: nextAdj.id, counter_prev: savedCurr, campus_id: campusId });
+        }
+      }
+
+      if (savedPrev > 0 && counterForm.printer_id) {
+        const prevAdj = findAdjacent(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, -1);
+        if (prevAdj && prevAdj.counter_curr === 0 && prevAdj.id) {
+          await StorageService.savePrinterCounterRecord({ id: prevAdj.id, counter_curr: savedPrev, campus_id: campusId });
+        }
+      }
+
       setShowCounterForm(false);
       await loadData();
     } catch (err: any) {
@@ -512,6 +530,12 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     return prev ? prev.counter_curr : 0;
   };
 
+  const recalcCounterCurr = (printerId: string, fmt: string, color: string, month: number, year: number, fallbackPrev: number): number => {
+    const next = findAdjacent(printerId, fmt, color, month, year, 1);
+    if (next && next.counter_prev > 0) return next.counter_prev;
+    return fallbackPrev;
+  };
+
   // Change of selected printer in counter record modal
   const handleSelectPrinter = (pId: string) => {
     const prn = printers.find(p => p.id === pId);
@@ -537,6 +561,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     else if (prn.supports_a3_poli) { defaultFormat = 'A3'; defaultColor = 'POLI'; }
 
     const cPrev = recalcCounterPrev(prn.id || '', defaultFormat, defaultColor, counterForm.formMonth, counterForm.formYear);
+    const cCurr = recalcCounterCurr(prn.id || '', defaultFormat, defaultColor, counterForm.formMonth, counterForm.formYear, cPrev);
 
     setCounterForm(f => ({
       ...f,
@@ -548,7 +573,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       format: defaultFormat,
       color_mode: defaultColor,
       counter_prev: cPrev,
-      counter_curr: cPrev,
+      counter_curr: cCurr,
     }));
   };
 
@@ -937,30 +962,39 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       {/* ── Modal: Novo Contador (Leitura) ───────────────────────────────────── */}
       <Modal isOpen={showCounterForm} onClose={() => setShowCounterForm(false)} title={editingRecord ? 'Editar Lançamento' : 'Novo Lançamento de Contador'}>
         <form onSubmit={handleSaveCounter} className="space-y-4 p-1">
+          {editingRecord && (
+            <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-semibold">
+              <AlertCircle size={16} className="shrink-0"/>
+              Este registro já foi salvo e não pode ser alterado.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className={labelCls}>Período (Competência) *</label>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setCounterForm(f => {
+                <button type="button" disabled={!!editingRecord} onClick={() => setCounterForm(f => {
                   const nm = f.formMonth === 0 ? 11 : f.formMonth - 1;
                   const ny = f.formMonth === 0 ? f.formYear - 1 : f.formYear;
                   const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, ny);
-                  return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: Math.max(cp, f.counter_curr)};
-                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"><ChevronLeft size={16}/></button>
-                <select className={inputCls} value={counterForm.formMonth} onChange={e => {
+                  const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, ny, cp);
+                  return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: cc};
+                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft size={16}/></button>
+                <select className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.formMonth} onChange={e => {
                   const nm = Number(e.target.value);
                   setCounterForm(f => {
                     const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, f.formYear);
-                    return {...f, formMonth: nm, counter_prev: cp, counter_curr: Math.max(cp, f.counter_curr)};
+                    const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, f.formYear, cp);
+                    return {...f, formMonth: nm, counter_prev: cp, counter_curr: cc};
                   });
                 }}>
                   {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
                 </select>
-                <select className={inputCls} value={counterForm.formYear} onChange={e => {
+                <select className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.formYear} onChange={e => {
                   const ny = Number(e.target.value);
                   setCounterForm(f => {
                     const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, f.formMonth, ny);
-                    return {...f, formYear: ny, counter_prev: cp, counter_curr: Math.max(cp, f.counter_curr)};
+                    const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, f.formMonth, ny, cp);
+                    return {...f, formYear: ny, counter_prev: cp, counter_curr: cc};
                   });
                 }}>
                   {Array.from({length: 10}, (_, i) => {
@@ -968,12 +1002,13 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                     return <option key={y} value={y}>{y}</option>;
                   })}
                 </select>
-                <button type="button" onClick={() => setCounterForm(f => {
+                <button type="button" disabled={!!editingRecord} onClick={() => setCounterForm(f => {
                   const nm = f.formMonth === 11 ? 0 : f.formMonth + 1;
                   const ny = f.formMonth === 11 ? f.formYear + 1 : f.formYear;
                   const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, ny);
-                  return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: Math.max(cp, f.counter_curr)};
-                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"><ChevronRight size={16}/></button>
+                  const cc = recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, ny, cp);
+                  return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: cc};
+                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight size={16}/></button>
               </div>
             </div>
             <div className="col-span-2">
@@ -1001,10 +1036,11 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
                 <div>
                   <label className={labelCls}>Formato *</label>
-                  <select required className={inputCls} value={counterForm.format} onChange={e => {
+                  <select required className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.format} onChange={e => {
                     const newFmt = e.target.value as 'A4'|'A3';
                     const cPrev = recalcCounterPrev(counterForm.printer_id, newFmt, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
-                    setCounterForm(f=>({...f, format:newFmt, counter_prev: cPrev, counter_curr: Math.max(cPrev, f.counter_curr) }));
+                    const cCurr = recalcCounterCurr(counterForm.printer_id, newFmt, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, cPrev);
+                    setCounterForm(f=>({...f, format:newFmt, counter_prev: cPrev, counter_curr: cCurr }));
                   }}>
                     {activePrinter?.supports_a4_mono || activePrinter?.supports_a4_poli || !activePrinter ? <option value="A4">A4</option> : null}
                     {activePrinter?.supports_a3_mono || activePrinter?.supports_a3_poli || !activePrinter ? <option value="A3">A3</option> : null}
@@ -1013,10 +1049,11 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 
                 <div>
                   <label className={labelCls}>Cor *</label>
-                  <select required className={inputCls} value={counterForm.color_mode} onChange={e => {
+                  <select required className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.color_mode} onChange={e => {
                     const newColor = e.target.value as 'MONO'|'POLI';
                     const cPrev = recalcCounterPrev(counterForm.printer_id, counterForm.format, newColor, counterForm.formMonth, counterForm.formYear);
-                    setCounterForm(f=>({...f, color_mode:newColor, counter_prev: cPrev, counter_curr: Math.max(cPrev, f.counter_curr) }));
+                    const cCurr = recalcCounterCurr(counterForm.printer_id, counterForm.format, newColor, counterForm.formMonth, counterForm.formYear, cPrev);
+                    setCounterForm(f=>({...f, color_mode:newColor, counter_prev: cPrev, counter_curr: cCurr }));
                   }}>
                     {(counterForm.format === 'A4' && (activePrinter?.supports_a4_mono || !activePrinter)) || 
                      (counterForm.format === 'A3' && (activePrinter?.supports_a3_mono || !activePrinter)) ? (
@@ -1045,7 +1082,17 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 </div>
                 <div>
                   <label className={labelCls}>Contador Mês Atual *</label>
-                  <input required type="number" min={0} className={inputCls} value={counterForm.counter_curr} onChange={e => setCounterForm(f=>({...f,counter_curr:Number(e.target.value)}))}/>
+                  <div className="flex items-center gap-2">
+                    <input required type="number" min={0} className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.counter_curr} onChange={e => setCounterForm(f=>({...f,counter_curr:Number(e.target.value)}))}/>
+                    {(() => {
+                      const next = findAdjacent(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, 1);
+                      if (next && next.counter_prev > 0 && next.counter_prev === counterForm.counter_curr && !editingRecord) {
+                        const d = new Date(counterForm.formYear, counterForm.formMonth + 1, 1);
+                        return <span className="text-xs text-gray-500 font-semibold whitespace-nowrap">herdado de {MONTHS[d.getMonth()]}/{d.getFullYear()}</span>;
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </div>
               </>
             )}

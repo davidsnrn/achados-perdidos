@@ -32,6 +32,8 @@ import { Modal } from '../ui/Modal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
 interface CopyControlTabProps {
   records: CopyRecord[];
   config?: CopyConfig;
@@ -129,11 +131,10 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const periodRange = useMemo(() => {
     const startDay = config?.start_day || 13;
     const endDay = config?.end_day || 12;
+    const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
 
-    // Start date: Day X of SELECTED month
-    const startDate = new Date(selectedYear, selectedMonth, startDay, 0, 0, 0);
-    // End date: Day Y of NEXT month
-    const endDate = new Date(selectedYear, selectedMonth + 1, endDay, 23, 59, 59);
+    const startDate = new Date(selectedYear, selectedMonth, Math.min(startDay, lastDayOfMonth), 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth, Math.min(endDay, lastDayOfMonth), 23, 59, 59);
 
     return { start: startDate, end: endDate };
   }, [selectedMonth, selectedYear, config]);
@@ -357,9 +358,9 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       const startDay = config?.start_day || 13;
       const endDay = config?.end_day || 12;
 
-      // 1. Calculate overall date range for fetching
+      const lastDayOfEndMonth = new Date(reportRange.endYear, reportRange.endMonth + 1, 0).getDate();
       const startDate = new Date(reportRange.startYear, reportRange.startMonth, startDay, 0, 0, 0);
-      const endDate = new Date(reportRange.endYear, reportRange.endMonth + 1, endDay, 23, 59, 59);
+      const endDate = new Date(reportRange.endYear, reportRange.endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59);
 
       // 2. Fetch all records in range
       const campusId = adminGlobalCampusId || user?.campus_id;
@@ -1259,13 +1260,14 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
               <Settings size={32} className="text-white" />
             </div>
             <h3 className="text-2xl font-black text-gray-900 mb-2">Configurar Período</h3>
-            <p className="text-sm text-gray-500 font-medium">{campuses.find(c => c.id === (adminGlobalCampusId || user?.campus_id))?.name || ''} — Defina os dias de corte do mês</p>
+            <p className="text-sm text-gray-500 font-medium">{campuses.find(c => c.id === (adminGlobalCampusId || user?.campus_id))?.name || ''}</p>
           </div>
 
-          <div className="bg-rose-50 rounded-2xl p-4 border border-rose-100 flex gap-3 text-rose-700">
+          <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 flex gap-3 text-blue-700">
             <Info size={20} className="shrink-0" />
             <p className="text-xs font-bold leading-relaxed">
-              Define os dias em que o relatório de cada mês inicia e termina.
+              Defina o <strong>dia inicial</strong> e o <strong>dia final</strong> de cada mês de competência.
+              Ambos os dias ficam <strong>dentro do mesmo mês</strong>. Se o dia final for maior que os dias do mês, será ajustado automaticamente.
             </p>
           </div>
 
@@ -1273,7 +1275,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             <div className="space-y-3">
               <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
                 <Calendar size={16} className="text-indigo-500" />
-                Dia de Início
+                Dia Inicial
               </label>
               <input
                 type="number"
@@ -1283,12 +1285,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 onChange={e => setTempConfig(v => ({ ...v, start_day: parseInt(e.target.value) }))}
                 className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-200 focus:bg-white rounded-2xl outline-none transition-all font-black text-lg text-indigo-700 text-center"
               />
+              <p className="text-xs text-gray-400 text-center font-medium">Primeiro dia do mês</p>
             </div>
 
             <div className="space-y-3">
               <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
                 <Calendar size={16} className="text-indigo-500" />
-                Dia de Fim
+                Dia Final
               </label>
               <input
                 type="number"
@@ -1298,8 +1301,27 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 onChange={e => setTempConfig(v => ({ ...v, end_day: parseInt(e.target.value) }))}
                 className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-indigo-200 focus:bg-white rounded-2xl outline-none transition-all font-black text-lg text-indigo-700 text-center"
               />
+              <p className="text-xs text-gray-400 text-center font-medium">Último dia do mês</p>
             </div>
           </div>
+
+          {(() => {
+            const today = new Date();
+            const sm = today.getMonth();
+            const sy = today.getFullYear();
+            const lastDay = new Date(sy, sm + 1, 0).getDate();
+            const sdFmt = `${String(Math.min(tempConfig.start_day, lastDay)).padStart(2, '0')}/${String(sm + 1).padStart(2, '0')}/${sy}`;
+            const edFmt = `${String(Math.min(tempConfig.end_day, lastDay)).padStart(2, '0')}/${String(sm + 1).padStart(2, '0')}/${sy}`;
+            return (
+              <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
+                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Prévia deste mês</p>
+                <p className="text-lg font-black text-emerald-800">{sdFmt} — {edFmt}</p>
+                {tempConfig.end_day > lastDay && (
+                  <p className="text-xs text-amber-600 font-semibold mt-1">⚠ {MONTHS[sm]} tem apenas {lastDay} dias — dia final ajustado para {lastDay}</p>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="pt-6 border-t border-gray-100 flex gap-4">
             <button

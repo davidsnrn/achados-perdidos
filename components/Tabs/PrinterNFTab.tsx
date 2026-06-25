@@ -880,7 +880,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 <select required className={inputCls} value={counterForm.printer_id} onChange={e => handleSelectPrinter(e.target.value)}>
                   <option value="">Selecione uma impressora...</option>
                   {printers.map(p => (
-                    <option key={p.id} value={p.id}>{p.local_name}</option>
+                    <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
                   ))}
                 </select>
               )}

@@ -270,19 +270,29 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     if (!campusId) return;
     setLoading(true);
     try {
-      const prevD = new Date(selYear, selMonth - 1, 1);
       const nextD = new Date(selYear, selMonth + 1, 1);
-      const prevPeriod = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}`;
       const nextPeriod = `${nextD.getFullYear()}-${String(nextD.getMonth() + 1).padStart(2, '0')}`;
 
-      const [recs, prevRecs, nextRecs, prns, billingCfg, cpCfg] = await Promise.all([
+      const prevPeriods: string[] = [];
+      for (let i = 1; i <= 12; i++) {
+        const d = new Date(selYear, selMonth - i, 1);
+        prevPeriods.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      const [recs, nextRecs, ...rest] = await Promise.all([
         StorageService.getPrinterCounterRecords(campusId, period),
-        StorageService.getPrinterCounterRecords(campusId, prevPeriod),
         StorageService.getPrinterCounterRecords(campusId, nextPeriod),
+        ...prevPeriods.map(p => StorageService.getPrinterCounterRecords(campusId, p)),
         StorageService.getPrinterRegistry(campusId),
         StorageService.getPrinterBillingConfig(campusId),
         StorageService.getCopyConfig(campusId),
       ]);
+
+      const prevRecs = (rest.slice(0, 12) as PrinterCounterRecord[][]).flat();
+      const prns = rest[12] as PrinterRegistry[];
+      const billingCfg = rest[13] as PrinterBillingConfig | null;
+      const cpCfg = rest[14] as CopyConfig | null;
+
       setRecords(recs);
       setPrevPeriodRecords(prevRecs);
       setNextPeriodRecords(nextRecs);
@@ -348,11 +358,14 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   // Load records from the previous period (for disabling printers without prior registration)
   const loadPrevPeriodRecords = useCallback(async (m: number, y: number) => {
     if (!campusId) return;
-    const d = new Date(y, m - 1, 1);
-    const prevPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     try {
-      const recs = await StorageService.getPrinterCounterRecords(campusId, prevPeriod);
-      setPrevPeriodRecords(recs);
+      const periods: string[] = [];
+      for (let i = 1; i <= 12; i++) {
+        const d = new Date(y, m - i, 1);
+        periods.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+      const results = await Promise.all(periods.map(p => StorageService.getPrinterCounterRecords(campusId, p)));
+      setPrevPeriodRecords(results.flat());
     } catch {
       setPrevPeriodRecords([]);
     }
@@ -553,8 +566,31 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   };
 
   const recalcCounterPrev = (printerId: string, fmt: string, color: string, month: number, year: number): number => {
-    const prev = findAdjacent(printerId, fmt, color, month, year, -1);
-    return prev ? prev.counter_curr : 0;
+    if (!printerId) return 0;
+    const allRecs = [...prevPeriodRecords, ...records, ...nextPeriodRecords];
+    const candidates = allRecs
+      .filter(r =>
+        r.printer_id === printerId &&
+        r.format === fmt &&
+        r.color_mode === color &&
+        r.period < `${year}-${String(month + 1).padStart(2, '0')}`
+      )
+      .sort((a, b) => b.period.localeCompare(a.period));
+    return candidates.length > 0 ? candidates[0].counter_curr : 0;
+  };
+
+  const findMostRecentPrev = (printerId: string, fmt: string, color: string, month: number, year: number): PrinterCounterRecord | undefined => {
+    if (!printerId) return undefined;
+    const allRecs = [...prevPeriodRecords, ...records, ...nextPeriodRecords];
+    const candidates = allRecs
+      .filter(r =>
+        r.printer_id === printerId &&
+        r.format === fmt &&
+        r.color_mode === color &&
+        r.period < `${year}-${String(month + 1).padStart(2, '0')}`
+      )
+      .sort((a, b) => b.period.localeCompare(a.period));
+    return candidates.length > 0 ? candidates[0] : undefined;
   };
 
   const recalcCounterCurr = (printerId: string, fmt: string, color: string, month: number, year: number, fallbackPrev: number): number => {
@@ -1055,10 +1091,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                     ))}
                   </select>
                   {counterForm.printer_id && (() => {
-                    const prevMonthPrinterIds = new Set(prevPeriodRecords.map(r => r.printer_id));
-                    const hasPrev = prevPeriodRecords.length === 0 || prevMonthPrinterIds.has(counterForm.printer_id);
-                    if (hasPrev && prevPeriodRecords.length > 0) {
-                      return <p className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1"><CheckCircle2 size={12}/>Registro encontrado no mês anterior — contador anterior será preenchido automaticamente.</p>;
+                    const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
+                    if (mostRecent) {
+                      const [y, m] = mostRecent.period.split('-').map(Number);
+                      return <p className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1"><CheckCircle2 size={12}/>Último registro em {MONTHS[m - 1]}/{y} — contador anterior será preenchido automaticamente.</p>;
                     }
                     return <p className="text-xs text-amber-600 font-semibold mt-1 flex items-center gap-1"><AlertCircle size={12}/>Sem registro anterior — cadastro inicial, preencha os contadores manualmente.</p>;
                   })()}
@@ -1111,18 +1147,18 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   <label className={labelCls}>Contador Mês Anterior *</label>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const prev = findAdjacent(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, -1);
-                      const hasPrev = !!prev;
+                      const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
+                      const hasPrev = !!mostRecent;
                       if (editingRecord || hasPrev) {
                         return <input required type="number" min={0} className={`${inputCls} bg-gray-100`} disabled value={counterForm.counter_prev} onChange={e => setCounterForm(f=>({...f,counter_prev:Number(e.target.value)}))}/>;
                       }
                       return <input required type="number" min={0} className={inputCls} value={counterForm.counter_prev} onChange={e => setCounterForm(f=>({...f,counter_prev:Number(e.target.value)}))}/>;
                     })()}
                     {(() => {
-                      const prev = findAdjacent(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, -1);
-                      if (prev) {
-                        const d = new Date(counterForm.formYear, counterForm.formMonth - 1, 1);
-                        return <span className="text-xs text-gray-500 font-semibold whitespace-nowrap">herdado de {MONTHS[d.getMonth()]}/{d.getFullYear()}</span>;
+                      const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
+                      if (mostRecent) {
+                        const [y, m] = mostRecent.period.split('-').map(Number);
+                        return <span className="text-xs text-gray-500 font-semibold whitespace-nowrap">herdado de {MONTHS[m - 1]}/{y}</span>;
                       }
                       return <span className="text-xs text-amber-600 font-semibold whitespace-nowrap">cadastro inicial</span>;
                     })()}

@@ -1947,6 +1947,8 @@ export const StorageService = {
       person_matricula: record.person_matricula,
       sector: record.sector,
       print_type: record.print_type,
+      format: record.format || 'A4',
+      color_mode: record.color_mode || 'MONO',
       quantity: record.quantity,
       date: record.date || new Date().toISOString(),
       operator_id: record.operator_id
@@ -1959,6 +1961,92 @@ export const StorageService = {
   deleteCopyRecord: async (id: string) => {
     const { error } = await supabase.from('copy_records').delete().eq('id', id);
     if (error) throw error;
+  },
+
+  syncCopiesToPrinterCounter: async (campusId: string, period: string): Promise<void> => {
+    const config = await StorageService.getCopyConfig(campusId);
+    const startDay = config?.start_day || 13;
+    const endDay = config?.end_day || 12;
+    const crossMonth = endDay < startDay;
+
+    const [yearStr, monthStr] = period.split('-');
+    const selMonth = parseInt(monthStr, 10) - 1;
+    const selYear = parseInt(yearStr, 10);
+
+    const endMonth = crossMonth ? selMonth + 1 : selMonth;
+    const endYearCalc = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+    const lastDayOfStartMonth = new Date(selYear, selMonth + 1, 0).getDate();
+    const lastDayOfEndMonth = new Date(endYearCalc, endMonth + 1, 0).getDate();
+
+    const startDate = new Date(selYear, selMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0).toISOString();
+    const endDate = new Date(endYearCalc, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59).toISOString();
+
+    const { data: copies } = await supabase
+      .from('copy_records')
+      .select('format, color_mode, quantity')
+      .eq('campus_id', campusId)
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    if (!copies || copies.length === 0) {
+      const { data: existing } = await supabase
+        .from('printer_counter_records')
+        .select('id')
+        .eq('campus_id', campusId)
+        .eq('period', period)
+        .is('printer_id', null)
+        .eq('local_name', 'Controle de Cópias');
+
+      if (existing && existing.length > 0) {
+        for (const rec of existing) {
+          await supabase.from('printer_counter_records').delete().eq('id', rec.id);
+        }
+      }
+      return;
+    }
+
+    const groups: Record<string, number> = {};
+    for (const c of copies) {
+      const key = `${c.format}-${c.color_mode}`;
+      groups[key] = (groups[key] || 0) + (c.quantity || 0);
+    }
+
+    const { data: existing } = await supabase
+      .from('printer_counter_records')
+      .select('id, format, color_mode')
+      .eq('campus_id', campusId)
+      .eq('period', period)
+      .is('printer_id', null)
+      .eq('local_name', 'Controle de Cópias');
+
+    for (const [key, total] of Object.entries(groups)) {
+      const [fmt, cm] = key.split('-') as ['A4'|'A3', 'MONO'|'POLI'];
+      const match = (existing || []).find(e => e.format === fmt && e.color_mode === cm);
+      if (match) {
+        await supabase.from('printer_counter_records').update({ counter_curr: total, updated_at: new Date().toISOString() }).eq('id', match.id);
+      } else {
+        await supabase.from('printer_counter_records').insert({
+          campus_id: campusId,
+          period,
+          printer_id: null,
+          local_name: 'Controle de Cópias',
+          format: fmt,
+          color_mode: cm,
+          counter_prev: 0,
+          counter_curr: total,
+          updated_at: new Date().toISOString()
+        });
+      }
+    }
+
+    if (existing) {
+      for (const e of existing) {
+        const key = `${e.format}-${e.color_mode}`;
+        if (!groups[key]) {
+          await supabase.from('printer_counter_records').delete().eq('id', e.id);
+        }
+      }
+    }
   },
 
   checkPersonAndPendencies: async (matricula: string, campusId?: string) => {

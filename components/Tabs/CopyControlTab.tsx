@@ -275,14 +275,27 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
 
     setIsSaving(true);
     try {
+      const savedDate = new Date(selectedDate + "T12:00:00");
       await StorageService.saveCopyRecord({
         ...newRecord,
         id: editingRecord?.id,
-        date: new Date(selectedDate + "T12:00:00").toISOString(),
+        date: savedDate.toISOString(),
         campus_id: adminGlobalCampusId || user!.campus_id!,
         setor_id: isAdmin ? adminGlobalSetorId : (selectedSetorId || undefined),
         operator_id: user!.id
       });
+
+      const syncCampusId = adminGlobalCampusId || user!.campus_id!;
+      const syncStartDay = config?.start_day || 13;
+      let syncMonth = savedDate.getMonth();
+      let syncYear = savedDate.getFullYear();
+      if (savedDate.getDate() < syncStartDay) {
+        syncMonth -= 1;
+        if (syncMonth < 0) { syncMonth = 11; syncYear -= 1; }
+      }
+      const syncPeriod = `${syncYear}-${String(syncMonth + 1).padStart(2, '0')}`;
+      StorageService.syncCopiesToPrinterCounter(syncCampusId, syncPeriod).catch(console.error);
+
       await onUpdate();
       setIsModalOpen(false);
       setEditingRecord(null);
@@ -312,6 +325,9 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       } else {
         await StorageService.deleteCopyRecord(id);
       }
+      const syncCampusId = adminGlobalCampusId || user!.campus_id!;
+      const syncPeriod = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+      StorageService.syncCopiesToPrinterCounter(syncCampusId, syncPeriod).catch(console.error);
       await onUpdate();
       setIsDetailsModalOpen(false);
     } catch (error) {

@@ -914,8 +914,15 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   const rowExcess  = !rowBlocked && consumo > fq;
 
                   return (
-                    <tr key={r.id} className={`border-t border-gray-50 transition-colors ${rowBlocked ? 'bg-red-50' : 'hover:bg-slate-50/50'}`}>
-                      <td className="px-5 py-4 font-bold text-gray-800">{r.local_name}</td>
+                    <tr key={r.id} className={`border-t border-gray-50 transition-colors ${r.printer_id === null && r.local_name === 'Controle de Cópias' ? 'bg-indigo-50/60' : rowBlocked ? 'bg-red-50' : 'hover:bg-slate-50/50'}`}>
+                      <td className="px-5 py-4 font-bold text-gray-800">
+                        {r.printer_id === null && r.local_name === 'Controle de Cópias' ? (
+                          <span className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded">CÓPIAS</span>
+                            {r.local_name}
+                          </span>
+                        ) : r.local_name}
+                      </td>
                       <td className="px-5 py-4 text-gray-500 font-mono text-xs">{r.serial_number||'—'}</td>
                       <td className="px-5 py-4 text-gray-500 font-mono text-xs">{r.ip_address||'—'}</td>
                       <td className="px-5 py-4 text-gray-700">{r.model||'—'}</td>

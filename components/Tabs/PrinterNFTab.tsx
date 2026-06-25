@@ -734,26 +734,22 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       </div>
 
       {/* Period */}
-      <div className="flex flex-col items-center gap-1">
-        <div className="flex items-center justify-center gap-4">
-          <button onClick={prevMonth} className="p-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"><ChevronLeft size={20}/></button>
-          <div className="px-10 py-3 bg-white rounded-2xl border border-gray-200 shadow-sm text-center min-w-[220px]">
-            <span className="text-xl font-black text-slate-800">{MONTHS[selMonth]} {selYear}</span>
-          </div>
-          <button onClick={nextMonth} className="p-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"><ChevronRight size={20}/></button>
-        </div>
+      <div className="flex items-center justify-center gap-4">
+        <button onClick={prevMonth} className="p-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"><ChevronLeft size={20}/></button>
         {(() => {
           const sd = copyConfig?.start_day || 13;
           const ed = copyConfig?.end_day || 12;
           const s = new Date(selYear, selMonth, sd);
           const e = new Date(selYear, selMonth + 1, ed);
+          const fmtDdMm = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
           return (
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-semibold italic">
-              <Calendar size={13} />
-              Período: {s.toLocaleDateString()} — {e.toLocaleDateString()}
+            <div className="px-8 py-3 bg-white rounded-2xl border border-gray-200 shadow-sm text-center min-w-[240px]">
+              <span className="text-xl font-black text-slate-800">{MONTHS[selMonth]} {selYear}</span>
+              <p className="text-xs text-gray-400 font-semibold mt-0.5">{fmtDdMm(s)} — {fmtDdMm(e)}</p>
             </div>
           );
         })()}
+        <button onClick={nextMonth} className="p-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"><ChevronRight size={20}/></button>
       </div>
 
       {/* Global BLOCKED alert */}

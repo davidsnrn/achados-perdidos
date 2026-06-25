@@ -1172,6 +1172,35 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-3">
                 <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <TrendingUp size={16} className="text-rose-500" />
+                  Quantidade
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newRecord.quantity}
+                  onChange={e => setNewRecord(v => ({ ...v, quantity: parseInt(e.target.value) }))}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-black text-lg text-rose-700 text-center"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                  <Calendar size={16} className="text-rose-500" />
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm text-gray-700 text-center"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
                   <PieChart size={16} className="text-rose-500" />
                   Finalidade
                 </label>
@@ -1213,35 +1242,6 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   <option value="MONO">Preto e Branco</option>
                   <option value="POLI">Colorido</option>
                 </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                  <TrendingUp size={16} className="text-rose-500" />
-                  Quantidade
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={newRecord.quantity}
-                  onChange={e => setNewRecord(v => ({ ...v, quantity: parseInt(e.target.value) }))}
-                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-black text-lg text-rose-700 text-center"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                  <Calendar size={16} className="text-rose-500" />
-                  Data
-                </label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={e => setSelectedDate(e.target.value)}
-                  className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm text-gray-700 text-center"
-                />
               </div>
             </div>
 

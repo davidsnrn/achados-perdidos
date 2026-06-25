@@ -2659,7 +2659,7 @@ const App: React.FC = () => {
           {currentSystem === 'copias' && (
             <button onClick={() => setActiveTab('copias')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'copias' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><Printer size={18} /> Controle de Cópias</button>
           )}
-          {currentSystem === 'copias' && (
+          {currentSystem === 'copias' && user?.level === UserLevel.ADMIN && (
             <button onClick={() => setActiveTab('copias-nf')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'copias-nf' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><FileText size={18} /> Conferência de NF
             </button>
           )}
@@ -2747,7 +2747,7 @@ const App: React.FC = () => {
                     onUpdate={refreshData}
                   />
                 )}
-                {activeTab === 'copias-nf' && (
+                {activeTab === 'copias-nf' && user?.level === UserLevel.ADMIN && (
                   <PrinterNFTab
                     user={user}
                     campuses={campuses}

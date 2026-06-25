@@ -740,9 +740,13 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         {(() => {
           const sd = copyConfig?.start_day || 13;
           const ed = copyConfig?.end_day || 12;
-          const lastDayOfMonth = new Date(selYear, selMonth + 1, 0).getDate();
-          const s = new Date(selYear, selMonth, Math.min(sd, lastDayOfMonth));
-          const e = new Date(selYear, selMonth, Math.min(ed, lastDayOfMonth));
+          const crossMonth = ed < sd;
+          const lastDayStart = new Date(selYear, selMonth + 1, 0).getDate();
+          const endMonth = crossMonth ? selMonth + 1 : selMonth;
+          const endYear = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+          const lastDayEnd = new Date(endYear, endMonth + 1, 0).getDate();
+          const s = new Date(selYear, selMonth, Math.min(sd, lastDayStart));
+          const e = new Date(endYear, endMonth, Math.min(ed, lastDayEnd));
           const fmtDdMm = (d: Date) => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
           return (
             <div className="px-8 py-3 bg-white rounded-2xl border border-gray-200 shadow-sm text-center min-w-[240px]">

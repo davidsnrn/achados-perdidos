@@ -131,12 +131,16 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const periodRange = useMemo(() => {
     const startDay = config?.start_day || 13;
     const endDay = config?.end_day || 12;
-    const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const crossMonth = endDay < startDay;
+    const endMonth = crossMonth ? selectedMonth + 1 : selectedMonth;
+    const endYear = crossMonth && selectedMonth === 11 ? selectedYear + 1 : selectedYear;
+    const lastDayOfEndMonth = new Date(endYear, endMonth + 1, 0).getDate();
+    const lastDayOfStartMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
 
-    const startDate = new Date(selectedYear, selectedMonth, Math.min(startDay, lastDayOfMonth), 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth, Math.min(endDay, lastDayOfMonth), 23, 59, 59);
+    const startDate = new Date(selectedYear, selectedMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0);
+    const endDate = new Date(endYear, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59);
 
-    return { start: startDate, end: endDate };
+    return { start: startDate, end: endDate, crossMonth };
   }, [selectedMonth, selectedYear, config]);
 
   // Check if current selected period matches today's date
@@ -357,10 +361,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     try {
       const startDay = config?.start_day || 13;
       const endDay = config?.end_day || 12;
+      const crossMonth = endDay < startDay;
 
-      const lastDayOfEndMonth = new Date(reportRange.endYear, reportRange.endMonth + 1, 0).getDate();
       const startDate = new Date(reportRange.startYear, reportRange.startMonth, startDay, 0, 0, 0);
-      const endDate = new Date(reportRange.endYear, reportRange.endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59);
+      const endMonth = crossMonth ? reportRange.endMonth + 1 : reportRange.endMonth;
+      const endYear = crossMonth && reportRange.endMonth === 11 ? reportRange.endYear + 1 : reportRange.endYear;
+      const lastDayOfEndMonth = new Date(endYear, endMonth + 1, 0).getDate();
+      const endDate = new Date(endYear, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59);
 
       // 2. Fetch all records in range
       const campusId = adminGlobalCampusId || user?.campus_id;
@@ -1309,15 +1316,19 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
             const today = new Date();
             const sm = today.getMonth();
             const sy = today.getFullYear();
-            const lastDay = new Date(sy, sm + 1, 0).getDate();
-            const sdFmt = `${String(Math.min(tempConfig.start_day, lastDay)).padStart(2, '0')}/${String(sm + 1).padStart(2, '0')}/${sy}`;
-            const edFmt = `${String(Math.min(tempConfig.end_day, lastDay)).padStart(2, '0')}/${String(sm + 1).padStart(2, '0')}/${sy}`;
+            const crossMonth = tempConfig.end_day < tempConfig.start_day;
+            const endM = crossMonth ? sm + 1 : sm;
+            const endY = crossMonth && sm === 11 ? sy + 1 : sy;
+            const lastDayStart = new Date(sy, sm + 1, 0).getDate();
+            const lastDayEnd = new Date(endY, endM + 1, 0).getDate();
+            const sdFmt = `${String(Math.min(tempConfig.start_day, lastDayStart)).padStart(2, '0')}/${String(sm + 1).padStart(2, '0')}/${sy}`;
+            const edFmt = `${String(Math.min(tempConfig.end_day, lastDayEnd)).padStart(2, '0')}/${String(endM + 1).padStart(2, '0')}/${endY}`;
             return (
               <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
                 <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Prévia deste mês</p>
                 <p className="text-lg font-black text-emerald-800">{sdFmt} — {edFmt}</p>
-                {tempConfig.end_day > lastDay && (
-                  <p className="text-xs text-amber-600 font-semibold mt-1">⚠ {MONTHS[sm]} tem apenas {lastDay} dias — dia final ajustado para {lastDay}</p>
+                {tempConfig.end_day > lastDayEnd && (
+                  <p className="text-xs text-amber-600 font-semibold mt-1">⚠ Dia final ajustado para {lastDayEnd} (máximo de dias do mês)</p>
                 )}
               </div>
             );

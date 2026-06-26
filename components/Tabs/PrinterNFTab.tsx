@@ -346,17 +346,9 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
   // Open Counter Form
   const openNewCounter = () => {
-    const startDay = copyConfig?.start_day || 13;
-    const today = new Date();
-    let m = today.getMonth();
-    let y = today.getFullYear();
-    if (today.getDate() < startDay) {
-      m -= 1;
-      if (m < 0) { m = 11; y -= 1; }
-    }
     setEditingRecord(null);
-    setCounterForm({ ...EMPTY_COUNTER_FORM, formMonth: m, formYear: y });
-    loadPrevPeriodRecords(m, y);
+    setCounterForm({ ...EMPTY_COUNTER_FORM, formMonth: selMonth, formYear: selYear });
+    loadPrevPeriodRecords(selMonth, selYear);
     setShowCounterForm(true);
   };
 

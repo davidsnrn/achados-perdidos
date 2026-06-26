@@ -3091,7 +3091,25 @@ export const StorageService = {
   },
 
   savePrinterBillingConfig: async (config: PrinterBillingConfig): Promise<void> => {
-    const payload = { ...config, updated_at: new Date().toISOString() };
+    const franchiseKeys: (keyof PrinterBillingConfig)[] = [
+      'a4_mono_franchise','a4_mono_excess_franchise',
+      'a4_poli_franchise','a4_poli_excess_franchise',
+      'a3_mono_franchise','a3_mono_excess_franchise',
+      'a3_poli_franchise','a3_poli_excess_franchise',
+    ];
+    const priceKeys: (keyof PrinterBillingConfig)[] = [
+      'a4_mono_price_franchise','a4_mono_price_excess',
+      'a4_poli_price_franchise','a4_poli_price_excess',
+      'a3_mono_price_franchise','a3_mono_price_excess',
+      'a3_poli_price_franchise','a3_poli_price_excess',
+    ];
+    const payload: Record<string, any> = { ...config, updated_at: new Date().toISOString() };
+    for (const k of franchiseKeys) {
+      if (k in payload) payload[k] = Math.round(Number(payload[k]) || 0);
+    }
+    for (const k of priceKeys) {
+      if (k in payload) payload[k] = parseFloat(String(payload[k])) || 0;
+    }
     const { error } = await supabase
       .from('printer_billing_configs')
       .upsert(payload, { onConflict: 'campus_id' });

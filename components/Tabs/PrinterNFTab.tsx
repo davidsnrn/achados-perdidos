@@ -582,12 +582,24 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     }
   };
 
+  const sanitizeConfig = (cfg: PrinterBillingConfig): PrinterBillingConfig => {
+    const keys: CatKey[] = ['a4_mono', 'a4_poli', 'a3_mono', 'a3_poli'];
+    const sanitized = { ...cfg };
+    for (const k of keys) {
+      (sanitized as any)[`${k}_franchise`] = Math.round(Number((sanitized as any)[`${k}_franchise`]) || 0);
+      (sanitized as any)[`${k}_excess_franchise`] = Math.round(Number((sanitized as any)[`${k}_excess_franchise`]) || 0);
+      (sanitized as any)[`${k}_price_franchise`] = parseFloat(String((sanitized as any)[`${k}_price_franchise`])) || 0;
+      (sanitized as any)[`${k}_price_excess`] = parseFloat(String((sanitized as any)[`${k}_price_excess`])) || 0;
+    }
+    return sanitized;
+  };
+
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingCfg(true);
     try {
-      await StorageService.savePrinterBillingConfig(cfgDraft);
-      setCfg(cfgDraft);
+      await StorageService.savePrinterBillingConfig(sanitizeConfig(cfgDraft));
+      setCfg(sanitizeConfig(cfgDraft));
       setShowConfig(false);
     } catch (err: any) {
       alert(err.message || 'Erro ao salvar configurações.');
@@ -1600,15 +1612,15 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
               <div className="grid grid-cols-2 gap-3 mb-2">
                 <div>
                   <label className={labelCls}>Franquia (pág. inclusas) *</label>
-                  <input type="number" min={0} className={inputCls}
+                  <input type="number" min={0} step={1} className={inputCls}
                     value={(cfgDraft as any)[`${key}_franchise`]}
-                    onChange={e => setCfgDraft(d => ({...d, [`${key}_franchise`]: Number(e.target.value)}))}/>
+                    onChange={e => setCfgDraft(d => ({...d, [`${key}_franchise`]: Math.round(Number(e.target.value) || 0)}))}/>
                 </div>
                 <div>
                   <label className={`${labelCls} text-orange-600`}>Teto Excedente (pág. máx. extra) *</label>
-                  <input type="number" min={0} className={`${inputCls} border-orange-200 focus:ring-orange-400`}
+                  <input type="number" min={0} step={1} className={`${inputCls} border-orange-200 focus:ring-orange-400`}
                     value={(cfgDraft as any)[`${key}_excess_franchise`]}
-                    onChange={e => setCfgDraft(d => ({...d, [`${key}_excess_franchise`]: Number(e.target.value)}))}/>
+                    onChange={e => setCfgDraft(d => ({...d, [`${key}_excess_franchise`]: Math.round(Number(e.target.value) || 0)}))}/>
                   <p className="text-xs text-orange-500 mt-1 font-semibold">Após atingir: impressão bloqueada</p>
                 </div>
               </div>
@@ -1617,13 +1629,13 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   <label className={labelCls}>R$/pág. Franquia</label>
                   <input type="number" min={0} step={0.0001} className={inputCls}
                     value={(cfgDraft as any)[`${key}_price_franchise`]}
-                    onChange={e => setCfgDraft(d => ({...d, [`${key}_price_franchise`]: Number(e.target.value)}))}/>
+                    onChange={e => setCfgDraft(d => ({...d, [`${key}_price_franchise`]: parseFloat(e.target.value) || 0}))}/>
                 </div>
                 <div>
                   <label className={labelCls}>R$/pág. Excedente</label>
                   <input type="number" min={0} step={0.0001} className={inputCls}
                     value={(cfgDraft as any)[`${key}_price_excess`]}
-                    onChange={e => setCfgDraft(d => ({...d, [`${key}_price_excess`]: Number(e.target.value)}))}/>
+                    onChange={e => setCfgDraft(d => ({...d, [`${key}_price_excess`]: parseFloat(e.target.value) || 0}))}/>
                 </div>
               </div>
               <div className="mt-3 p-2 bg-white rounded-lg border border-gray-200 text-xs text-gray-500 flex items-center justify-between">

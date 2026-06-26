@@ -126,9 +126,9 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
       </div>
       <div className="flex items-center justify-between text-xs text-gray-500">
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-emerald-700">Franquia: {fmt(remainingFranquia)} restantes</span>
+          <span className="font-semibold text-emerald-700">Franquia: {fmt(franchise)} pág. — {fmt(remainingFranquia)} restantes</span>
           <span className="text-gray-300">|</span>
-          <span className="font-semibold text-orange-700">Excedente: {fmt(remainingExcedente)} restantes</span>
+          <span className="font-semibold text-orange-700">Excedente: {fmt(excessFranchise)} pág. — {fmt(remainingExcedente)} restantes</span>
         </div>
         <span className={`font-bold flex items-center gap-1 ${statusColor}`}>
           <StatusIcon size={12}/> {statusLabel}

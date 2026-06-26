@@ -738,15 +738,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       groupMap.get(key)!.copies.push(c);
     }
 
-    // 3. Ensure all printers with registrations appear
-    for (const p of printers) {
-      const key = p.id || '';
-      if (!groupMap.has(key)) {
-        groupMap.set(key, { printer: p, records: [], copies: [], totalConsumo: 0 });
-      }
-    }
-
-    // 4. Sort: printers with records first, then "Controle de Cópias" last
+    // 3. Sort: printers with records first, then "Controle de Cópias" last
     return Array.from(groupMap.values()).sort((a, b) => {
       if (a.printer && !b.printer) return -1;
       if (!a.printer && b.printer) return 1;

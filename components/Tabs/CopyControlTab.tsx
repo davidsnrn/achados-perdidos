@@ -140,6 +140,13 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
     }
   }, [adminGlobalCampusId, user?.campus_id]);
 
+  const compatiblePrinters = useMemo(() => {
+    const fmt = newRecord.format || 'A4';
+    const cm = newRecord.color_mode || 'MONO';
+    const capKey = `supports_${fmt.toLowerCase()}_${cm.toLowerCase()}` as keyof PrinterRegistry;
+    return printers.filter(p => p[capKey] === true);
+  }, [printers, newRecord.format, newRecord.color_mode]);
+
   // Calculate period dates
   const periodRange = useMemo(() => {
     const startDay = config?.start_day || 13;
@@ -1239,7 +1246,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                 className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
               >
                 <option value="">Nenhuma (Controle de Cópias)</option>
-                {printers.map(p => (
+                {compatiblePrinters.map(p => (
                   <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
                 ))}
               </select>

@@ -81,13 +81,12 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
   const maxTotal = franchise + excessFranchise;
   if (maxTotal === 0) return null;
 
-  const franchisePct = Math.min(100, (franchise / maxTotal) * 100);
-  const usedPct      = Math.min(100, (used        / maxTotal) * 100);
-
+  const usedPct = Math.min(100, (used / maxTotal) * 100);
   const isBlocked = used > maxTotal;
-  const inExcess  = !isBlocked && used > franchise;
-  const excess    = Math.max(0, used - franchise);
+  const inExcess = !isBlocked && used > franchise;
   const remaining = maxTotal - used;
+
+  const barColor = isBlocked ? 'bg-red-500' : inExcess ? 'bg-orange-500' : 'bg-emerald-500';
 
   let statusLabel = '';
   let statusColor = 'text-emerald-600';
@@ -115,14 +114,11 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
         <span className={`font-black text-sm ${statusColor}`}>{fmt(used)} / {fmt(maxTotal)}</span>
       </div>
       <div className="relative h-5 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
-        {/* Franchise zone */}
-        <div className="absolute inset-y-0 left-0 bg-emerald-400 transition-all" style={{ width: `${franchisePct}%` }}/>
-        {/* Excess / used zone */}
-        <div className={`absolute inset-y-0 transition-all ${isBlocked ? 'bg-red-500' : inExcess ? 'bg-orange-400' : 'bg-emerald-500'}`}
-          style={{ left: `${franchisePct}%`, width: `${Math.min(100 - franchisePct, usedPct - franchisePct)}%` }}/>
-        {/* Excess limit marker */}
-        <div className="absolute inset-y-0 right-0 bg-red-200/40 border-l-2 border-dashed border-red-400"
-          style={{ width: `${(excessFranchise / maxTotal) * 100}%` }}/>
+        {/* Light background zones */}
+        <div className="absolute inset-y-0 left-0 bg-emerald-200/60" style={{ width: `${(franchise / maxTotal) * 100}%` }}/>
+        <div className="absolute inset-y-0 bg-orange-200/60" style={{ left: `${(franchise / maxTotal) * 100}%`, width: `${(excessFranchise / maxTotal) * 100}%` }}/>
+        {/* Usage bar */}
+        <div className={`absolute inset-y-0 left-0 transition-all ${barColor}`} style={{ width: `${usedPct}%` }}/>
       </div>
       <div className="flex items-center justify-between text-xs text-gray-500">
         <span>Franquia: {fmt(franchise)}</span>
@@ -861,10 +857,11 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             <BarChart3 size={18} className="text-blue-600"/> Uso da Franquia e Excedente
           </h2>
           <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
-            <span className="flex items-center gap-1.5"><span className="w-8 h-3 rounded bg-emerald-500 inline-block"/>Franquia usada</span>
-            <span className="flex items-center gap-1.5"><span className="w-8 h-3 rounded bg-orange-400 inline-block"/>Excedente usado</span>
-            <span className="flex items-center gap-1.5"><span className="w-8 h-3 rounded bg-red-100 inline-block border border-red-300"/>Zona de bloqueio</span>
-            <span className="flex items-center gap-1.5 text-gray-400">│ branco = limite franquia</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-200/60 inline-block border border-emerald-300"/>Franquia</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-200/60 inline-block border border-orange-300"/>Excedente</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block"/>Usado (verde)</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-orange-500 inline-block"/>Usado (laranja)</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block"/>Bloqueado</span>
           </div>
         </div>
         <div className="p-6 space-y-7">

@@ -1473,6 +1473,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                         )}
                       </div>
                     </th>
+                    <th className="px-4 py-3">IP</th>
                     <th className="px-4 py-3">Formatos/Cores</th>
                     <th className="px-4 py-3 text-center">Ações</th>
                   </tr>
@@ -1482,6 +1483,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                     <tr key={p.id} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-bold text-gray-800">{p.local_name}</td>
                       <td className="px-4 py-3 text-gray-500 font-mono">{p.serial_number || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 font-mono">{p.ip_address || '—'}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {p.supports_a4_mono && <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-bold">A4 Mono</span>}

@@ -87,6 +87,8 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
   const isBlocked = used > maxTotal;
   const inExcess = !isBlocked && used > franchise;
   const remaining = maxTotal - used;
+  const remainingFranquia = Math.max(0, franchise - used);
+  const remainingExcedente = Math.max(0, maxTotal - Math.max(used, franchise));
 
   const barColor = isBlocked ? 'bg-red-500' : inExcess ? 'bg-orange-500' : 'bg-emerald-500';
 
@@ -123,7 +125,11 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
         <div className={`absolute inset-y-0 left-0 transition-all ${barColor}`} style={{ width: `${usedPct}%` }}/>
       </div>
       <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>Franquia: {fmt(franchise)}</span>
+        <div className="flex items-center gap-3">
+          <span className="font-semibold text-emerald-700">Franquia: {fmt(remainingFranquia)} restantes</span>
+          <span className="text-gray-300">|</span>
+          <span className="font-semibold text-orange-700">Excedente: {fmt(remainingExcedente)} restantes</span>
+        </div>
         <span className={`font-bold flex items-center gap-1 ${statusColor}`}>
           <StatusIcon size={12}/> {statusLabel}
         </span>

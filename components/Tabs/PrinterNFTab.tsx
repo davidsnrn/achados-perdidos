@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StorageService } from '../../services/storage';
-import { PrinterCounterRecord, PrinterBillingConfig, User, Campus, PrinterRegistry, CopyConfig } from '../../types';
+import { PrinterCounterRecord, PrinterBillingConfig, User, Campus, PrinterRegistry, CopyConfig, CopyRecord } from '../../types';
 import {
   Printer, Plus, Trash2, Pencil, Save, Settings, ChevronLeft, ChevronRight,
   Loader2, FileText, DollarSign, AlertCircle, CheckCircle2, Download, Info,
   BarChart3, AlertTriangle, Ban, Info as InfoIcon, ArrowUpDown, ArrowUp, ArrowDown,
-  Calendar
+  Calendar, ChevronRight as ChevronRightIcon, ArrowRightLeft
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import jsPDF from 'jspdf';
@@ -37,8 +37,8 @@ interface BillingResult {
   excess: number;
   valueF: number;
   valueE: number;
-  isBlocked: boolean;        // total > franchise + excess_franchise
-  blockRemaining: number;    // pages until block (negative = already blocked)
+  isBlocked: boolean;
+  blockRemaining: number;
 }
 
 function calcBilling(records: PrinterCounterRecord[], cfg: PrinterBillingConfig) {
@@ -81,15 +81,14 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
   const maxTotal = franchise + excessFranchise;
   if (maxTotal === 0) return null;
 
-  const franchisePct = Math.min(100, (franchise / maxTotal) * 100);   // where zone 1 ends on bar
-  const usedPct      = Math.min(100, (used        / maxTotal) * 100); // how much is filled
+  const franchisePct = Math.min(100, (franchise / maxTotal) * 100);
+  const usedPct      = Math.min(100, (used        / maxTotal) * 100);
 
   const isBlocked = used > maxTotal;
   const inExcess  = !isBlocked && used > franchise;
   const excess    = Math.max(0, used - franchise);
   const remaining = maxTotal - used;
 
-  // Status
   let statusLabel = '';
   let statusColor = 'text-emerald-600';
   let StatusIcon: React.ElementType = CheckCircle2;
@@ -99,135 +98,78 @@ function FranchiseBar({ label, used, franchise, excessFranchise, dot }: Franchis
     statusColor = 'text-red-700';
     StatusIcon = Ban;
   } else if (inExcess) {
-    statusLabel = `Excedente — ${fmt(excess)} pág. exc. · ${fmt(remaining)} até bloqueio`;
+    statusLabel = `EXCEDENTE — ${fmt(remaining)} pág. restantes`;
     statusColor = 'text-orange-600';
     StatusIcon = AlertCircle;
-  } else if (used / franchise >= 0.85) {
-    statusLabel = `Atenção — ${fmt(franchise - used)} pág. até o limite da franquia`;
-    statusColor = 'text-amber-600';
-    StatusIcon = AlertTriangle;
   } else {
-    statusLabel = `${fmt(franchise - used)} pág. restantes na franquia`;
-    statusColor = 'text-emerald-600';
-    StatusIcon = CheckCircle2;
+    statusLabel = `Dentro da franquia — ${fmt(remaining)} pág. restantes`;
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-bold text-gray-700 flex items-center gap-1.5">
-          <span className={`w-2.5 h-2.5 rounded-full ${dot}`}/>
-          {label}
-        </span>
-        <span className={`font-bold ${statusColor} flex items-center gap-1`}>
-          <StatusIcon size={11}/>
-          {statusLabel}
-        </span>
-      </div>
-
-      {/* Three-zone bar */}
-      <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden flex">
-        {/* Zone 1: Franchise (light gray track → green fill) */}
-        <div className="relative h-full" style={{ width: `${franchisePct}%`, background: '#e2e8f0' }}>
-          <div
-            className="h-full bg-emerald-500 rounded-l-full transition-all duration-700"
-            style={{ width: used <= franchise ? `${Math.min(100,(used/franchise)*100)}%` : '100%' }}
-          />
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          <span className={`w-3 h-3 rounded-full ${dot}`}/>
+          <span className="font-bold text-gray-700">{label}</span>
         </div>
-        {/* Separator line at franchise limit */}
-        <div className="absolute top-0 bottom-0 w-0.5 bg-white/80 z-10" style={{ left: `${franchisePct}%` }}/>
-        {/* Zone 2: Excess (darker track → orange/red fill) */}
-        <div className="relative h-full flex-1 bg-red-100">
-          {inExcess && !isBlocked && (
-            <div
-              className="h-full bg-orange-400 rounded-r-full transition-all duration-700"
-              style={{ width: `${Math.min(100,(excess/excessFranchise)*100)}%` }}
-            />
-          )}
-          {isBlocked && (
-            <div className="h-full w-full bg-red-600 rounded-r-full flex items-center justify-center">
-              <span className="text-white text-xs font-black tracking-widest">BLOQUEADO</span>
-            </div>
-          )}
-        </div>
+        <span className={`font-black text-sm ${statusColor}`}>{fmt(used)} / {fmt(maxTotal)}</span>
       </div>
-
-      {/* Legend row */}
-      <div className="flex items-center justify-between text-xs text-gray-400 font-medium">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>Franquia: {fmt(franchise)} pág.</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-orange-400 inline-block"/>Excedente max: {fmt(excessFranchise)} pág.</span>
-        <span className="font-semibold text-gray-600">Usado: {fmt(used)} / {fmt(maxTotal)} pág. totais</span>
+      <div className="relative h-5 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+        {/* Franchise zone */}
+        <div className="absolute inset-y-0 left-0 bg-emerald-400 transition-all" style={{ width: `${franchisePct}%` }}/>
+        {/* Excess / used zone */}
+        <div className={`absolute inset-y-0 transition-all ${isBlocked ? 'bg-red-500' : inExcess ? 'bg-orange-400' : 'bg-emerald-500'}`}
+          style={{ left: `${franchisePct}%`, width: `${Math.min(100 - franchisePct, usedPct - franchisePct)}%` }}/>
+        {/* Excess limit marker */}
+        <div className="absolute inset-y-0 right-0 bg-red-200/40 border-l-2 border-dashed border-red-400"
+          style={{ width: `${(excessFranchise / maxTotal) * 100}%` }}/>
+      </div>
+      <div className="flex items-center justify-between text-xs text-gray-500">
+        <span>Franquia: {fmt(franchise)}</span>
+        <span className={`font-bold flex items-center gap-1 ${statusColor}`}>
+          <StatusIcon size={12}/> {statusLabel}
+        </span>
       </div>
     </div>
   );
 }
 
 // ─── Radial Gauge ─────────────────────────────────────────────────────────────
-function RadialGauge({ used, franchise, excessFranchise, label }: { used:number; franchise:number; excessFranchise:number; label:string }) {
+interface RadialGaugeProps { used: number; franchise: number; excessFranchise: number; label: string; }
+function RadialGauge({ used, franchise, excessFranchise, label }: RadialGaugeProps) {
   const maxTotal = franchise + excessFranchise;
-  const p = maxTotal > 0 ? Math.min(100, Math.round((used / maxTotal) * 100)) : 0;
-  const isBlocked = used > maxTotal;
-  const r = 34;
-  const circ = 2 * Math.PI * r;
-  const franchiseLine = maxTotal > 0 ? (franchise / maxTotal) : 0;
-  const trackColor = isBlocked ? '#dc2626' : used > franchise ? '#f97316' : used / franchise >= 0.85 ? '#f59e0b' : '#10b981';
+  const pct = maxTotal > 0 ? Math.min(100, Math.round((used / maxTotal) * 100)) : 0;
+  const r = 36, c = 2 * Math.PI * r, offset = c - (pct / 100) * c;
+  const color = pct > 100 ? '#ef4444' : pct > 80 ? '#f97316' : '#10b981';
 
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="relative w-20 h-20">
-        <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
-          {/* Full track */}
-          <circle cx="40" cy="40" r={r} fill="none" stroke="#f1f5f9" strokeWidth="7"/>
-          {/* Franchise zone track (slightly different shade) */}
-          <circle cx="40" cy="40" r={r} fill="none" stroke="#dcfce7" strokeWidth="7"
-            strokeDasharray={`${franchiseLine * circ} ${circ}`} strokeDashoffset={0}/>
-          {/* Used fill */}
-          <circle cx="40" cy="40" r={r} fill="none" stroke={trackColor} strokeWidth="7"
-            strokeDasharray={circ} strokeDashoffset={circ - (p / 100) * circ}
-            strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.8s ease' }}/>
-          {/* Franchise separator tick */}
-          <line x1="40" y1="6" x2="40" y2="12" stroke="white" strokeWidth="2"
-            style={{ transformOrigin:'40px 40px', transform:`rotate(${franchiseLine*360}deg)` }}/>
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          {isBlocked
-            ? <Ban size={18} className="text-red-600"/>
-            : <span className="text-sm font-black text-gray-800 leading-none">{p}%</span>}
-        </div>
-      </div>
-      <div className="text-center">
-        <p className="text-xs font-bold text-gray-700">{label}</p>
-        <p className="text-xs text-gray-400">{fmt(used)}<span className="text-gray-300"> / {fmt(maxTotal)}</span></p>
-      </div>
+    <div className="flex flex-col items-center gap-1 w-28">
+      <svg width="80" height="80" viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r={r} fill="none" stroke="#f1f5f9" strokeWidth="6"/>
+        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="6"
+          strokeDasharray={c} strokeDashoffset={offset}
+          strokeLinecap="round" transform="rotate(-90 40 40)" className="transition-all duration-700"/>
+        <text x="40" y="44" textAnchor="middle" className="text-sm font-black fill-gray-800">{pct}%</text>
+      </svg>
+      <p className="text-[10px] font-bold text-gray-500 text-center leading-tight">{label}</p>
     </div>
   );
 }
 
+// ─── EMPTY FORMS ──────────────────────────────────────────────────────────────
 const EMPTY_COUNTER_FORM = {
-  printer_id: '',
-  local_name: '',
-  serial_number: '',
-  ip_address: '',
-  model: '',
-  format: 'A4' as 'A4'|'A3',
-  color_mode: 'MONO' as 'MONO'|'POLI',
-  counter_prev: 0,
-  counter_curr: 0,
-  formMonth: new Date().getMonth(),
-  formYear: new Date().getFullYear(),
+  printer_id: '', local_name: '', serial_number: '', ip_address: '', model: '',
+  format: 'A4' as 'A4'|'A3', color_mode: 'MONO' as 'MONO'|'POLI',
+  counter_prev: 0, counter_curr: 0,
+  formMonth: new Date().getMonth(), formYear: new Date().getFullYear(),
 };
 
 const EMPTY_PRINTER_FORM = {
-  local_name: '',
-  serial_number: '',
-  ip_address: '',
-  model: '',
-  supports_a4_mono: true,
-  supports_a4_poli: false,
-  supports_a3_mono: false,
-  supports_a3_poli: false,
+  local_name: '', serial_number: '', ip_address: '', model: '',
+  supports_a4_mono: true, supports_a4_poli: false, supports_a3_mono: false, supports_a3_poli: false,
 };
 
+// ─── COMPONENT ────────────────────────────────────────────────────────────────
 export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, adminGlobalCampusId }) => {
   const campusId = adminGlobalCampusId || user.campus_id || '';
 
@@ -243,12 +185,14 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const [printers, setPrinters]         = useState<PrinterRegistry[]>([]);
   const [cfg, setCfg]                   = useState<PrinterBillingConfig>({ campus_id: campusId, ...DEFAULT_CONFIG });
   const [loading, setLoading]           = useState(false);
-  
+  const [copyRecords, setCopyRecords]   = useState<CopyRecord[]>([]);
+
   // Modals
   const [showCounterForm, setShowCounterForm]   = useState(false);
   const [showConfig, setShowConfig]             = useState(false);
   const [showPrintersManager, setShowPrintersManager] = useState(false);
   const [showPrinterModal, setShowPrinterModal] = useState(false);
+  const [showReallocateModal, setShowReallocateModal] = useState(false);
 
   // Editing states
   const [editingRecord, setEditingRecord]   = useState<PrinterCounterRecord | null>(null);
@@ -259,12 +203,27 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const [printerForm, setPrinterForm] = useState(EMPTY_PRINTER_FORM);
   const [cfgDraft, setCfgDraft]       = useState<PrinterBillingConfig>({ campus_id: campusId, ...DEFAULT_CONFIG });
 
+  // Reallocation
+  const [reallocateTargetPrinterId, setReallocateTargetPrinterId] = useState('');
+
   // Progress/Saving states
   const [savingCounter, setSavingCounter] = useState(false);
   const [savingPrinter, setSavingPrinter] = useState(false);
   const [savingCfg, setSavingCfg]         = useState(false);
   const [deletingRecordId, setDeletingRecordId] = useState<string | null>(null);
   const [deletingPrinterId, setDeletingPrinterId] = useState<string | null>(null);
+
+  // Accordion state: which printers are expanded
+  const [expandedPrinters, setExpandedPrinters] = useState<Set<string>>(new Set());
+
+  const togglePrinterExpand = (key: string) => {
+    setExpandedPrinters(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const loadData = useCallback(async () => {
     if (!campusId) return;
@@ -306,6 +265,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         setCfg(b);
         setCfgDraft(b);
       }
+
+      // Load copy records for this period
+      const copies = await StorageService.getCopyRecordsByPeriod(campusId, period);
+      setCopyRecords(copies);
     } catch (e) {
       console.error('Erro ao carregar dados NF:', e);
     } finally {
@@ -315,7 +278,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Sync period with copy config (same accounting period as Controle de Cópias)
+  // Sync period with copy config
   useEffect(() => {
     if (!copyConfig || hasInitialized) return;
     const startDay = copyConfig.start_day || 13;
@@ -355,7 +318,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     return 0;
   });
 
-  // Load records from the previous period (for disabling printers without prior registration)
   const loadPrevPeriodRecords = useCallback(async (m: number, y: number) => {
     if (!campusId) return;
     try {
@@ -475,6 +437,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       }
 
       setShowCounterForm(false);
+      setEditingRecord(null);
       await loadData();
     } catch (err: any) {
       alert(err.message || 'Erro ao salvar contador.');
@@ -483,16 +446,58 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     }
   };
 
-  const handleDeleteCounter = async (id: string) => {
-    if (!confirm('Deseja remover este registro de contador?')) return;
+  const handleDeleteCounter = async (id: string, isCopies: boolean = false) => {
+    if (!confirm(isCopies
+      ? 'Deseja remover este(s) registro(s) de cópia? Eles serão removidos também do Controle de Cópias.'
+      : 'Deseja remover este registro de contador?')) return;
     setDeletingRecordId(id);
     try {
-      await StorageService.deletePrinterCounterRecord(id);
+      if (isCopies) {
+        // Cascade delete: remove from copy_records too
+        await StorageService.deleteCopyRecordsByPeriodAndPrinter(campusId, period, null);
+      } else {
+        await StorageService.deletePrinterCounterRecord(id);
+      }
       await loadData();
     } catch {
-      alert('Erro ao excluir registro de contador.');
+      alert('Erro ao excluir registro.');
     } finally {
       setDeletingRecordId(null);
+    }
+  };
+
+  const handleDeleteCopiesCascade = async (printerId: string | null) => {
+    if (!confirm('Deseja remover todos os registros de cópia? Eles serão removidos também do Controle de Cópias.')) return;
+    try {
+      await StorageService.deleteCopyRecordsByPeriodAndPrinter(campusId, period, printerId);
+      await loadData();
+    } catch {
+      alert('Erro ao excluir registros de cópia.');
+    }
+  };
+
+  const handleReallocateCopies = async () => {
+    if (!reallocateTargetPrinterId) {
+      alert('Selecione uma impressora de destino.');
+      return;
+    }
+    try {
+      await StorageService.reallocateCopiesToPrinter(campusId, period, reallocateTargetPrinterId);
+      setShowReallocateModal(false);
+      setReallocateTargetPrinterId('');
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao realocar cópias.');
+    }
+  };
+
+  const handleUnlinkCopies = async (printerId: string) => {
+    if (!confirm('Deseja desvincular as cópias desta impressora? Elas voltarão para "Controle de Cópias" genérico.')) return;
+    try {
+      await StorageService.unlinkCopiesFromPrinter(campusId, period, printerId);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao desvincular cópias.');
     }
   };
 
@@ -552,7 +557,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     }
   };
 
-  // Find record for same printer+format+color in an adjacent period
   const findAdjacent = (printerId: string, fmt: string, color: string, month: number, year: number, dir: -1 | 1) => {
     const d = new Date(year, month + dir, 1);
     const adjPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -599,7 +603,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     return fallbackPrev;
   };
 
-  // Change of selected printer in counter record modal
   const handleSelectPrinter = (pId: string) => {
     const prn = printers.find(p => p.id === pId);
     if (!prn) {
@@ -614,7 +617,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       return;
     }
 
-    // Determine first available type based on printer capabilities
     let defaultFormat: 'A4'|'A3' = 'A4';
     let defaultColor: 'MONO'|'POLI' = 'MONO';
 
@@ -700,9 +702,58 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     { key:'a3_poli' as CatKey, label:'A3 Policromático (Colorido)' },
   ];
 
-  // Helper to check if a specific printer supports a type
   const activePrinter = printers.find(p => p.id === counterForm.printer_id);
   const activeCampusName = campuses.find(c => c.id === campusId)?.name || campusId;
+
+  // ─── GROUP RECORDS BY PRINTER ─────────────────────────────────────────────
+  interface PrinterGroup {
+    printer: PrinterRegistry | null; // null = "Controle de Cópias" genérico
+    records: PrinterCounterRecord[];
+    copies: CopyRecord[];
+    totalConsumo: number;
+  }
+
+  const printerGroups = React.useMemo(() => {
+    const groupMap = new Map<string, PrinterGroup>();
+
+    // 1. Group counter records by printer_id
+    for (const r of records) {
+      const key = r.printer_id || '__copies__';
+      if (!groupMap.has(key)) {
+        const printer = r.printer_id ? printers.find(p => p.id === r.printer_id) || null : null;
+        groupMap.set(key, { printer, records: [], copies: [], totalConsumo: 0 });
+      }
+      const group = groupMap.get(key)!;
+      group.records.push(r);
+      group.totalConsumo += Math.max(0, r.counter_curr - r.counter_prev);
+    }
+
+    // 2. Add copy records to their respective printer groups
+    for (const c of copyRecords) {
+      const key = c.printer_id || '__copies__';
+      if (!groupMap.has(key)) {
+        const printer = c.printer_id ? printers.find(p => p.id === c.printer_id) || null : null;
+        groupMap.set(key, { printer, records: [], copies: [], totalConsumo: 0 });
+      }
+      groupMap.get(key)!.copies.push(c);
+    }
+
+    // 3. Ensure all printers with registrations appear
+    for (const p of printers) {
+      const key = p.id || '';
+      if (!groupMap.has(key)) {
+        groupMap.set(key, { printer: p, records: [], copies: [], totalConsumo: 0 });
+      }
+    }
+
+    // 4. Sort: printers with records first, then "Controle de Cópias" last
+    return Array.from(groupMap.values()).sort((a, b) => {
+      if (a.printer && !b.printer) return -1;
+      if (!a.printer && b.printer) return 1;
+      if (a.printer && b.printer) return (a.printer.local_name || '').localeCompare(b.printer.local_name || '');
+      return 0;
+    });
+  }, [records, copyRecords, printers]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -726,7 +777,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             <Settings size={16}/> Configurar
           </button>
           <button onClick={() => setShowPrintersManager(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-bold text-sm hover:bg-gray-50 transition-all shadow-sm">
-            <Printer size={16}/> Impressoras Cadastradas
+            <Printer size={16}/> Impressoras
           </button>
           <button onClick={openNewCounter} className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm transition-all shadow-md">
             <Plus size={16}/> Novo Contador
@@ -763,7 +814,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-400 rounded-2xl text-red-800 animate-pulse">
           <Ban size={24} className="shrink-0 text-red-600"/>
           <div>
-            <p className="font-black text-base">⚠ LIMITE DE IMPRESSÃO ATINGIDO</p>
+            <p className="font-black text-base">LIMITE DE IMPRESSÃO ATINGIDO</p>
             <p className="text-sm font-medium">Um ou mais tipos de impressão ultrapassaram o teto de excedente. A impressão deve ser bloqueada imediatamente.</p>
           </div>
         </div>
@@ -795,7 +846,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
           ))}
         </div>
 
-        {/* Radial gauges */}
         <div className="px-6 pb-6 border-t border-gray-50 pt-4">
           <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">% do Total Máximo Usado (Franquia + Excedente)</p>
           <div className="flex flex-wrap justify-around gap-4">
@@ -827,145 +877,234 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
               </div>
               <p className={`text-2xl font-black ${blocked ? 'text-red-700' : 'text-gray-800'}`}>{fmt(cat.data.total)}</p>
               <p className="text-xs text-gray-400 font-medium">pág. consumidas</p>
-              <p className="text-xs text-gray-400">Franquia: <strong>{fmt(cat.franchise)}</strong> + Exc.max: <strong>{fmt(cat.excessFranchise)}</strong></p>
-              <p className="text-base font-bold text-gray-700">{BRL(cat.data.valueF + cat.data.valueE)}</p>
-              {cat.data.excess > 0 && (
-                <p className={`text-xs font-semibold flex items-center gap-1 ${blocked ? 'text-red-600' : 'text-orange-500'}`}>
-                  {blocked ? <Ban size={10}/> : <AlertCircle size={10}/>}
-                  {fmt(cat.data.excess)} pág. excedentes
-                </p>
-              )}
             </div>
           );
         })}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-lg p-4 text-white space-y-1">
-          <p className="text-xs font-black uppercase tracking-widest opacity-60">Valor Total NF</p>
-          <p className="text-2xl font-black">{BRL(billing.totalValue)}</p>
-          {billing.totalExcess > 0 && (
-            <p className="text-xs opacity-70 flex items-center gap-1">
-              <AlertCircle size={10}/> +{fmt(billing.totalExcess)} exc.
-            </p>
-          )}
+        <div className="rounded-2xl border border-slate-200 bg-slate-800 shadow-md p-4 space-y-1 text-white">
+          <p className="text-xs font-black uppercase tracking-widest text-white/40">Total Geral</p>
+          <p className="text-2xl font-black">{fmt(billing.a4Mono.total + billing.a4Poli.total + billing.a3Mono.total + billing.a3Poli.total)}</p>
+          <p className="text-xs text-white/50 font-medium">páginas no período</p>
         </div>
       </div>
 
-      {/* Excess Warning */}
-      {billing.totalExcess > 0 && !billing.anyBlocked && (
-        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
-          <AlertTriangle size={20} className="shrink-0"/>
-          <span className="font-semibold text-sm">
-            Cobrança de excedente: <strong>{fmt(billing.totalExcess)} páginas</strong> acima da franquia →
-            custo adicional de <strong>{BRL(billing.excessValue)}</strong>
-          </span>
-        </div>
-      )}
-
-      {/* Records Table */}
+      {/* ── ACCORDION: Impressoras + Cópias ─────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-bold text-gray-800 flex items-center gap-2"><Printer size={18} className="text-slate-600"/> Contadores de Impressoras</h2>
-          <span className="text-sm text-gray-400 font-medium">{records.length} lançamento{records.length!==1?'s':''}</span>
-        </div>
-
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-4">
-            <Loader2 className="animate-spin text-slate-600" size={40}/>
-            <p className="text-gray-500 font-medium">Carregando...</p>
-          </div>
-        ) : records.length === 0 ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3 text-gray-400">
-            <Printer size={48} strokeWidth={1}/>
-            <p className="font-medium">Nenhum contador para este período.</p>
-            <button onClick={openNewCounter} className="mt-2 flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-bold rounded-xl hover:bg-slate-700 transition-all">
-              <Plus size={14}/> Novo Lançamento
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+          <h2 className="font-bold text-gray-800 flex items-center gap-2">
+            <Printer size={18} className="text-slate-600"/> Registros por Impressora
+          </h2>
+          <div className="flex gap-2">
+            <button onClick={() => {
+              const allKeys = printerGroups.map((_, i) => `group-${i}`);
+              setExpandedPrinters(prev => prev.size === allKeys.length ? new Set() : new Set(allKeys));
+            }} className="text-xs font-bold text-slate-600 hover:text-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-all">
+              {expandedPrinters.size === printerGroups.length ? 'Recolher Tudo' : 'Expandir Tudo'}
+            </button>
+            <button onClick={() => setShowReallocateModal(true)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition-all">
+              <ArrowRightLeft size={14}/> Realocar Cópias
             </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-400 text-xs font-black uppercase tracking-widest">
-                <tr>
-                  <th className="px-5 py-4">Nome Local</th>
-                  <th className="px-5 py-4">N° Série</th>
-                  <th className="px-5 py-4">IP</th>
-                  <th className="px-5 py-4">Modelo</th>
-                  <th className="px-5 py-4 text-center">Formato</th>
-                  <th className="px-5 py-4 text-center">Cor</th>
-                  <th className="px-5 py-4 text-right">Ant.</th>
-                  <th className="px-5 py-4 text-right">Atual</th>
-                  <th className="px-5 py-4 text-right">Consumo</th>
-                  <th className="px-5 py-4 text-right">Status</th>
-                  <th className="px-5 py-4 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {records.map(r => {
-                  const consumo = Math.max(0, r.counter_curr - r.counter_prev);
-                  const catMap = {
-                    'A4-MONO': { fq: cfg.a4_mono_franchise, ef: cfg.a4_mono_excess_franchise },
-                    'A4-POLI': { fq: cfg.a4_poli_franchise, ef: cfg.a4_poli_excess_franchise },
-                    'A3-MONO': { fq: cfg.a3_mono_franchise, ef: cfg.a3_mono_excess_franchise },
-                    'A3-POLI': { fq: cfg.a3_poli_franchise, ef: cfg.a3_poli_excess_franchise },
-                  };
-                  const { fq, ef } = catMap[`${r.format}-${r.color_mode}` as keyof typeof catMap] || { fq:1, ef:0 };
-                  const maxT = fq + ef;
-                  const p = maxT > 0 ? Math.min(100, Math.round((consumo / maxT) * 100)) : 0;
-                  const rowBlocked = consumo > maxT;
-                  const rowExcess  = !rowBlocked && consumo > fq;
+        </div>
 
-                  return (
-                    <tr key={r.id} className={`border-t border-gray-50 transition-colors ${r.printer_id === null && r.local_name === 'Controle de Cópias' ? 'bg-indigo-50/60' : rowBlocked ? 'bg-red-50' : 'hover:bg-slate-50/50'}`}>
-                      <td className="px-5 py-4 font-bold text-gray-800">
-                        {r.printer_id === null && r.local_name === 'Controle de Cópias' ? (
-                          <span className="flex items-center gap-2">
+        {printerGroups.length === 0 ? (
+          <div className="p-10 text-center text-gray-400 text-sm">Nenhum registro encontrado.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {printerGroups.map((group, idx) => {
+              const isExpanded = expandedPrinters.has(`group-${idx}`);
+              const isCopiesOnly = !group.printer && group.records.length === 0 && group.copies.length > 0;
+              const hasContent = group.records.length > 0 || group.copies.length > 0;
+              const grupoConsumo = group.totalConsumo;
+              const grupoCopiaTotal = group.copies.reduce((s, c) => s + (c.quantity || 0), 0);
+
+              return (
+                <div key={`group-${idx}`} className={`${isCopiesOnly ? 'bg-indigo-50/40' : ''}`}>
+                  {/* Accordion Header */}
+                  <button
+                    onClick={() => hasContent && togglePrinterExpand(`group-${idx}`)}
+                    className={`w-full flex items-center gap-3 px-5 py-4 text-left transition-colors ${
+                      isExpanded ? 'bg-slate-50' : 'hover:bg-gray-50'
+                    } ${!hasContent ? 'opacity-60 cursor-default' : ''}`}
+                  >
+                    {/* Chevron */}
+                    <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                      <ChevronRightIcon size={18}/>
+                    </span>
+
+                    {/* Printer info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {isCopiesOnly ? (
+                          <>
                             <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded">CÓPIAS</span>
-                            {r.local_name}
-                          </span>
-                        ) : r.local_name}
-                      </td>
-                      <td className="px-5 py-4 text-gray-500 font-mono text-xs">{r.serial_number||'—'}</td>
-                      <td className="px-5 py-4 text-gray-500 font-mono text-xs">{r.ip_address||'—'}</td>
-                      <td className="px-5 py-4 text-gray-700">{r.model||'—'}</td>
-                      <td className="px-5 py-4 text-center">
-                        <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700">{r.format}</span>
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${r.color_mode==='MONO'?'bg-gray-100 text-gray-700':'bg-blue-50 text-blue-700'}`}>{r.color_mode}</span>
-                      </td>
-                      <td className="px-5 py-4 text-right text-gray-500 font-mono">{fmt(r.counter_prev)}</td>
-                      <td className="px-5 py-4 text-right text-gray-500 font-mono">{fmt(r.counter_curr)}</td>
-                      <td className="px-5 py-4 text-right font-black text-slate-800 font-mono">{fmt(consumo)}</td>
-                      <td className="px-5 py-4 text-right">
-                        {rowBlocked
-                          ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-black rounded-lg"><Ban size={10}/>BLOQUEADO</span>
-                          : rowExcess
-                          ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-600 text-xs font-black rounded-lg"><AlertCircle size={10}/>EXCEDENTE {p}%</span>
-                          : <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg"><CheckCircle2 size={10}/>{p}%</span>}
-                      </td>
-                      <td className="px-5 py-4 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button onClick={() => openEditCounter(r)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"><Pencil size={14}/></button>
-                          <button onClick={() => handleDeleteCounter(r.id)} disabled={deletingRecordId===r.id} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors disabled:opacity-40">
-                            {deletingRecordId===r.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
-                          </button>
+                            <span className="font-bold text-gray-800">Controle de Cópias</span>
+                          </>
+                        ) : group.printer ? (
+                          <>
+                            <Printer size={16} className="text-slate-600 shrink-0"/>
+                            <span className="font-bold text-gray-800">{group.printer.local_name}</span>
+                            {group.printer.ip_address && <span className="text-xs text-gray-400 font-mono">{group.printer.ip_address}</span>}
+                            {group.printer.model && <span className="text-xs text-gray-400 hidden sm:inline">· {group.printer.model}</span>}
+                          </>
+                        ) : (
+                          <span className="font-bold text-gray-800">Sem impressora vinculada</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex items-center gap-4 text-xs font-semibold text-gray-500 shrink-0">
+                      {group.records.length > 0 && (
+                        <span>{group.records.length} lançamento(s)</span>
+                      )}
+                      {grupoCopiaTotal > 0 && (
+                        <span className="text-indigo-600">{fmt(grupoCopiaTotal)} cópia(s)</span>
+                      )}
+                      {grupoConsumo > 0 && (
+                        <span className="font-mono font-black text-slate-800">{fmt(grupoConsumo)} pág.</span>
+                      )}
+                      {!hasContent && (
+                        <span className="text-gray-400 italic">sem registros</span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Accordion Content */}
+                  {isExpanded && hasContent && (
+                    <div className="border-t border-gray-100">
+                      {/* Counter records */}
+                      {group.records.length > 0 && (
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50/80 text-gray-400 text-xs font-black uppercase tracking-widest">
+                            <tr>
+                              <th className="px-5 py-3 text-left">Formato</th>
+                              <th className="px-5 py-3 text-left">Cor</th>
+                              <th className="px-5 py-3 text-right">Cont. Ant.</th>
+                              <th className="px-5 py-3 text-right">Cont. Atual</th>
+                              <th className="px-5 py-3 text-right">Consumo</th>
+                              <th className="px-5 py-3 text-right">Status</th>
+                              <th className="px-5 py-3 text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {group.records.map(r => {
+                              const consumo = Math.max(0, r.counter_curr - r.counter_prev);
+                              const catMap = {
+                                'A4-MONO': { fq: cfg.a4_mono_franchise, ef: cfg.a4_mono_excess_franchise },
+                                'A4-POLI': { fq: cfg.a4_poli_franchise, ef: cfg.a4_poli_excess_franchise },
+                                'A3-MONO': { fq: cfg.a3_mono_franchise, ef: cfg.a3_mono_excess_franchise },
+                                'A3-POLI': { fq: cfg.a3_poli_franchise, ef: cfg.a3_poli_excess_franchise },
+                              };
+                              const { fq, ef } = catMap[`${r.format}-${r.color_mode}` as keyof typeof catMap] || { fq: 1, ef: 0 };
+                              const maxT = fq + ef;
+                              const p = maxT > 0 ? Math.min(100, Math.round((consumo / maxT) * 100)) : 0;
+                              const rowBlocked = consumo > maxT;
+                              const rowExcess = !rowBlocked && consumo > fq;
+
+                              return (
+                                <tr key={r.id} className={`border-t border-gray-50 ${rowBlocked ? 'bg-red-50' : 'hover:bg-slate-50/50'}`}>
+                                  <td className="px-5 py-3 font-bold text-gray-700">{r.format}</td>
+                                  <td className="px-5 py-3">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${r.color_mode === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'}`}>{r.color_mode}</span>
+                                  </td>
+                                  <td className="px-5 py-3 text-right text-gray-500 font-mono">{fmt(r.counter_prev)}</td>
+                                  <td className="px-5 py-3 text-right text-gray-500 font-mono">{fmt(r.counter_curr)}</td>
+                                  <td className="px-5 py-3 text-right font-black text-slate-800 font-mono">{fmt(consumo)}</td>
+                                  <td className="px-5 py-3 text-right">
+                                    {rowBlocked
+                                      ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs font-black rounded-lg"><Ban size={10}/>BLOQUEADO</span>
+                                      : rowExcess
+                                      ? <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-600 text-xs font-black rounded-lg"><AlertCircle size={10}/>EXCEDENTE {p}%</span>
+                                      : <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg"><CheckCircle2 size={10}/>{p}%</span>}
+                                  </td>
+                                  <td className="px-5 py-3 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button onClick={() => openEditCounter(r)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"><Pencil size={14}/></button>
+                                      <button onClick={() => handleDeleteCounter(r.id)} disabled={deletingRecordId === r.id} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors disabled:opacity-40">
+                                        {deletingRecordId === r.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+
+                      {/* Copy records under this printer */}
+                      {group.copies.length > 0 && (
+                        <div className={`${group.records.length > 0 ? 'border-t border-indigo-100' : ''}`}>
+                          <div className="px-5 py-2 bg-indigo-50/50 flex items-center justify-between">
+                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-indigo-500"/> Cópias Vinculadas
+                            </span>
+                            <div className="flex gap-1">
+                              {group.printer && (
+                                <button onClick={() => handleUnlinkCopies(group.printer!.id!)} className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 hover:bg-white transition-all">
+                                  Desvincular
+                                </button>
+                              )}
+                              <button onClick={() => handleDeleteCopiesCascade(group.printer?.id || null)} className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-200 hover:bg-white transition-all">
+                                Remover
+                              </button>
+                            </div>
+                          </div>
+                          <table className="w-full text-sm">
+                            <thead className="bg-indigo-50/30 text-indigo-400 text-xs font-black uppercase tracking-widest">
+                              <tr>
+                                <th className="px-5 py-2 text-left">Pessoa</th>
+                                <th className="px-5 py-2 text-left">Finalidade</th>
+                                <th className="px-5 py-2 text-left">Formato</th>
+                                <th className="px-5 py-2 text-right">Qtd.</th>
+                                <th className="px-5 py-2 text-left">Data</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.copies.map(c => (
+                                <tr key={c.id} className="border-t border-indigo-100 hover:bg-indigo-50/30">
+                                  <td className="px-5 py-2">
+                                    <p className="font-bold text-gray-700 text-xs">{c.person_name}</p>
+                                    <p className="text-[10px] text-gray-400 font-mono">{c.person_matricula}</p>
+                                  </td>
+                                  <td className="px-5 py-2">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${c.print_type === 'PROVA' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                      {c.print_type}
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-2">
+                                    <span className="text-xs text-gray-600">{c.format} · {c.color_mode === 'MONO' ? 'P&B' : 'Cor'}</span>
+                                  </td>
+                                  <td className="px-5 py-2 text-right font-black text-indigo-700 font-mono">{fmt(c.quantity)}</td>
+                                  <td className="px-5 py-2 text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot className="bg-indigo-100/50">
+                              <tr>
+                                <td colSpan={3} className="px-5 py-2 text-xs font-black text-indigo-700 text-right uppercase">Total Cópias:</td>
+                                <td className="px-5 py-2 text-right font-black text-indigo-800 font-mono">{fmt(grupoCopiaTotal)}</td>
+                                <td/>
+                              </tr>
+                            </tfoot>
+                          </table>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot className="bg-slate-800 text-white">
-                <tr>
-                  <td colSpan={8} className="px-5 py-4 font-black text-right text-sm uppercase tracking-widest">Total Consumo</td>
-                  <td className="px-5 py-4 text-right font-black text-xl font-mono">
-                    {fmt(records.reduce((s,r) => s+Math.max(0,r.counter_curr-r.counter_prev),0))}
-                  </td>
-                  <td colSpan={2}/>
-                </tr>
-              </tfoot>
-            </table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
+
+        {/* Total footer */}
+        <div className="bg-slate-800 text-white px-5 py-3 flex items-center justify-between text-sm">
+          <span className="font-black uppercase tracking-widest">Total Consumo</span>
+          <span className="font-black text-xl font-mono">
+            {fmt(records.reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0))}
+          </span>
+        </div>
       </div>
 
       {/* Billing Detail */}
@@ -1031,28 +1170,22 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         </div>
       )}
 
-      {/* ── Modal: Novo Contador (Leitura) ───────────────────────────────────── */}
-      <Modal isOpen={showCounterForm} onClose={() => setShowCounterForm(false)} title={`${editingRecord ? 'Editar' : 'Novo'} Lançamento — ${activeCampusName}`}>
+      {/* ── Modal: Novo Contador (EDITAR LIBERADO) ──────────────────────────── */}
+      <Modal isOpen={showCounterForm} onClose={() => { setShowCounterForm(false); setEditingRecord(null); }} title={`${editingRecord ? 'Editar' : 'Novo'} Lançamento — ${activeCampusName}`}>
         <form onSubmit={handleSaveCounter} className="space-y-4 p-1">
-          {editingRecord && (
-            <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-semibold">
-              <AlertCircle size={16} className="shrink-0"/>
-              Este registro já foi salvo e não pode ser alterado.
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className={labelCls}>Período (Competência) *</label>
               <div className="flex items-center gap-2">
-                <button type="button" disabled={!!editingRecord} onClick={() => setCounterForm(f => {
+                <button type="button" onClick={() => setCounterForm(f => {
                   const nm = f.formMonth === 0 ? 11 : f.formMonth - 1;
                   const ny = f.formMonth === 0 ? f.formYear - 1 : f.formYear;
                   const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, ny);
                   const cc = cp > 0 ? recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, ny, cp) : 0;
                   loadPrevPeriodRecords(nm, ny);
                   return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: cc};
-                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft size={16}/></button>
-                <select className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.formMonth} onChange={e => {
+                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"><ChevronLeft size={16}/></button>
+                <select className={inputCls} value={counterForm.formMonth} onChange={e => {
                   const nm = Number(e.target.value);
                   loadPrevPeriodRecords(nm, counterForm.formYear);
                   setCounterForm(f => {
@@ -1063,7 +1196,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 }}>
                   {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
                 </select>
-                <select className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.formYear} onChange={e => {
+                <select className={inputCls} value={counterForm.formYear} onChange={e => {
                   const ny = Number(e.target.value);
                   loadPrevPeriodRecords(counterForm.formMonth, ny);
                   setCounterForm(f => {
@@ -1077,38 +1210,32 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                     return <option key={y} value={y}>{y}</option>;
                   })}
                 </select>
-                <button type="button" disabled={!!editingRecord} onClick={() => setCounterForm(f => {
+                <button type="button" onClick={() => setCounterForm(f => {
                   const nm = f.formMonth === 11 ? 0 : f.formMonth + 1;
                   const ny = f.formMonth === 11 ? f.formYear + 1 : f.formYear;
                   const cp = recalcCounterPrev(f.printer_id, f.format, f.color_mode, nm, ny);
                   const cc = cp > 0 ? recalcCounterCurr(f.printer_id, f.format, f.color_mode, nm, ny, cp) : 0;
                   loadPrevPeriodRecords(nm, ny);
                   return {...f, formMonth: nm, formYear: ny, counter_prev: cp, counter_curr: cc};
-                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight size={16}/></button>
+                })} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-all"><ChevronRight size={16}/></button>
               </div>
             </div>
             <div className="col-span-2">
               <label className={labelCls}>Impressora (Nome Local) *</label>
-              {editingRecord ? (
-                <input disabled className={`${inputCls} bg-gray-50`} value={counterForm.local_name} />
-              ) : (
-                <>
-                  <select required className={inputCls} value={counterForm.printer_id} onChange={e => handleSelectPrinter(e.target.value)}>
-                    <option value="">Selecione uma impressora...</option>
-                    {printers.map(p => (
-                      <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
-                    ))}
-                  </select>
-                  {counterForm.printer_id && (() => {
-                    const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
-                    if (mostRecent) {
-                      const [y, m] = mostRecent.period.split('-').map(Number);
-                      return <p className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1"><CheckCircle2 size={12}/>Último registro em {MONTHS[m - 1]}/{y} — contador anterior será preenchido automaticamente.</p>;
-                    }
-                    return <p className="text-xs text-amber-600 font-semibold mt-1 flex items-center gap-1"><AlertCircle size={12}/>Sem registro anterior — cadastro inicial, preencha os contadores manualmente.</p>;
-                  })()}
-                </>
-              )}
+              <select required className={inputCls} value={counterForm.printer_id} onChange={e => handleSelectPrinter(e.target.value)}>
+                <option value="">Selecione uma impressora...</option>
+                {printers.map(p => (
+                  <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
+                ))}
+              </select>
+              {counterForm.printer_id && (() => {
+                const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
+                if (mostRecent) {
+                  const [y, m] = mostRecent.period.split('-').map(Number);
+                  return <p className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1"><CheckCircle2 size={12}/>Último registro em {MONTHS[m - 1]}/{y} — contador anterior será preenchido automaticamente.</p>;
+                }
+                return <p className="text-xs text-amber-600 font-semibold mt-1 flex items-center gap-1"><AlertCircle size={12}/>Sem registro anterior — cadastro inicial, preencha os contadores manualmente.</p>;
+              })()}
             </div>
 
             {counterForm.local_name && (
@@ -1122,7 +1249,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
                 <div>
                   <label className={labelCls}>Formato *</label>
-                  <select required className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.format} onChange={e => {
+                  <select required className={inputCls} value={counterForm.format} onChange={e => {
                     const newFmt = e.target.value as 'A4'|'A3';
                     const cPrev = recalcCounterPrev(counterForm.printer_id, newFmt, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
                     const cCurr = cPrev > 0 ? recalcCounterCurr(counterForm.printer_id, newFmt, counterForm.color_mode, counterForm.formMonth, counterForm.formYear, cPrev) : 0;
@@ -1135,7 +1262,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 
                 <div>
                   <label className={labelCls}>Cor *</label>
-                  <select required className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.color_mode} onChange={e => {
+                  <select required className={inputCls} value={counterForm.color_mode} onChange={e => {
                     const newColor = e.target.value as 'MONO'|'POLI';
                     const cPrev = recalcCounterPrev(counterForm.printer_id, counterForm.format, newColor, counterForm.formMonth, counterForm.formYear);
                     const cCurr = cPrev > 0 ? recalcCounterCurr(counterForm.printer_id, counterForm.format, newColor, counterForm.formMonth, counterForm.formYear, cPrev) : 0;
@@ -1158,7 +1285,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                     {(() => {
                       const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.formMonth, counterForm.formYear);
                       const hasPrev = !!mostRecent;
-                      if (editingRecord || hasPrev) {
+                      if (hasPrev) {
                         return <input required type="number" min={0} className={`${inputCls} bg-gray-100`} disabled value={counterForm.counter_prev} onChange={e => setCounterForm(f=>({...f,counter_prev:Number(e.target.value)}))}/>;
                       }
                       return <input required type="number" min={0} className={inputCls} value={counterForm.counter_prev} onChange={e => setCounterForm(f=>({...f,counter_prev:Number(e.target.value)}))}/>;
@@ -1175,7 +1302,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 </div>
                 <div>
                   <label className={labelCls}>Contador Mês Atual *</label>
-                  <input required type="number" min={0} className={`${inputCls} ${editingRecord ? 'bg-gray-50' : ''}`} disabled={!!editingRecord} value={counterForm.counter_curr} onChange={e => setCounterForm(f=>({...f,counter_curr:Number(e.target.value)}))}/>
+                  <input required type="number" min={0} className={inputCls} value={counterForm.counter_curr} onChange={e => setCounterForm(f=>({...f,counter_curr:Number(e.target.value)}))}/>
                 </div>
               </>
             )}
@@ -1189,13 +1316,40 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
           )}
 
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowCounterForm(false)} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-all">Cancelar</button>
+            <button type="button" onClick={() => { setShowCounterForm(false); setEditingRecord(null); }} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-all">Cancelar</button>
             <button type="submit" disabled={savingCounter || !counterForm.local_name} className="px-6 py-2 rounded-xl bg-slate-800 text-white font-bold text-sm hover:bg-slate-700 transition-all disabled:opacity-50 flex items-center gap-2">
               {savingCounter ? <Loader2 size={14} className="animate-spin"/> : <Save size={14}/>}
-              {editingRecord ? 'Salvar' : 'Cadastrar'}
+              {editingRecord ? 'Salvar Alterações' : 'Cadastrar'}
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── Modal: Realocar Cópias ──────────────────────────────────────────── */}
+      <Modal isOpen={showReallocateModal} onClose={() => { setShowReallocateModal(false); setReallocateTargetPrinterId(''); }} title="Realocar Cópias para Impressora">
+        <div className="space-y-4 p-1">
+          <div className="flex items-start gap-2 p-3 bg-indigo-50 rounded-xl text-indigo-700 text-xs">
+            <ArrowRightLeft size={14} className="shrink-0 mt-0.5"/>
+            <span>Selecione uma impressora para vincular as cópias do período atual. As cópias ficarão abaixo da impressora selecionada na tabela.</span>
+          </div>
+
+          <div>
+            <label className={labelCls}>Impressora de Destino *</label>
+            <select className={inputCls} value={reallocateTargetPrinterId} onChange={e => setReallocateTargetPrinterId(e.target.value)}>
+              <option value="">Selecione uma impressora...</option>
+              {printers.map(p => (
+                <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => { setShowReallocateModal(false); setReallocateTargetPrinterId(''); }} className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-all">Cancelar</button>
+            <button onClick={handleReallocateCopies} disabled={!reallocateTargetPrinterId} className="px-6 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2">
+              <ArrowRightLeft size={14}/> Realocar
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* ── Modal: Gerenciar Impressoras ─────────────────────────────────────── */}
@@ -1369,7 +1523,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                     onChange={e => setCfgDraft(d => ({...d, [`${key}_price_excess`]: Number(e.target.value)}))}/>
                 </div>
               </div>
-              {/* Live summary */}
               <div className="mt-3 p-2 bg-white rounded-lg border border-gray-200 text-xs text-gray-500 flex items-center justify-between">
                 <span>Total máximo permitido:</span>
                 <strong className="text-gray-800 text-sm">

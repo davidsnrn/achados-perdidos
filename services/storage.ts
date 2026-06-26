@@ -1951,7 +1951,8 @@ export const StorageService = {
       color_mode: record.color_mode || 'MONO',
       quantity: record.quantity,
       date: record.date || new Date().toISOString(),
-      operator_id: record.operator_id
+      operator_id: record.operator_id,
+      printer_id: record.printer_id || null,
     };
 
     const { error } = await supabase.from('copy_records').upsert(payload);
@@ -2047,6 +2048,165 @@ export const StorageService = {
         }
       }
     }
+  },
+
+  reallocateCopiesToPrinter: async (campusId: string, period: string, printerId: string): Promise<void> => {
+    const config = await StorageService.getCopyConfig(campusId);
+    const startDay = config?.start_day || 13;
+    const endDay = config?.end_day || 12;
+    const crossMonth = endDay < startDay;
+
+    const [yearStr, monthStr] = period.split('-');
+    const selMonth = parseInt(monthStr, 10) - 1;
+    const selYear = parseInt(yearStr, 10);
+
+    const endMonth = crossMonth ? selMonth + 1 : selMonth;
+    const endYearCalc = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+    const lastDayOfStartMonth = new Date(selYear, selMonth + 1, 0).getDate();
+    const lastDayOfEndMonth = new Date(endYearCalc, endMonth + 1, 0).getDate();
+
+    const startDate = new Date(selYear, selMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0).toISOString();
+    const endDate = new Date(endYearCalc, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59).toISOString();
+
+    // 1. Vincular cópias sem printer_id à impressora selecionada
+    const { error: updateErr } = await supabase
+      .from('copy_records')
+      .update({ printer_id: printerId })
+      .eq('campus_id', campusId)
+      .is('printer_id', null)
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    if (updateErr) throw updateErr;
+
+    // 2. Re-sincronizar contadores
+    await StorageService.syncCopiesToPrinterCounter(campusId, period);
+  },
+
+  unlinkCopiesFromPrinter: async (campusId: string, period: string, printerId: string): Promise<void> => {
+    const config = await StorageService.getCopyConfig(campusId);
+    const startDay = config?.start_day || 13;
+    const endDay = config?.end_day || 12;
+    const crossMonth = endDay < startDay;
+
+    const [yearStr, monthStr] = period.split('-');
+    const selMonth = parseInt(monthStr, 10) - 1;
+    const selYear = parseInt(yearStr, 10);
+
+    const endMonth = crossMonth ? selMonth + 1 : selMonth;
+    const endYearCalc = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+    const lastDayOfStartMonth = new Date(selYear, selMonth + 1, 0).getDate();
+    const lastDayOfEndMonth = new Date(endYearCalc, endMonth + 1, 0).getDate();
+
+    const startDate = new Date(selYear, selMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0).toISOString();
+    const endDate = new Date(endYearCalc, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59).toISOString();
+
+    const { error } = await supabase
+      .from('copy_records')
+      .update({ printer_id: null })
+      .eq('campus_id', campusId)
+      .eq('printer_id', printerId)
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    if (error) throw error;
+    await StorageService.syncCopiesToPrinterCounter(campusId, period);
+  },
+
+  deleteCopyRecordsByPeriodAndPrinter: async (campusId: string, period: string, printerId: string | null): Promise<void> => {
+    const config = await StorageService.getCopyConfig(campusId);
+    const startDay = config?.start_day || 13;
+    const endDay = config?.end_day || 12;
+    const crossMonth = endDay < startDay;
+
+    const [yearStr, monthStr] = period.split('-');
+    const selMonth = parseInt(monthStr, 10) - 1;
+    const selYear = parseInt(yearStr, 10);
+
+    const endMonth = crossMonth ? selMonth + 1 : selMonth;
+    const endYearCalc = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+    const lastDayOfStartMonth = new Date(selYear, selMonth + 1, 0).getDate();
+    const lastDayOfEndMonth = new Date(endYearCalc, endMonth + 1, 0).getDate();
+
+    const startDate = new Date(selYear, selMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0).toISOString();
+    const endDate = new Date(endYearCalc, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59).toISOString();
+
+    let query = supabase
+      .from('copy_records')
+      .delete()
+      .eq('campus_id', campusId)
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    if (printerId) {
+      query = query.eq('printer_id', printerId);
+    } else {
+      query = query.is('printer_id', null);
+    }
+
+    const { error } = await query;
+    if (error) throw error;
+
+    await StorageService.syncCopiesToPrinterCounter(campusId, period);
+  },
+
+  deleteCopyRecordsByPeriod: async (campusId: string, period: string): Promise<void> => {
+    const config = await StorageService.getCopyConfig(campusId);
+    const startDay = config?.start_day || 13;
+    const endDay = config?.end_day || 12;
+    const crossMonth = endDay < startDay;
+
+    const [yearStr, monthStr] = period.split('-');
+    const selMonth = parseInt(monthStr, 10) - 1;
+    const selYear = parseInt(yearStr, 10);
+
+    const endMonth = crossMonth ? selMonth + 1 : selMonth;
+    const endYearCalc = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+    const lastDayOfStartMonth = new Date(selYear, selMonth + 1, 0).getDate();
+    const lastDayOfEndMonth = new Date(endYearCalc, endMonth + 1, 0).getDate();
+
+    const startDate = new Date(selYear, selMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0).toISOString();
+    const endDate = new Date(endYearCalc, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59).toISOString();
+
+    const { error } = await supabase
+      .from('copy_records')
+      .delete()
+      .eq('campus_id', campusId)
+      .is('printer_id', null)
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    if (error) throw error;
+    await StorageService.syncCopiesToPrinterCounter(campusId, period);
+  },
+
+  getCopyRecordsByPeriod: async (campusId: string, period: string): Promise<CopyRecord[]> => {
+    const config = await StorageService.getCopyConfig(campusId);
+    const startDay = config?.start_day || 13;
+    const endDay = config?.end_day || 12;
+    const crossMonth = endDay < startDay;
+
+    const [yearStr, monthStr] = period.split('-');
+    const selMonth = parseInt(monthStr, 10) - 1;
+    const selYear = parseInt(yearStr, 10);
+
+    const endMonth = crossMonth ? selMonth + 1 : selMonth;
+    const endYearCalc = crossMonth && selMonth === 11 ? selYear + 1 : selYear;
+    const lastDayOfStartMonth = new Date(selYear, selMonth + 1, 0).getDate();
+    const lastDayOfEndMonth = new Date(endYearCalc, endMonth + 1, 0).getDate();
+
+    const startDate = new Date(selYear, selMonth, Math.min(startDay, lastDayOfStartMonth), 0, 0, 0).toISOString();
+    const endDate = new Date(endYearCalc, endMonth, Math.min(endDay, lastDayOfEndMonth), 23, 59, 59).toISOString();
+
+    const { data, error } = await supabase
+      .from('copy_records')
+      .select('*')
+      .eq('campus_id', campusId)
+      .gte('date', startDate)
+      .lte('date', endDate);
+
+    if (error) throw error;
+    return data || [];
   },
 
   checkPersonAndPendencies: async (matricula: string, campusId?: string) => {

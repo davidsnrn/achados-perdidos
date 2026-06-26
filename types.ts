@@ -197,6 +197,7 @@ export interface CopyRecord {
   quantity: number;
   date: string; // ISO
   operator_id: string;
+  printer_id?: string; // Vínculo com impressora física (null = Controle de Cópias genérico)
   created_at?: string;
 }
 

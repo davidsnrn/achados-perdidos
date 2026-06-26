@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { CopyRecord, CopyConfig, User, Campus, UserLevel, PersonType, Person, Setor } from '../../types';
+import { CopyRecord, CopyConfig, User, Campus, UserLevel, PersonType, Person, Setor, PrinterRegistry } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
   Plus,
@@ -128,6 +128,17 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   }, [adminGlobalSetorId, user?.level]);
   const isAdmin = user?.level === UserLevel.ADMIN;
   const activeSetorId = isAdmin ? selectedSetorId : user?.setor_id;
+
+  // Printers for linking copies
+  const [printers, setPrinters] = useState<PrinterRegistry[]>([]);
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string>('');
+
+  useEffect(() => {
+    const campusId = adminGlobalCampusId || user?.campus_id;
+    if (campusId) {
+      StorageService.getPrinterRegistry(campusId).then(setPrinters).catch(() => setPrinters([]));
+    }
+  }, [adminGlobalCampusId, user?.campus_id]);
 
   // Calculate period dates
   const periodRange = useMemo(() => {
@@ -282,7 +293,8 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         date: savedDate.toISOString(),
         campus_id: adminGlobalCampusId || user!.campus_id!,
         setor_id: isAdmin ? adminGlobalSetorId : (selectedSetorId || undefined),
-        operator_id: user!.id
+        operator_id: user!.id,
+        printer_id: selectedPrinterId || undefined,
       });
 
       const syncCampusId = adminGlobalCampusId || user!.campus_id!;
@@ -308,6 +320,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       });
       setSelectedPerson(null);
       setSelectedDate(new Date().toISOString().split('T')[0]);
+      setSelectedPrinterId('');
     } catch (error) {
       console.error(error);
       alert("Erro ao salvar registro.");
@@ -1037,6 +1050,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               type: record.person_type as any,
                               campus_id: record.campus_id
                             });
+                            setSelectedPrinterId(record.printer_id || '');
                             setIsModalOpen(true);
                           }}
                           className="p-2.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
@@ -1212,6 +1226,26 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm text-gray-700 text-center"
                 />
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
+                <Printer size={16} className="text-rose-500" />
+                Vincular à Impressora (Opcional)
+              </label>
+              <select
+                value={selectedPrinterId}
+                onChange={e => setSelectedPrinterId(e.target.value)}
+                className="w-full p-4 bg-gray-50 border-2 border-transparent focus:border-rose-200 focus:bg-white rounded-2xl outline-none transition-all font-medium text-sm text-gray-700 appearance-none bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNhYWFhYWEiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNiA5bDYgNiA2LTYiLz48L3N2Zz4=')] bg-no-repeat bg-[right_1rem_center]"
+              >
+                <option value="">Nenhuma (Controle de Cópias)</option>
+                {printers.map(p => (
+                  <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
+                ))}
+              </select>
+              {selectedPrinterId && (
+                <p className="text-xs text-rose-500 font-semibold italic">Estas cópias serão vinculadas a esta impressora na Conferência NF.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -1575,6 +1609,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               type: record.person_type as any,
                               campus_id: record.campus_id
                             });
+                            setSelectedPrinterId(record.printer_id || '');
                             setIsDetailsModalOpen(false);
                             setIsModalOpen(true);
                           }}

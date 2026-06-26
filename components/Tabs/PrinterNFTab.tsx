@@ -980,9 +980,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                       {grupoCopiaTotal > 0 && (
                         <span className="text-indigo-600">{fmt(grupoCopiaTotal)} cópia(s)</span>
                       )}
-                      {grupoConsumo > 0 && (
-                        <span className="font-mono font-black text-slate-800">{fmt(grupoConsumo)} pág.</span>
-                      )}
                       {!hasContent && (
                         <span className="text-gray-400 italic">sem registros</span>
                       )}
@@ -992,8 +989,8 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   {/* Accordion Content */}
                   {isExpanded && hasContent && (
                     <div className="border-t border-gray-100">
-                      {/* Counter records (hide for "Sem impressoras vinculadas") */}
-                      {group.printer && group.records.length > 0 && (
+                      {/* Counter records + merged copies (printer groups only) */}
+                      {group.printer && (
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50/80 text-gray-400 text-xs font-black uppercase tracking-widest">
                             <tr>
@@ -1048,24 +1045,51 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                 </tr>
                               );
                             })}
+                            {/* Copy records merged as consumption rows */}
+                            {group.copies.map(c => (
+                              <tr key={c.id} className="border-t border-emerald-100 hover:bg-emerald-50/30">
+                                <td className="px-5 py-3 font-bold text-gray-700">{c.format}</td>
+                                <td className="px-5 py-3">
+                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${c.color_mode === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'}`}>{c.color_mode}</span>
+                                </td>
+                                <td className="px-5 py-3 text-right text-gray-400 font-mono">—</td>
+                                <td className="px-5 py-3 text-right text-gray-400 font-mono">—</td>
+                                <td className="px-5 py-3 text-right font-black text-emerald-700 font-mono">{fmt(c.quantity)}</td>
+                                <td className="px-5 py-3 text-right">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded">
+                                    <CheckCircle2 size={10}/> CÓPIA
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <button onClick={() => handleDeleteCopiesCascade(group.printer?.id || null)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors" title="Remover cópia"><Trash2 size={14}/></button>
+                                </td>
+                              </tr>
+                            ))}
                           </tbody>
+                          <tfoot className="bg-gray-50">
+                            <tr>
+                              <td colSpan={4} className="px-5 py-3 font-black text-right text-sm uppercase tracking-widest text-gray-600">Total</td>
+                              <td className="px-5 py-3 text-right font-black text-lg text-slate-800 font-mono">
+                                {fmt(
+                                  group.records.reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0) +
+                                  group.copies.reduce((s, c) => s + (c.quantity || 0), 0)
+                                )}
+                              </td>
+                              <td colSpan={2}/>
+                            </tr>
+                          </tfoot>
                         </table>
                       )}
 
-                      {/* Copy records */}
-                      {group.copies.length > 0 && (
-                        <div className={`${!isCopiesOnly && group.records.length > 0 ? 'border-t border-indigo-100' : ''}`}>
-                          <div className={`px-5 py-2 flex items-center justify-between ${group.printer ? 'bg-emerald-50/70' : 'bg-indigo-50/50'}`}>
-                            <span className={`text-xs font-black uppercase tracking-widest flex items-center gap-1.5 ${group.printer ? 'text-emerald-700' : 'text-indigo-600'}`}>
-                              <span className={`w-2 h-2 rounded-full ${group.printer ? 'bg-emerald-500' : 'bg-indigo-500'}`}/> {group.printer ? 'Cópias Vinculadas' : 'Cópias'}
+                      {/* Copy records (only for "Sem impressoras vinculadas") */}
+                      {!group.printer && group.copies.length > 0 && (
+                        <div>
+                          <div className="px-5 py-2 bg-indigo-50/50 flex items-center justify-between">
+                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-indigo-500"/> Cópias
                             </span>
                             <div className="flex gap-1">
-                              {group.printer && (
-                                <button onClick={() => handleUnlinkCopies(group.printer!.id!)} className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 px-2 py-0.5 rounded border border-indigo-200 hover:bg-white transition-all">
-                                  Desvincular
-                                </button>
-                              )}
-                              <button onClick={() => handleDeleteCopiesCascade(group.printer?.id || null)} className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-200 hover:bg-white transition-all">
+                              <button onClick={() => handleDeleteCopiesCascade(null)} className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-200 hover:bg-white transition-all">
                                 Remover
                               </button>
                             </div>
@@ -1073,13 +1097,12 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                           <table className="w-full text-sm">
                             <thead className="bg-indigo-50/30 text-indigo-400 text-xs font-black uppercase tracking-widest">
                               <tr>
-                                 <th className="px-5 py-2 text-left">Pessoa</th>
+                                <th className="px-5 py-2 text-left">Pessoa</th>
                                 <th className="px-5 py-2 text-left">Finalidade</th>
                                 <th className="px-5 py-2 text-left">Formato</th>
                                 <th className="px-5 py-2 text-right">Qtd.</th>
                                 <th className="px-5 py-2 text-left">Data</th>
-                                {group.printer && <th className="px-5 py-2 text-center">Status</th>}
-                                {!group.printer && <th className="px-5 py-2 text-center">Ações</th>}
+                                <th className="px-5 py-2 text-center">Ações</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1087,7 +1110,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                 const capKey = `supports_${(c.format || 'A4').toLowerCase()}_${(c.color_mode || 'MONO').toLowerCase()}` as keyof PrinterRegistry;
                                 const compatiblePrinters = printers.filter(p => p[capKey] === true);
                                 return (
-                                  <tr key={c.id} className={`border-t ${group.printer ? 'border-emerald-100 hover:bg-emerald-50/30' : 'border-indigo-100 hover:bg-indigo-50/30'}`}>
+                                  <tr key={c.id} className="border-t border-indigo-100 hover:bg-indigo-50/30">
                                     <td className="px-5 py-2">
                                       <p className="font-bold text-gray-700 text-xs">{c.person_name}</p>
                                       <p className="text-[10px] text-gray-400 font-mono">{c.person_matricula}</p>
@@ -1102,44 +1125,35 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                     </td>
                                     <td className="px-5 py-2 text-right font-black text-indigo-700 font-mono">{fmt(c.quantity)}</td>
                                     <td className="px-5 py-2 text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</td>
-                                    {group.printer && (
-                                      <td className="px-5 py-2 text-center">
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded">
-                                          <CheckCircle2 size={10}/> Vinculado
-                                        </span>
-                                      </td>
-                                    )}
-                                    {!group.printer && (
-                                      <td className="px-5 py-2 text-center">
-                                        {linkingCopyId === c.id ? (
-                                          <div className="flex items-center gap-1">
-                                            <select
-                                              className="text-[10px] border border-indigo-200 rounded px-1 py-0.5 bg-white w-24"
-                                              value={selectedPrinterForCopy}
-                                              onChange={e => setSelectedPrinterForCopy(e.target.value)}
-                                            >
-                                              <option value="">Selecione...</option>
-                                              {compatiblePrinters.map(p => (
-                                                <option key={p.id} value={p.id}>{p.local_name}</option>
-                                              ))}
-                                            </select>
-                                            <button onClick={() => handleLinkSingleCopy(c.id)} className="p-1 text-indigo-600 hover:text-indigo-800" title="Confirmar"><Save size={12}/></button>
-                                            <button onClick={() => { setLinkingCopyId(null); setSelectedPrinterForCopy(''); }} className="p-1 text-gray-400 hover:text-gray-600" title="Cancelar"><Ban size={12}/></button>
-                                          </div>
-                                        ) : (
-                                          <button onClick={() => { setLinkingCopyId(c.id); setSelectedPrinterForCopy(''); }} className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 rounded border border-indigo-200 hover:bg-indigo-50 transition-all">
-                                            <ArrowRightLeft size={10}/> Vincular
-                                          </button>
-                                        )}
-                                      </td>
-                                    )}
+                                    <td className="px-5 py-2 text-center">
+                                      {linkingCopyId === c.id ? (
+                                        <div className="flex items-center gap-1 justify-center">
+                                          <select
+                                            className="text-[10px] border border-indigo-200 rounded px-1 py-0.5 bg-white w-24"
+                                            value={selectedPrinterForCopy}
+                                            onChange={e => setSelectedPrinterForCopy(e.target.value)}
+                                          >
+                                            <option value="">Selecione...</option>
+                                            {compatiblePrinters.map(p => (
+                                              <option key={p.id} value={p.id}>{p.local_name}</option>
+                                            ))}
+                                          </select>
+                                          <button onClick={() => handleLinkSingleCopy(c.id)} className="p-1 text-indigo-600 hover:text-indigo-800" title="Confirmar"><Save size={12}/></button>
+                                          <button onClick={() => { setLinkingCopyId(null); setSelectedPrinterForCopy(''); }} className="p-1 text-gray-400 hover:text-gray-600" title="Cancelar"><Ban size={12}/></button>
+                                        </div>
+                                      ) : (
+                                        <button onClick={() => { setLinkingCopyId(c.id); setSelectedPrinterForCopy(''); }} className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 rounded border border-indigo-200 hover:bg-indigo-50 transition-all">
+                                          <ArrowRightLeft size={10}/> Vincular
+                                        </button>
+                                      )}
+                                    </td>
                                   </tr>
                                 );
                               })}
                             </tbody>
-                            <tfoot className={`${group.printer ? 'bg-emerald-100/50' : 'bg-indigo-100/50'}`}>
+                            <tfoot className="bg-indigo-100/50">
                               <tr>
-                                <td colSpan={5} className={`px-5 py-2 text-xs font-black text-right uppercase tracking-widest ${group.printer ? 'text-emerald-700' : 'text-indigo-700'}`}>Total Cópias:</td>
+                                <td colSpan={5} className="px-5 py-2 text-xs font-black text-indigo-700 text-right uppercase tracking-widest">Total Cópias:</td>
                                 <td className="px-5 py-2 text-right font-black text-indigo-800 font-mono">{fmt(grupoCopiaTotal)}</td>
                               </tr>
                             </tfoot>

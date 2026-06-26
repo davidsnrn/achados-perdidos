@@ -415,6 +415,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       alert('Selecione uma impressora cadastrada.');
       return;
     }
+    if (Number(counterForm.counter_prev) > Number(counterForm.counter_curr)) {
+      alert('O contador anterior não pode ser maior que o contador atual.');
+      return;
+    }
     const formPeriod = `${counterForm.formYear}-${String(counterForm.formMonth + 1).padStart(2, '0')}`;
     setSavingCounter(true);
     try {

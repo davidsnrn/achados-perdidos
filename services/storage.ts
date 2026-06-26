@@ -2180,7 +2180,7 @@ export const StorageService = {
     await StorageService.syncCopiesToPrinterCounter(campusId, period);
   },
 
-  linkCopyToPrinter: async (copyId: string, printerId: string): Promise<void> => {
+  linkCopyToPrinter: async (copyId: string, printerId: string | null): Promise<void> => {
     const { error } = await supabase
       .from('copy_records')
       .update({ printer_id: printerId })

@@ -529,6 +529,16 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     }
   };
 
+  const handleUnlinkSingleCopy = async (copyId: string) => {
+    try {
+      await StorageService.linkCopyToPrinter(copyId, null);
+      await StorageService.syncCopiesToPrinterCounter(campusId, period);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao desvincular cópia.');
+    }
+  };
+
   const handleSavePrinter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!printerForm.local_name.trim()) {
@@ -1061,7 +1071,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                   </span>
                                 </td>
                                 <td className="px-5 py-3 text-center">
-                                  <button onClick={() => handleDeleteCopiesCascade(group.printer?.id || null)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 transition-colors" title="Remover cópia"><Trash2 size={14}/></button>
+                                  <button onClick={() => handleUnlinkSingleCopy(c.id)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-400 transition-colors" title="Desvincular cópia"><ArrowRightLeft size={14}/></button>
                                 </td>
                               </tr>
                             ))}
@@ -1088,11 +1098,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                             <span className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
                               <span className="w-2 h-2 rounded-full bg-indigo-500"/> Cópias
                             </span>
-                            <div className="flex gap-1">
-                              <button onClick={() => handleDeleteCopiesCascade(null)} className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-0.5 rounded border border-red-200 hover:bg-white transition-all">
-                                Remover
-                              </button>
-                            </div>
                           </div>
                           <table className="w-full text-sm">
                             <thead className="bg-indigo-50/30 text-indigo-400 text-xs font-black uppercase tracking-widest">

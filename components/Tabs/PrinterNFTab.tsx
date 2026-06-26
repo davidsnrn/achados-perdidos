@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StorageService } from '../../services/storage';
 import { PrinterCounterRecord, PrinterBillingConfig, User, Campus, PrinterRegistry, CopyConfig, CopyRecord } from '../../types';
 import {
@@ -19,11 +19,11 @@ interface PrinterNFTabProps {
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
-const DEFAULT_CONFIG: Omit<PrinterBillingConfig, 'campus_id'> = {
-  a4_mono_franchise: 16000, a4_mono_excess_franchise: 5000, a4_mono_price_franchise: 0.052, a4_mono_price_excess: 0.042,
-  a4_poli_franchise: 500,   a4_poli_excess_franchise: 200,  a4_poli_price_franchise: 0.306, a4_poli_price_excess: 0.200,
-  a3_mono_franchise: 100,   a3_mono_excess_franchise: 50,   a3_mono_price_franchise: 0.198, a3_mono_price_excess: 0.084,
-  a3_poli_franchise: 100,   a3_poli_excess_franchise: 50,   a3_poli_price_franchise: 0.306, a3_poli_price_excess: 0.200,
+const ZEROED_CONFIG: Omit<PrinterBillingConfig, 'campus_id'> = {
+  a4_mono_franchise: 0, a4_mono_excess_franchise: 0, a4_mono_price_franchise: 0, a4_mono_price_excess: 0,
+  a4_poli_franchise: 0, a4_poli_excess_franchise: 0, a4_poli_price_franchise: 0, a4_poli_price_excess: 0,
+  a3_mono_franchise: 0, a3_mono_excess_franchise: 0, a3_mono_price_franchise: 0, a3_mono_price_excess: 0,
+  a3_poli_franchise: 0, a3_poli_excess_franchise: 0, a3_poli_price_franchise: 0, a3_poli_price_excess: 0,
   full_franchise_value: true,
 };
 
@@ -187,7 +187,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const [prevPeriodRecords, setPrevPeriodRecords] = useState<PrinterCounterRecord[]>([]);
   const [nextPeriodRecords, setNextPeriodRecords] = useState<PrinterCounterRecord[]>([]);
   const [printers, setPrinters]         = useState<PrinterRegistry[]>([]);
-  const [cfg, setCfg]                   = useState<PrinterBillingConfig>({ campus_id: campusId, ...DEFAULT_CONFIG });
+  const [cfg, setCfg]                   = useState<PrinterBillingConfig>({ campus_id: campusId, ...ZEROED_CONFIG });
   const [loading, setLoading]           = useState(false);
   const [copyRecords, setCopyRecords]   = useState<CopyRecord[]>([]);
 
@@ -205,7 +205,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   // Forms
   const [counterForm, setCounterForm] = useState(EMPTY_COUNTER_FORM);
   const [printerForm, setPrinterForm] = useState(EMPTY_PRINTER_FORM);
-  const [cfgDraft, setCfgDraft]       = useState<PrinterBillingConfig>({ campus_id: campusId, ...DEFAULT_CONFIG });
+  const [cfgDraft, setCfgDraft]       = useState<PrinterBillingConfig>({ campus_id: campusId, ...ZEROED_CONFIG });
 
   // Reallocation
   const [reallocateTargetPrinterId, setReallocateTargetPrinterId] = useState('');
@@ -276,14 +276,14 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       setNextPeriodRecords(nextRecs);
       setPrinters(prns);
       if (cpCfg) setCopyConfig(cpCfg);
+      const base = { campus_id: campusId, ...ZEROED_CONFIG };
       if (billingCfg) {
-        const merged = { ...DEFAULT_CONFIG, ...billingCfg, campus_id: campusId, full_franchise_value: billingCfg.full_franchise_value ?? DEFAULT_CONFIG.full_franchise_value };
+        const merged = { ...base, ...billingCfg, full_franchise_value: billingCfg.full_franchise_value ?? true };
         setCfg(merged);
         setCfgDraft(merged);
       } else {
-        const b = { campus_id: campusId, ...DEFAULT_CONFIG };
-        setCfg(b);
-        setCfgDraft(b);
+        setCfg(base);
+        setCfgDraft(base);
       }
 
       // Load copy records for this period
@@ -754,6 +754,17 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     { key:'a3_mono' as CatKey, label:'A3 Monocromático (P&B)' },
     { key:'a3_poli' as CatKey, label:'A3 Policromático (Colorido)' },
   ];
+
+  const supportedCfgGroups = useMemo(() => {
+    const has = (k: CatKey) => {
+      if (k === 'a4_mono') return printers.some(p => p.supports_a4_mono);
+      if (k === 'a4_poli') return printers.some(p => p.supports_a4_poli);
+      if (k === 'a3_mono') return printers.some(p => p.supports_a3_mono);
+      if (k === 'a3_poli') return printers.some(p => p.supports_a3_poli);
+      return false;
+    };
+    return cfgGroups.filter(g => has(g.key));
+  }, [printers]);
 
   const activePrinter = printers.find(p => p.id === counterForm.printer_id);
   const activeCampusName = campuses.find(c => c.id === campusId)?.name || campusId;
@@ -1587,6 +1598,18 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
       {/* ── Modal: Configuração ──────────────────────────────────────────────── */}
       <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title={`Configuração — ${activeCampusName}`}>
+        {printers.length === 0 ? (
+          <div className="p-6 text-center text-gray-400 text-sm">
+            <InfoIcon size={24} className="mx-auto mb-2 text-gray-300"/>
+            <p className="font-semibold text-gray-600 mb-1">Nenhuma impressora cadastrada</p>
+            <p>Cadastre uma impressora em <strong>Impressoras Cadastradas</strong> antes de configurar os valores.</p>
+          </div>
+        ) : supportedCfgGroups.length === 0 ? (
+          <div className="p-6 text-center text-gray-400 text-sm">
+            <InfoIcon size={24} className="mx-auto mb-2 text-gray-300"/>
+            <p className="font-semibold text-gray-600">Nenhum formato compatível encontrado nas impressoras cadastradas.</p>
+          </div>
+        ) : (
         <form onSubmit={handleSaveConfig} className="space-y-4 p-1">
           <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl text-blue-700 text-xs">
             <InfoIcon size={14} className="shrink-0 mt-0.5"/>
@@ -1606,7 +1629,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             </div>
           </label>
 
-          {cfgGroups.map(({ key, label }) => (
+          {supportedCfgGroups.map(({ key, label }: { key: CatKey; label: string }) => (
             <div key={key} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
               <h3 className="font-bold text-gray-800 text-sm mb-3">{label}</h3>
               <div className="grid grid-cols-2 gap-3 mb-2">
@@ -1655,6 +1678,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             </button>
           </div>
         </form>
+      )}
       </Modal>
     </div>
   );

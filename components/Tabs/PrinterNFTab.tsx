@@ -925,9 +925,6 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             }} className="text-xs font-bold text-slate-600 hover:text-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-all">
               {expandedPrinters.size === printerGroups.length ? 'Recolher Tudo' : 'Expandir Tudo'}
             </button>
-            <button onClick={() => setShowReallocateModal(true)} className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-50 transition-all">
-              <ArrowRightLeft size={14}/> Realocar Cópias
-            </button>
           </div>
         </div>
 

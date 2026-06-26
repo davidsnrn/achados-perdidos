@@ -992,8 +992,8 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   {/* Accordion Content */}
                   {isExpanded && hasContent && (
                     <div className="border-t border-gray-100">
-                      {/* Counter records (hide for copies-only group) */}
-                      {!isCopiesOnly && group.records.length > 0 && (
+                      {/* Counter records (hide for "Sem impressoras vinculadas") */}
+                      {group.printer && group.records.length > 0 && (
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50/80 text-gray-400 text-xs font-black uppercase tracking-widest">
                             <tr>
@@ -1055,9 +1055,9 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                       {/* Copy records */}
                       {group.copies.length > 0 && (
                         <div className={`${!isCopiesOnly && group.records.length > 0 ? 'border-t border-indigo-100' : ''}`}>
-                          <div className="px-5 py-2 bg-indigo-50/50 flex items-center justify-between">
-                            <span className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-indigo-500"/> Cópias
+                          <div className={`px-5 py-2 flex items-center justify-between ${group.printer ? 'bg-emerald-50/70' : 'bg-indigo-50/50'}`}>
+                            <span className={`text-xs font-black uppercase tracking-widest flex items-center gap-1.5 ${group.printer ? 'text-emerald-700' : 'text-indigo-600'}`}>
+                              <span className={`w-2 h-2 rounded-full ${group.printer ? 'bg-emerald-500' : 'bg-indigo-500'}`}/> {group.printer ? 'Cópias Vinculadas' : 'Cópias'}
                             </span>
                             <div className="flex gap-1">
                               {group.printer && (
@@ -1073,11 +1073,12 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                           <table className="w-full text-sm">
                             <thead className="bg-indigo-50/30 text-indigo-400 text-xs font-black uppercase tracking-widest">
                               <tr>
-                                <th className="px-5 py-2 text-left">Pessoa</th>
+                                 <th className="px-5 py-2 text-left">Pessoa</th>
                                 <th className="px-5 py-2 text-left">Finalidade</th>
                                 <th className="px-5 py-2 text-left">Formato</th>
                                 <th className="px-5 py-2 text-right">Qtd.</th>
                                 <th className="px-5 py-2 text-left">Data</th>
+                                {group.printer && <th className="px-5 py-2 text-center">Status</th>}
                                 {!group.printer && <th className="px-5 py-2 text-center">Ações</th>}
                               </tr>
                             </thead>
@@ -1086,7 +1087,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                 const capKey = `supports_${(c.format || 'A4').toLowerCase()}_${(c.color_mode || 'MONO').toLowerCase()}` as keyof PrinterRegistry;
                                 const compatiblePrinters = printers.filter(p => p[capKey] === true);
                                 return (
-                                  <tr key={c.id} className="border-t border-indigo-100 hover:bg-indigo-50/30">
+                                  <tr key={c.id} className={`border-t ${group.printer ? 'border-emerald-100 hover:bg-emerald-50/30' : 'border-indigo-100 hover:bg-indigo-50/30'}`}>
                                     <td className="px-5 py-2">
                                       <p className="font-bold text-gray-700 text-xs">{c.person_name}</p>
                                       <p className="text-[10px] text-gray-400 font-mono">{c.person_matricula}</p>
@@ -1101,6 +1102,13 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                     </td>
                                     <td className="px-5 py-2 text-right font-black text-indigo-700 font-mono">{fmt(c.quantity)}</td>
                                     <td className="px-5 py-2 text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</td>
+                                    {group.printer && (
+                                      <td className="px-5 py-2 text-center">
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded">
+                                          <CheckCircle2 size={10}/> Vinculado
+                                        </span>
+                                      </td>
+                                    )}
                                     {!group.printer && (
                                       <td className="px-5 py-2 text-center">
                                         {linkingCopyId === c.id ? (
@@ -1129,11 +1137,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                 );
                               })}
                             </tbody>
-                            <tfoot className="bg-indigo-100/50">
+                            <tfoot className={`${group.printer ? 'bg-emerald-100/50' : 'bg-indigo-100/50'}`}>
                               <tr>
-                                <td colSpan={!group.printer ? 5 : 4} className="px-5 py-2 text-xs font-black text-indigo-700 text-right uppercase">Total Cópias:</td>
+                                <td colSpan={5} className={`px-5 py-2 text-xs font-black text-right uppercase tracking-widest ${group.printer ? 'text-emerald-700' : 'text-indigo-700'}`}>Total Cópias:</td>
                                 <td className="px-5 py-2 text-right font-black text-indigo-800 font-mono">{fmt(grupoCopiaTotal)}</td>
-                                {!group.printer && <td/>}
                               </tr>
                             </tfoot>
                           </table>

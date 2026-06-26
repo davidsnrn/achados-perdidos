@@ -1953,6 +1953,7 @@ export const StorageService = {
       date: record.date || new Date().toISOString(),
       operator_id: record.operator_id,
       printer_id: record.printer_id || null,
+      is_adjustment: record.is_adjustment || false,
     };
 
     const { error } = await supabase.from('copy_records').upsert(payload);

@@ -198,6 +198,7 @@ export interface CopyRecord {
   date: string; // ISO
   operator_id: string;
   printer_id?: string; // Vínculo com impressora física (null = Controle de Cópias genérico)
+  is_adjustment?: boolean; // true = registro de ajuste manual sem pessoa vinculada
   created_at?: string;
 }
 

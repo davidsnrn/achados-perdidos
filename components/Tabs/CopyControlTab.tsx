@@ -117,6 +117,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
+  const [isAdjustment, setIsAdjustment] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedSetorId, setSelectedSetorId] = useState<string>(
     (user?.level === UserLevel.ADMIN ? adminGlobalSetorId : user?.setor_id) || ''
@@ -286,8 +287,12 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
   };
 
   const handleSaveRecord = async () => {
-    if (!newRecord.person_name || !newRecord.quantity) {
+    if (!isAdjustment && !newRecord.person_name) {
       alert("Preencha todos os campos obrigatórios.");
+      return;
+    }
+    if (!newRecord.quantity) {
+      alert("Informe a quantidade.");
       return;
     }
 
@@ -297,6 +302,9 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
       await StorageService.saveCopyRecord({
         ...newRecord,
         id: editingRecord?.id,
+        person_name: isAdjustment ? 'Ajuste' : newRecord.person_name,
+        person_matricula: isAdjustment ? 'AJUSTE' : newRecord.person_matricula,
+        is_adjustment: isAdjustment,
         date: savedDate.toISOString(),
         campus_id: adminGlobalCampusId || user!.campus_id!,
         setor_id: isAdmin ? adminGlobalSetorId : (selectedSetorId || undefined),
@@ -326,6 +334,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
         date: new Date().toISOString()
       });
       setSelectedPerson(null);
+      setIsAdjustment(false);
       setSelectedDate(new Date().toISOString().split('T')[0]);
       setSelectedPrinterId('');
     } catch (error) {
@@ -1057,6 +1066,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                               type: record.person_type as any,
                               campus_id: record.campus_id
                             });
+                            setIsAdjustment(record.is_adjustment || false);
                             setSelectedPrinterId(record.printer_id || '');
                             setIsModalOpen(true);
                           }}
@@ -1121,11 +1131,33 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
           <div className="grid grid-cols-1 gap-6">
             {/* Person Search */}
             <div className="space-y-3 relative">
-              <label className="block text-sm font-black text-gray-700 uppercase tracking-widest flex items-center gap-2">
-                <UserIcon size={16} className="text-rose-500" />
-                Dono(a) das Cópias
+              <label className="text-sm font-black text-gray-700 uppercase tracking-widest flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <UserIcon size={16} className="text-rose-500" />
+                  Dono(a) das Cópias
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setIsAdjustment(!isAdjustment); setSelectedPerson(null); }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 font-bold text-[10px] uppercase tracking-widest transition-all ${isAdjustment
+                    ? 'bg-amber-100 border-amber-300 text-amber-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-amber-200 hover:text-amber-600'
+                  }`}
+                >
+                  <AlertCircle size={12} />
+                  {isAdjustment ? 'Ajuste Ativado' : 'Registro de Ajuste'}
+                </button>
               </label>
-              {selectedPerson ? (
+
+              {isAdjustment ? (
+                <div className="flex items-center gap-3 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl">
+                  <AlertCircle size={20} className="text-amber-500 shrink-0" />
+                  <div>
+                    <p className="font-bold text-gray-800 text-sm">Registro de Ajuste</p>
+                    <p className="text-xs text-amber-600 font-medium">Ajuste manual sem pessoa vinculada</p>
+                  </div>
+                </div>
+              ) : selectedPerson ? (
                 <div className="flex items-center justify-between p-4 bg-rose-50 border-2 border-rose-200 rounded-2xl gap-4">
                   <div className="flex items-center gap-3">
                     <div>
@@ -1204,6 +1236,7 @@ export const CopyControlTab: React.FC<CopyControlTabProps> = ({
                   )}
                 </div>
               )}
+
             </div>
 
             <div className="grid grid-cols-2 gap-4">

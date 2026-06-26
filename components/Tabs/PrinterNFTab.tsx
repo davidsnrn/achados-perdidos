@@ -24,6 +24,7 @@ const DEFAULT_CONFIG: Omit<PrinterBillingConfig, 'campus_id'> = {
   a4_poli_franchise: 500,   a4_poli_excess_franchise: 200,  a4_poli_price_franchise: 0.306, a4_poli_price_excess: 0.200,
   a3_mono_franchise: 100,   a3_mono_excess_franchise: 50,   a3_mono_price_franchise: 0.198, a3_mono_price_excess: 0.084,
   a3_poli_franchise: 100,   a3_poli_excess_franchise: 50,   a3_poli_price_franchise: 0.306, a3_poli_price_excess: 0.200,
+  full_franchise_value: true,
 };
 
 const BRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -53,7 +54,8 @@ function calcBilling(records: PrinterCounterRecord[], cfg: PrinterBillingConfig)
     const excess = Math.max(0, effectiveTotal - franchise);
     const isBlocked = total > maxTotal;
     const blockRemaining = maxTotal - total;
-    return { total, withinFranchise, excess, valueF: withinFranchise * priceF, valueE: excess * priceE, isBlocked, blockRemaining };
+    const valueF = (cfg.full_franchise_value ?? true) ? franchise * priceF : withinFranchise * priceF;
+    return { total, withinFranchise, excess, valueF, valueE: excess * priceE, isBlocked, blockRemaining };
   };
 
   const a4Mono = calc(sum('A4','MONO'), cfg.a4_mono_franchise, cfg.a4_mono_excess_franchise, cfg.a4_mono_price_franchise, cfg.a4_mono_price_excess);
@@ -269,8 +271,9 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       setPrinters(prns);
       if (cpCfg) setCopyConfig(cpCfg);
       if (billingCfg) {
-        setCfg({ ...DEFAULT_CONFIG, ...billingCfg, campus_id: campusId });
-        setCfgDraft({ ...DEFAULT_CONFIG, ...billingCfg, campus_id: campusId });
+        const merged = { ...DEFAULT_CONFIG, ...billingCfg, campus_id: campusId, full_franchise_value: billingCfg.full_franchise_value ?? DEFAULT_CONFIG.full_franchise_value };
+        setCfg(merged);
+        setCfgDraft(merged);
       } else {
         const b = { campus_id: campusId, ...DEFAULT_CONFIG };
         setCfg(b);
@@ -1571,6 +1574,19 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             <InfoIcon size={14} className="shrink-0 mt-0.5"/>
             <span><strong>Franquia:</strong> páginas inclusas no contrato. <strong>Teto excedente:</strong> máximo de páginas extras permitidas — após atingir, a impressão é bloqueada. <strong>R$/pág.:</strong> valor para cálculo da NF.</span>
           </div>
+
+          <label className="flex items-center gap-3 p-3 bg-yellow-50 rounded-xl border border-yellow-200 cursor-pointer">
+            <div className="relative">
+              <input type="checkbox" className="sr-only peer" checked={cfgDraft.full_franchise_value ?? true}
+                onChange={e => setCfgDraft(d => ({...d, full_franchise_value: e.target.checked}))}/>
+              <div className="w-9 h-5 rounded-full bg-gray-300 peer-checked:bg-slate-700 transition-colors"/>
+              <div className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow peer-checked:translate-x-4 transition-transform"/>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-gray-800">Cobrar valor cheio da franquia</span>
+              <span className="text-xs text-gray-500">O valor da NF considera a franquia inteira independente da quantidade impressa. O excedente é calculado normalmente.</span>
+            </div>
+          </label>
 
           {cfgGroups.map(({ key, label }) => (
             <div key={key} className="p-4 bg-gray-50 rounded-xl border border-gray-200">

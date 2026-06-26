@@ -421,6 +421,7 @@ export interface PrinterBillingConfig {
   a3_poli_excess_franchise: number;
   a3_poli_price_franchise: number;
   a3_poli_price_excess: number;
+  full_franchise_value?: boolean;  // true = cobra franquia cheia independente do consumo; default true
   created_at?: string;
   updated_at?: string;
 }

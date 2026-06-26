@@ -985,11 +985,17 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
                     {/* Stats */}
                     <div className="flex items-center gap-4 text-xs font-semibold text-gray-500 shrink-0">
-                      {hasContent && (
+                      {group.printer && hasContent && (
                         <span>{group.records.length + group.copies.length} lançamento(s)</span>
                       )}
-                      {(grupoConsumo + grupoCopiaTotal) > 0 && (
+                      {!group.printer && group.copies.length > 0 && (
+                        <span>{group.copies.length} lançamento(s)</span>
+                      )}
+                      {group.printer && (grupoConsumo + grupoCopiaTotal) > 0 && (
                         <span className="font-mono font-black text-slate-800">{fmt(grupoConsumo + grupoCopiaTotal)} pág.</span>
+                      )}
+                      {!group.printer && grupoCopiaTotal > 0 && (
+                        <span className="font-mono font-black text-slate-800">{fmt(grupoCopiaTotal)} pág.</span>
                       )}
                       {!hasContent && (
                         <span className="text-gray-400 italic">sem registros</span>

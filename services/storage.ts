@@ -2180,6 +2180,14 @@ export const StorageService = {
     await StorageService.syncCopiesToPrinterCounter(campusId, period);
   },
 
+  linkCopyToPrinter: async (copyId: string, printerId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('copy_records')
+      .update({ printer_id: printerId })
+      .eq('id', copyId);
+    if (error) throw error;
+  },
+
   getCopyRecordsByPeriod: async (campusId: string, period: string): Promise<CopyRecord[]> => {
     const config = await StorageService.getCopyConfig(campusId);
     const startDay = config?.start_day || 13;

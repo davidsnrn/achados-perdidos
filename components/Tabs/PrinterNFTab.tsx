@@ -227,6 +227,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   // Accordion state: which printers are expanded
   const [expandedPrinters, setExpandedPrinters] = useState<Set<string>>(new Set());
 
+  // Per-copy linking
+  const [linkingCopyId, setLinkingCopyId] = useState<string | null>(null);
+  const [selectedPrinterForCopy, setSelectedPrinterForCopy] = useState<string>('');
+
   const togglePrinterExpand = (key: string) => {
     setExpandedPrinters(prev => {
       const next = new Set(prev);
@@ -509,6 +513,19 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       await loadData();
     } catch (err: any) {
       alert(err.message || 'Erro ao desvincular cópias.');
+    }
+  };
+
+  const handleLinkSingleCopy = async (copyId: string) => {
+    if (!selectedPrinterForCopy) return;
+    try {
+      await StorageService.linkCopyToPrinter(copyId, selectedPrinterForCopy);
+      await StorageService.syncCopiesToPrinterCounter(campusId, period);
+      setLinkingCopyId(null);
+      setSelectedPrinterForCopy('');
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao vincular cópia.');
     }
   };
 
@@ -975,8 +992,8 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   {/* Accordion Content */}
                   {isExpanded && hasContent && (
                     <div className="border-t border-gray-100">
-                      {/* Counter records */}
-                      {group.records.length > 0 && (
+                      {/* Counter records (hide for copies-only group) */}
+                      {!isCopiesOnly && group.records.length > 0 && (
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50/80 text-gray-400 text-xs font-black uppercase tracking-widest">
                             <tr>
@@ -1035,12 +1052,12 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                         </table>
                       )}
 
-                      {/* Copy records under this printer */}
+                      {/* Copy records */}
                       {group.copies.length > 0 && (
-                        <div className={`${group.records.length > 0 ? 'border-t border-indigo-100' : ''}`}>
+                        <div className={`${!isCopiesOnly && group.records.length > 0 ? 'border-t border-indigo-100' : ''}`}>
                           <div className="px-5 py-2 bg-indigo-50/50 flex items-center justify-between">
                             <span className="text-xs font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-indigo-500"/> Cópias Vinculadas
+                              <span className="w-2 h-2 rounded-full bg-indigo-500"/> Cópias
                             </span>
                             <div className="flex gap-1">
                               {group.printer && (
@@ -1061,33 +1078,62 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                                 <th className="px-5 py-2 text-left">Formato</th>
                                 <th className="px-5 py-2 text-right">Qtd.</th>
                                 <th className="px-5 py-2 text-left">Data</th>
+                                {!group.printer && <th className="px-5 py-2 text-center">Ações</th>}
                               </tr>
                             </thead>
                             <tbody>
-                              {group.copies.map(c => (
-                                <tr key={c.id} className="border-t border-indigo-100 hover:bg-indigo-50/30">
-                                  <td className="px-5 py-2">
-                                    <p className="font-bold text-gray-700 text-xs">{c.person_name}</p>
-                                    <p className="text-[10px] text-gray-400 font-mono">{c.person_matricula}</p>
-                                  </td>
-                                  <td className="px-5 py-2">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${c.print_type === 'PROVA' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                      {c.print_type}
-                                    </span>
-                                  </td>
-                                  <td className="px-5 py-2">
-                                    <span className="text-xs text-gray-600">{c.format} · {c.color_mode === 'MONO' ? 'P&B' : 'Cor'}</span>
-                                  </td>
-                                  <td className="px-5 py-2 text-right font-black text-indigo-700 font-mono">{fmt(c.quantity)}</td>
-                                  <td className="px-5 py-2 text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</td>
-                                </tr>
-                              ))}
+                              {group.copies.map(c => {
+                                const capKey = `supports_${(c.format || 'A4').toLowerCase()}_${(c.color_mode || 'MONO').toLowerCase()}` as keyof PrinterRegistry;
+                                const compatiblePrinters = printers.filter(p => p[capKey] === true);
+                                return (
+                                  <tr key={c.id} className="border-t border-indigo-100 hover:bg-indigo-50/30">
+                                    <td className="px-5 py-2">
+                                      <p className="font-bold text-gray-700 text-xs">{c.person_name}</p>
+                                      <p className="text-[10px] text-gray-400 font-mono">{c.person_matricula}</p>
+                                    </td>
+                                    <td className="px-5 py-2">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${c.print_type === 'PROVA' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                        {c.print_type}
+                                      </span>
+                                    </td>
+                                    <td className="px-5 py-2">
+                                      <span className="text-xs text-gray-600">{c.format} · {c.color_mode === 'MONO' ? 'P&B' : 'Cor'}</span>
+                                    </td>
+                                    <td className="px-5 py-2 text-right font-black text-indigo-700 font-mono">{fmt(c.quantity)}</td>
+                                    <td className="px-5 py-2 text-xs text-gray-500">{new Date(c.date).toLocaleDateString()}</td>
+                                    {!group.printer && (
+                                      <td className="px-5 py-2 text-center">
+                                        {linkingCopyId === c.id ? (
+                                          <div className="flex items-center gap-1">
+                                            <select
+                                              className="text-[10px] border border-indigo-200 rounded px-1 py-0.5 bg-white w-24"
+                                              value={selectedPrinterForCopy}
+                                              onChange={e => setSelectedPrinterForCopy(e.target.value)}
+                                            >
+                                              <option value="">Selecione...</option>
+                                              {compatiblePrinters.map(p => (
+                                                <option key={p.id} value={p.id}>{p.local_name}</option>
+                                              ))}
+                                            </select>
+                                            <button onClick={() => handleLinkSingleCopy(c.id)} className="p-1 text-indigo-600 hover:text-indigo-800" title="Confirmar"><Save size={12}/></button>
+                                            <button onClick={() => { setLinkingCopyId(null); setSelectedPrinterForCopy(''); }} className="p-1 text-gray-400 hover:text-gray-600" title="Cancelar"><Ban size={12}/></button>
+                                          </div>
+                                        ) : (
+                                          <button onClick={() => { setLinkingCopyId(c.id); setSelectedPrinterForCopy(''); }} className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 rounded border border-indigo-200 hover:bg-indigo-50 transition-all">
+                                            <ArrowRightLeft size={10}/> Vincular
+                                          </button>
+                                        )}
+                                      </td>
+                                    )}
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                             <tfoot className="bg-indigo-100/50">
                               <tr>
-                                <td colSpan={3} className="px-5 py-2 text-xs font-black text-indigo-700 text-right uppercase">Total Cópias:</td>
+                                <td colSpan={!group.printer ? 5 : 4} className="px-5 py-2 text-xs font-black text-indigo-700 text-right uppercase">Total Cópias:</td>
                                 <td className="px-5 py-2 text-right font-black text-indigo-800 font-mono">{fmt(grupoCopiaTotal)}</td>
-                                <td/>
+                                {!group.printer && <td/>}
                               </tr>
                             </tfoot>
                           </table>

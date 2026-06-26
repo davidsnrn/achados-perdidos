@@ -206,6 +206,17 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   // Reallocation
   const [reallocateTargetPrinterId, setReallocateTargetPrinterId] = useState('');
 
+  // Printers that support all format/color pairs present in unlinked copies
+  const compatiblePrintersForReallocate = React.useMemo(() => {
+    const unlinkedCopies = copyRecords.filter(c => !c.printer_id);
+    if (unlinkedCopies.length === 0) return printers;
+    const needed = new Set<string>();
+    for (const c of unlinkedCopies) {
+      needed.add(`supports_${(c.format || 'A4').toLowerCase()}_${(c.color_mode || 'MONO').toLowerCase()}`);
+    }
+    return printers.filter(p => Array.from(needed).every(k => (p as any)[k] === true));
+  }, [copyRecords, printers]);
+
   // Progress/Saving states
   const [savingCounter, setSavingCounter] = useState(false);
   const [savingPrinter, setSavingPrinter] = useState(false);
@@ -1329,7 +1340,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             <label className={labelCls}>Impressora de Destino *</label>
             <select className={inputCls} value={reallocateTargetPrinterId} onChange={e => setReallocateTargetPrinterId(e.target.value)}>
               <option value="">Selecione uma impressora...</option>
-              {printers.map(p => (
+              {compatiblePrintersForReallocate.map(p => (
                 <option key={p.id} value={p.id}>{p.local_name}{p.ip_address ? ` — ${p.ip_address}` : ''}</option>
               ))}
             </select>

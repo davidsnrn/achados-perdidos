@@ -220,7 +220,12 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
     }
 
-    await StorageService.deleteUser(user.id);
+    try {
+      await StorageService.deleteUser(user.id);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao excluir usuário.');
+      return;
+    }
     onUpdate();
     setShowDetailModal(false);
     setSelectedUser(null);

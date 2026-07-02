@@ -357,7 +357,8 @@ export const StorageService = {
   },
 
   deleteUser: async (id: string) => {
-    await supabase.from('users').delete().eq('id', id);
+    const { error } = await supabase.from('users').delete().eq('id', id);
+    if (error) throw error;
   },
 
   deleteAllUsers: async (currentAdminId: string, campusId?: string, setorId?: string) => {

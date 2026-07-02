@@ -268,7 +268,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
       // Pre-select current user's campus if they are ADVANCED
       setFormLevel(UserLevel.STANDARD);
       setSelectedCampusId(currentUser.level === UserLevel.ADVANCED ? (currentUser.campus_id || '') : '');
-      setSelectedSetorId('');
+      setSelectedSetorId(currentUser.level === UserLevel.ADVANCED ? (currentUser.setor_id || '') : '');
       setPermissions({
         achados: false,
         armarios: false,

@@ -42,10 +42,16 @@ interface BillingResult {
   blockRemaining: number;
 }
 
-function calcBilling(copies: CopyRecord[], cfg: PrinterBillingConfig) {
-  const sum = (format: 'A4'|'A3', color: 'MONO'|'POLI') =>
-    copies.filter(r => r.format === format && r.color_mode === color)
+function calcBilling(records: PrinterCounterRecord[], copies: CopyRecord[], cfg: PrinterBillingConfig) {
+  const sum = (format: 'A4'|'A3', color: 'MONO'|'POLI') => {
+    const counterSum = records
+      .filter(r => r.format === format && r.color_mode === color)
+      .reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0);
+    const copySum = copies
+      .filter(r => r.format === format && r.color_mode === color)
       .reduce((s, r) => s + (r.quantity || 0), 0);
+    return counterSum + copySum;
+  };
 
   const calc = (total: number, franchise: number, excessFranchise: number, priceF: number, priceE: number): BillingResult => {
     const maxTotal = franchise + excessFranchise;
@@ -314,7 +320,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     setHasInitialized(true);
   }, [copyConfig, hasInitialized]);
 
-  const billing = calcBilling(copyRecords, cfg);
+  const billing = calcBilling(records, copyRecords, cfg);
 
   // Sorting state for printers
   const [sortField, setSortField] = useState<'local_name' | 'serial_number' | null>(null);
@@ -1207,7 +1213,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         <div className="bg-slate-800 text-white px-5 py-3 flex items-center justify-between text-sm">
           <span className="font-black uppercase tracking-widest">Total Consumo</span>
           <span className="font-black text-xl font-mono">
-            {fmt(copyRecords.reduce((s, r) => s + (r.quantity || 0), 0))}
+            {fmt(
+              records.reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0) +
+              copyRecords.reduce((s, r) => s + (r.quantity || 0), 0)
+            )}
           </span>
         </div>
       </div>

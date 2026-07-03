@@ -146,6 +146,12 @@ export const RoomsTab: React.FC<Props> = ({
     return map;
   }, [classes]);
 
+  // day_of_week pode ser 0-indexado (0=Seg) ou 1-indexado (1=Seg)
+  const dayOfWeekIsZeroIndexed = useMemo(() => {
+    if (schedules.length === 0) return true;
+    return schedules.some(s => s.day_of_week === 0);
+  }, [schedules]);
+
   const scheduleMatchesRoom = (s: TeacherSchedule, roomKey: string) =>
     s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey;
 
@@ -158,10 +164,7 @@ export const RoomsTab: React.FC<Props> = ({
     const todayStr = new Date().toISOString().split('T')[0];
 
     const roomSchedules = schedules.filter(s => scheduleMatchesRoom(s, roomKey));
-    // day_of_week pode ser 0-indexado (0=Seg) ou 1-indexado (1=Seg)
-    // Detectamos pela presença de 0 (válido apenas em 0-indexado)
-    const isZeroIndexed = roomSchedules.length === 0 || roomSchedules.some(s => s.day_of_week === 0);
-    const normalizeDow = (dow: number) => isZeroIndexed ? dow : dow - 1;
+    const normalizeDow = (dow: number) => dayOfWeekIsZeroIndexed ? dow : dow - 1;
 
     roomSchedules.forEach(s => {
       const col = normalizeDow(s.day_of_week);
@@ -224,9 +227,10 @@ export const RoomsTab: React.FC<Props> = ({
     }
 
     const roomKey = room.toLowerCase();
+    const targetDay = dayOfWeekIsZeroIndexed ? dayOfWeek - 1 : dayOfWeek;
     const scheduleMatch = schedules.find(s =>
       scheduleMatchesRoom(s, roomKey) &&
-      s.day_of_week === dayOfWeek - 1 &&
+      s.day_of_week === targetDay &&
       (s.period === slotId || s.periods?.includes(slotId))
     );
 
@@ -252,9 +256,10 @@ export const RoomsTab: React.FC<Props> = ({
     }
 
     const roomKey = room.toLowerCase();
+    const targetDay = dayOfWeekIsZeroIndexed ? dayOfWeek - 1 : dayOfWeek;
     const roomSchedules = schedules.filter(s =>
       scheduleMatchesRoom(s, roomKey) &&
-      s.day_of_week === dayOfWeek - 1 &&
+      s.day_of_week === targetDay &&
       s.period != null
     );
 

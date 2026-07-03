@@ -4,7 +4,7 @@ import {
   AlertCircle, Save, Filter, Building2, User, BookOpen, AlertTriangle, Play, HelpCircle, X
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { RoomBooking, TeacherSchedule, User as UserType, Campus, Setor, UserLevel } from '../../types';
+import { RoomBooking, TeacherSchedule, TeacherClass, User as UserType, Campus, Setor, UserLevel } from '../../types';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -30,6 +30,7 @@ export const RoomsTab: React.FC<Props> = ({
   // Data States
   const [schedules, setSchedules] = useState<TeacherSchedule[]>([]);
   const [bookings, setBookings] = useState<RoomBooking[]>([]);
+  const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [rooms, setRooms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -105,6 +106,7 @@ export const RoomsTab: React.FC<Props> = ({
 
       setSchedules(schedulesData);
       setBookings(bookingsData);
+      setClasses(classesData);
 
       // Extrair todas as salas únicas cadastradas nas turmas
       const roomsSet = new Set<string>();
@@ -136,13 +138,21 @@ export const RoomsTab: React.FC<Props> = ({
     if (!roomDetailRoom) return null;
     const roomKey = roomDetailRoom.toLowerCase();
 
+    const classRoomMap = new Map<string, string>();
+    classes.forEach(c => {
+      if (c.room?.trim()) {
+        classRoomMap.set(c.name, c.room.trim().toLowerCase());
+      }
+    });
+
     const grid: Record<number, Record<number, { schedule?: TeacherSchedule; booking?: RoomBooking }>> = {};
     const todayStr = new Date().toISOString().split('T')[0];
 
     for (let day = 0; day < 5; day++) {
       grid[day] = {};
       const daySchedules = schedules.filter(s =>
-        s.room?.trim().toLowerCase() === roomKey && s.day_of_week === day
+        (s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey) &&
+        s.day_of_week === day
       );
       daySchedules.forEach(s => {
         const periods = s.periods && s.periods.length > 0 ? s.periods : [s.period];
@@ -197,9 +207,15 @@ export const RoomsTab: React.FC<Props> = ({
     }
 
     const roomKey = room.toLowerCase();
-    // 1. Verificar grade de aula regular
+    const classRoomMap = new Map<string, string>();
+    classes.forEach(c => {
+      if (c.room?.trim()) {
+        classRoomMap.set(c.name, c.room.trim().toLowerCase());
+      }
+    });
+    // 1. Verificar grade de aula regular (pelo nome da sala no horário OU na turma)
     const scheduleMatch = schedules.find(s =>
-      s.room?.trim().toLowerCase() === roomKey &&
+      (s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey) &&
       s.day_of_week === dayOfWeek - 1 &&
       (s.period === slotId || s.periods?.includes(slotId))
     );
@@ -226,8 +242,14 @@ export const RoomsTab: React.FC<Props> = ({
     }
 
     const roomKey = room.toLowerCase();
+    const classRoomMap = new Map<string, string>();
+    classes.forEach(c => {
+      if (c.room?.trim()) {
+        classRoomMap.set(c.name, c.room.trim().toLowerCase());
+      }
+    });
     const roomSchedules = schedules.filter(s =>
-      s.room?.trim().toLowerCase() === roomKey &&
+      (s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey) &&
       s.day_of_week === dayOfWeek - 1 &&
       s.period != null
     );

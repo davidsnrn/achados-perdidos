@@ -133,17 +133,21 @@ export const RoomsTab: React.FC<Props> = ({
     }
   };
 
+  const classRoomMap = useMemo(() => {
+    const map = new Map<string, string>();
+    classes.forEach(c => {
+      if (c.room?.trim()) map.set(c.name, c.room.trim().toLowerCase());
+    });
+    return map;
+  }, [classes]);
+
+  const scheduleMatchesRoom = (s: TeacherSchedule, roomKey: string) =>
+    s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey;
+
   // Grade semanal para detalhe da sala
   const roomWeekGrid = useMemo(() => {
     if (!roomDetailRoom) return null;
     const roomKey = roomDetailRoom.toLowerCase();
-
-    const classRoomMap = new Map<string, string>();
-    classes.forEach(c => {
-      if (c.room?.trim()) {
-        classRoomMap.set(c.name, c.room.trim().toLowerCase());
-      }
-    });
 
     const grid: Record<number, Record<number, { schedule?: TeacherSchedule; booking?: RoomBooking }>> = {};
     const todayStr = new Date().toISOString().split('T')[0];
@@ -151,8 +155,7 @@ export const RoomsTab: React.FC<Props> = ({
     for (let day = 0; day < 5; day++) {
       grid[day] = {};
       const daySchedules = schedules.filter(s =>
-        (s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey) &&
-        s.day_of_week === day
+        scheduleMatchesRoom(s, roomKey) && s.day_of_week === day
       );
       daySchedules.forEach(s => {
         const periods = s.periods && s.periods.length > 0 ? s.periods : [s.period];
@@ -178,7 +181,7 @@ export const RoomsTab: React.FC<Props> = ({
       });
     }
     return grid;
-  }, [roomDetailRoom, schedules, bookings]);
+  }, [roomDetailRoom, schedules, bookings, classRoomMap]);
 
   // Helper to check if a booking conflicts with a slot on a specific date
   const isBookingActiveOn = (booking: RoomBooking, dateStr: string, slotId: number) => {
@@ -207,15 +210,8 @@ export const RoomsTab: React.FC<Props> = ({
     }
 
     const roomKey = room.toLowerCase();
-    const classRoomMap = new Map<string, string>();
-    classes.forEach(c => {
-      if (c.room?.trim()) {
-        classRoomMap.set(c.name, c.room.trim().toLowerCase());
-      }
-    });
-    // 1. Verificar grade de aula regular (pelo nome da sala no horário OU na turma)
     const scheduleMatch = schedules.find(s =>
-      (s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey) &&
+      scheduleMatchesRoom(s, roomKey) &&
       s.day_of_week === dayOfWeek - 1 &&
       (s.period === slotId || s.periods?.includes(slotId))
     );
@@ -242,14 +238,8 @@ export const RoomsTab: React.FC<Props> = ({
     }
 
     const roomKey = room.toLowerCase();
-    const classRoomMap = new Map<string, string>();
-    classes.forEach(c => {
-      if (c.room?.trim()) {
-        classRoomMap.set(c.name, c.room.trim().toLowerCase());
-      }
-    });
     const roomSchedules = schedules.filter(s =>
-      (s.room?.trim().toLowerCase() === roomKey || classRoomMap.get(s.class_name) === roomKey) &&
+      scheduleMatchesRoom(s, roomKey) &&
       s.day_of_week === dayOfWeek - 1 &&
       s.period != null
     );

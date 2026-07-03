@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Calendar, Search, Plus, Trash2, Loader2, MapPin, Clock, CheckCircle2,
-  AlertCircle, Save, Filter, Building2, User, BookOpen, AlertTriangle, Play, HelpCircle
+  AlertCircle, Save, Filter, Building2, User, BookOpen, AlertTriangle, Play, HelpCircle, X
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 import { RoomBooking, TeacherSchedule, User as UserType, Campus, Setor, UserLevel } from '../../types';
@@ -44,6 +44,9 @@ export const RoomsTab: React.FC<Props> = ({
   const [searchPeriods, setSearchPeriods] = useState<number[]>([]);
   const [vacantRooms, setVacantRooms] = useState<string[]>([]);
   const [searchDone, setSearchDone] = useState(false);
+
+  // Modal Detalhe da Sala
+  const [roomDetailRoom, setRoomDetailRoom] = useState<string | null>(null);
 
   // Modal Agendamento
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -128,6 +131,45 @@ export const RoomsTab: React.FC<Props> = ({
     }
   };
 
+  // Grade semanal para detalhe da sala
+  const roomWeekGrid = useMemo(() => {
+    if (!roomDetailRoom) return null;
+    const roomKey = roomDetailRoom.toLowerCase();
+
+    const grid: Record<number, Record<number, { schedule?: TeacherSchedule; booking?: RoomBooking }>> = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    for (let day = 0; day < 5; day++) {
+      grid[day] = {};
+      const daySchedules = schedules.filter(s =>
+        s.room?.trim().toLowerCase() === roomKey && s.day_of_week === day
+      );
+      daySchedules.forEach(s => {
+        const periods = s.periods && s.periods.length > 0 ? s.periods : [s.period];
+        periods.forEach(p => {
+          if (!grid[day][p]) grid[day][p] = {};
+          grid[day][p]!.schedule = s;
+        });
+      });
+
+      const dayBookings = bookings.filter(b => {
+        if (b.room_name?.trim().toLowerCase() !== roomKey) return false;
+        if (todayStr < b.start_date || todayStr > b.end_date) return false;
+        if (b.recurrence_type === 'WEEKLY' || b.recurrence_type === 'SPECIFIC_DAYS') {
+          if (b.recurrence_days && !b.recurrence_days.includes(day + 1)) return false;
+        }
+        return true;
+      });
+      dayBookings.forEach(b => {
+        b.periods.forEach(p => {
+          if (!grid[day][p]) grid[day][p] = {};
+          grid[day][p]!.booking = b;
+        });
+      });
+    }
+    return grid;
+  }, [roomDetailRoom, schedules, bookings]);
+
   // Helper to check if a booking conflicts with a slot on a specific date
   const isBookingActiveOn = (booking: RoomBooking, dateStr: string, slotId: number) => {
     if (dateStr < booking.start_date || dateStr > booking.end_date) return false;
@@ -150,16 +192,21 @@ export const RoomsTab: React.FC<Props> = ({
     const dateObj = new Date(dateStr + 'T12:00:00');
     const dayOfWeek = dateObj.getDay(); // 0=Dom, 1=Seg...
 
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return { occupied: false, schedule: null, booking: null };
+    }
+
+    const roomKey = room.toLowerCase();
     // 1. Verificar grade de aula regular
     const scheduleMatch = schedules.find(s =>
-      s.room?.trim() === room &&
+      s.room?.trim().toLowerCase() === roomKey &&
       s.day_of_week === dayOfWeek - 1 &&
       (s.period === slotId || s.periods?.includes(slotId))
     );
 
     // 2. Verificar agendamentos temporários/eventos
     const bookingMatch = bookings.find(b =>
-      b.room_name?.trim() === room &&
+      b.room_name?.trim().toLowerCase() === roomKey &&
       isBookingActiveOn(b, dateStr, slotId)
     );
 
@@ -167,6 +214,38 @@ export const RoomsTab: React.FC<Props> = ({
       occupied: !!(scheduleMatch || bookingMatch),
       schedule: scheduleMatch,
       booking: bookingMatch
+    };
+  };
+
+  // Verificar ocupação em QUALQUER período do dia
+  const getRoomOccupancyToday = (room: string, dateStr: string) => {
+    const dateObj = new Date(dateStr + 'T12:00:00');
+    const dayOfWeek = dateObj.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return { occupied: false, schedules: [] as TeacherSchedule[], bookings: [] as RoomBooking[] };
+    }
+
+    const roomKey = room.toLowerCase();
+    const roomSchedules = schedules.filter(s =>
+      s.room?.trim().toLowerCase() === roomKey &&
+      s.day_of_week === dayOfWeek - 1 &&
+      s.period != null
+    );
+
+    const roomBookings = bookings.filter(b => {
+      if (b.room_name?.trim().toLowerCase() !== roomKey) return false;
+      if (dateStr < b.start_date || dateStr > b.end_date) return false;
+      if (b.recurrence_type === 'WEEKLY' || b.recurrence_type === 'SPECIFIC_DAYS') {
+        const day = dateObj.getDay();
+        if (b.recurrence_days && !b.recurrence_days.includes(day)) return false;
+      }
+      return b.periods && b.periods.length > 0;
+    });
+
+    return {
+      occupied: roomSchedules.length > 0 || roomBookings.length > 0,
+      schedules: roomSchedules,
+      bookings: roomBookings
     };
   };
 
@@ -367,14 +446,23 @@ export const RoomsTab: React.FC<Props> = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {rooms.map(room => {
                     const todayStr = new Date().toISOString().split('T')[0];
-                    const activeSlot = currentSlot ? currentSlot.id : 1; // Fallback para 1ª aula se estiver fora do horário
-                    const occ = getRoomOccupancyAt(room, todayStr, activeSlot);
+
+                    const occ = currentSlot
+                      ? getRoomOccupancyAt(room, todayStr, currentSlot.id)
+                      : getRoomOccupancyToday(room, todayStr);
+
+                    const isOccupied = occ && 'occupied' in occ ? occ.occupied : false;
+                    const schedules = (occ as any).schedules || [];
+                    const bookings = (occ as any).bookings || [];
+                    const singleSchedule = (occ as any).schedule || null;
+                    const singleBooking = (occ as any).booking || null;
 
                     return (
                       <div
                         key={room}
-                        className={`bg-white p-6 rounded-[2rem] shadow-sm border-2 transition-all duration-300 flex flex-col justify-between ${
-                          occ.occupied
+                        onClick={() => setRoomDetailRoom(room)}
+                        className={`bg-white p-6 rounded-[2rem] shadow-sm border-2 transition-all duration-300 flex flex-col justify-between cursor-pointer ${
+                          isOccupied
                             ? 'border-red-100 hover:border-red-300 bg-red-50/20'
                             : 'border-green-100 hover:border-green-300 bg-green-50/20'
                         }`}
@@ -383,43 +471,73 @@ export const RoomsTab: React.FC<Props> = ({
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="text-xl font-black text-gray-900">{room}</h4>
                             <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                              occ.occupied
+                              isOccupied
                                 ? 'bg-red-100 text-red-700'
                                 : 'bg-green-100 text-green-700'
                             }`}>
-                              {occ.occupied ? 'Ocupada' : 'Livre'}
+                              {isOccupied ? 'Ocupada' : 'Livre'}
                             </span>
                           </div>
 
-                          {occ.occupied && occ.schedule && (
+                          {isOccupied && currentSlot && singleSchedule && (
                             <div className="space-y-2">
-                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Aula Regular</p>
+                              <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Aula Regular <span className="text-indigo-500">({timeSlots.find(t => t.id === currentSlot.id)?.label}ª)</span></p>
                               <div className="bg-white rounded-2xl p-4 border border-red-50 space-y-1">
-                                <div className="text-sm font-black text-gray-900">{occ.schedule.class_name}</div>
-                                <div className="text-xs font-bold text-indigo-600">{occ.schedule.subject}</div>
+                                <div className="text-sm font-black text-gray-900">{singleSchedule.class_name}</div>
+                                <div className="text-xs font-bold text-indigo-600">{singleSchedule.subject}</div>
                                 <div className="text-xs text-gray-500 font-medium flex items-center gap-1.5 mt-1">
-                                  <User size={12} /> Prof: {occ.schedule.teacher_name}
+                                  <User size={12} /> Prof: {singleSchedule.teacher_name}
                                 </div>
                               </div>
                             </div>
                           )}
 
-                          {occ.occupied && occ.booking && (
+                          {isOccupied && currentSlot && singleBooking && (
                             <div className="space-y-2">
                               <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Evento / Agendamento</p>
-                              <div className="bg-white rounded-2xl p-4 border border-red-50 space-y-1">
-                                <div className="text-sm font-black text-gray-900">{occ.booking.event_title}</div>
-                                <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider">{occ.booking.booking_type}</div>
-                                {occ.booking.teacher_name && (
+                              <div className="bg-white rounded-2xl p-4 border border-purple-50 space-y-1">
+                                <div className="text-sm font-black text-gray-900">{singleBooking.event_title}</div>
+                                <div className="text-xs font-bold text-indigo-600 uppercase tracking-wider">{singleBooking.booking_type}</div>
+                                {singleBooking.teacher_name && (
                                   <div className="text-xs text-gray-500 font-medium flex items-center gap-1.5 mt-1">
-                                    <User size={12} /> Prof: {occ.booking.teacher_name}
+                                    <User size={12} /> Prof: {singleBooking.teacher_name}
                                   </div>
                                 )}
                               </div>
                             </div>
                           )}
 
-                          {!occ.occupied && (
+                          {isOccupied && !currentSlot && (
+                            <div className="space-y-2">
+                              {schedules.length > 0 && (
+                                <>
+                                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Aulas Hoje ({schedules.length})</p>
+                                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                                    {schedules.map((sch: TeacherSchedule, i: number) => {
+                                      const slotLabel = timeSlots.find(t => t.id === sch.period)?.label || sch.period;
+                                      return (
+                                        <div key={i} className="bg-white rounded-2xl p-3 border border-red-50 space-y-0.5 text-xs">
+                                          <div className="font-black text-gray-900">{slotLabel}ª - {sch.class_name}</div>
+                                          <div className="font-bold text-indigo-600">{sch.subject}</div>
+                                          <div className="text-gray-500 font-medium flex items-center gap-1">
+                                            <User size={10} /> {sch.teacher_name}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </>
+                              )}
+                              {bookings.length > 0 && schedules.length === 0 && (
+                                <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                                  <p className="text-xs font-black text-gray-900">{bookings[0].event_title}</p>
+                                  <p className="text-xs font-bold text-purple-600 uppercase tracking-wider">{bookings[0].booking_type}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {!isOccupied && (
                             <p className="text-sm text-gray-500 font-medium">Esta sala está livre e disponível no momento.</p>
                           )}
                         </div>
@@ -837,6 +955,112 @@ export const RoomsTab: React.FC<Props> = ({
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Detalhe da Sala - Grade Semanal */}
+      <Modal
+        isOpen={!!roomDetailRoom}
+        onClose={() => setRoomDetailRoom(null)}
+        title={roomDetailRoom ? `Grade Semanal - ${roomDetailRoom}` : ''}
+        maxWidth="max-w-6xl"
+      >
+        <div className="p-6 overflow-x-auto">
+          {!roomWeekGrid ? (
+            <div className="py-12 text-center text-gray-400 font-bold">Carregando...</div>
+          ) : (
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr>
+                  <th className="p-2 sticky left-0 bg-white z-10 w-20"></th>
+                  {daysOfWeekList.map(d => (
+                    <th key={d.id} className="p-3 text-center font-black text-gray-700 uppercase tracking-wider border-b-2 border-gray-200 bg-gray-50/50 min-w-[130px]">
+                      {d.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(['M', 'T', 'N'] as const).map(shift => {
+                  const shiftSlots = timeSlots.filter(s => s.shift === shift);
+                  const shiftLabel = shift === 'M' ? 'Manhã' : shift === 'T' ? 'Tarde' : 'Noite';
+                  return (
+                    <React.Fragment key={shift}>
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="p-2 pt-4 text-xs font-black uppercase tracking-widest text-gray-400"
+                        >
+                          {shiftLabel}
+                        </td>
+                      </tr>
+                      {shiftSlots.map(slot => {
+                        const day0 = roomWeekGrid[0]?.[slot.id];
+                        const day1 = roomWeekGrid[1]?.[slot.id];
+                        const day2 = roomWeekGrid[2]?.[slot.id];
+                        const day3 = roomWeekGrid[3]?.[slot.id];
+                        const day4 = roomWeekGrid[4]?.[slot.id];
+                        const cells = [day0, day1, day2, day3, day4];
+                        const colSpan = cells.every(c => !c) ? 6 : undefined;
+
+                        return (
+                          <tr key={slot.id}>
+                            <td className="p-2 sticky left-0 bg-white z-10 text-[11px] font-bold text-gray-500 whitespace-nowrap border-b border-gray-50">
+                              {slot.label}ª ({slot.time})
+                            </td>
+                            {colSpan ? (
+                              <td colSpan={5} className="p-2 text-center text-[10px] text-gray-300 italic border-b border-gray-50">
+                                Sem aulas neste horário
+                              </td>
+                            ) : (
+                              daysOfWeekList.map((d, i) => {
+                                const cell = cells[i];
+                                if (!cell) {
+                                  return (
+                                    <td key={d.id} className="p-1.5 border-b border-gray-50">
+                                      <div className="h-full min-h-[36px] rounded-lg bg-gray-50/30 border border-dashed border-gray-100 flex items-center justify-center">
+                                        <span className="text-[10px] text-gray-300">—</span>
+                                      </div>
+                                    </td>
+                                  );
+                                }
+                                const isSchedule = !!cell.schedule;
+                                const isBooking = !!cell.booking;
+                                return (
+                                  <td key={d.id} className="p-1.5 border-b border-gray-50">
+                                    {isSchedule && (
+                                      <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-2 text-[10px] leading-tight space-y-0.5">
+                                        <div className="font-black text-indigo-900 truncate">{cell.schedule!.class_name}</div>
+                                        <div className="font-bold text-indigo-600 truncate">{cell.schedule!.subject}</div>
+                                        <div className="text-gray-500 truncate flex items-center gap-1">
+                                          <User size={9} /> {cell.schedule!.teacher_name}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {isBooking && !isSchedule && (
+                                      <div className="bg-purple-50 border border-purple-100 rounded-lg p-2 text-[10px] leading-tight space-y-0.5">
+                                        <div className="font-black text-purple-900 truncate">{cell.booking!.event_title}</div>
+                                        <div className="font-bold text-purple-600 uppercase tracking-wider text-[9px]">{cell.booking!.booking_type}</div>
+                                        {cell.booking!.teacher_name && (
+                                          <div className="text-gray-500 truncate flex items-center gap-1">
+                                            <User size={9} /> {cell.booking!.teacher_name}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </Modal>
     </div>
   );

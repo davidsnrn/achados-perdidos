@@ -152,33 +152,42 @@ export const RoomsTab: React.FC<Props> = ({
     const grid: Record<number, Record<number, { schedule?: TeacherSchedule; booking?: RoomBooking }>> = {};
     const todayStr = new Date().toISOString().split('T')[0];
 
-    for (let day = 0; day < 5; day++) {
-      grid[day] = {};
-      const daySchedules = schedules.filter(s =>
-        scheduleMatchesRoom(s, roomKey) && s.day_of_week === day
-      );
-      daySchedules.forEach(s => {
-        const periods = s.periods && s.periods.length > 0 ? s.periods : [s.period];
-        periods.forEach(p => {
-          if (!grid[day][p]) grid[day][p] = {};
-          grid[day][p]!.schedule = s;
-        });
-      });
+    const roomSchedules = schedules.filter(s => scheduleMatchesRoom(s, roomKey));
+    // day_of_week pode ser 0-indexado (0=Seg) ou 1-indexado (1=Seg)
+    // Detectamos pela presença de 0 (válido apenas em 0-indexado)
+    const isZeroIndexed = roomSchedules.length === 0 || roomSchedules.some(s => s.day_of_week === 0);
+    const normalizeDow = (dow: number) => isZeroIndexed ? dow : dow - 1;
 
+    roomSchedules.forEach(s => {
+      const col = normalizeDow(s.day_of_week);
+      const periods = s.periods && s.periods.length > 0 ? s.periods : [s.period];
+      periods.forEach(p => {
+        if (!grid[col]) grid[col] = {};
+        if (!grid[col][p]) grid[col][p] = {};
+        grid[col][p]!.schedule = s;
+      });
+    });
+
+    // Bookings: check each day column (1=Mon..5=Fri using getDay() convention)
+    for (let col = 0; col < 5; col++) {
+      const dow = col + 1; // 1=Mon
       const dayBookings = bookings.filter(b => {
         if (b.room_name?.trim().toLowerCase() !== roomKey) return false;
         if (todayStr < b.start_date || todayStr > b.end_date) return false;
         if (b.recurrence_type === 'WEEKLY' || b.recurrence_type === 'SPECIFIC_DAYS') {
-          if (b.recurrence_days && !b.recurrence_days.includes(day + 1)) return false;
+          if (b.recurrence_days && !b.recurrence_days.includes(dow)) return false;
         }
         return true;
       });
-      dayBookings.forEach(b => {
-        b.periods.forEach(p => {
-          if (!grid[day][p]) grid[day][p] = {};
-          grid[day][p]!.booking = b;
+      if (dayBookings.length > 0) {
+        if (!grid[col]) grid[col] = {};
+        dayBookings.forEach(b => {
+          b.periods.forEach(p => {
+            if (!grid[col][p]) grid[col][p] = {};
+            grid[col][p]!.booking = b;
+          });
         });
-      });
+      }
     }
     return grid;
   }, [roomDetailRoom, schedules, bookings, classRoomMap]);
@@ -1010,12 +1019,7 @@ export const RoomsTab: React.FC<Props> = ({
                         </td>
                       </tr>
                       {shiftSlots.map(slot => {
-                        const day0 = roomWeekGrid[0]?.[slot.id];
-                        const day1 = roomWeekGrid[1]?.[slot.id];
-                        const day2 = roomWeekGrid[2]?.[slot.id];
-                        const day3 = roomWeekGrid[3]?.[slot.id];
-                        const day4 = roomWeekGrid[4]?.[slot.id];
-                        const cells = [day0, day1, day2, day3, day4];
+                        const cells = [0, 1, 2, 3, 4].map(i => roomWeekGrid[i]?.[slot.id]);
                         const colSpan = cells.every(c => !c) ? 6 : undefined;
 
                         return (

@@ -48,6 +48,10 @@ export const RoomsTab: React.FC<Props> = ({
 
   // Modal Detalhe da Sala
   const [roomDetailRoom, setRoomDetailRoom] = useState<string | null>(null);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
+  const [gridIsDragging, setGridIsDragging] = useState(false);
+  const [gridDragStartX, setGridDragStartX] = useState(0);
+  const [gridDragScrollLeft, setGridDragScrollLeft] = useState(0);
 
   // Modal Agendamento
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -392,6 +396,26 @@ export const RoomsTab: React.FC<Props> = ({
     } else {
       setBookingForm({ ...bookingForm, recurrence_days: [...current, dayId] });
     }
+  };
+
+  const handleGridMouseDown = (e: React.MouseEvent) => {
+    setGridIsDragging(true);
+    setGridDragStartX(e.pageX - (gridScrollRef.current?.offsetLeft || 0));
+    setGridDragScrollLeft(gridScrollRef.current?.scrollLeft || 0);
+  };
+
+  const handleGridMouseMove = (e: React.MouseEvent) => {
+    if (!gridIsDragging) return;
+    e.preventDefault();
+    const x = e.pageX - (gridScrollRef.current?.offsetLeft || 0);
+    const walk = (x - gridDragStartX) * 1.5;
+    if (gridScrollRef.current) {
+      gridScrollRef.current.scrollLeft = gridDragScrollLeft - walk;
+    }
+  };
+
+  const handleGridMouseUp = () => {
+    setGridIsDragging(false);
   };
 
   return (
@@ -989,7 +1013,14 @@ export const RoomsTab: React.FC<Props> = ({
         title={roomDetailRoom ? `Grade Semanal - ${roomDetailRoom}` : ''}
         maxWidth="max-w-6xl"
       >
-        <div className="p-6 overflow-x-auto">
+        <div
+          ref={gridScrollRef}
+          className="p-6 overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+          onMouseDown={handleGridMouseDown}
+          onMouseMove={handleGridMouseMove}
+          onMouseUp={handleGridMouseUp}
+          onMouseLeave={handleGridMouseUp}
+        >
           {!roomWeekGrid ? (
             <div className="py-12 text-center text-gray-400 font-bold">Carregando...</div>
           ) : (
@@ -998,8 +1029,8 @@ export const RoomsTab: React.FC<Props> = ({
                 <tr>
                   <th className="p-2 sticky left-0 bg-white z-10 w-20"></th>
                   {daysOfWeekList.map(d => (
-                    <th key={d.id} className="p-3 text-center font-black text-gray-700 uppercase tracking-wider border-b-2 border-gray-200 bg-gray-50/50 min-w-[130px]">
-                      {d.label}
+                    <th key={d.id} className="p-3 text-center font-black text-gray-700 uppercase tracking-wider border-b-2 border-gray-200 bg-gray-50/50 min-w-[130px] text-[13px]">
+                      {d.label.replace('-feira', '')}
                     </th>
                   ))}
                 </tr>

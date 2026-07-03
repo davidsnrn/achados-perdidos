@@ -51,7 +51,9 @@ export const RoomsTab: React.FC<Props> = ({
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const [gridIsDragging, setGridIsDragging] = useState(false);
   const [gridDragStartX, setGridDragStartX] = useState(0);
+  const [gridDragStartY, setGridDragStartY] = useState(0);
   const [gridDragScrollLeft, setGridDragScrollLeft] = useState(0);
+  const [gridDragScrollTop, setGridDragScrollTop] = useState(0);
 
   // Modal Agendamento
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -400,18 +402,25 @@ export const RoomsTab: React.FC<Props> = ({
 
   const handleGridMouseDown = (e: React.MouseEvent) => {
     setGridIsDragging(true);
-    setGridDragStartX(e.pageX - (gridScrollRef.current?.offsetLeft || 0));
-    setGridDragScrollLeft(gridScrollRef.current?.scrollLeft || 0);
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setGridDragStartX(e.pageX - rect.left);
+    setGridDragStartY(e.pageY - rect.top);
+    setGridDragScrollLeft(el.scrollLeft);
+    setGridDragScrollTop(el.scrollTop);
   };
 
   const handleGridMouseMove = (e: React.MouseEvent) => {
     if (!gridIsDragging) return;
     e.preventDefault();
-    const x = e.pageX - (gridScrollRef.current?.offsetLeft || 0);
-    const walk = (x - gridDragStartX) * 1.5;
-    if (gridScrollRef.current) {
-      gridScrollRef.current.scrollLeft = gridDragScrollLeft - walk;
-    }
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = e.pageX - rect.left;
+    const y = e.pageY - rect.top;
+    el.scrollLeft = gridDragScrollLeft - (x - gridDragStartX) * 1.5;
+    el.scrollTop = gridDragScrollTop - (y - gridDragStartY) * 1.5;
   };
 
   const handleGridMouseUp = () => {
@@ -1015,7 +1024,7 @@ export const RoomsTab: React.FC<Props> = ({
       >
         <div
           ref={gridScrollRef}
-          className="p-6 overflow-x-auto cursor-grab active:cursor-grabbing select-none"
+          className="p-6 overflow-auto cursor-grab active:cursor-grabbing select-none"
           onMouseDown={handleGridMouseDown}
           onMouseMove={handleGridMouseMove}
           onMouseUp={handleGridMouseUp}

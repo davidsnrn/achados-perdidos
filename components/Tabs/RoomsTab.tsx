@@ -1024,7 +1024,7 @@ export const RoomsTab: React.FC<Props> = ({
       >
         <div
           ref={gridScrollRef}
-          className="p-6 overflow-auto cursor-grab active:cursor-grabbing select-none"
+          className="p-6 overflow-auto cursor-grab active:cursor-grabbing select-none max-h-[70vh]"
           onMouseDown={handleGridMouseDown}
           onMouseMove={handleGridMouseMove}
           onMouseUp={handleGridMouseUp}

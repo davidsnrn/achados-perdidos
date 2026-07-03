@@ -41,9 +41,8 @@ export const RoomsTab: React.FC<Props> = ({
   // Search vacuums state
   const [searchMode, setSearchMode] = useState<'agora' | 'periodo'>('agora');
   const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
-  const [searchShift, setSearchShift] = useState<'M' | 'T' | 'N'>('M');
-  const [searchPeriods, setSearchPeriods] = useState<number[]>([]);
   const [vacantRooms, setVacantRooms] = useState<string[]>([]);
+  const [vacantByShift, setVacantByShift] = useState<Record<string, string[]>>({});
   const [searchDone, setSearchDone] = useState(false);
 
   // Modal Detalhe da Sala
@@ -299,35 +298,41 @@ export const RoomsTab: React.FC<Props> = ({
     if (e) e.preventDefault();
 
     let targetDate = searchDate;
-    let targetPeriods: number[] = [];
 
     if (searchMode === 'agora') {
       const now = new Date();
       targetDate = now.toISOString().split('T')[0];
       const slot = getCurrentSlot();
       if (slot) {
-        targetPeriods = [slot.id];
+        const vacant = rooms.filter(room => {
+          const occupancy = getRoomOccupancyAt(room, targetDate, slot.id);
+          return !occupancy.occupied;
+        });
+        setVacantRooms(vacant);
+        setVacantByShift({});
       } else {
-        alert('Não há nenhuma aula ocorrendo no horário atual do sistema. Use a busca por período.');
+        alert('Não há nenhuma aula ocorrendo no horário atual do sistema. Use a busca por data.');
         return;
       }
     } else {
-      if (searchPeriods.length === 0) {
-        alert('Por favor, selecione ao menos uma aula para busca por período.');
-        return;
+      const shifts = ['M', 'T', 'N'] as const;
+      const result: Record<string, string[]> = {};
+
+      for (const shift of shifts) {
+        const shiftPeriods = timeSlots.filter(s => s.shift === shift).map(s => s.id);
+        const vacant = rooms.filter(room =>
+          shiftPeriods.every(periodId => {
+            const occupancy = getRoomOccupancyAt(room, targetDate, periodId);
+            return !occupancy.occupied;
+          })
+        );
+        result[shift] = vacant;
       }
-      targetPeriods = searchPeriods;
+
+      setVacantRooms([]);
+      setVacantByShift(result);
     }
 
-    // Filtrar salas que não estão ocupadas em NENHUM dos períodos solicitados
-    const vacant = rooms.filter(room => {
-      return targetPeriods.every(periodId => {
-        const occupancy = getRoomOccupancyAt(room, targetDate, periodId);
-        return !occupancy.occupied;
-      });
-    });
-
-    setVacantRooms(vacant);
     setSearchDone(true);
   };
 
@@ -371,14 +376,6 @@ export const RoomsTab: React.FC<Props> = ({
       alert('Erro ao excluir reserva.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const togglePeriodSelection = (periodId: number) => {
-    if (searchPeriods.includes(periodId)) {
-      setSearchPeriods(searchPeriods.filter(id => id !== periodId));
-    } else {
-      setSearchPeriods([...searchPeriods, periodId]);
     }
   };
 
@@ -609,7 +606,7 @@ export const RoomsTab: React.FC<Props> = ({
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <h3 className="text-lg font-black text-gray-900 mb-6">Procurar Sala Vazia</h3>
 
-                <form onSubmit={handleSearchVacantRooms} className="space-y-6">
+                  <form onSubmit={handleSearchVacantRooms} className="space-y-6">
                   <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
                     <button
                       type="button"
@@ -623,58 +620,21 @@ export const RoomsTab: React.FC<Props> = ({
                       onClick={() => { setSearchMode('periodo'); setSearchDone(false); }}
                       className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-all ${searchMode === 'periodo' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                     >
-                      Por Período / Aula
+                      Por Data
                     </button>
                   </div>
 
                   {searchMode === 'periodo' && (
-                    <div className="space-y-4 animate-in fade-in duration-300">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data *</label>
-                          <input
-                            type="date"
-                            required
-                            value={searchDate}
-                            onChange={e => setSearchDate(e.target.value)}
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Turno *</label>
-                          <select
-                            value={searchShift}
-                            onChange={e => { setSearchShift(e.target.value as any); setSearchPeriods([]); }}
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
-                          >
-                            <option value="M">Manhã</option>
-                            <option value="T">Tarde</option>
-                            <option value="N">Noite</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Selecione as Aulas / Períodos desejados *</label>
-                        <div className="flex flex-wrap gap-2">
-                          {timeSlots.filter(s => s.shift === searchShift).map(slot => {
-                            const isSelected = searchPeriods.includes(slot.id);
-                            return (
-                              <button
-                                type="button"
-                                key={slot.id}
-                                onClick={() => togglePeriodSelection(slot.id)}
-                                className={`px-4 py-2.5 rounded-xl border-2 font-bold text-xs transition-all ${
-                                  isSelected
-                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
-                                    : 'bg-white border-gray-100 text-gray-600 hover:bg-gray-50'
-                                }`}
-                              >
-                                {slot.label}ª Aula ({slot.time})
-                              </button>
-                            );
-                          })}
-                        </div>
+                    <div className="animate-in fade-in duration-300">
+                      <div className="max-w-xs">
+                        <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-2">Data *</label>
+                        <input
+                          type="date"
+                          required
+                          value={searchDate}
+                          onChange={e => setSearchDate(e.target.value)}
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl font-bold text-gray-900 focus:border-indigo-500 outline-none transition-all"
+                        />
                       </div>
                     </div>
                   )}
@@ -691,26 +651,62 @@ export const RoomsTab: React.FC<Props> = ({
 
               {searchDone && (
                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <h3 className="text-lg font-black text-gray-900 mb-4">Salas Vazias Encontradas ({vacantRooms.length})</h3>
-
-                  {vacantRooms.length === 0 ? (
-                    <div className="py-12 text-center text-gray-400">
-                      <AlertTriangle size={36} className="mx-auto text-yellow-500 mb-2" />
-                      <p className="font-bold">Não foi encontrada nenhuma sala 100% desocupada no horário selecionado.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                      {vacantRooms.map(room => (
-                        <div
-                          key={room}
-                          onClick={() => setRoomDetailRoom(room)}
-                          className="bg-green-50 border-2 border-green-200 text-green-900 p-4 rounded-2xl flex flex-col items-center justify-center font-black text-center shadow-sm cursor-pointer hover:bg-green-100 transition-all"
-                        >
-                          <CheckCircle2 className="text-green-600 mb-2" size={24} />
-                          <span className="text-base">{room}</span>
+                  {searchMode === 'agora' ? (
+                    <>
+                      <h3 className="text-lg font-black text-gray-900 mb-4">Salas Vazias Agora ({vacantRooms.length})</h3>
+                      {vacantRooms.length === 0 ? (
+                        <div className="py-12 text-center text-gray-400">
+                          <AlertTriangle size={36} className="mx-auto text-yellow-500 mb-2" />
+                          <p className="font-bold">Nenhuma sala vazia no momento.</p>
                         </div>
-                      ))}
-                    </div>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                          {vacantRooms.map(room => (
+                            <div
+                              key={room}
+                              onClick={() => setRoomDetailRoom(room)}
+                              className="bg-green-50 border-2 border-green-200 text-green-900 p-4 rounded-2xl flex flex-col items-center justify-center font-black text-center shadow-sm cursor-pointer hover:bg-green-100 transition-all"
+                            >
+                              <CheckCircle2 className="text-green-600 mb-2" size={24} />
+                              <span className="text-base">{room}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-black text-gray-900 mb-6">Salas Vazias em {new Date(searchDate + 'T12:00:00').toLocaleDateString('pt-BR')}</h3>
+                      {(['M', 'T', 'N'] as const).map(shift => {
+                        const shiftName = shift === 'M' ? 'Manhã' : shift === 'T' ? 'Tarde' : 'Noite';
+                        const rooms = vacantByShift[shift] || [];
+                        return (
+                          <div key={shift} className="mb-6 last:mb-0">
+                            <h4 className="text-sm font-black text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                              {shiftName}
+                              <span className="text-xs font-bold text-gray-400 normal-case">({rooms.length} sala{rooms.length !== 1 ? 's' : ''})</span>
+                            </h4>
+                            {rooms.length === 0 ? (
+                              <p className="text-xs text-gray-400 font-medium ml-4">Nenhuma sala vazia neste turno.</p>
+                            ) : (
+                              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                {rooms.map(room => (
+                                  <div
+                                    key={room}
+                                    onClick={() => setRoomDetailRoom(room)}
+                                    className="bg-green-50 border-2 border-green-200 text-green-900 p-3 rounded-2xl flex flex-col items-center justify-center font-black text-center shadow-sm cursor-pointer hover:bg-green-100 transition-all"
+                                  >
+                                    <CheckCircle2 className="text-green-600 mb-1" size={20} />
+                                    <span className="text-sm">{room}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </>
                   )}
                 </div>
               )}

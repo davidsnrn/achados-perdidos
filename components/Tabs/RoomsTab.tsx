@@ -647,8 +647,9 @@ export const RoomsTab: React.FC<Props> = ({
                             <div key={shift} className="mb-4 last:mb-0">
                               <h5 className="text-[11px] font-black text-gray-400 uppercase tracking-wider mb-2">{shiftName}</h5>
                               <div className="flex flex-wrap gap-2">
-                                {shiftSlots.map(slot => {
+                                {shiftSlots.map((slot, idx) => {
                                   const isSelected = searchPeriods.includes(slot.id);
+                                  const relLabel = idx + 1;
                                   return (
                                     <button
                                       type="button"
@@ -660,7 +661,7 @@ export const RoomsTab: React.FC<Props> = ({
                                           : 'bg-white border-gray-100 text-gray-600 hover:bg-gray-50'
                                       }`}
                                     >
-                                      {slot.label}ª ({slot.time})
+                                      {relLabel}ª ({slot.time})
                                     </button>
                                   );
                                 })}

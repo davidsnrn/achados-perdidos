@@ -161,6 +161,7 @@ export const MaterialReportTab: React.FC<Props> = ({ loans, materials }) => {
                                 <th className="p-4 text-left whitespace-nowrap">Empréstimo</th>
                                 <th className="p-4 text-left whitespace-nowrap">Devolução</th>
                                 <th className="p-4 text-left whitespace-nowrap">Responsável</th>
+                                <th className="p-4 text-left whitespace-nowrap">Obs</th>
                                 <th className="p-4 text-left whitespace-nowrap">Status</th>
                             </tr>
                         </thead>
@@ -204,6 +205,13 @@ export const MaterialReportTab: React.FC<Props> = ({ loans, materials }) => {
                                     <td className="p-4 text-xs text-gray-600 whitespace-nowrap">
                                         {loan.loanedBy}
                                     </td>
+                                    <td className="p-4 max-w-[120px]">
+                                        {loan.observation ? (
+                                            <span className="text-xs text-gray-500 italic truncate block" title={loan.observation}>{loan.observation}</span>
+                                        ) : (
+                                            <span className="text-gray-300">-</span>
+                                        )}
+                                    </td>
                                     <td className="p-4 whitespace-nowrap">
                                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${loan.status === 'ACTIVE'
                                                 ? 'bg-amber-100 text-amber-800'
@@ -217,7 +225,7 @@ export const MaterialReportTab: React.FC<Props> = ({ loans, materials }) => {
                             ))}
                             {filteredLoans.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="p-12 text-center text-gray-400 italic">
+                                    <td colSpan={8} className="p-12 text-center text-gray-400 italic">
                                         Nenhum registro encontrado.
                                     </td>
                                 </tr>

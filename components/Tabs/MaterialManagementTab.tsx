@@ -1064,6 +1064,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('loanDate')}>
                                             <div className="flex items-center">Desde {getInventorySortIcon('loanDate')}</div>
                                         </th>
+                                        <th className="p-4 text-left">
+                                            <div className="flex items-center">Obs</div>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -1119,11 +1122,18 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                     </>;
                                                 })() : '-'}
                                             </td>
+                                            <td className="p-4 max-w-[120px]">
+                                                {item.activeLoan?.observation ? (
+                                                    <span className="text-xs text-gray-500 italic truncate block" title={item.activeLoan.observation}>{item.activeLoan.observation}</span>
+                                                ) : (
+                                                    <span className="text-gray-300">-</span>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))}
                                     {filteredInventory.length === 0 && (
                                         <tr>
-                                            <td colSpan={7} className="p-12 text-center text-gray-400 italic">Nenhum material encontrado.</td>
+                                            <td colSpan={8} className="p-12 text-center text-gray-400 italic">Nenhum material encontrado.</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -1322,6 +1332,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('returnDate')}>
                                             <div className="flex items-center">Data Devolução {getReportSortIcon('returnDate')}</div>
                                         </th>
+                                        <th className="p-4 text-left">
+                                            <div className="flex items-center">Obs</div>
+                                        </th>
                                         <th className="p-4 text-center cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('status')}>
                                             <div className="flex items-center justify-center">Status {getReportSortIcon('status')}</div>
                                         </th>
@@ -1425,6 +1438,13 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                         <span className="text-amber-600 font-bold text-[10px] bg-amber-50 px-2 py-1 rounded-full border border-amber-100">EM ABERTO</span>
                                                     )}
                                                 </td>
+                                                <td className="p-4 max-w-[150px]">
+                                                    {loan.observation ? (
+                                                        <span className="text-xs text-gray-500 italic truncate block" title={loan.observation}>{loan.observation}</span>
+                                                    ) : (
+                                                        <span className="text-gray-300">-</span>
+                                                    )}
+                                                </td>
                                                 <td className="p-4 text-center">
                                                     <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${loan.status === 'ACTIVE' ? 'bg-amber-100 text-amber-800' :
                                                         loan.status === 'DELETED' ? 'bg-red-100 text-red-800' :
@@ -1438,7 +1458,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         ))}
                                     {loans.length === 0 && (
                                         <tr>
-                                            <td colSpan={user.level === UserLevel.ADMIN ? 7 : 6} className="p-12 text-center text-gray-400 italic">Nenhum histórico disponível.</td>
+                                            <td colSpan={user.level === UserLevel.ADMIN ? 8 : 7} className="p-12 text-center text-gray-400 italic">Nenhum histórico disponível.</td>
                                         </tr>
                                     )}
                                 </tbody>
@@ -1908,6 +1928,19 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 </>
                             )}
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1.5">
+                            <FileText size={14} /> Observação (opcional)
+                        </label>
+                        <textarea
+                            value={observation}
+                            onChange={e => setObservation(e.target.value)}
+                            placeholder="Motivo do empréstimo, observações..."
+                            rows={2}
+                            className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm outline-none focus:border-indigo-500 transition-all resize-none"
+                        />
                     </div>
 
                     {user.level === UserLevel.ADMIN && (

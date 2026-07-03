@@ -2350,7 +2350,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
 
                             // Verificar agendamento/reserva de sala para este slot
                             const booking = gradeViewMode === 'sala' && gradeSelectedRoom ? bookings.find(b =>
-                              b.room_name === gradeSelectedRoom && isBookingActiveOn(b, cellDateStr, slot.id)
+                              b.room_name?.trim() === gradeSelectedRoom && isBookingActiveOn(b, cellDateStr, slot.id)
                             ) : undefined;
 
                             // Reposição/Antecipação agendada para este slot

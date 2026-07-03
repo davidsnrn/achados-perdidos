@@ -152,14 +152,14 @@ export const RoomsTab: React.FC<Props> = ({
 
     // 1. Verificar grade de aula regular
     const scheduleMatch = schedules.find(s =>
-      s.room === room &&
+      s.room?.trim() === room &&
       s.day_of_week === dayOfWeek - 1 &&
       (s.period === slotId || s.periods?.includes(slotId))
     );
 
     // 2. Verificar agendamentos temporários/eventos
     const bookingMatch = bookings.find(b =>
-      b.room_name === room &&
+      b.room_name?.trim() === room &&
       isBookingActiveOn(b, dateStr, slotId)
     );
 

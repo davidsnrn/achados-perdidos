@@ -365,6 +365,25 @@ export interface TeacherReposicao {
   created_at?: string;
 }
 
+export interface RoomBooking {
+  id?: string;
+  campus_id: string;
+  setor_id?: string;
+  room_name: string;
+  teacher_name?: string;
+  event_title: string;
+  booking_type: 'AULA' | 'EVENTO';
+  start_date: string; // ISO date (YYYY-MM-DD)
+  end_date: string; // ISO date (YYYY-MM-DD)
+  recurrence_type: 'ALL_DAYS' | 'WEEKLY' | 'SPECIFIC_DAYS';
+  recurrence_days?: number[]; // [0-6] (0=Dom, 1=Seg...)
+  periods: number[]; // Lista de IDs das aulas
+  observation?: string;
+  operator_id: string;
+  created_at?: string;
+}
+
+
 export interface PrinterRegistry {
   id?: string;
   campus_id: string;

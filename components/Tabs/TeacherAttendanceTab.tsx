@@ -8,7 +8,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
-import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel, TeacherPlannedAbsence, TeacherReposicao } from '../../types';
+import { TeacherSchedule, TeacherAttendance, User as UserType, Campus, TeacherClass, Person, UserLevel, TeacherPlannedAbsence, TeacherReposicao, RoomBooking } from '../../types';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -24,6 +24,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const [attendances, setAttendances] = useState<TeacherAttendance[]>([]);
   const [plannedAbsences, setPlannedAbsences] = useState<TeacherPlannedAbsence[]>([]);
   const [reposicoes, setReposicoes] = useState<TeacherReposicao[]>([]);
+  const [bookings, setBookings] = useState<RoomBooking[]>([]);
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -475,19 +476,21 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   const loadData = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const [schedulesData, attendanceData, classesData, usersData, plannedAbsencesData, reposicoesData] = await Promise.all([
+      const [schedulesData, attendanceData, classesData, usersData, plannedAbsencesData, reposicoesData, bookingsData] = await Promise.all([
         StorageService.getTeacherSchedules(currentCampusId || undefined),
         StorageService.getTeacherAttendance(currentCampusId || undefined, selectedDate),
         StorageService.getTeacherClasses(currentCampusId || undefined),
         StorageService.getUsers(),
         StorageService.getTeacherPlannedAbsences(currentCampusId || undefined),
-        StorageService.getTeacherReposicoes(currentCampusId || undefined)
+        StorageService.getTeacherReposicoes(currentCampusId || undefined),
+        (StorageService as any).getRoomBookings(currentCampusId || undefined)
       ]);
       setSchedules(schedulesData);
       setAttendances(attendanceData);
       setClasses(classesData);
       setPlannedAbsences(plannedAbsencesData);
       setReposicoes(reposicoesData);
+      setBookings(bookingsData);
 
       const map: Record<string, string> = {};
       usersData.forEach((u: any) => { if (u.id) map[u.id] = u.name; });
@@ -622,6 +625,18 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
       } as any;
     }
     return undefined;
+  };
+
+  const isBookingActiveOn = (booking: RoomBooking, dateStr: string, slotId: number) => {
+    if (dateStr < booking.start_date || dateStr > booking.end_date) return false;
+    if (!booking.periods.includes(slotId)) return false;
+
+    if (booking.recurrence_type === 'WEEKLY' || booking.recurrence_type === 'SPECIFIC_DAYS') {
+      const dateObj = new Date(dateStr + 'T12:00:00');
+      const day = dateObj.getDay();
+      if (booking.recurrence_days && !booking.recurrence_days.includes(day)) return false;
+    }
+    return true;
   };
 
   const handleSaveAttendance = async (scheduleId: string, period: number, status: 'PRESENTE' | 'SUBSTITUIDO' | 'VAGO', extra?: { substitute_name?: string, observation?: string }) => {
@@ -1470,9 +1485,10 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
   }, {} as Record<string, TeacherSchedule[]>);
 
   const uniqueClasses = classes.map(c => c.name).sort();
-  const uniqueRooms = [...new Set(
-    classes.filter(c => c.room?.trim()).map(c => c.room!.trim())
-  )].sort();
+  const uniqueRooms = [...new Set([
+    ...classes.filter(c => c.room?.trim()).map(c => c.room!.trim()),
+    ...bookings.filter(b => b.room_name?.trim()).map(b => b.room_name.trim())
+  ])].sort();
   const uniqueProfessors = [...new Set(schedules.map(s => s.teacher_name).filter(Boolean))].sort();
 
   const activeColumns = verificationViewMode === 'sala' ? selectedRooms : selectedClasses;
@@ -2327,10 +2343,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                             const cellDateStr = cellDateObj.toISOString().split('T')[0];
 
                             const schedule = schedules.find(s =>
-                              (gradeViewMode === 'turma' ? s.class_name === selectedClass : gradeViewMode === 'sala' ? s.room === gradeSelectedRoom : s.teacher_name === gradeSelectedProfessor) &&
+                              (gradeViewMode === 'turma' ? s.class_name === selectedClass : gradeViewMode === 'sala' ? (s.room?.trim() === gradeSelectedRoom || classes.find(c => c.name === s.class_name)?.room?.trim() === gradeSelectedRoom) : s.teacher_name === gradeSelectedProfessor) &&
                               s.day_of_week === day.id - 1 &&
                               (s.period === slot.id || (s.periods?.includes(slot.id)))
                             );
+
+                            // Verificar agendamento/reserva de sala para este slot
+                            const booking = gradeViewMode === 'sala' && gradeSelectedRoom ? bookings.find(b =>
+                              b.room_name === gradeSelectedRoom && isBookingActiveOn(b, cellDateStr, slot.id)
+                            ) : undefined;
 
                             // Reposição/Antecipação agendada para este slot
                             const cellRepo = reposicoes.find(r => 
@@ -2372,6 +2393,11 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                               cellText = `${schedule?.teacher_name} (Sem Aula)`;
                               subText = schedule?.subject;
                               labelBadge = isAntecipacao ? "Antecipada" : "Reposta";
+                            } else if (booking && !schedule) {
+                              cellStyle = "bg-purple-50 border-2 border-purple-200 text-purple-800";
+                              cellText = booking.teacher_name || booking.event_title;
+                              subText = booking.event_title;
+                              labelBadge = booking.booking_type === 'AULA' ? 'Aula' : 'Evento';
                             } else if (!isGradeEditMode && schedule) {
                               if (status === 'VAGO') {
                                 cellStyle = "bg-red-50 border-2 border-red-200 text-red-700";
@@ -2394,7 +2420,7 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                   }
                                 }}
                               >
-                                {(schedule || cellRepo) ? (
+                                {(schedule || cellRepo || booking) ? (
                                   <div className={`h-full rounded-2xl p-3 flex flex-col justify-center text-center animate-in zoom-in-95 duration-300 relative group/cell ${cellStyle}`}>
                                     {labelBadge && (
                                       <div className="mb-1">
@@ -2403,10 +2429,15 @@ export const TeacherAttendanceTab: React.FC<Props> = ({ user, campuses, adminGlo
                                         </span>
                                       </div>
                                     )}
-                                    {(gradeViewMode === 'sala' || gradeViewMode === 'professor') && schedule && (
+                                    {(gradeViewMode === 'sala' || gradeViewMode === 'professor') && (schedule || booking) && (
                                       <div className="text-[9px] font-black text-indigo-700 truncate mb-0.5">
-                                        {schedule.class_name}
+                                        {booking ? booking.room_name : schedule?.class_name}
                                         {gradeViewMode === 'professor' && classRoom && ` - ${classRoom}`}
+                                      </div>
+                                    )}
+                                    {booking && !schedule && (
+                                      <div className="text-[10px] font-bold text-purple-700 truncate mb-0.5">
+                                        {booking.teacher_name ? `Prof: ${booking.teacher_name}` : ''}
                                       </div>
                                     )}
                                     <div className="text-[11px] font-black uppercase leading-tight mb-1 opacity-80">{subText}</div>

@@ -21,6 +21,7 @@ const PrinterNFTab = React.lazy(() => import('./components/Tabs/PrinterNFTab').t
 const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(module => ({ default: module.InsumosTab })));
 const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
 const TeacherAttendanceTab = React.lazy(() => import('./components/Tabs/TeacherAttendanceTab').then(module => ({ default: module.TeacherAttendanceTab })));
+const RoomsTab = React.lazy(() => import('./components/Tabs/RoomsTab').then(module => ({ default: module.RoomsTab })));
 
 import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Mail, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck, Pencil } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
@@ -2533,6 +2534,12 @@ const App: React.FC = () => {
               {currentSystem === 'notificacoes' && (
                 <button onClick={() => handleMobileNav('notificacoes')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'notificacoes' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><ShieldAlert size={20} /> Notificação de Alunos</button>
               )}
+              {currentSystem === 'frequencia' && (
+                <>
+                  <button onClick={() => handleMobileNav('frequencia')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'frequencia' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><ClipboardList size={20} /> Gestão de Aulas</button>
+                  <button onClick={() => handleMobileNav('salas')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${activeTab === 'salas' ? 'bg-ifrn-green text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}><Building2 size={20} /> Controle de Salas</button>
+                </>
+              )}
 
               {canConfigure && (
                 <div className="pt-4 mt-2 border-t border-gray-100">
@@ -2667,7 +2674,10 @@ const App: React.FC = () => {
             <button onClick={() => setActiveTab('notificacoes')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'notificacoes' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ShieldAlert size={18} /> Notificação de Alunos</button>
           )}
           {currentSystem === 'frequencia' && (
-            <button onClick={() => setActiveTab('frequencia')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'frequencia' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ClipboardList size={18} /> Gestão de Aulas</button>
+            <>
+              <button onClick={() => setActiveTab('frequencia')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'frequencia' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><ClipboardList size={18} /> Gestão de Aulas</button>
+              <button onClick={() => setActiveTab('salas')} className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-medium text-sm transition-all ${activeTab === 'salas' ? 'bg-white border-x border-t border-gray-200 text-ifrn-darkGreen -mb-px' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}><Building2 size={18} /> Controle de Salas</button>
+            </>
           )}
 
         </div>
@@ -2802,6 +2812,15 @@ const App: React.FC = () => {
                 )}
                 {activeTab === 'frequencia' && (
                   <TeacherAttendanceTab
+                    user={user}
+                    campuses={campuses}
+                    setores={setores}
+                    adminGlobalCampusId={adminGlobalCampusId}
+                    adminGlobalSetorId={adminGlobalSetorId}
+                  />
+                )}
+                {activeTab === 'salas' && (
+                  <RoomsTab
                     user={user}
                     campuses={campuses}
                     setores={setores}

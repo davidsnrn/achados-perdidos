@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import CryptoJS from 'crypto-js';
-import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao, Setor, PrinterCounterRecord, PrinterBillingConfig, PrinterRegistry } from "../types";
+import { Book, BookLoan, BookLoanStatus, FoundItem, ItemHistory, ItemStatus, LostReport, Person, PersonType, ReportStatus, User, UserLevel, Campus, CopyConfig, CopyRecord, Supply, SupplyRecord, SupplyRestock, StudentNotification, NotificationType, TeacherSchedule, TeacherAttendance, TeacherClass, TeacherPlannedAbsence, TeacherReposicao, Setor, PrinterCounterRecord, PrinterBillingConfig, PrinterRegistry, RoomBooking } from "../types";
 import { Locker, LockerStatus, LoanData, LockerSchedule, LockerScheduleStatus } from "../types-armarios";
 import { Material, MaterialLoan } from "../types-materiais";
 
@@ -2922,6 +2922,44 @@ export const StorageService = {
 
   deleteTeacherReposicao: async (id: string) => {
     const { error } = await supabase.from('teacher_reposicoes').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // Room Bookings
+  getRoomBookings: async (campusId?: string, setorId?: string): Promise<RoomBooking[]> => {
+    let query = supabase.from('room_bookings').select('*');
+    if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
+    const { data, error } = await query.order('start_date', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  saveRoomBooking: async (booking: RoomBooking): Promise<void> => {
+    const payload: any = {
+      campus_id: booking.campus_id,
+      setor_id: booking.setor_id || null,
+      room_name: booking.room_name,
+      teacher_name: booking.teacher_name || null,
+      event_title: booking.event_title,
+      booking_type: booking.booking_type,
+      start_date: booking.start_date,
+      end_date: booking.end_date,
+      recurrence_type: booking.recurrence_type,
+      recurrence_days: booking.recurrence_days || null,
+      periods: booking.periods,
+      observation: booking.observation || null,
+      operator_id: booking.operator_id
+    };
+    if (booking.id) {
+      payload.id = booking.id;
+    }
+    const { error } = await supabase.from('room_bookings').upsert(payload);
+    if (error) throw error;
+  },
+
+  deleteRoomBooking: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('room_bookings').delete().eq('id', id);
     if (error) throw error;
   },
 

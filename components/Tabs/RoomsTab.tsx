@@ -659,7 +659,11 @@ export const RoomsTab: React.FC<Props> = ({
                   ) : (
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                       {vacantRooms.map(room => (
-                        <div key={room} className="bg-green-50 border-2 border-green-200 text-green-900 p-4 rounded-2xl flex flex-col items-center justify-center font-black text-center shadow-sm">
+                        <div
+                          key={room}
+                          onClick={() => setRoomDetailRoom(room)}
+                          className="bg-green-50 border-2 border-green-200 text-green-900 p-4 rounded-2xl flex flex-col items-center justify-center font-black text-center shadow-sm cursor-pointer hover:bg-green-100 transition-all"
+                        >
                           <CheckCircle2 className="text-green-600 mb-2" size={24} />
                           <span className="text-base">{room}</span>
                         </div>

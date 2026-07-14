@@ -636,23 +636,37 @@ export const StorageService = {
 
     const searchTerm = query.trim();
 
-    // Quando não há filtro de campus, usar RPC para bypassar RLS
-    if (!campusId) {
-      const { data, error } = await supabase.rpc('search_people_global', {
+    try {
+      // Usar a RPC que é extremamente rápida e possui índices otimizados para busca textual,
+      // evitando timeouts e problemas de RLS na tabela people em campi populosos (ex: Natal-Central).
+      const { data: rpcData, error: rpcError } = await supabase.rpc('search_people_global', {
         p_query: searchTerm,
-        p_limit: limit
+        p_limit: Math.max(100, limit * 5)
       });
-      if (error) {
-        console.error("Erro ao pesquisar pessoas (global):", error);
-        return [];
+
+      if (!rpcError && rpcData) {
+        let results = rpcData as Person[];
+        
+        if (campusId) {
+          results = results.filter(p => p.campus_id === campusId);
+        }
+        if (type && type !== 'ALL') {
+          results = results.filter(p => p.type === type);
+        }
+        if (setorId) {
+          results = results.filter(p => p.setor_id === setorId);
+        }
+        
+        return results.slice(0, limit);
       }
-      let results = data || [];
-      if (type && type !== 'ALL') {
-        results = results.filter((p: any) => p.type === type);
+      if (rpcError) {
+        console.warn("Erro ao buscar pessoas via RPC, tentando fallback direto:", rpcError);
       }
-      return results;
+    } catch (e) {
+      console.warn("Exceção ao buscar pessoas via RPC, tentando fallback direto:", e);
     }
 
+    // Fallback original direto na tabela (pode ser lento/timeout em bases grandes)
     const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
 
     let supabaseQuery = supabase
@@ -686,7 +700,7 @@ export const StorageService = {
       .order('name', { ascending: true });
 
     if (error) {
-      console.error("Erro ao pesquisar pessoas:", error);
+      console.error("Erro ao pesquisar pessoas (fallback):", error);
       return [];
     }
 

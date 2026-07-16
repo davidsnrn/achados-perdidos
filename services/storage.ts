@@ -635,17 +635,38 @@ export const StorageService = {
     if (!query || query.trim().length < 2) return [];
 
     const searchTerm = query.trim();
+    const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
+    if (tokens.length === 0) return [];
+
+    // Escolhe o melhor token para buscar no banco (preferindo o maior token alfabetico, ou o maior em geral)
+    let dbQueryToken = tokens[0];
+    const nonDigitTokens = tokens.filter(t => !/^\d+$/.test(t));
+    if (nonDigitTokens.length > 0) {
+      dbQueryToken = nonDigitTokens.reduce((a, b) => a.length > b.length ? a : b);
+    } else {
+      dbQueryToken = tokens.reduce((a, b) => a.length > b.length ? a : b);
+    }
 
     try {
-      // Usar a RPC que é extremamente rápida e possui índices otimizados para busca textual,
-      // evitando timeouts e problemas de RLS na tabela people em campi populosos (ex: Natal-Central).
+      // Usar a RPC com o token principal para buscar de forma rapida e evitar timeouts
       const { data: rpcData, error: rpcError } = await supabase.rpc('search_people_global', {
-        p_query: searchTerm,
-        p_limit: Math.max(100, limit * 5)
+        p_query: dbQueryToken,
+        p_limit: 500 // Trazemos mais resultados para filtrar em memoria
       });
 
       if (!rpcError && rpcData) {
         let results = rpcData as Person[];
+        
+        // Normalizacao para busca sem acentos
+        const norm = (text: string) => (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const normalizedTokens = tokens.map(t => norm(t));
+
+        // Todos os tokens digitados precisam bater com o nome ou matricula (normalizados)
+        results = results.filter(p => {
+          const nameNorm = norm(p.name);
+          const matriculaNorm = norm(p.matricula);
+          return normalizedTokens.every(tok => nameNorm.includes(tok) || matriculaNorm.includes(tok));
+        });
         
         if (campusId) {
           results = results.filter(p => p.campus_id === campusId);
@@ -667,8 +688,6 @@ export const StorageService = {
     }
 
     // Fallback original direto na tabela (pode ser lento/timeout em bases grandes)
-    const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
-
     let supabaseQuery = supabase
       .from('people')
       .select('name, matricula, campus_id, type, email, setor_id');

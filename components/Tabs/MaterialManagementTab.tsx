@@ -517,6 +517,10 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setShowLoanForm(false);
             setSelectedPerson(null);
             setPersonSearch('');
+            setSearchResultsPeople([]);
+            setHasSearchedPeople(false);
+            setSelectedResultIndex(0);
+            setPersonTypeFilter('ALL');
             setSelectedMaterials([]);
             setMaterialSearch('');
             setObservation('');
@@ -1681,8 +1685,13 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 setSelectedMaterials([]);
                 setSelectedPerson(null);
                 setPersonSearch('');
+                setSearchResultsPeople([]);
+                setHasSearchedPeople(false);
+                setSelectedResultIndex(0);
+                setPersonTypeFilter('ALL');
                 setMaterialSearch('');
                 setShowMaterialDropdown(false);
+                setObservation('');
             }} title="Novo Empréstimo">
                 <form onSubmit={handleLoanSubmit} className="space-y-6">
                     <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-100 shadow-sm space-y-3">

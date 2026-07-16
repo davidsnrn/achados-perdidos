@@ -430,10 +430,13 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
             setSelectedPerson(null);
             setSelectedBooks([]);
             setPersonSearch('');
+            setSearchResultsPeople([]);
+            setSelectedPersonIndex(null);
             setBookSearch('');
             setObservation('');
             setShowMPBooks(false);
             setIsBookListExpanded(false);
+            setPersonTypeFilter('ALL');
         } catch (err) {
             alert('Erro ao processar empréstimo.');
         } finally {
@@ -854,6 +857,12 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                     setSelectedBooks([]);
                     setShowMPBooks(false);
                     setIsBookListExpanded(false);
+                    setPersonSearch('');
+                    setSearchResultsPeople([]);
+                    setSelectedPersonIndex(null);
+                    setBookSearch('');
+                    setObservation('');
+                    setPersonTypeFilter('ALL');
                 }}
                 title="Novo Empréstimo de Livros"
             >

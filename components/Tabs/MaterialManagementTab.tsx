@@ -51,6 +51,10 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [materialSearch, setMaterialSearch] = useState('');
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
     const [observation, setObservation] = useState('');
+    const [suapAuthed, setSuapAuthed] = useState(false);
+    const [suapPassword, setSuapPassword] = useState('');
+    const [isVerifyingSuap, setIsVerifyingSuap] = useState(false);
+    const [suapAuthError, setSuapAuthError] = useState('');
     const [viewingItem, setViewingItem] = useState<(Material & { status: 'LOANED' | 'AVAILABLE'; activeLoan: MaterialLoan | null }) | null>(null);
 
     // Reloan (novo empréstimo com devolução automática)
@@ -524,6 +528,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setSelectedMaterials([]);
             setMaterialSearch('');
             setObservation('');
+            setSuapAuthed(false);
+            setSuapPassword('');
+            setSuapAuthError('');
 
             if (email && emailNotificationEnabled) {
                 const currentCampus = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id));
@@ -553,6 +560,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
         if (!selectedPerson || selectedMaterials.length === 0) {
             alert('Selecione pessoa e pelo menos um material.');
+            return;
+        }
+
+        if (!suapAuthed) {
+            alert('Autentique o tomador via SUAP antes de registrar o empréstimo.');
             return;
         }
 
@@ -1692,6 +1704,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 setMaterialSearch('');
                 setShowMaterialDropdown(false);
                 setObservation('');
+                setSuapAuthed(false);
+                setSuapPassword('');
+                setSuapAuthError('');
             }} title="Novo Empréstimo">
                 <form onSubmit={handleLoanSubmit} className="space-y-6">
                     <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-100 shadow-sm space-y-3">
@@ -1706,15 +1721,75 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             )}
                         </div>
                         {selectedPerson ? (
-                            <div className="bg-white border border-blue-200 rounded-xl p-4 flex items-center gap-4 shadow-sm">
-                                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                                    <UserIcon size={20} />
+                            <div className="space-y-3">
+                                <div className="bg-white border border-blue-200 rounded-xl p-4 flex items-center gap-4 shadow-sm">
+                                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
+                                        <UserIcon size={20} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-blue-900 leading-tight">{selectedPerson.name}</p>
+                                        <p className="text-xs text-blue-600 font-medium">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                                    </div>
+                                    <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); setSuapAuthed(false); setSuapPassword(''); setSuapAuthError(''); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-bold text-blue-900 leading-tight">{selectedPerson.name}</p>
-                                    <p className="text-xs text-blue-600 font-medium">{selectedPerson.matricula} • {selectedPerson.type}</p>
-                                </div>
-                                <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
+
+                                {suapAuthed ? (
+                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                                        <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                            <svg size={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm font-bold text-emerald-800">Autenticado via SUAP</p>
+                                            <p className="text-xs text-emerald-600">Identidade confirmada</p>
+                                        </div>
+                                        <button type="button" onClick={() => { setSuapAuthed(false); setSuapPassword(''); setSuapAuthError(''); }} className="text-xs text-emerald-500 hover:text-emerald-700 font-bold">Reautenticar</button>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
+                                        <label className="flex items-center justify-between cursor-pointer">
+                                            <span className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                                                <svg size={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                                Autenticar via SUAP (senha do IFRN)
+                                            </span>
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="password"
+                                                placeholder="Senha do SUAP..."
+                                                value={suapPassword}
+                                                onChange={e => { setSuapPassword(e.target.value); setSuapAuthError(''); }}
+                                                onKeyDown={async e => {
+                                                    if (e.key === 'Enter' && suapPassword) {
+                                                        e.preventDefault();
+                                                        setIsVerifyingSuap(true);
+                                                        setSuapAuthError('');
+                                                        const ok = await StorageService.verifySuapCredentials(selectedPerson.matricula, suapPassword);
+                                                        if (ok) { setSuapAuthed(true); setSuapPassword(''); } else setSuapAuthError('Senha incorreta ou falha na conexão com SUAP.');
+                                                        setIsVerifyingSuap(false);
+                                                    }
+                                                }}
+                                                className="flex-1 border-2 border-gray-100 rounded-xl p-2.5 text-sm outline-none focus:border-emerald-500 transition-all"
+                                            />
+                                            <button
+                                                type="button"
+                                                disabled={!suapPassword || isVerifyingSuap}
+                                                onClick={async () => {
+                                                    setIsVerifyingSuap(true);
+                                                    setSuapAuthError('');
+                                                    const ok = await StorageService.verifySuapCredentials(selectedPerson.matricula, suapPassword);
+                                                    if (ok) { setSuapAuthed(true); setSuapPassword(''); } else setSuapAuthError('Senha incorreta ou falha na conexão com SUAP.');
+                                                    setIsVerifyingSuap(false);
+                                                }}
+                                                className="px-4 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
+                                            >
+                                                {isVerifyingSuap ? 'Verificando...' : 'Autenticar'}
+                                            </button>
+                                        </div>
+                                        {suapAuthError && (
+                                            <p className="text-xs text-red-500 font-medium flex items-center gap-1">{suapAuthError}</p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-4 pt-2">

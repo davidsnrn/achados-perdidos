@@ -1569,6 +1569,19 @@ export const StorageService = {
     }
   },
 
+  verifySuapCredentials: async (matricula: string, password: string): Promise<boolean> => {
+    try {
+      const res = await fetch('https://suap.ifrn.edu.br/api/token/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: matricula, password })
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   setSessionUser: (user: User) => {
     // Agora o Supabase Auth cuida da persistência, 
     // mas mantemos o cache local para velocidade na UI se necessário.

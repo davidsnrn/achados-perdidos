@@ -1400,6 +1400,112 @@ export const StorageService = {
     return null;
   },
 
+  loginSuap: async (matricula: string, pass: string): Promise<User | null> => {
+    const cleanMatricula = matricula ? matricula.trim() : '';
+    const cleanPass = pass ? pass.trim() : '';
+
+    console.log(`[LOGIN SUAP] Tentando autenticação no SUAP para: ${cleanMatricula}`);
+
+    try {
+      // 1. POST para obter token JWT no SUAP IFRN
+      const tokenRes = await fetch('https://suap.ifrn.edu.br/api/token/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: cleanMatricula, password: cleanPass })
+      });
+
+      if (!tokenRes.ok) {
+        console.warn('[LOGIN SUAP] Falha na autenticação (status ' + tokenRes.status + ')');
+        return null;
+      }
+
+      const tokenData = await tokenRes.json();
+      const accessToken = tokenData?.access;
+
+      if (!accessToken) {
+        console.warn('[LOGIN SUAP] Token JWT não recebido do SUAP');
+        return null;
+      }
+
+      console.log('[LOGIN SUAP] Token JWT obtido com sucesso!');
+
+      // 2. Buscar perfil do usuário no SUAP
+      let profileName = cleanMatricula;
+      let profileEmail = `${cleanMatricula}@escolar.ifrn.edu.br`;
+
+      try {
+        const userRes = await fetch('https://suap.ifrn.edu.br/api/rh/meus-dados/', {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (userRes.ok) {
+          const suapUser = await userRes.json();
+          profileName = suapUser.nome_usual || suapUser.nome || suapUser.vinculo?.nome || cleanMatricula;
+          if (suapUser.email) {
+            profileEmail = suapUser.email;
+          }
+        }
+      } catch (profileErr) {
+        console.warn('[LOGIN SUAP] Não foi possível carregar o perfil detalhado do SUAP:', profileErr);
+      }
+
+      // 3. Buscar ou sincronizar o usuário na tabela local (Supabase)
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('matricula', cleanMatricula)
+        .single();
+
+      const dateStr = new Date().toLocaleString('pt-BR');
+
+      if (existingUser) {
+        console.log('[LOGIN SUAP] Usuário encontrado localmente. Atualizando logs...');
+        const updatedAccessLogs = [dateStr, ...(existingUser.access_logs || [])].slice(0, 10);
+
+        await supabase.from('users').update({
+          access_logs: updatedAccessLogs
+        }).eq('id', existingUser.id);
+
+        return { ...existingUser, access_logs: updatedAccessLogs } as User;
+      } else {
+        console.log('[LOGIN SUAP] Novo usuário autenticado via SUAP. Criando registro local...');
+        const newUser: Partial<User> = {
+          matricula: cleanMatricula,
+          name: profileName,
+          email: profileEmail,
+          level: 'COMUM' as any,
+          access_logs: [dateStr]
+        };
+
+        const { data: createdUser, error: createError } = await supabase
+          .from('users')
+          .insert(newUser)
+          .select('*')
+          .single();
+
+        if (!createError && createdUser) {
+          return createdUser as User;
+        }
+
+        // Se falhou ao criar no BD, retorna objeto em memória
+        return {
+          id: `suap-${cleanMatricula}`,
+          matricula: cleanMatricula,
+          name: profileName,
+          email: profileEmail,
+          level: 'COMUM' as any,
+          access_logs: [dateStr]
+        } as User;
+      }
+    } catch (err) {
+      console.error('[LOGIN SUAP] Erro na requisição SUAP:', err);
+      throw err;
+    }
+  },
+
   setSessionUser: (user: User) => {
     // Agora o Supabase Auth cuida da persistência, 
     // mas mantemos o cache local para velocidade na UI se necessário.

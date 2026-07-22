@@ -135,6 +135,7 @@ const App: React.FC = () => {
   const [loginPass, setLoginPass] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [useSuapTestMode, setUseSuapTestMode] = useState(true);
 
   // Change Password
   const [currentPassword, setCurrentPassword] = useState('');
@@ -766,8 +767,26 @@ const App: React.FC = () => {
 
   const attemptLogin = async (mat: string, pass: string) => {
     setLoading(true);
+    setLoginError('');
     try {
-      const loggedUser = await StorageService.login(mat, pass);
+      let loggedUser = null;
+      if (useSuapTestMode) {
+        console.log('[LOGIN] Tentando autenticação via SUAP...');
+        try {
+          loggedUser = await StorageService.loginSuap(mat, pass);
+        } catch (suapErr) {
+          console.warn('[LOGIN] Falha/Erro na API do SUAP, tentando fallback local...', suapErr);
+        }
+
+        // Fallback automático para login local caso o SUAP não retorne usuário
+        if (!loggedUser) {
+          console.log('[LOGIN] SUAP não autenticou. Tentando banco de dados local...');
+          loggedUser = await StorageService.login(mat, pass);
+        }
+      } else {
+        loggedUser = await StorageService.login(mat, pass);
+      }
+
       if (loggedUser) {
         StorageService.updateLastActive(); // Inicializa o timer a partir do login
         StorageService.setSessionUser(loggedUser);
@@ -775,10 +794,11 @@ const App: React.FC = () => {
         setLoginError('');
         setShowModuleSelector(true);
       } else {
-        setLoginError('Credenciais inválidas. Tente novamente.');
+        setLoginError('Credenciais inválidas. Verifique sua matrícula e senha.');
       }
     } catch (e) {
-      setLoginError('Erro de conexão ou configuração.');
+      console.error('[LOGIN ERROR]', e);
+      setLoginError('Erro de conexão ou configuração ao realizar login.');
     } finally {
       setLoading(false);
     }
@@ -1149,7 +1169,17 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end -mt-2">
+                  <div className="flex items-center justify-between -mt-2">
+                    <label className="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={useSuapTestMode}
+                        onChange={(e) => setUseSuapTestMode(e.target.checked)}
+                        className="w-4 h-4 text-ifrn-green bg-gray-100 border-gray-300 rounded focus:ring-ifrn-green focus:ring-2"
+                      />
+                      <span className="font-semibold text-ifrn-darkGreen">Autenticar via SUAP (IFRN)</span>
+                    </label>
+
                     <button
                       type="button"
                       onClick={() => setShowForgotModal(true)}

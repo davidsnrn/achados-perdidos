@@ -42,11 +42,44 @@ interface BillingResult {
   blockRemaining: number;
 }
 
+export function enrichRecordsWithDynamicPrev<T extends PrinterCounterRecord>(recs: T[]): (T & { dynamic_counter_prev: number; dynamic_consumo: number })[] {
+  const groups = new Map<string, T[]>();
+  for (const r of recs) {
+    const key = `${r.printer_id || ''}_${r.format}_${r.color_mode}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+
+  const resultMap = new Map<string, T & { dynamic_counter_prev: number; dynamic_consumo: number }>();
+
+  for (const groupRecords of groups.values()) {
+    const sorted = [...groupRecords].sort((a, b) => {
+      const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tA - tB;
+    });
+
+    for (let i = 0; i < sorted.length; i++) {
+      const r = sorted[i];
+      const dynamic_counter_prev = i === 0 ? r.counter_prev : sorted[i - 1].counter_curr;
+      const dynamic_consumo = Math.max(0, r.counter_curr - dynamic_counter_prev);
+      resultMap.set(r.id, {
+        ...r,
+        dynamic_counter_prev,
+        dynamic_consumo,
+      });
+    }
+  }
+
+  return recs.map(r => resultMap.get(r.id) || { ...r, dynamic_counter_prev: r.counter_prev, dynamic_consumo: Math.max(0, r.counter_curr - r.counter_prev) });
+}
+
 function calcBilling(records: PrinterCounterRecord[], copies: CopyRecord[], cfg: PrinterBillingConfig) {
+  const enriched = enrichRecordsWithDynamicPrev(records);
   const sum = (format: 'A4'|'A3', color: 'MONO'|'POLI') => {
-    const counterSum = records
+    const counterSum = enriched
       .filter(r => r.format === format && r.color_mode === color)
-      .reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0);
+      .reduce((s, r) => s + r.dynamic_consumo, 0);
     const copySum = copies
       .filter(r => r.format === format && r.color_mode === color)
       .reduce((s, r) => s + (r.quantity || 0), 0);
@@ -850,11 +883,12 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     const campus = campuses.find(c => c.id === campusId)?.name || campusId;
     doc.setFontSize(14); doc.text(`Conferência de NF — ${MONTHS[selMonth]}/${selYear}`, 14, 14);
     doc.setFontSize(10); doc.text(`Campus: ${campus}`, 14, 22);
+    const enrichedRecords = enrichRecordsWithDynamicPrev(records);
     autoTable(doc, {
       startY: 28,
-      head: [['Nome Local','N° Série','IP','Modelo','Formato','Cor','Cont. Ant.','Cont. Atual','Consumo','% Franquia']],
-      body: records.map(r => {
-        const consumo = Math.max(0,r.counter_curr-r.counter_prev);
+      head: [['Data Lanç.','Nome Local','N° Série','IP','Modelo','Formato','Cor','Cont. Ant.','Cont. Atual','Consumo','% Franquia']],
+      body: enrichedRecords.map(r => {
+        const consumo = r.dynamic_consumo;
         const fq = r.format==='A4'&&r.color_mode==='MONO'?cfg.a4_mono_franchise
           :r.format==='A4'&&r.color_mode==='POLI'?cfg.a4_poli_franchise
           :r.format==='A3'&&r.color_mode==='MONO'?cfg.a3_mono_franchise:cfg.a3_poli_franchise;
@@ -862,8 +896,9 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
           :r.format==='A4'&&r.color_mode==='POLI'?cfg.a4_poli_excess_franchise
           :r.format==='A3'&&r.color_mode==='MONO'?cfg.a3_mono_excess_franchise:cfg.a3_poli_excess_franchise);
         const p = maxT>0?Math.round((consumo/maxT)*100):0;
-        return [r.local_name, r.serial_number||'-', r.ip_address||'-', r.model||'-', r.format, r.color_mode,
-          fmt(r.counter_prev), fmt(r.counter_curr), fmt(consumo), `${p}%`];
+        const dateFmt = r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+        return [dateFmt, r.local_name, r.serial_number||'-', r.ip_address||'-', r.model||'-', r.format, r.color_mode,
+          fmt(r.dynamic_counter_prev), fmt(r.counter_curr), fmt(consumo), `${p}%`];
       }),
       styles: { fontSize: 8 },
     });
@@ -917,18 +952,24 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const activeCampusName = campuses.find(c => c.id === campusId)?.name || campusId;
 
   // ─── GROUP RECORDS BY PRINTER ─────────────────────────────────────────────
+  interface EnrichedPrinterCounterRecord extends PrinterCounterRecord {
+    dynamic_counter_prev: number;
+    dynamic_consumo: number;
+  }
+
   interface PrinterGroup {
     printer: PrinterRegistry | null; // null = "Controle de Cópias" genérico
-    records: PrinterCounterRecord[];
+    records: EnrichedPrinterCounterRecord[];
     copies: CopyRecord[];
     totalConsumo: number;
   }
 
   const printerGroups = React.useMemo(() => {
+    const enriched = enrichRecordsWithDynamicPrev(records);
     const groupMap = new Map<string, PrinterGroup>();
 
     // 1. Group counter records by printer_id
-    for (const r of records) {
+    for (const r of enriched) {
       const key = r.printer_id || '__copies__';
       if (!groupMap.has(key)) {
         const printer = r.printer_id ? printers.find(p => p.id === r.printer_id) || null : null;
@@ -936,7 +977,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       }
       const group = groupMap.get(key)!;
       group.records.push(r);
-      group.totalConsumo += Math.max(0, r.counter_curr - r.counter_prev);
+      group.totalConsumo += r.dynamic_consumo;
     }
 
     // 2. Add copy records to their respective printer groups
@@ -947,6 +988,15 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         groupMap.set(key, { printer, records: [], copies: [], totalConsumo: 0 });
       }
       groupMap.get(key)!.copies.push(c);
+    }
+
+    // Sort records in each group by created_at ascending
+    for (const group of groupMap.values()) {
+      group.records.sort((a, b) => {
+        const tA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tA - tB;
+      });
     }
 
     // 3. Sort: printers with records first, then "Controle de Cópias" last
@@ -1184,6 +1234,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50/80 text-gray-400 text-xs font-black uppercase tracking-widest">
                             <tr>
+                              <th className="px-5 py-3 text-left">Data Lançamento</th>
                               <th className="px-5 py-3 text-left">Formato</th>
                               <th className="px-5 py-3 text-left">Cor</th>
                               <th className="px-5 py-3 text-right">Cont. Ant.</th>
@@ -1195,7 +1246,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                           </thead>
                           <tbody>
                             {group.records.map(r => {
-                              const consumo = Math.max(0, r.counter_curr - r.counter_prev);
+                              const consumo = r.dynamic_consumo;
                               const catMap = {
                                 'A4-MONO': { fq: cfg.a4_mono_franchise, ef: cfg.a4_mono_excess_franchise },
                                 'A4-POLI': { fq: cfg.a4_poli_franchise, ef: cfg.a4_poli_excess_franchise },
@@ -1208,13 +1259,24 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                               const rowBlocked = consumo > maxT;
                               const rowExcess = !rowBlocked && consumo > fq;
 
+                              const dateObj = r.created_at ? new Date(r.created_at) : null;
+
                               return (
                                 <tr key={r.id} className={`border-t border-gray-50 ${rowBlocked ? 'bg-red-50' : 'hover:bg-slate-50/50'}`}>
+                                  <td className="px-5 py-3 text-left text-gray-500 font-mono text-xs">
+                                    {dateObj ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <Calendar size={13} className="text-slate-400 shrink-0"/>
+                                        <span className="font-semibold">{dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                        <span className="text-gray-400 text-[11px]">{dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                      </span>
+                                    ) : '—'}
+                                  </td>
                                   <td className="px-5 py-3 font-bold text-gray-700">{r.format}</td>
                                   <td className="px-5 py-3">
                                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${r.color_mode === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'}`}>{r.color_mode}</span>
                                   </td>
-                                  <td className="px-5 py-3 text-right text-gray-500 font-mono">{fmt(r.counter_prev)}</td>
+                                  <td className="px-5 py-3 text-right text-gray-500 font-mono">{fmt(r.dynamic_counter_prev)}</td>
                                   <td className="px-5 py-3 text-right text-gray-500 font-mono">{fmt(r.counter_curr)}</td>
                                   <td className="px-5 py-3 text-right font-black text-slate-800 font-mono">{fmt(consumo)}</td>
                                   <td className="px-5 py-3 text-right">
@@ -1236,32 +1298,43 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                               );
                             })}
                             {/* Copy records merged as consumption rows */}
-                            {group.copies.map(c => (
-                              <tr key={c.id} className="border-t border-emerald-100 hover:bg-emerald-50/30">
-                                <td className="px-5 py-3 font-bold text-gray-700">{c.format}</td>
-                                <td className="px-5 py-3">
-                                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${c.color_mode === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'}`}>{c.color_mode}</span>
-                                </td>
-                                <td className="px-5 py-3 text-right text-gray-400 font-mono">—</td>
-                                <td className="px-5 py-3 text-right text-gray-400 font-mono">—</td>
-                                <td className="px-5 py-3 text-right font-black text-emerald-700 font-mono">{fmt(c.quantity)}</td>
-                                <td className="px-5 py-3 text-right">
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded">
-                                    <CheckCircle2 size={10}/> CÓPIA
-                                  </span>
-                                </td>
-                                <td className="px-5 py-3 text-center">
-                                  <button onClick={() => handleUnlinkSingleCopy(c.id)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-400 transition-colors" title="Desvincular cópia"><ArrowRightLeft size={14}/></button>
-                                </td>
-                              </tr>
-                            ))}
+                            {group.copies.map(c => {
+                              const copyDate = c.created_at ? new Date(c.created_at) : null;
+                              return (
+                                <tr key={c.id} className="border-t border-emerald-100 hover:bg-emerald-50/30">
+                                  <td className="px-5 py-3 text-left text-gray-400 font-mono text-xs">
+                                    {copyDate ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <Calendar size={13} className="text-emerald-400 shrink-0"/>
+                                        <span>{copyDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
+                                      </span>
+                                    ) : '—'}
+                                  </td>
+                                  <td className="px-5 py-3 font-bold text-gray-700">{c.format}</td>
+                                  <td className="px-5 py-3">
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${c.color_mode === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'}`}>{c.color_mode}</span>
+                                  </td>
+                                  <td className="px-5 py-3 text-right text-gray-400 font-mono">—</td>
+                                  <td className="px-5 py-3 text-right text-gray-400 font-mono">—</td>
+                                  <td className="px-5 py-3 text-right font-black text-emerald-700 font-mono">{fmt(c.quantity)}</td>
+                                  <td className="px-5 py-3 text-right">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase rounded">
+                                      <CheckCircle2 size={10}/> CÓPIA
+                                    </span>
+                                  </td>
+                                  <td className="px-5 py-3 text-center">
+                                    <button onClick={() => handleUnlinkSingleCopy(c.id)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-400 transition-colors" title="Desvincular cópia"><ArrowRightLeft size={14}/></button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                           <tfoot className="bg-gray-50">
                             <tr>
-                              <td colSpan={4} className="px-5 py-3 font-black text-right text-sm uppercase tracking-widest text-gray-600">Total</td>
+                              <td colSpan={5} className="px-5 py-3 font-black text-right text-sm uppercase tracking-widest text-gray-600">Total</td>
                               <td className="px-5 py-3 text-right font-black text-lg text-slate-800 font-mono">
                                 {fmt(
-                                  group.records.reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0) +
+                                  group.records.reduce((s, r) => s + r.dynamic_consumo, 0) +
                                   group.copies.reduce((s, c) => s + (c.quantity || 0), 0)
                                 )}
                               </td>

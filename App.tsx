@@ -224,15 +224,17 @@ const App: React.FC = () => {
   // Refresh Data Individual Helpers
   const refreshItems = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setItems(await StorageService.getItems(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshReports = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setReports(await StorageService.getReports(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
@@ -255,43 +257,49 @@ const App: React.FC = () => {
 
   const refreshBooks = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setBooks(await StorageService.getBooks(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshBookLoans = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setBookLoans(await StorageService.getBookLoans(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshLockers = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setLockers(await StorageService.getLockers(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshMaterials = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setMaterials(await StorageService.getMaterials(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshMaterialLoans = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setMaterialLoans(await StorageService.getMaterialLoans(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshCopyRecords = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setCopyRecords(await StorageService.getCopyRecords(campusId || '', setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
@@ -306,23 +314,26 @@ const App: React.FC = () => {
 
   const refreshSupplies = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setSupplies(await StorageService.getSupplies(campusId, setorId));
     setSuppliesRefreshKey(k => k + 1);
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshSupplyRecords = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     setSupplyRecords(await StorageService.getSupplyRecords(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
     const [notifs, types] = await Promise.all([
       StorageService.getNotifications(campusId, setorId),
       StorageService.getNotificationTypes(campusId, setorId)
@@ -338,12 +349,15 @@ const App: React.FC = () => {
     const fetchId = ++lastFetchIdRef.current;
     setLoading(true);
 
+    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     try {
       // Lazy Loading: Só carrega dados do sistema atual
       // Isso reduz drasticamente o uso de memória no Android
 
-      const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
+      const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
+
+      console.log(`[REFRESH DATA] level=${user.level} | currentSystem=${currentSystem} | activeTab=${activeTab} | campusId=${campusId ?? 'undefined'} | setorId=${setorId ?? 'undefined'}`);
 
       if (currentSystem === 'achados' || activeTab === 'achados' || activeTab === 'relatos') {
         const [fetchedItems, fetchedReports] = await Promise.all([
@@ -792,7 +806,11 @@ const App: React.FC = () => {
         StorageService.setSessionUser(loggedUser);
         setUser(loggedUser);
         setLoginError('');
-        setShowModuleSelector(true);
+        const defaultSys = (sessionStorage.getItem('currentSystem') as any) || 'achados';
+        setCurrentSystem(defaultSys);
+        setActiveTab(defaultSys === 'achados' ? 'achados' : defaultSys);
+        sessionStorage.setItem('currentSystem', defaultSys);
+        setShowModuleSelector(false);
       } else {
         setLoginError('Credenciais inválidas. Verifique sua matrícula e senha.');
       }
@@ -1177,7 +1195,7 @@ const App: React.FC = () => {
                         onChange={(e) => setUseSuapTestMode(e.target.checked)}
                         className="w-4 h-4 text-ifrn-green bg-gray-100 border-gray-300 rounded focus:ring-ifrn-green focus:ring-2"
                       />
-                      <span className="font-semibold text-ifrn-darkGreen">Autenticar via SUAP (IFRN)</span>
+                      <span className="font-semibold text-ifrn-darkGreen">Entrar via SUAP (TESTE)</span>
                     </label>
 
                     <button

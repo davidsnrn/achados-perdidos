@@ -877,6 +877,14 @@ export const StorageService = {
     let from = 0;
     const limit = 1000;
 
+    console.log(`[GET ITEMS] campusId=${campusId ?? 'undefined'} | setorId=${setorId ?? 'undefined'}`);
+
+    // Log da sessão atual do Supabase Auth
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log(`[GET ITEMS] Supabase Auth session: ${session ? `user=${session.user?.email}` : 'SEM SESSÃO (anon)'}`);
+    } catch (_) {}
+
     while (true) {
       let query = supabase
         .from('items')
@@ -889,7 +897,7 @@ export const StorageService = {
       }
 
       if (setorId) {
-        query = query.eq('setor_id', setorId);
+        query = query.or(`setor_id.eq.${setorId},setor_id.is.null`);
       }
 
       const { data, error } = await query;
@@ -1060,7 +1068,7 @@ export const StorageService = {
       }
 
       if (setorId) {
-        query = query.eq('setor_id', setorId);
+        query = query.or(`setor_id.eq.${setorId},setor_id.is.null`);
       }
 
       const { data, error } = await query;
@@ -1136,7 +1144,7 @@ export const StorageService = {
       }
 
       if (setorId) {
-        query = query.eq('setor_id', setorId);
+        query = query.or(`setor_id.eq.${setorId},setor_id.is.null`);
       }
 
       const { data, error } = await query;
@@ -1342,7 +1350,7 @@ export const StorageService = {
           .from('users')
           .select('*')
           .eq('matricula', cleanMatricula)
-          .single();
+          .maybeSingle();
 
         if (userData) {
           const dateStr = new Date().toLocaleString('pt-BR');
@@ -1362,7 +1370,7 @@ export const StorageService = {
         .from('users')
         .select('*')
         .eq('matricula', cleanMatricula)
-        .single();
+        .maybeSingle();
 
       if (!localError && localUser) {
         const hashed = await StorageService.hashPassword(cleanPass);
@@ -1415,7 +1423,7 @@ export const StorageService = {
       });
 
       if (!tokenRes.ok) {
-        console.warn('[LOGIN SUAP] Falha na autenticação (status ' + tokenRes.status + ')');
+        console.warn('[LOGIN SUAP] Falha na autenticação no SUAP (status ' + tokenRes.status + ')');
         return null;
       }
 
@@ -1427,9 +1435,9 @@ export const StorageService = {
         return null;
       }
 
-      console.log('[LOGIN SUAP] Token JWT obtido com sucesso!');
+      console.log('[LOGIN SUAP] Token JWT do SUAP obtido com sucesso!');
 
-      // 2. Buscar perfil do usuário no SUAP
+      // 2. Buscar perfil detalhado diretamente na API do SUAP
       let profileName = cleanMatricula;
       let profileEmail = `${cleanMatricula}@escolar.ifrn.edu.br`;
 
@@ -1449,34 +1457,44 @@ export const StorageService = {
           }
         }
       } catch (profileErr) {
-        console.warn('[LOGIN SUAP] Não foi possível carregar o perfil detalhado do SUAP:', profileErr);
+        console.warn('[LOGIN SUAP] Não foi possível carregar perfil detalhado do SUAP:', profileErr);
       }
 
-      // 3. Buscar ou sincronizar o usuário na tabela local (Supabase)
-      const { data: existingUser } = await supabase
+      // 3. Buscar ou criar o usuário na tabela local (Supabase)
+      const { data: existingUser, error: findErr } = await supabase
         .from('users')
         .select('*')
         .eq('matricula', cleanMatricula)
-        .single();
+        .maybeSingle();
+
+      if (findErr) {
+        console.warn('[LOGIN SUAP] Aviso ao consultar tabela users:', findErr);
+      }
 
       const dateStr = new Date().toLocaleString('pt-BR');
 
       if (existingUser) {
         console.log('[LOGIN SUAP] Usuário encontrado localmente. Atualizando logs...');
         const updatedAccessLogs = [dateStr, ...(existingUser.access_logs || [])].slice(0, 10);
+        const userLevel = existingUser.level || UserLevel.ADMIN;
 
-        await supabase.from('users').update({
-          access_logs: updatedAccessLogs
-        }).eq('id', existingUser.id);
+        try {
+          await supabase.from('users').update({
+            access_logs: updatedAccessLogs,
+            level: userLevel
+          }).eq('id', existingUser.id);
+        } catch (updateErr) {
+          console.warn('[LOGIN SUAP] Não foi possível atualizar logs (provável RLS sem sessão Auth):', updateErr);
+        }
 
-        return { ...existingUser, access_logs: updatedAccessLogs } as User;
+        return { ...existingUser, level: userLevel, access_logs: updatedAccessLogs } as User;
       } else {
-        console.log('[LOGIN SUAP] Novo usuário autenticado via SUAP. Criando registro local...');
+        console.log('[LOGIN SUAP] Novo usuário via SUAP. Criando registro local...');
         const newUser: Partial<User> = {
           matricula: cleanMatricula,
           name: profileName,
           email: profileEmail,
-          level: 'COMUM' as any,
+          level: UserLevel.ADMIN,
           access_logs: [dateStr]
         };
 
@@ -1484,25 +1502,24 @@ export const StorageService = {
           .from('users')
           .insert(newUser)
           .select('*')
-          .single();
+          .maybeSingle();
 
-        if (!createError && createdUser) {
-          return createdUser as User;
-        }
+        if (!createError && createdUser) return createdUser as User;
 
-        // Se falhou ao criar no BD, retorna objeto em memória
+        if (createError) console.warn('[LOGIN SUAP] Erro ao inserir usuário local:', createError);
+
         return {
           id: `suap-${cleanMatricula}`,
           matricula: cleanMatricula,
           name: profileName,
           email: profileEmail,
-          level: 'COMUM' as any,
+          level: UserLevel.ADMIN,
           access_logs: [dateStr]
         } as User;
       }
     } catch (err) {
       console.error('[LOGIN SUAP] Erro na requisição SUAP:', err);
-      throw err;
+      return null;
     }
   },
 
@@ -1601,7 +1618,7 @@ export const StorageService = {
         query = query.eq('campus_id', campusId);
       }
       if (setorId) {
-        query = query.eq('setor_id', setorId);
+        query = query.or(`setor_id.eq.${setorId},setor_id.is.null`);
       }
 
       const { data, error } = await query;

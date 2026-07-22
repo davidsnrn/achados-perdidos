@@ -1191,7 +1191,7 @@ const App: React.FC = () => {
                         onChange={(e) => setUseSuapTestMode(e.target.checked)}
                         className="w-4 h-4 text-ifrn-green bg-gray-100 border-gray-300 rounded focus:ring-ifrn-green focus:ring-2"
                       />
-                      <span className="font-semibold text-ifrn-darkGreen">Entrar via SUAP (TESTE)</span>
+                      <span className="font-semibold text-ifrn-darkGreen">Autenticar via SUAP</span>
                     </label>
 
                     <button

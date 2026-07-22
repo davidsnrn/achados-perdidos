@@ -806,11 +806,7 @@ const App: React.FC = () => {
         StorageService.setSessionUser(loggedUser);
         setUser(loggedUser);
         setLoginError('');
-        const defaultSys = (sessionStorage.getItem('currentSystem') as any) || 'achados';
-        setCurrentSystem(defaultSys);
-        setActiveTab(defaultSys === 'achados' ? 'achados' : defaultSys);
-        sessionStorage.setItem('currentSystem', defaultSys);
-        setShowModuleSelector(false);
+        setShowModuleSelector(true);
       } else {
         setLoginError('Credenciais inválidas. Verifique sua matrícula e senha.');
       }

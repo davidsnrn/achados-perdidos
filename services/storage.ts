@@ -1460,7 +1460,57 @@ export const StorageService = {
         console.warn('[LOGIN SUAP] Não foi possível carregar perfil detalhado do SUAP:', profileErr);
       }
 
-      // 3. Buscar ou criar o usuário na tabela local (Supabase)
+      // 3. Estabelecer sessão no Supabase Auth (para RLS)
+      // Tenta Edge Function primeiro (usa service_role), depois fallback client-side
+      let authEstablished = false;
+      const authEmail = `${cleanMatricula}@sistema.local`;
+      const deterministicPass = `SUAP_${cleanMatricula}_auth2025`;
+
+      try {
+        const { data: fnData, error: fnErr } = await supabase.functions.invoke('suap-auth', {
+          body: { suap_token: accessToken, matricula: cleanMatricula }
+        });
+
+        if (!fnErr && fnData?.access_token) {
+          await supabase.auth.setSession({
+            access_token: fnData.access_token,
+            refresh_token: fnData.refresh_token
+          });
+          authEstablished = true;
+          console.log('[LOGIN SUAP] Sessão Auth via Edge Function!');
+        }
+      } catch (fnErr) {
+        console.warn('[LOGIN SUAP] Edge Function indisponível, tentando fallback...');
+      }
+
+      if (!authEstablished) {
+        const { data: suData, error: suErr } = await supabase.auth.signUp({
+          email: authEmail,
+          password: deterministicPass,
+          options: { data: { matricula: cleanMatricula, name: profileName } }
+        });
+
+        if (!suErr && suData?.session) {
+          authEstablished = true;
+          console.log('[LOGIN SUAP] Sessão Auth via signUp!');
+        } else if (!suErr && suData?.user && !suData.session) {
+          const { error: siErr } = await supabase.auth.signInWithPassword({
+            email: authEmail, password: deterministicPass
+          });
+          authEstablished = !siErr;
+        } else if (suErr) {
+          const { error: siErr } = await supabase.auth.signInWithPassword({
+            email: authEmail, password: deterministicPass
+          });
+          authEstablished = !siErr;
+        }
+
+        if (!authEstablished) {
+          console.warn('[LOGIN SUAP] Falha ao estabelecer sessão Auth. Dados como anon (podem não carregar).');
+        }
+      }
+
+      // 4. Buscar ou criar o usuário na tabela local (Supabase)
       const { data: existingUser, error: findErr } = await supabase
         .from('users')
         .select('*')
@@ -1478,14 +1528,10 @@ export const StorageService = {
         const updatedAccessLogs = [dateStr, ...(existingUser.access_logs || [])].slice(0, 10);
         const userLevel = existingUser.level || UserLevel.ADMIN;
 
-        try {
-          await supabase.from('users').update({
-            access_logs: updatedAccessLogs,
-            level: userLevel
-          }).eq('id', existingUser.id);
-        } catch (updateErr) {
-          console.warn('[LOGIN SUAP] Não foi possível atualizar logs (provável RLS sem sessão Auth):', updateErr);
-        }
+        await supabase.from('users').update({
+          access_logs: updatedAccessLogs,
+          level: userLevel
+        }).eq('id', existingUser.id);
 
         return { ...existingUser, level: userLevel, access_logs: updatedAccessLogs } as User;
       } else {

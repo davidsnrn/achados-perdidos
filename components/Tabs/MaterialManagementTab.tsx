@@ -1012,6 +1012,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 </button>
                             )}
                             <button
+                                type="button"
                                 onClick={async () => {
                                     if (!kioskEnabled) {
                                         const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -1024,17 +1025,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         }
                                         onUpdate();
                                     } else {
-                                        setKioskCode('');
-                                        try {
-                                            await StorageService.updateSetorKioskCode(currentSetorId, null);
-                                        } catch (err) {
-                                            console.warn('Erro ao limpar código no banco:', err);
-                                        }
-                                        onUpdate();
+                                        setShowKioskModal(true);
                                     }
                                 }}
                                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] sm:text-xs transition-all w-full sm:w-auto bg-white border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-[0.97]"
-                                title="Ativar/desativar autoatendimento"
+                                title="Ver código do autoatendimento"
                             >
                                 <Sparkles size={13} className={kioskEnabled ? 'text-emerald-500' : 'text-gray-400'} />
                                 <div className={`relative w-8 h-4 rounded-full transition-all ${kioskEnabled ? 'bg-emerald-400' : 'bg-gray-300'}`}>
@@ -2490,6 +2485,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             </p>
                         </div>
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={async () => {
+                            setShowKioskModal(false);
+                            setKioskCode('');
+                            setCopiedKioskCode(false);
+                            setCopiedKioskLink(false);
+                            try {
+                                await StorageService.updateSetorKioskCode(currentSetorId, null);
+                            } catch (err) {
+                                console.warn('Erro ao limpar código no banco:', err);
+                            }
+                            onUpdate();
+                        }}
+                        className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
+                    >
+                        Desativar Autoatendimento
+                    </button>
                 </div>
             </Modal>
 

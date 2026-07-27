@@ -28,11 +28,31 @@ const stripCodePrefix = (code: string): string => {
 export const SelfServiceKiosk: React.FC<Props> = ({
   materials,
   loans,
-  campuses,
-  setores,
+  campuses: campusesProp,
+  setores: setoresProp,
   onUpdate,
   onExitKiosk
 }) => {
+  const [campuses, setCampuses] = useState<Campus[]>(campusesProp);
+  const [setores, setSetores] = useState<Setor[]>(setoresProp);
+
+  useEffect(() => {
+    if (campusesProp.length > 0) setCampuses(campusesProp);
+  }, [campusesProp]);
+
+  useEffect(() => {
+    if (setoresProp.length > 0) setSetores(setoresProp);
+  }, [setoresProp]);
+
+  useEffect(() => {
+    if (campuses.length === 0) {
+      StorageService.getCampuses().then(setCampuses).catch(() => {});
+    }
+    if (setores.length === 0) {
+      StorageService.getSetores().then(setSetores).catch(() => {});
+    }
+  }, []);
+
   const [isTerminalUnlocked, setIsTerminalUnlocked] = useState(false);
   const [terminalCodeInput, setTerminalCodeInput] = useState('');
   const [terminalError, setTerminalError] = useState('');

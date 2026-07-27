@@ -11,7 +11,7 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
-    storage: window.sessionStorage,
+    storage: window.localStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
@@ -22,6 +22,12 @@ import { DEFAULT_PASSWORD, SESSION_USER_KEY, LAST_ACTIVE_KEY, SYSTEM_CONFIG_KEY,
 
 export const StorageService = {
   // Helpers
+  generateId: (): string => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = crypto.getRandomValues(new Uint8Array(1))[0] % 16;
+      return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  },
   hashPassword: async (pass: string): Promise<string> => {
     if (!pass) return '';
     try {
@@ -326,24 +332,26 @@ export const StorageService = {
 
       if (error) throw error;
 
-      // 2. Criar usuário no Supabase Auth via Edge Function para evitar troca de sessão
+      // 2. Criar usuário no Supabase Auth via API
       try {
-        const { error: funcError } = await supabase.functions.invoke('create-user', {
-          body: {
-            matricula: user.matricula,
-            name: user.name,
-            password: password
-          }
+        const authEmail = `${user.matricula}@sistema.local`;
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: authEmail,
+          password: password,
+          options: { data: { matricula: user.matricula, name: user.name } }
         });
 
-        if (funcError) {
-          console.warn(`[SAVE USER] Aviso ao criar no Auth via Edge Function: ${funcError.message}`);
-          // Não falha o processo total se o Auth der erro, permitindo fallback local
+        if (signUpError) {
+          if (signUpError.message.includes('already exists')) {
+            console.log(`[SAVE USER] Auth já existe para ${user.matricula}.`);
+          } else {
+            console.warn(`[SAVE USER] Aviso ao criar no Auth: ${signUpError.message}`);
+          }
         } else {
-          console.log(`[SAVE USER] Usuário ${user.matricula} criado com sucesso no Auth via Edge Function.`);
+          console.log(`[SAVE USER] Usuário ${user.matricula} criado com sucesso no Auth.`);
         }
       } catch (authEx) {
-        console.error(`[SAVE USER] Exceção ao criar no Auth via Edge Function:`, authEx);
+        console.error(`[SAVE USER] Exceção ao criar no Auth:`, authEx);
       }
     }
   },
@@ -1362,6 +1370,40 @@ export const StorageService = {
 
           return { ...userData, access_logs: updatedAccessLogs } as User;
         }
+
+        // Auth OK mas sem registro na tabela users (ex: criado via SUAP Kiosk)
+        // Criar registro básico a partir dos metadados do Auth
+        console.log("[LOGIN] Auth OK mas sem registro local. Criando perfil básico...");
+        const authMeta = authData.user.user_metadata || {};
+        const profileName = authMeta.name || authMeta.nome || cleanMatricula;
+        const dateStr = new Date().toLocaleString('pt-BR');
+
+        const newUser: Partial<User> = {
+          matricula: cleanMatricula,
+          name: profileName,
+          email: authData.user.email || email,
+          level: UserLevel.ADMIN,
+          access_logs: [dateStr],
+          password: await StorageService.hashPassword(cleanPass)
+        };
+
+        const { data: createdUser } = await supabase
+          .from('users')
+          .insert(newUser)
+          .select('*')
+          .maybeSingle();
+
+        if (createdUser) return createdUser as User;
+
+        // Se falhar a inserção, retorna objeto temporário sem ID persistente
+        return {
+          id: `auth-${authData.user.id}`,
+          matricula: cleanMatricula,
+          name: profileName,
+          email: authData.user.email || email,
+          level: UserLevel.ADMIN,
+          access_logs: [dateStr]
+        } as User;
       }
 
       console.warn("[LOGIN] Auth falhou, tentando fallback legado...");
@@ -1377,6 +1419,9 @@ export const StorageService = {
         if (hashed === localUser.password) {
           console.log("[LOGIN] Fallback OK. Migrando para Auth...");
 
+          let authEstablished = false;
+
+          // Tentar signUp (cria auth user se não existir)
           try {
             const { error: signUpError } = await supabase.auth.signUp({
               email,
@@ -1385,10 +1430,57 @@ export const StorageService = {
             });
 
             if (!signUpError) {
-              console.log("[LOGIN] Migração concluída. Faça login novamente.");
+              console.log("[LOGIN] signUp OK.");
             }
           } catch (migreEx) {
-            console.warn("[LOGIN] Falha na migração Auth:", migreEx);
+            console.warn("[LOGIN] Falha no signUp:", migreEx);
+          }
+
+          // Tentar estabelecer sessão
+          try {
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+              email,
+              password: cleanPass
+            });
+            if (!signInError) {
+              authEstablished = true;
+              console.log("[LOGIN] Sessão Auth estabelecida com sucesso!");
+            } else {
+              console.warn("[LOGIN] signIn falhou:", signInError.message);
+            }
+          } catch (sessionEx) {
+            console.warn("[LOGIN] Exceção no signIn:", sessionEx);
+          }
+
+          // Se não conseguiu logar no Auth, tentar sync de senha via RPC
+          if (!authEstablished && localUser.id) {
+            console.log("[LOGIN] Tentando sync de senha via RPC...");
+            try {
+              const { error: rpcError } = await supabase.rpc('change_user_password', {
+                p_user_id: localUser.id,
+                p_hashed_password: localUser.password,
+                p_log_message: `Sync de senha no login em ${new Date().toLocaleString('pt-BR')}.`,
+                p_new_password: cleanPass
+              });
+
+              if (!rpcError) {
+                console.log("[LOGIN] Sync de senha via RPC OK. Tentando signIn novamente...");
+                const { error: retryError } = await supabase.auth.signInWithPassword({
+                  email,
+                  password: cleanPass
+                });
+                if (!retryError) {
+                  authEstablished = true;
+                  console.log("[LOGIN] Sessão Auth estabelecida após sync!");
+                } else {
+                  console.warn("[LOGIN] signIn ainda falhou após sync:", retryError.message);
+                }
+              } else {
+                console.warn("[LOGIN] RPC change_user_password falhou:", rpcError.message);
+              }
+            } catch (rpcEx) {
+              console.warn("[LOGIN] Exceção no sync via RPC:", rpcEx);
+            }
           }
 
           const dateStr = new Date().toLocaleString('pt-BR');
@@ -1407,6 +1499,7 @@ export const StorageService = {
 
     return null;
   },
+
 
   loginSuap: async (matricula: string, pass: string): Promise<User | null> => {
     const cleanMatricula = matricula ? matricula.trim() : '';
@@ -1583,9 +1676,7 @@ export const StorageService = {
   },
 
   setSessionUser: (user: User) => {
-    // Agora o Supabase Auth cuida da persistência, 
-    // mas mantemos o cache local para velocidade na UI se necessário.
-    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
+    localStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
   },
 
   getSessionUser: async (): Promise<User | null> => {
@@ -1593,56 +1684,69 @@ export const StorageService = {
     const { data: { session } } = await supabase.auth.getSession();
 
     if (session?.user) {
-      // Extrair matrícula do e-mail sintético
+      // Extrair matrícula do e-mail sintético (ex: 20230001@sistema.local)
       const matricula = session.user.email?.split('@')[0];
       if (matricula) {
         const { data: userData } = await supabase
           .from('users')
           .select('*')
           .eq('matricula', matricula)
-          .single();
-        return userData as User;
+          .maybeSingle();
+
+        if (userData) return userData as User;
+
+        // Auth session existe mas sem registro local — montar a partir dos metadados
+        const meta = session.user.user_metadata || {};
+        return {
+          id: `auth-${session.user.id}`,
+          matricula,
+          name: meta.name || meta.nome || meta.nome_usual || matricula,
+          email: session.user.email || `${matricula}@sistema.local`,
+          level: UserLevel.ADMIN,
+        } as User;
       }
     }
 
-    // 2. Fallback para o sessionStorage (para transição)
-    const cached = sessionStorage.getItem(SESSION_USER_KEY);
-    return cached ? JSON.parse(cached) : null;
+    // 2. Fallback para o localStorage
+    const cached = localStorage.getItem(SESSION_USER_KEY);
+    if (cached) return JSON.parse(cached);
+
+    // 3. Migração: verificar sessionStorage antigo
+    const oldCached = sessionStorage.getItem(SESSION_USER_KEY);
+    if (oldCached) {
+      localStorage.setItem(SESSION_USER_KEY, oldCached);
+      sessionStorage.removeItem(SESSION_USER_KEY);
+      return JSON.parse(oldCached);
+    }
+
+    return null;
   },
+
 
   clearSession: async () => {
     try {
-      await supabase.auth.signOut({ scope: 'local' });
+      await supabase.auth.signOut();
     } catch (e) {
       console.warn('[CLEAR] Erro no signOut do Auth:', e);
     }
-    // Limpar manualmente TUDO relacionado ao Supabase Auth
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && (key.startsWith('sb-') || key === SESSION_USER_KEY || key === LAST_ACTIVE_KEY || key === 'currentSystem' || key === 'activeTab')) {
-        keysToRemove.push(key);
+    [localStorage, sessionStorage].forEach(store => {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < store.length; i++) {
+        const key = store.key(i);
+        if (key && (key.startsWith('sb-') || key === SESSION_USER_KEY || key === LAST_ACTIVE_KEY || key === 'currentSystem' || key === 'activeTab')) {
+          keysToRemove.push(key);
+        }
       }
-    }
-    keysToRemove.forEach(key => sessionStorage.removeItem(key));
-    // Também limpar localStorage por segurança
-    const lbKeys: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('sb-')) {
-        lbKeys.push(key);
-      }
-    }
-    lbKeys.forEach(key => localStorage.removeItem(key));
+      keysToRemove.forEach(k => store.removeItem(k));
+    });
   },
 
   updateLastActive: () => {
-    sessionStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+    localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
   },
 
   isSessionExpired: async (): Promise<boolean> => {
-    const lastActive = sessionStorage.getItem(LAST_ACTIVE_KEY);
-    // Se não existe lastActive, o usuário acabou de logar — não expirou
+    const lastActive = localStorage.getItem(LAST_ACTIVE_KEY);
     if (!lastActive) return false;
     return Date.now() - parseInt(lastActive, 10) > TIMEOUT_MS;
   },
@@ -1828,7 +1932,10 @@ export const StorageService = {
 
       const { data, error } = await query;
 
-      if (error) break;
+      if (error) {
+        console.warn('[getMaterials] Erro na consulta:', error);
+        break;
+      }
       if (!data || data.length === 0) break;
       allData = [...allData, ...data];
       if (data.length < limit) break;
@@ -1940,7 +2047,10 @@ export const StorageService = {
 
       const { data, error } = await query;
 
-      if (error) break;
+      if (error) {
+        console.warn('[getMaterialLoans] Erro na consulta:', error);
+        break;
+      }
       if (!data || data.length === 0) break;
       allData = [...allData, ...data];
       if (data.length < limit) break;
@@ -1962,7 +2072,7 @@ export const StorageService = {
       loanedBy: d.loanedBy,
       returnedBy: d.returnedBy,
       campus_id: d.campus_id,
-      setor_id: d.setor_id
+      setor_id: d.setor_id,
     }));
   },
 
@@ -1988,16 +2098,93 @@ export const StorageService = {
     if (error) throw error;
   },
 
+  createMaterialLoan: async (loan: Omit<MaterialLoan, 'id'>) => {
+    const { error } = await supabase.from('material_loans').insert({
+      id: StorageService.generateId(),
+      materialId: loan.materialId,
+      materialName: loan.materialName,
+      materialCode: loan.materialCode,
+      personName: loan.personName,
+      personMatricula: loan.personMatricula,
+      personEmail: loan.personEmail,
+      loanDate: loan.loanDate,
+      returnDate: loan.returnDate,
+      observation: loan.observation,
+      status: loan.status,
+      loanedBy: loan.loanedBy,
+      returnedBy: loan.returnedBy,
+      campus_id: loan.campus_id,
+      setor_id: loan.setor_id || null
+    });
+    if (error) throw error;
+  },
+
+  createMaterialLoansBulk: async (loans: Omit<MaterialLoan, 'id'>[]) => {
+    const payloads = loans.map(loan => ({
+      id: StorageService.generateId(),
+      materialId: loan.materialId,
+      materialName: loan.materialName,
+      materialCode: loan.materialCode,
+      personName: loan.personName,
+      personMatricula: loan.personMatricula,
+      personEmail: loan.personEmail,
+      loanDate: loan.loanDate,
+      returnDate: loan.returnDate,
+      observation: loan.observation,
+      status: loan.status,
+      loanedBy: loan.loanedBy,
+      returnedBy: loan.returnedBy,
+      campus_id: loan.campus_id,
+      setor_id: loan.setor_id || null
+    }));
+    const { error } = await supabase.from('material_loans').insert(payloads);
+    if (error) throw error;
+  },
+
   returnMaterialLoan: async (loanId: string, operatorName: string) => {
-    // Update loan status and return operator
+    const { data: existing } = await supabase
+      .from('material_loans')
+      .select('returnedBy')
+      .eq('id', loanId)
+      .single();
+
+    const previous = existing?.returnedBy || '';
+    const newReturnedBy = previous
+      ? `${previous} | Confirmado por ${operatorName}`
+      : operatorName;
+
     const { error } = await supabase
       .from('material_loans')
       .update({
         status: 'RETURNED',
         returnDate: new Date().toISOString(),
-        returnedBy: operatorName
+        returnedBy: newReturnedBy
       })
       .eq('id', loanId);
+
+    if (error) throw error;
+  },
+
+  requestSelfServiceReturn: async (loanId: string, returnedByInfo: string) => {
+    const { error } = await supabase
+      .from('material_loans')
+      .update({
+        status: 'PENDING_RETURN',
+        returnedBy: `Autoatendimento: ${returnedByInfo}`
+      })
+      .eq('id', loanId);
+
+    if (error) throw error;
+  },
+
+  requestSelfServiceReturnsBulk: async (loanIds: string[], returnedByInfo: string) => {
+    const { error } = await supabase
+      .from('material_loans')
+      .update({
+        status: 'PENDING_RETURN',
+        returnedBy: `Autoatendimento: ${returnedByInfo}`
+      })
+      .in('id', loanIds);
 
     if (error) throw error;
   },
@@ -3214,7 +3401,7 @@ export const StorageService = {
     }
   },
 
-  getChargeHistory: async (loanId: string): Promise<import('./types-materiais').ChargeHistory[]> => {
+  getChargeHistory: async (loanId: string): Promise<import('../types-materiais').ChargeHistory[]> => {
     const { data, error } = await supabase
       .from('charge_history')
       .select('*')
@@ -3403,5 +3590,30 @@ export const StorageService = {
       .update({ active: false, updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
+  },
+
+  verifyLocalCredentials: async (matricula: string, pass: string): Promise<User | null> => {
+    const cleanMatricula = matricula ? matricula.trim() : '';
+    const cleanPass = pass ? pass.trim() : '';
+    if (!cleanMatricula || !cleanPass) return null;
+
+    try {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('matricula', cleanMatricula)
+        .maybeSingle();
+
+      if (!error && userData) {
+        const hashed = await StorageService.hashPassword(cleanPass);
+        if (hashed === userData.password) {
+          return userData as User;
+        }
+      }
+    } catch (e) {
+      console.error("[verifyLocalCredentials] Erro:", e);
+    }
+
+    return null;
   },
 };

@@ -5,23 +5,23 @@ import { Locker } from './types-armarios';
 import { Material, MaterialLoan } from './types-materiais';
 import { IfrnLogo } from './components/Logo';
 import { EmailService } from './services/emailService';
-// Lazy load tabs to improve initial load performance
-const FoundItemsTab = React.lazy(() => import('./components/Tabs/FoundItemsTab').then(module => ({ default: module.FoundItemsTab })));
-const LostReportsTab = React.lazy(() => import('./components/Tabs/LostReportsTab').then(module => ({ default: module.LostReportsTab })));
-const PeopleTab = React.lazy(() => import('./components/Tabs/PeopleTab').then(module => ({ default: module.PeopleTab })));
-const UsersTab = React.lazy(() => import('./components/Tabs/UsersTab').then(module => ({ default: module.UsersTab })));
-const ArmariosTab = React.lazy(() => import('./components/Tabs/ArmariosTab').then(module => ({ default: module.ArmariosTab })));
-const BooksTab = React.lazy(() => import('./components/Tabs/BooksTab').then(module => ({ default: module.BooksTab })));
-const BookLoansTab = React.lazy(() => import('./components/Tabs/BookLoansTab').then(module => ({ default: module.BookLoansTab })));
-const BookReportsTab = React.lazy(() => import('./components/Tabs/BookReportsTab').then(module => ({ default: module.BookReportsTab })));
-const NadaConstaTab = React.lazy(() => import('./components/Tabs/NadaConstaTab').then(module => ({ default: module.NadaConstaTab })));
-const MaterialManagementTab = React.lazy(() => import('./components/Tabs/MaterialManagementTab').then(module => ({ default: module.MaterialManagementTab })));
-const CopyControlTab = React.lazy(() => import('./components/Tabs/CopyControlTab'));
-const PrinterNFTab = React.lazy(() => import('./components/Tabs/PrinterNFTab').then(module => ({ default: module.PrinterNFTab })));
-const InsumosTab = React.lazy(() => import('./components/Tabs/InsumosTab').then(module => ({ default: module.InsumosTab })));
-const NotificationsTab = React.lazy(() => import('./components/Tabs/NotificationsTab').then(module => ({ default: module.NotificationsTab })));
-const TeacherAttendanceTab = React.lazy(() => import('./components/Tabs/TeacherAttendanceTab').then(module => ({ default: module.TeacherAttendanceTab })));
-const RoomsTab = React.lazy(() => import('./components/Tabs/RoomsTab').then(module => ({ default: module.RoomsTab })));
+import { FoundItemsTab } from './components/Tabs/FoundItemsTab';
+import { LostReportsTab } from './components/Tabs/LostReportsTab';
+import { PeopleTab } from './components/Tabs/PeopleTab';
+import { UsersTab } from './components/Tabs/UsersTab';
+import { ArmariosTab } from './components/Tabs/ArmariosTab';
+import { BooksTab } from './components/Tabs/BooksTab';
+import { BookLoansTab } from './components/Tabs/BookLoansTab';
+import { BookReportsTab } from './components/Tabs/BookReportsTab';
+import { NadaConstaTab } from './components/Tabs/NadaConstaTab';
+import { MaterialManagementTab } from './components/Tabs/MaterialManagementTab';
+import { CopyControlTab } from './components/Tabs/CopyControlTab';
+import { PrinterNFTab } from './components/Tabs/PrinterNFTab';
+import { InsumosTab } from './components/Tabs/InsumosTab';
+import { NotificationsTab } from './components/Tabs/NotificationsTab';
+import { TeacherAttendanceTab } from './components/Tabs/TeacherAttendanceTab';
+import { RoomsTab } from './components/Tabs/RoomsTab';
+import { SelfServiceKiosk } from './components/SelfServiceKiosk';
 
 import { LogOut, Package, ClipboardList, Users, ShieldCheck, KeyRound, Menu, X, Settings, Trash, AlertTriangle, ChevronDown, ChevronUp, UserX, FileX, FileText, Save, Building2, Eye, EyeOff, Loader2, Key, Search, Trash2, ShieldAlert, AlertCircle, CheckCircle2, History, Send, ArrowRight, LayoutGrid, Download, BookOpen, FileCheck, Mail, Lock, User as UserIcon, RefreshCcw, ChevronRight, Printer, BarChart3, Truck, Pencil } from 'lucide-react';
 import { Modal } from './components/ui/Modal';
@@ -135,7 +135,7 @@ const App: React.FC = () => {
   const [loginPass, setLoginPass] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [useSuapTestMode, setUseSuapTestMode] = useState(true);
+  const [useSuapTestMode, setUseSuapTestMode] = useState(false);
 
   // Change Password
   const [currentPassword, setCurrentPassword] = useState('');
@@ -295,6 +295,15 @@ const App: React.FC = () => {
     setMaterialLoans(await StorageService.getMaterialLoans(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
+  const refreshKioskData = useCallback(async (campusId?: string, setorId?: string) => {
+    const [newMaterials, newLoans] = await Promise.all([
+      StorageService.getMaterials(campusId || undefined, setorId || undefined),
+      StorageService.getMaterialLoans(campusId || undefined, setorId || undefined)
+    ]);
+    setMaterials(newMaterials);
+    setMaterialLoans(newLoans);
+  }, []);
+
   const refreshCopyRecords = useCallback(async () => {
     if (!user) return;
     const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
@@ -347,7 +356,23 @@ const App: React.FC = () => {
     if (!user || isBackdropSleep) return;
 
     const fetchId = ++lastFetchIdRef.current;
-    setLoading(true);
+
+    // Só mostrar loading se não tiver dados cached para esta tab
+    const hasDataForTab = (
+      (currentSystem === 'achados' || activeTab === 'achados' || activeTab === 'relatos') ? items.length > 0 :
+      (currentSystem === 'armarios' || activeTab === 'armarios') ? lockers.length > 0 :
+      (currentSystem === 'livros' || activeTab.startsWith('livros')) ? books.length > 0 :
+      (currentSystem === 'materiais' || activeTab === 'materiais') ? materials.length > 0 :
+      (currentSystem === 'copias' || activeTab === 'copias') ? copyRecords.length > 0 :
+      (currentSystem === 'insumos' || activeTab === 'insumos') ? supplies.length > 0 :
+      (currentSystem === 'notificacoes' || activeTab === 'notificacoes') ? notifications.length > 0 :
+      (activeTab === 'usuarios') ? users.length > 0 :
+      false
+    );
+
+    if (!hasDataForTab) {
+      setLoading(true);
+    }
 
     const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
@@ -589,6 +614,22 @@ const App: React.FC = () => {
     setCurrentSystem(null);
   }, []);
 
+  const isKioskPath = window.location.pathname.endsWith('/emprestimo') || window.location.hash.includes('emprestimo') || window.location.search.includes('self-service');
+
+  // Kiosk e sistema principal sempre montados (preserva estado ao navegar entre eles)
+  if (isKioskPath) {
+    return (
+      <SelfServiceKiosk
+        materials={materials}
+        loans={materialLoans}
+        campuses={campuses}
+        setores={setores}
+        onUpdate={refreshKioskData}
+        onExitKiosk={() => { window.location.href = '/'; }}
+      />
+    );
+  }
+
   // 1. Initial System Load
   useEffect(() => {
     loadSystemConfig();
@@ -623,6 +664,25 @@ const App: React.FC = () => {
     };
     initSession();
     refreshCampuses();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setShowModuleSelector(false);
+      } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        if (session?.user) {
+          StorageService.getSessionUser().then(u => {
+            if (u) {
+              StorageService.setSessionUser(u);
+              setUser(u);
+              StorageService.updateLastActive();
+            }
+          });
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [loadSystemConfig, refreshCampuses]);
 
   // Load setores after campuses and user are available
@@ -2729,8 +2789,7 @@ const App: React.FC = () => {
           <ErrorBoundary>
             {loading && activeTab !== 'none' ? (
               <div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>
-            ) : (
-              <React.Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="animate-spin text-ifrn-green" size={48} /></div>}>
+            ) : (<>
                 {activeTab === 'achados' && (
                   <FoundItemsTab
                     items={items}
@@ -2873,8 +2932,7 @@ const App: React.FC = () => {
                   />
                 )}
                 {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
-              </React.Suspense>
-            )}
+              </>)}
           </ErrorBoundary>
         </div>
       </main>

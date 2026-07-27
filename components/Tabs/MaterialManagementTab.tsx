@@ -3,7 +3,7 @@ import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown, Repeat, X } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown, Repeat, X, Sparkles, ExternalLink, Bell } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -21,6 +21,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
+
+    // Autoatendimento Modal state
+    const [showKioskModal, setShowKioskModal] = useState(false);
+    const [copiedKioskLink, setCopiedKioskLink] = useState(false);
+    const [kioskCode, setKioskCode] = useState(() => localStorage.getItem('sigae_active_kiosk_code') || '');
+    const [copiedKioskCode, setCopiedKioskCode] = useState(false);
+
+    const activeKioskCode = localStorage.getItem('sigae_active_kiosk_code') || '';
+    const kioskEnabled = localStorage.getItem('sigae_kiosk_enabled') === 'true';
+
+    // Pending return confirmation
+    const [showPendingModal, setShowPendingModal] = useState(false);
+    const [confirmingIds, setConfirmingIds] = useState<string[]>([]);
+    const [isConfirming, setIsConfirming] = useState(false);
+    const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
+
+    const pendingReturns = useMemo(() => {
+        return loans.filter(l => l.status === 'PENDING_RETURN');
+    }, [loans]);
 
     // Pagination
     const ITEMS_PER_PAGE = 20;
@@ -51,10 +70,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [materialSearch, setMaterialSearch] = useState('');
     const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
     const [observation, setObservation] = useState('');
-    const [suapAuthed, setSuapAuthed] = useState(false);
-    const [suapPassword, setSuapPassword] = useState('');
-    const [isVerifyingSuap, setIsVerifyingSuap] = useState(false);
-    const [suapAuthError, setSuapAuthError] = useState('');
     const [viewingItem, setViewingItem] = useState<(Material & { status: 'LOANED' | 'AVAILABLE'; activeLoan: MaterialLoan | null }) | null>(null);
 
     // Reloan (novo empréstimo com devolução automática)
@@ -214,22 +229,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const stats = useMemo(() => {
         const active = loans.filter(l => l.status === 'ACTIVE').length;
         const returned = loans.filter(l => l.status === 'RETURNED').length;
-        return { active, returned, total: loans.length };
+        const pendingConfirm = loans.filter(l => l.status === 'PENDING_RETURN').length;
+        return { active, returned, pendingConfirm, total: loans.length };
     }, [loans]);
 
     const inventory = useMemo(() => {
         const activeLoansMap = new Map<string, MaterialLoan>();
         loans.forEach(loan => {
-            if (loan.status === 'ACTIVE') {
+            if (loan.status === 'ACTIVE' || loan.status === 'PENDING_RETURN') {
                 activeLoansMap.set(loan.materialId, loan);
             }
         });
 
         return materials.map(material => {
             const activeLoan = activeLoansMap.get(material.id);
+            const isPendingReturn = activeLoan?.status === 'PENDING_RETURN';
             return {
                 ...material,
                 status: (activeLoan ? 'LOANED' : 'AVAILABLE') as 'LOANED' | 'AVAILABLE',
+                loanStatus: activeLoan?.status || null,
                 activeLoan: activeLoan || null
             };
         });
@@ -528,30 +546,33 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setSelectedMaterials([]);
             setMaterialSearch('');
             setObservation('');
-            setSuapAuthed(false);
-            setSuapPassword('');
-            setSuapAuthError('');
 
             if (email && emailNotificationEnabled) {
-                const currentCampus = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id));
-                const res = await EmailService.sendLoanBatchNotification(
-                    email,
-                    selectedPerson!.name,
-                    newLoans.map(l => ({ materialName: l.materialName, loanDate: l.loanDate })),
-                    user.name,
-                    user.email,
-                    currentCampus?.name
-                );
-                if (!res.success) {
-                    alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!\n\n⚠️ Mas a notificação por e-mail falhou.`);
-                } else {
-                    alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!`);
+                try {
+                    const currentCampus = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id));
+                    const res = await EmailService.sendLoanBatchNotification(
+                        email,
+                        selectedPerson!.name,
+                        newLoans.map(l => ({ materialName: l.materialName, loanDate: l.loanDate })),
+                        user.name,
+                        user.email,
+                        currentCampus?.name
+                    );
+                    if (!res.success) {
+                        alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!\n\n⚠️ Mas a notificação por e-mail falhou.`);
+                    } else {
+                        alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!`);
+                    }
+                } catch (emailErr) {
+                    console.warn("Erro ao enviar e-mail de notificação:", emailErr);
+                    alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!\n\n⚠️ Não foi possível enviar a notificação por e-mail.`);
                 }
             } else {
                 alert(`${newLoans.length} empréstimo(s) registrado(s) com sucesso!`);
             }
         } catch (error) {
-            alert('Erro ao registrar empréstimo.');
+            console.error("Erro ao registrar empréstimo no banco:", error);
+            alert('Erro ao registrar empréstimo no banco de dados.');
         }
     };
 
@@ -560,11 +581,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
         if (!selectedPerson || selectedMaterials.length === 0) {
             alert('Selecione pessoa e pelo menos um material.');
-            return;
-        }
-
-        if (!suapAuthed) {
-            alert('Autentique o tomador via SUAP antes de registrar o empréstimo.');
             return;
         }
 
@@ -982,6 +998,38 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             )}
                             <button
                                 onClick={() => {
+                                    if (!kioskEnabled) {
+                                        const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+                                        setKioskCode(newCode);
+                                        localStorage.setItem('sigae_active_kiosk_code', newCode);
+                                        localStorage.setItem('sigae_kiosk_setor_id', user.setor_id || activeSetorId || '');
+                                        localStorage.setItem('sigae_kiosk_enabled', 'true');
+                                        setShowKioskModal(true);
+                                    } else {
+                                        localStorage.removeItem('sigae_active_kiosk_code');
+                                        localStorage.removeItem('sigae_kiosk_setor_id');
+                                        localStorage.removeItem('sigae_kiosk_enabled');
+                                        setKioskCode('');
+                                    }
+                                }}
+                                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] sm:text-xs transition-all w-full sm:w-auto bg-white border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-[0.97]"
+                                title="Ativar/desativar autoatendimento"
+                            >
+                                <Sparkles size={13} className={kioskEnabled ? 'text-emerald-500' : 'text-gray-400'} />
+                                <div className={`relative w-8 h-4 rounded-full transition-all ${kioskEnabled ? 'bg-emerald-400' : 'bg-gray-300'}`}>
+                                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-all duration-200 ${kioskEnabled ? 'left-[18px]' : 'left-0.5'}`} />
+                                </div>
+                                <span className={`font-semibold whitespace-nowrap ${kioskEnabled ? 'text-emerald-700' : 'text-gray-400'}`}>
+                                    {kioskEnabled ? 'Ligado' : 'Desligado'}
+                                </span>
+                                {activeKioskCode && (
+                                    <span className="font-mono text-xs font-bold tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                        {activeKioskCode}
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => {
                                     setEditingMaterial(null);
                                     setFormMaterialName('');
                                     setBatchMaterialText('');
@@ -1111,9 +1159,13 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 {item.setor_id ? (setores.find(s => s.id === item.setor_id)?.name || '---') : '---'}
                                             </td>
                                             <td className="p-4">
-                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${item.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
+                                                    item.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
+                                                    item.loanStatus === 'PENDING_RETURN' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
+                                                }`}>
                                                     {item.status === 'AVAILABLE' ? <CheckCircle size={10} /> : <AlertTriangle size={10} />}
-                                                    {item.status === 'AVAILABLE' ? 'DISPONÍVEL' : 'EMPRESTADO'}
+                                                    {item.status === 'AVAILABLE' ? 'DISPONÍVEL' :
+                                                     item.loanStatus === 'PENDING_RETURN' ? 'AGUARDANDO VALIDAÇÃO' : 'EMPRESTADO'}
                                                 </span>
                                             </td>
                                             <td className="p-4">
@@ -1448,6 +1500,10 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                         <span className="text-red-700 font-bold text-[10px] bg-red-50 px-2 py-1 rounded-full border border-red-100 flex items-center gap-1 w-fit">
                                                             {loan.returnDate ? new Date(loan.returnDate).toLocaleString('pt-BR') : 'DATA INDISP.'}
                                                         </span>
+                                                    ) : loan.status === 'PENDING_RETURN' ? (
+                                                        <span className="text-blue-700 font-bold text-[10px] bg-blue-50 px-2 py-1 rounded-full border border-blue-100 flex items-center gap-1 w-fit">
+                                                            {loan.returnDate ? new Date(loan.returnDate).toLocaleString('pt-BR') : 'AGUARDANDO CONFIRMAÇÃO'}
+                                                        </span>
                                                     ) : loan.returnDate ? (
                                                         <span className="text-green-700 font-bold text-[11.5px]">{new Date(loan.returnDate).toLocaleString('pt-BR')}</span>
                                                     ) : (
@@ -1464,10 +1520,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 <td className="p-4 text-center">
                                                     <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${loan.status === 'ACTIVE' ? 'bg-amber-100 text-amber-800' :
                                                         loan.status === 'DELETED' ? 'bg-red-100 text-red-800' :
-                                                            'bg-green-100 text-green-800'
+                                                            loan.status === 'PENDING_RETURN' ? 'bg-blue-100 text-blue-800' :
+                                                                'bg-green-100 text-green-800'
                                                         }`}>
                                                         {loan.status === 'ACTIVE' ? 'PENDENTE' :
-                                                            loan.status === 'DELETED' ? 'DELETADO' : 'DEVOLVIDO'}
+                                                            loan.status === 'DELETED' ? 'DELETADO' :
+                                                                loan.status === 'PENDING_RETURN' ? 'AGUARDANDO CONFIRMAÇÃO' : 'DEVOLVIDO'}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -1704,9 +1762,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 setMaterialSearch('');
                 setShowMaterialDropdown(false);
                 setObservation('');
-                setSuapAuthed(false);
-                setSuapPassword('');
-                setSuapAuthError('');
             }} title="Novo Empréstimo">
                 <form onSubmit={handleLoanSubmit} className="space-y-6">
                     <div className="p-4 bg-blue-50/40 rounded-2xl border border-blue-100 shadow-sm space-y-3">
@@ -1730,66 +1785,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <p className="font-bold text-blue-900 leading-tight">{selectedPerson.name}</p>
                                         <p className="text-xs text-blue-600 font-medium">{selectedPerson.matricula} • {selectedPerson.type}</p>
                                     </div>
-                                    <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); setSuapAuthed(false); setSuapPassword(''); setSuapAuthError(''); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
+                                    <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
                                 </div>
-
-                                {suapAuthed ? (
-                                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
-                                        <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-                                            <svg size={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                                        </div>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-bold text-emerald-800">Autenticado via SUAP</p>
-                                            <p className="text-xs text-emerald-600">Identidade confirmada</p>
-                                        </div>
-                                        <button type="button" onClick={() => { setSuapAuthed(false); setSuapPassword(''); setSuapAuthError(''); }} className="text-xs text-emerald-500 hover:text-emerald-700 font-bold">Reautenticar</button>
-                                    </div>
-                                ) : (
-                                    <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3 shadow-sm">
-                                        <label className="flex items-center justify-between cursor-pointer">
-                                            <span className="flex items-center gap-2 text-xs font-bold text-gray-600">
-                                                <svg size={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                                Autenticar via SUAP (senha do IFRN)
-                                            </span>
-                                        </label>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="password"
-                                                placeholder="Senha do SUAP..."
-                                                value={suapPassword}
-                                                onChange={e => { setSuapPassword(e.target.value); setSuapAuthError(''); }}
-                                                onKeyDown={async e => {
-                                                    if (e.key === 'Enter' && suapPassword) {
-                                                        e.preventDefault();
-                                                        setIsVerifyingSuap(true);
-                                                        setSuapAuthError('');
-                                                        const ok = await StorageService.verifySuapCredentials(selectedPerson.matricula, suapPassword);
-                                                        if (ok) { setSuapAuthed(true); setSuapPassword(''); } else setSuapAuthError('Senha incorreta ou falha na conexão com SUAP.');
-                                                        setIsVerifyingSuap(false);
-                                                    }
-                                                }}
-                                                className="flex-1 border-2 border-gray-100 rounded-xl p-2.5 text-sm outline-none focus:border-emerald-500 transition-all"
-                                            />
-                                            <button
-                                                type="button"
-                                                disabled={!suapPassword || isVerifyingSuap}
-                                                onClick={async () => {
-                                                    setIsVerifyingSuap(true);
-                                                    setSuapAuthError('');
-                                                    const ok = await StorageService.verifySuapCredentials(selectedPerson.matricula, suapPassword);
-                                                    if (ok) { setSuapAuthed(true); setSuapPassword(''); } else setSuapAuthError('Senha incorreta ou falha na conexão com SUAP.');
-                                                    setIsVerifyingSuap(false);
-                                                }}
-                                                className="px-4 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1.5"
-                                            >
-                                                {isVerifyingSuap ? 'Verificando...' : 'Autenticar'}
-                                            </button>
-                                        </div>
-                                        {suapAuthError && (
-                                            <p className="text-xs text-red-500 font-medium flex items-center gap-1">{suapAuthError}</p>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         ) : (
                             <div className="space-y-4 pt-2">
@@ -2313,10 +2310,12 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</p>
                                 <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${viewingLoan.status === 'ACTIVE' ? 'bg-amber-100 text-amber-800' :
                                     viewingLoan.status === 'DELETED' ? 'bg-red-100 text-red-800' :
-                                        'bg-green-100 text-green-800'
+                                        viewingLoan.status === 'PENDING_RETURN' ? 'bg-blue-100 text-blue-800' :
+                                            'bg-green-100 text-green-800'
                                     }`}>
                                     {viewingLoan.status === 'ACTIVE' ? 'PENDENTE' :
-                                        viewingLoan.status === 'DELETED' ? 'DELETADO' : 'DEVOLVIDO'}
+                                        viewingLoan.status === 'DELETED' ? 'DELETADO' :
+                                            viewingLoan.status === 'PENDING_RETURN' ? 'AGUARDANDO CONFIRMAÇÃO' : 'DEVOLVIDO'}
                                 </span>
                             </div>
                             <div className="p-4 bg-white border border-gray-100 rounded-xl space-y-1">
@@ -2327,7 +2326,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             {viewingLoan.returnedBy && (
                                 <div className="p-4 bg-white border border-gray-100 rounded-xl space-y-1">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                        {viewingLoan.status === 'DELETED' ? 'Registrou a exclusão' : 'Registrou a devolução'}
+                                        {viewingLoan.status === 'DELETED' ? 'Registrou a exclusão' :
+                                         viewingLoan.returnedBy?.includes('Autoatendimento') ? 'Solicitado via Autoatendimento' : 'Registrou a devolução'}
                                     </p>
                                     <p className="text-sm text-gray-700 font-medium">{viewingLoan.returnedBy}</p>
                                     <p className="text-xs text-gray-500">{new Date(viewingLoan.returnDate!).toLocaleString('pt-BR')}</p>
@@ -2405,6 +2405,224 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             <><Mail size={18} /> Cadastrar e Enviar</>
                         )}
                     </button>
+                </div>
+            </Modal>
+
+            {/* Modal de Ativação do Autoatendimento */}
+            <Modal isOpen={showKioskModal} onClose={() => {
+                setShowKioskModal(false);
+                setCopiedKioskCode(false);
+                setCopiedKioskLink(false);
+            }} title="Página de Autoatendimento" maxWidth="max-w-lg">
+                <div className="space-y-6">
+                    <div className="text-center space-y-2">
+                        <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-100">
+                            <Sparkles size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800">Terminal de Autoatendimento Ativo</h3>
+                        <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                            Abra o link no computador do terminal de autoatendimento e utilize o código abaixo para vincular este setor.
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-2xl p-5 text-white space-y-4 shadow-inner">
+                        <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                                Link de Acesso do Terminal
+                            </span>
+                            <div className="flex items-center justify-between bg-slate-950 rounded-xl px-3 py-2.5 border border-slate-800">
+                                <span className="font-mono text-xs text-emerald-400 truncate">
+                                    {window.location.origin}/emprestimo
+                                </span>
+                                <button
+                                    onClick={async () => {
+                                        await navigator.clipboard.writeText(`${window.location.origin}/emprestimo`);
+                                        setCopiedKioskLink(true);
+                                        setTimeout(() => setCopiedKioskLink(false), 2000);
+                                    }}
+                                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-emerald-400 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                                >
+                                    {copiedKioskLink ? <CheckCircle size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                                    <span>{copiedKioskLink ? 'Copiado' : 'Copiar'}</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                                Código de Validação do Setor
+                            </span>
+                            <div className="flex items-center justify-between bg-slate-950 rounded-xl px-4 py-3 border border-slate-800">
+                                <span className="font-mono text-xl font-bold tracking-widest text-emerald-400 uppercase">
+                                    {kioskCode}
+                                </span>
+                                <button
+                                    onClick={async () => {
+                                        await navigator.clipboard.writeText(kioskCode);
+                                        setCopiedKioskCode(true);
+                                        setTimeout(() => setCopiedKioskCode(false), 2000);
+                                    }}
+                                    className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-emerald-400 rounded-lg transition-colors flex items-center gap-1 text-xs"
+                                >
+                                    {copiedKioskCode ? <CheckCircle size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                                    <span>{copiedKioskCode ? 'Copiado' : 'Copiar'}</span>
+                                </button>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-1.5 text-center">
+                                Código válido até desativar o autoatendimento.
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem('sigae_active_kiosk_code');
+                                localStorage.removeItem('sigae_kiosk_setor_id');
+                                localStorage.removeItem('sigae_kiosk_enabled');
+                                setKioskCode('');
+                                setShowKioskModal(false);
+                            }}
+                            className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
+                        >
+                            <X size={16} /> Desativar Autoatendimento
+                        </button>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            onClick={() => window.open('/emprestimo', '_blank')}
+                            className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md"
+                        >
+                            <ExternalLink size={16} /> Testar/Abrir Autoatendimento
+                        </button>
+                        <button
+                            onClick={() => setShowKioskModal(false)}
+                            className="py-3 px-5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm"
+                        >
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Floating notification for pending returns */}
+            {pendingReturns.length > 0 && (
+                <button
+                    onClick={() => setShowPendingModal(true)}
+                    className="fixed bottom-6 right-6 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-2xl shadow-blue-500/40 p-4 flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+                    title="Devoluções pendentes de confirmação"
+                >
+                    <Bell size={24} />
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-lg">
+                        {pendingReturns.length}
+                    </span>
+                </button>
+            )}
+
+            <Modal isOpen={showPendingModal} onClose={() => { setShowPendingModal(false); setSelectedPendingIds([]); }} title="Devoluções Pendentes" maxWidth="max-w-2xl">
+                <div className="space-y-4">
+                    {pendingReturns.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8 italic">Nenhuma devolução pendente.</p>
+                    ) : (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm text-gray-600">
+                                    {pendingReturns.length} item(ns) aguardando confirmação de devolução.
+                                </p>
+                                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        checked={selectedPendingIds.length === pendingReturns.length}
+                                        onChange={() => {
+                                            if (selectedPendingIds.length === pendingReturns.length) {
+                                                setSelectedPendingIds([]);
+                                            } else {
+                                                setSelectedPendingIds(pendingReturns.map(l => l.id));
+                                            }
+                                        }}
+                                    />
+                                    Selecionar todos
+                                </label>
+                            </div>
+                            <div className="max-h-96 overflow-y-auto space-y-2">
+                                {pendingReturns.map(loan => (
+                                    <div key={loan.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shrink-0"
+                                            checked={selectedPendingIds.includes(loan.id)}
+                                            onChange={() => {
+                                                setSelectedPendingIds(prev =>
+                                                    prev.includes(loan.id)
+                                                        ? prev.filter(id => id !== loan.id)
+                                                        : [...prev, loan.id]
+                                                );
+                                            }}
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-gray-800 truncate">{loan.materialName}</p>
+                                            <p className="text-xs text-gray-500">
+                                                {loan.personName} ({loan.personMatricula})
+                                            </p>
+                                            <p className="text-[10px] text-gray-400">
+                                                Retirado em {new Date(loan.loanDate).toLocaleString('pt-BR')}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={async () => {
+                                                setConfirmingIds([loan.id]);
+                                                setIsConfirming(true);
+                                                try {
+                                                    await StorageService.returnMaterialLoan(loan.id, `${user.name} (${user.matricula})`);
+                                                    await onUpdate();
+                                                } catch (err: any) {
+                                                    alert('Erro ao confirmar devolução: ' + (err?.message || ''));
+                                                } finally {
+                                                    setIsConfirming(false);
+                                                    setConfirmingIds([]);
+                                                }
+                                            }}
+                                            disabled={isConfirming}
+                                            className="ml-3 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white font-bold rounded-lg text-xs transition-all flex items-center gap-1"
+                                        >
+                                            {isConfirming && confirmingIds.includes(loan.id) ? (
+                                                <><Loader2 size={12} className="animate-spin" /> Confirmando</>
+                                            ) : (
+                                                <><CheckCircle size={12} /> Confirmar</>
+                                            )}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            {selectedPendingIds.length > 0 && (
+                                <button
+                                    onClick={async () => {
+                                        setIsConfirming(true);
+                                        try {
+                                            await StorageService.returnMaterialLoansBulk(
+                                                selectedPendingIds,
+                                                `${user.name} (${user.matricula})`
+                                            );
+                                            await onUpdate();
+                                            setSelectedPendingIds([]);
+                                        } catch (err: any) {
+                                            alert('Erro ao confirmar devoluções: ' + (err?.message || ''));
+                                        } finally {
+                                            setIsConfirming(false);
+                                        }
+                                    }}
+                                    disabled={isConfirming}
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-md"
+                                >
+                                    {isConfirming ? (
+                                        <><Loader2 size={18} className="animate-spin" /> Confirmando...</>
+                                    ) : (
+                                        <><CheckCircle size={18} /> Confirmar Selecionados ({selectedPendingIds.length})</>
+                                    )}
+                                </button>
+                            )}
+                        </>
+                    )}
                 </div>
             </Modal>
         </div>

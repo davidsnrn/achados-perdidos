@@ -25,11 +25,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     // Autoatendimento Modal state
     const [showKioskModal, setShowKioskModal] = useState(false);
     const [copiedKioskLink, setCopiedKioskLink] = useState(false);
-    const [kioskCode, setKioskCode] = useState(() => localStorage.getItem('sigae_active_kiosk_code') || '');
+    const currentSetorId = user.setor_id || adminGlobalSetorId || '';
+    const setorKioskCodeKey = `sigae_active_kiosk_code_${currentSetorId}`;
+    const setorKioskEnabledKey = `sigae_kiosk_enabled_${currentSetorId}`;
+
+    const currentSetor = setores.find(s => s.id === currentSetorId);
+
+    const [kioskCode, setKioskCode] = useState(() => {
+        if (currentSetor?.kiosk_code) return currentSetor.kiosk_code;
+        return localStorage.getItem(setorKioskCodeKey) || localStorage.getItem('sigae_active_kiosk_code') || '';
+    });
     const [copiedKioskCode, setCopiedKioskCode] = useState(false);
 
-    const activeKioskCode = localStorage.getItem('sigae_active_kiosk_code') || '';
-    const kioskEnabled = localStorage.getItem('sigae_kiosk_enabled') === 'true';
+    const activeKioskCode = currentSetor?.kiosk_code || localStorage.getItem(setorKioskCodeKey) || localStorage.getItem('sigae_active_kiosk_code') || '';
+    const kioskEnabled = !!(currentSetor?.kiosk_code) || (currentSetorId ? localStorage.getItem(setorKioskEnabledKey) === 'true' : false) || localStorage.getItem('sigae_kiosk_enabled') === 'true';
+
+    useEffect(() => {
+        if (currentSetor?.kiosk_code && currentSetor.kiosk_code !== kioskCode) {
+            setKioskCode(currentSetor.kiosk_code);
+        }
+    }, [currentSetor?.kiosk_code]);
 
     // Pending return confirmation
     const [showPendingModal, setShowPendingModal] = useState(false);
@@ -997,19 +1012,35 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 </button>
                             )}
                             <button
-                                onClick={() => {
+                                onClick={async () => {
                                     if (!kioskEnabled) {
                                         const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
                                         setKioskCode(newCode);
+                                        localStorage.setItem(setorKioskCodeKey, newCode);
+                                        localStorage.setItem(setorKioskEnabledKey, 'true');
                                         localStorage.setItem('sigae_active_kiosk_code', newCode);
-                                        localStorage.setItem('sigae_kiosk_setor_id', user.setor_id || activeSetorId || '');
+                                        localStorage.setItem('sigae_kiosk_setor_id', currentSetorId);
                                         localStorage.setItem('sigae_kiosk_enabled', 'true');
+                                        try {
+                                            await StorageService.updateSetorKioskCode(currentSetorId, newCode);
+                                            onUpdate();
+                                        } catch (err) {
+                                            console.warn('Erro ao salvar código no banco:', err);
+                                        }
                                         setShowKioskModal(true);
                                     } else {
+                                        localStorage.removeItem(setorKioskCodeKey);
+                                        localStorage.removeItem(setorKioskEnabledKey);
                                         localStorage.removeItem('sigae_active_kiosk_code');
                                         localStorage.removeItem('sigae_kiosk_setor_id');
                                         localStorage.removeItem('sigae_kiosk_enabled');
                                         setKioskCode('');
+                                        try {
+                                            await StorageService.updateSetorKioskCode(currentSetorId, null);
+                                            onUpdate();
+                                        } catch (err) {
+                                            console.warn('Erro ao limpar código no banco:', err);
+                                        }
                                     }
                                 }}
                                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] sm:text-xs transition-all w-full sm:w-auto bg-white border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-[0.97]"
@@ -2472,34 +2503,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 Código válido até desativar o autoatendimento.
                             </p>
                         </div>
-
-                        <button
-                            onClick={() => {
-                                localStorage.removeItem('sigae_active_kiosk_code');
-                                localStorage.removeItem('sigae_kiosk_setor_id');
-                                localStorage.removeItem('sigae_kiosk_enabled');
-                                setKioskCode('');
-                                setShowKioskModal(false);
-                            }}
-                            className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
-                        >
-                            <X size={16} /> Desativar Autoatendimento
-                        </button>
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
-                        <button
-                            onClick={() => window.open('/emprestimo', '_blank')}
-                            className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-md"
-                        >
-                            <ExternalLink size={16} /> Testar/Abrir Autoatendimento
-                        </button>
-                        <button
-                            onClick={() => setShowKioskModal(false)}
-                            className="py-3 px-5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all text-sm"
-                        >
-                            Fechar
-                        </button>
                     </div>
                 </div>
             </Modal>

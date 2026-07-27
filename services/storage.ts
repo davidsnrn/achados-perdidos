@@ -75,8 +75,14 @@ export const StorageService = {
       id: setor.id || undefined,
       campus_id: setor.campus_id,
       name: setor.name,
-      slug: setor.slug
+      slug: setor.slug,
+      kiosk_code: setor.kiosk_code
     });
+    if (error) throw error;
+  },
+
+  updateSetorKioskCode: async (setorId: string, kioskCode: string | null) => {
+    const { error } = await supabase.from('setores').update({ kiosk_code: kioskCode }).eq('id', setorId);
     if (error) throw error;
   },
 

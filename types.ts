@@ -26,6 +26,7 @@ export interface Campus {
   id: string;
   name: string;
   slug: string;
+  kiosk_code?: string;
   created_at?: string;
 }
 
@@ -34,6 +35,7 @@ export interface Setor {
   campus_id: string;
   name: string;
   slug: string;
+  kiosk_code?: string;
   created_at?: string;
 }
 

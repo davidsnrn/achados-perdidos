@@ -132,17 +132,24 @@ export const SelfServiceKiosk: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    const checkKioskActive = () => {
-      const enabled = localStorage.getItem('sigae_kiosk_enabled');
-      if (!enabled && isTerminalUnlocked) {
+    const checkKioskActive = async () => {
+      const localEnabled = localStorage.getItem('sigae_kiosk_enabled');
+      if (!localEnabled && isTerminalUnlocked) {
+        const setorId = activeSetorId || localStorage.getItem('sigae_kiosk_setor_id');
+        if (setorId) {
+          try {
+            const { data } = await supabase.from('setores').select('kiosk_code').eq('id', setorId).single();
+            if (data?.kiosk_code) return;
+          } catch { }
+        }
         localStorage.removeItem('sigae_kiosk_config');
         setIsTerminalUnlocked(false);
       }
     };
     checkKioskActive();
-    const interval = setInterval(checkKioskActive, 2000);
+    const interval = setInterval(checkKioskActive, 5000);
     return () => clearInterval(interval);
-  }, [isTerminalUnlocked]);
+  }, [isTerminalUnlocked, activeSetorId]);
 
   const handleUnlockTerminal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,7 +181,8 @@ export const SelfServiceKiosk: React.FC<Props> = ({
 
       const rawSectorId = localStorage.getItem('sigae_kiosk_setor_id');
       const rawCampusId = localStorage.getItem('sigae_kiosk_campus_id');
-      if (rawSectorId || rawCampusId) {
+      const storedCode = localStorage.getItem('sigae_active_kiosk_code');
+      if ((rawSectorId || rawCampusId) && storedCode?.toUpperCase() === code.toUpperCase()) {
         setActiveCampusId(rawCampusId || '');
         setActiveSetorId(rawSectorId || '');
         setIsTerminalUnlocked(true);

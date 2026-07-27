@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -26,25 +26,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [showKioskModal, setShowKioskModal] = useState(false);
     const [copiedKioskLink, setCopiedKioskLink] = useState(false);
     const currentSetorId = user.setor_id || adminGlobalSetorId || '';
-    const setorKioskCodeKey = `sigae_active_kiosk_code_${currentSetorId}`;
-    const setorKioskEnabledKey = `sigae_kiosk_enabled_${currentSetorId}`;
-
     const currentSetor = setores.find(s => s.id === currentSetorId);
 
-    const [kioskCode, setKioskCode] = useState(() => {
-        if (currentSetor?.kiosk_code) return currentSetor.kiosk_code;
-        return localStorage.getItem(setorKioskCodeKey) || localStorage.getItem('sigae_active_kiosk_code') || '';
-    });
+    const [kioskCode, setKioskCode] = useState(() => currentSetor?.kiosk_code || '');
     const [copiedKioskCode, setCopiedKioskCode] = useState(false);
 
-    const activeKioskCode = currentSetor?.kiosk_code || localStorage.getItem(setorKioskCodeKey) || localStorage.getItem('sigae_active_kiosk_code') || '';
-    const kioskEnabled = !!(currentSetor?.kiosk_code) || (currentSetorId ? localStorage.getItem(setorKioskEnabledKey) === 'true' : false) || localStorage.getItem('sigae_kiosk_enabled') === 'true';
+    const kioskEnabled = kioskCode !== '';
 
+    // Sync DB -> local when DB has a value and local doesn't match
     useEffect(() => {
         if (currentSetor?.kiosk_code && currentSetor.kiosk_code !== kioskCode) {
             setKioskCode(currentSetor.kiosk_code);
         }
     }, [currentSetor?.kiosk_code]);
+
+    const handleCloseKioskModal = useCallback(() => {
+        setShowKioskModal(false);
+        setCopiedKioskCode(false);
+        setCopiedKioskLink(false);
+    }, []);
 
     // Pending return confirmation
     const [showPendingModal, setShowPendingModal] = useState(false);
@@ -1016,31 +1016,21 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     if (!kioskEnabled) {
                                         const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
                                         setKioskCode(newCode);
-                                        localStorage.setItem(setorKioskCodeKey, newCode);
-                                        localStorage.setItem(setorKioskEnabledKey, 'true');
-                                        localStorage.setItem('sigae_active_kiosk_code', newCode);
-                                        localStorage.setItem('sigae_kiosk_setor_id', currentSetorId);
-                                        localStorage.setItem('sigae_kiosk_enabled', 'true');
+                                        setShowKioskModal(true);
                                         try {
                                             await StorageService.updateSetorKioskCode(currentSetorId, newCode);
-                                            onUpdate();
                                         } catch (err) {
                                             console.warn('Erro ao salvar código no banco:', err);
                                         }
-                                        setShowKioskModal(true);
+                                        onUpdate();
                                     } else {
-                                        localStorage.removeItem(setorKioskCodeKey);
-                                        localStorage.removeItem(setorKioskEnabledKey);
-                                        localStorage.removeItem('sigae_active_kiosk_code');
-                                        localStorage.removeItem('sigae_kiosk_setor_id');
-                                        localStorage.removeItem('sigae_kiosk_enabled');
                                         setKioskCode('');
                                         try {
                                             await StorageService.updateSetorKioskCode(currentSetorId, null);
-                                            onUpdate();
                                         } catch (err) {
                                             console.warn('Erro ao limpar código no banco:', err);
                                         }
+                                        onUpdate();
                                     }
                                 }}
                                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] sm:text-xs transition-all w-full sm:w-auto bg-white border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-[0.97]"
@@ -1053,9 +1043,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <span className={`font-semibold whitespace-nowrap ${kioskEnabled ? 'text-emerald-700' : 'text-gray-400'}`}>
                                     {kioskEnabled ? 'Ligado' : 'Desligado'}
                                 </span>
-                                {activeKioskCode && (
+                                {kioskCode && (
                                     <span className="font-mono text-xs font-bold tracking-widest text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                        {activeKioskCode}
+                                        {kioskCode}
                                     </span>
                                 )}
                             </button>
@@ -2440,11 +2430,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             </Modal>
 
             {/* Modal de Ativação do Autoatendimento */}
-            <Modal isOpen={showKioskModal} onClose={() => {
-                setShowKioskModal(false);
-                setCopiedKioskCode(false);
-                setCopiedKioskLink(false);
-            }} title="Página de Autoatendimento" maxWidth="max-w-lg">
+            <Modal isOpen={showKioskModal} onClose={handleCloseKioskModal} title="Página de Autoatendimento" maxWidth="max-w-lg">
                 <div className="space-y-6">
                     <div className="text-center space-y-2">
                         <div className="w-16 h-16 bg-emerald-500/10 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto border border-emerald-100">

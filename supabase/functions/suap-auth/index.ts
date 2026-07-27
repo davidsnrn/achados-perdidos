@@ -12,109 +12,127 @@ serve(async (req) => {
   }
 
   try {
-    const { suap_token, matricula } = await req.json();
+    const body = await req.json();
+    const { matricula, password, suap_token } = body;
 
-    if (!suap_token || !matricula) {
-      return new Response(
-        JSON.stringify({ error: "Campos obrigatórios: suap_token, matricula" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 1. Validar o token no SUAP (garante que o token é legítimo e pertence a esta matrícula)
-    const suapValidation = await fetch("https://suap.ifrn.edu.br/api/rh/meus-dados/", {
-      headers: { "Authorization": `Bearer ${suap_token}` }
-    });
-
-    if (!suapValidation.ok) {
-      return new Response(
-        JSON.stringify({ error: "Token SUAP inválido ou expirado." }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const suapUser = await suapValidation.json();
-    const suapMatricula = String(suapUser.matricula || matricula);
-
-    // Verificar que a matrícula do token bate com a enviada
-    if (suapMatricula !== String(matricula)) {
-      return new Response(
-        JSON.stringify({ error: "Matrícula não corresponde ao token SUAP." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 2. Usar a service role key para criar/atualizar o usuário no Supabase Auth
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
-
-    const email = `${matricula}@sistema.local`;
-    const deterministicPass = `SUAP_${matricula}_auth2025`;
-
-    // Buscar o usuário existente pelo e-mail
-    const { data: listData } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
-    const existingAuthUser = listData?.users?.find((u: any) => u.email === email);
-
-    if (existingAuthUser) {
-      // Atualizar a senha para a determinística
-      await adminClient.auth.admin.updateUserById(existingAuthUser.id, {
-        password: deterministicPass,
-        email_confirm: true
-      });
-    } else {
-      // Criar novo usuário no Auth com e-mail confirmado
-      const { error: createErr } = await adminClient.auth.admin.createUser({
-        email,
-        password: deterministicPass,
-        email_confirm: true,
-        user_metadata: { matricula, name: suapUser.nome_usual || matricula }
+    // --- MODO 1: Login com credenciais (username + password) ---
+    if (matricula && password) {
+      // 1. Obter token JWT do SUAP usando credenciais
+      const tokenRes = await fetch("https://suap.ifrn.edu.br/api/v2/autenticacao/token/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: String(matricula), password: String(password) }),
       });
 
-      if (createErr) {
+      if (!tokenRes.ok) {
+        const errText = await tokenRes.text().catch(() => "");
         return new Response(
-          JSON.stringify({ error: "Erro ao criar usuário no Auth: " + createErr.message }),
+          JSON.stringify({ error: "Credenciais inválidas no SUAP. Verifique sua matrícula e senha.", detail: errText }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const tokenData = await tokenRes.json();
+      const suapJwt = tokenData.access || tokenData.token;
+
+      if (!suapJwt) {
+        return new Response(
+          JSON.stringify({ error: "Não foi possível obter token de acesso do SUAP." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // 2. Buscar dados reais do usuário no SUAP
+      const meRes = await fetch("https://suap.ifrn.edu.br/api/rh/meus-dados/", {
+        headers: { "Authorization": `Bearer ${suapJwt}` },
+      });
+
+      // Tentar endpoint alternativo se o primeiro falhar
+      let suapUser: any = null;
+      if (meRes.ok) {
+        suapUser = await meRes.json();
+      } else {
+        // Endpoint alternativo (alunos/servidores)
+        const altRes = await fetch("https://suap.ifrn.edu.br/api/v2/minhas-informacoes/meus-dados/", {
+          headers: { "Authorization": `Bearer ${suapJwt}` },
+        });
+        if (altRes.ok) {
+          suapUser = await altRes.json();
+        }
+      }
+
+      if (!suapUser) {
+        return new Response(
+          JSON.stringify({ error: "Não foi possível carregar os dados do usuário no SUAP." }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      const suapMatricula = String(suapUser.matricula || matricula);
+      const suapNome = suapUser.nome_usual || suapUser.nome || suapUser.name || String(matricula);
+      const suapEmail = suapUser.email || suapUser.email_secundario || `${suapMatricula}@sistema.local`;
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          matricula: suapMatricula,
+          nome: suapNome,
+          email: suapEmail,
+          suap_profile: {
+            nome: suapNome,
+            email: suapEmail,
+            matricula: suapMatricula,
+            vinculo: suapUser.vinculo || null,
+            foto: suapUser.foto || null,
+          }
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 3. Fazer login com o cliente anônimo usando as credenciais atualizadas
-    const anonClient = createClient(supabaseUrl, anonKey);
-    const { data: sessionData, error: signInErr } = await anonClient.auth.signInWithPassword({
-      email,
-      password: deterministicPass
-    });
+    // --- MODO 2: Validar token SUAP já existente ---
+    if (suap_token) {
+      const meRes = await fetch("https://suap.ifrn.edu.br/api/rh/meus-dados/", {
+        headers: { "Authorization": `Bearer ${suap_token}` },
+      });
 
-    if (signInErr || !sessionData.session) {
+      if (!meRes.ok) {
+        return new Response(
+          JSON.stringify({ error: "Token SUAP inválido ou expirado." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const suapUser = await meRes.json();
+      const suapMatricula = String(suapUser.matricula || matricula || "");
+
+      if (matricula && suapMatricula !== String(matricula)) {
+        return new Response(
+          JSON.stringify({ error: "Matrícula não corresponde ao token SUAP." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: "Erro ao iniciar sessão: " + (signInErr?.message ?? "sem sessão") }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: true,
+          matricula: suapMatricula,
+          nome: suapUser.nome_usual || suapUser.nome,
+          email: suapUser.email,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     return new Response(
-      JSON.stringify({
-        access_token: sessionData.session.access_token,
-        refresh_token: sessionData.session.refresh_token,
-        expires_at: sessionData.session.expires_at,
-        suap_profile: {
-          nome: suapUser.nome_usual || suapUser.nome,
-          email: suapUser.email,
-          matricula: suapMatricula
-        }
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: "Informe (matricula + password) ou suap_token." }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
     console.error("[suap-auth] Erro:", error);
     return new Response(
-      JSON.stringify({ error: "Erro interno", detail: String(error) }),
+      JSON.stringify({ error: "Erro interno no servidor", detail: String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

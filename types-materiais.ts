@@ -18,11 +18,11 @@ export interface MaterialLoan {
     loanDate: string;
     returnDate?: string;
     observation?: string;
-    status: 'ACTIVE' | 'RETURNED' | 'DELETED';
+    status: 'ACTIVE' | 'RETURNED' | 'DELETED' | 'PENDING_RETURN';
     loanedBy: string; // User who registered the loan
     returnedBy?: string; // User who registered the return
     campus_id?: string;
-    setor_id?: string;
+    setor_id?: string | null;
 }
 
 export interface ChargeHistory {

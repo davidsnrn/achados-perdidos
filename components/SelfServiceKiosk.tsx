@@ -97,12 +97,12 @@ export const SelfServiceKiosk: React.FC<Props> = ({
   }, [mode]);
 
   useEffect(() => {
-    if (activeCampusId || activeSetorId) {
-      StorageService.getMaterials(activeCampusId || undefined, activeSetorId || undefined)
+    if (activeSetorId) {
+      StorageService.getMaterials(undefined, activeSetorId)
         .then(setKioskMaterials)
         .catch(err => console.warn('Erro ao buscar materiais para o kiosk:', err));
     }
-  }, [activeCampusId, activeSetorId]);
+  }, [activeSetorId]);
 
   useEffect(() => {
     if (!authenticatedUser || !(activeCampusId || activeSetorId)) return;
@@ -181,21 +181,33 @@ export const SelfServiceKiosk: React.FC<Props> = ({
     }
 
     try {
-      const matchedSetor = setores.find(s => s.kiosk_code?.toUpperCase() === code.toUpperCase());
-      if (matchedSetor) {
-        setActiveCampusId(matchedSetor.campus_id);
-        setActiveSetorId(matchedSetor.id);
+      const { data: matchedSetores, error: errSetor } = await supabase
+        .from('setores')
+        .select('id, campus_id, name')
+        .ilike('kiosk_code', code);
+      if (errSetor) throw errSetor;
+      if (matchedSetores && matchedSetores.length > 0) {
+        const matched = matchedSetores[0];
+        setActiveCampusId(matched.campus_id);
+        setActiveSetorId(matched.id);
         setIsTerminalUnlocked(true);
         setTerminalCodeInput('');
+        await loadKioskData(matched.campus_id, matched.id);
         return;
       }
 
-      const matchedCampus = campuses.find(c => c.kiosk_code?.toUpperCase() === code.toUpperCase());
-      if (matchedCampus) {
-        setActiveCampusId(matchedCampus.id);
+      const { data: matchedCampuses, error: errCampus } = await supabase
+        .from('campuses')
+        .select('id')
+        .ilike('kiosk_code', code);
+      if (errCampus) throw errCampus;
+      if (matchedCampuses && matchedCampuses.length > 0) {
+        const matched = matchedCampuses[0];
+        setActiveCampusId(matched.id);
         setActiveSetorId('');
         setIsTerminalUnlocked(true);
         setTerminalCodeInput('');
+        await loadKioskData(matched.id, '');
         return;
       }
 
@@ -207,12 +219,33 @@ export const SelfServiceKiosk: React.FC<Props> = ({
         setActiveSetorId(rawSectorId || '');
         setIsTerminalUnlocked(true);
         setTerminalCodeInput('');
+        await loadKioskData(rawCampusId || '', rawSectorId || '');
         return;
       }
 
       setTerminalError('Código do terminal/setor inválido.');
     } catch (err) {
       setTerminalError('Erro ao validar código.');
+    }
+  };
+
+  const loadKioskData = async (campusId: string, setorId: string) => {
+    try {
+      let fetchedMaterials: Material[];
+      const setor = setorId || undefined;
+      const campus = campusId || undefined;
+      if (setor) {
+        fetchedMaterials = await StorageService.getMaterials(undefined, setor);
+      } else if (campus) {
+        fetchedMaterials = await StorageService.getMaterials(campus, undefined);
+      } else {
+        fetchedMaterials = [];
+      }
+      const fetchedLoans = await StorageService.getMaterialLoans(campus, setor);
+      setKioskMaterials(fetchedMaterials);
+      setKioskLoans(fetchedLoans);
+    } catch (err) {
+      console.warn('Erro ao carregar dados do kiosk:', err);
     }
   };
 

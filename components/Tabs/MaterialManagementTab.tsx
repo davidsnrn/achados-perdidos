@@ -33,13 +33,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const kioskEnabled = kioskCode !== '';
 
-    // Sync DB -> local when DB has a value and local doesn't match
-    useEffect(() => {
-        if (currentSetor?.kiosk_code && currentSetor.kiosk_code !== kioskCode) {
-            setKioskCode(currentSetor.kiosk_code);
-        }
-    }, [currentSetor?.kiosk_code]);
-
     const handleCloseKioskModal = useCallback(() => {
         setShowKioskModal(false);
         setCopiedKioskCode(false);
@@ -1023,7 +1016,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         } catch (err) {
                                             console.warn('Erro ao salvar código no banco:', err);
                                         }
-                                        onUpdate();
                                     } else {
                                         setShowKioskModal(true);
                                     }
@@ -2498,7 +2490,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             } catch (err) {
                                 console.warn('Erro ao limpar código no banco:', err);
                             }
-                            onUpdate();
                         }}
                         className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm"
                     >

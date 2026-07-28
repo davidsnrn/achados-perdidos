@@ -101,6 +101,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
 
   useEffect(() => {
     ensureSession().finally(() => setIsInitializing(false));
+    return () => { supabase.auth.signOut(); };
   }, [ensureSession]);
 
   useEffect(() => {

@@ -1686,8 +1686,11 @@ export const StorageService = {
   },
 
   getSessionUser: async (): Promise<User | null> => {
-    // 1. Tentar pegar a sessão nativa do Supabase
     const { data: { session } } = await supabase.auth.getSession();
+
+    if (session?.user?.email === 'kiosk@sistema.local') {
+      return null;
+    }
 
     if (session?.user) {
       // Extrair matrícula do e-mail sintético (ex: 20230001@sistema.local)

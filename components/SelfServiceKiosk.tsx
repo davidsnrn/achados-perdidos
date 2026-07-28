@@ -496,7 +496,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
             <h1 className="font-extrabold text-base text-slate-100 flex items-center gap-2 tracking-tight">
               Autoatendimento de Materiais
               <span className="bg-emerald-500/15 text-emerald-400 text-[10px] px-2 py-0.5 rounded-full border border-emerald-500/30 font-semibold tracking-wide uppercase">
-                SUAP Kiosk
+                SUAP
               </span>
             </h1>
             <p className="text-xs text-slate-400 flex items-center gap-3 mt-0.5">

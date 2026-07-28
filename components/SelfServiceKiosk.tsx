@@ -83,6 +83,25 @@ export const SelfServiceKiosk: React.FC<Props> = ({
 
   const [kioskMaterials, setKioskMaterials] = useState<Material[]>([]);
   const [kioskLoans, setKioskLoans] = useState<MaterialLoan[]>([]);
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  const ensureSession = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) return;
+    const email = 'kiosk@sistema.local';
+    const password = 'kiosk123';
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) {
+        console.warn('[ensureSession] Não foi possível estabelecer sessão:', signUpError.message);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    ensureSession().finally(() => setIsInitializing(false));
+  }, [ensureSession]);
 
   useEffect(() => {
     if (successMessage) {
@@ -231,6 +250,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
 
   const loadKioskData = async (campusId: string, setorId: string) => {
     try {
+      await ensureSession();
       let fetchedMaterials: Material[];
       const setor = setorId || undefined;
       const campus = campusId || undefined;
@@ -406,6 +426,13 @@ export const SelfServiceKiosk: React.FC<Props> = ({
     return (
       <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-center items-center p-4 relative overflow-hidden">
         <div className="max-w-md w-full bg-slate-900/90 border border-slate-800/80 rounded-3xl p-8 shadow-2xl backdrop-blur-xl relative z-10 space-y-6">
+          {isInitializing ? (
+            <div className="text-center space-y-4 py-8">
+              <Loader2 size={36} className="animate-spin text-emerald-400 mx-auto" />
+              <p className="text-slate-400 text-sm">Inicializando terminal...</p>
+            </div>
+          ) : (
+            <>
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
               <Lock size={30} />
@@ -450,6 +477,8 @@ export const SelfServiceKiosk: React.FC<Props> = ({
             >
               Voltar ao Painel Principal
             </button>
+          )}
+            </>
           )}
         </div>
       </div>

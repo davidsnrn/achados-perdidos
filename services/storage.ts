@@ -52,8 +52,14 @@ export const StorageService = {
     const { error } = await supabase.from('campuses').upsert({
       id: campus.id || undefined,
       name: campus.name,
-      slug: campus.slug
+      slug: campus.slug,
+      kiosk_code: campus.kiosk_code || null
     });
+    if (error) throw error;
+  },
+
+  updateCampusKioskCode: async (campusId: string, kioskCode: string | null) => {
+    const { error } = await supabase.from('campuses').update({ kiosk_code: kioskCode }).eq('id', campusId);
     if (error) throw error;
   },
 

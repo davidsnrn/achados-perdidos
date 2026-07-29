@@ -210,21 +210,6 @@ export const SelfServiceKiosk: React.FC<Props> = ({
         return;
       }
 
-      const { data: matchedCampuses, error: errCampus } = await supabase
-        .from('campuses')
-        .select('id')
-        .ilike('kiosk_code', code);
-      if (errCampus) throw errCampus;
-      if (matchedCampuses && matchedCampuses.length > 0) {
-        const matched = matchedCampuses[0];
-        setActiveCampusId(matched.id);
-        setActiveSetorId('');
-        setIsTerminalUnlocked(true);
-        setTerminalCodeInput('');
-        await loadKioskData(matched.id, '');
-        return;
-      }
-
       const rawSectorId = localStorage.getItem('sigae_kiosk_setor_id');
       const rawCampusId = localStorage.getItem('sigae_kiosk_campus_id');
       const storedCode = localStorage.getItem('sigae_active_kiosk_code');

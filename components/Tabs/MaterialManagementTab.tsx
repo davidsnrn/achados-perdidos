@@ -163,7 +163,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const userCampusId = user.campus_id;
     const activeSetorId = isAdmin
         ? (selectedSetorId || user.setor_id || '')
-        : (userCampusId ? (setores.find(s => s.campus_id === userCampusId)?.id || user.setor_id || '') : '');
+        : (user.setor_id || (userCampusId ? (setores.find(s => s.campus_id === userCampusId)?.id || '') : ''));
 
     // Autoatendimento
     const currentSetorId = activeSetorId || '';
@@ -173,6 +173,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const kioskEnabled = kioskCode !== '';
     const [showKioskModal, setShowKioskModal] = useState(false);
     const [copiedKioskLink, setCopiedKioskLink] = useState(false);
+
+    useEffect(() => {
+        setKioskCode(currentSetor?.kiosk_code || '');
+        setCopiedKioskCode(false);
+    }, [currentSetorId]);
 
     const handleCloseKioskModal = useCallback(() => {
         setShowKioskModal(false);
@@ -1021,6 +1026,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             <button
                                 type="button"
                                 onClick={async () => {
+                                    if (!currentSetorId) { alert('Selecione um setor primeiro.'); return; }
                                     if (!kioskEnabled) {
                                         const newCode = Math.random().toString(36).substring(2, 8).toUpperCase();
                                         setKioskCode(newCode);
@@ -2449,6 +2455,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                         <p className="text-xs text-gray-500 max-w-sm mx-auto">
                             Abra o link no computador do terminal de autoatendimento e utilize o código abaixo para vincular este setor.
                         </p>
+                        {currentSetor && (
+                            <p className="text-sm font-semibold text-emerald-600">
+                                Setor: {currentSetor.name}
+                            </p>
+                        )}
                     </div>
 
                     <div className="bg-slate-900 rounded-2xl p-5 text-white space-y-4 shadow-inner">

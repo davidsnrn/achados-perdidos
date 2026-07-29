@@ -22,23 +22,6 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [filterStatus, setFilterStatus] = useState<'ALL' | 'AVAILABLE' | 'LOANED'>('ALL');
     const [activeTab, setActiveTab] = useState<'management' | 'reports'>('management');
 
-    // Autoatendimento Modal state
-    const [showKioskModal, setShowKioskModal] = useState(false);
-    const [copiedKioskLink, setCopiedKioskLink] = useState(false);
-    const currentSetorId = user.setor_id || adminGlobalSetorId || '';
-    const currentSetor = setores.find(s => s.id === currentSetorId);
-
-    const [kioskCode, setKioskCode] = useState(() => currentSetor?.kiosk_code || '');
-    const [copiedKioskCode, setCopiedKioskCode] = useState(false);
-
-    const kioskEnabled = kioskCode !== '';
-
-    const handleCloseKioskModal = useCallback(() => {
-        setShowKioskModal(false);
-        setCopiedKioskCode(false);
-        setCopiedKioskLink(false);
-    }, []);
-
     // Pending return confirmation
     const [showPendingModal, setShowPendingModal] = useState(false);
     const [confirmingIds, setConfirmingIds] = useState<string[]>([]);
@@ -146,6 +129,19 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [selectedSetorId, setSelectedSetorId] = useState<string>(
         (user.level === UserLevel.ADMIN ? adminGlobalSetorId : user.setor_id) || ''
     );
+
+    useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalCampusId !== undefined) {
+            setSelectedCampusId(adminGlobalCampusId || '');
+        }
+    }, [adminGlobalCampusId, user.level]);
+
+    useEffect(() => {
+        if (user.level === UserLevel.ADMIN && adminGlobalSetorId !== undefined) {
+            setSelectedSetorId(adminGlobalSetorId || '');
+        }
+    }, [adminGlobalSetorId, user.level]);
+
     const [emailNotificationEnabled, setEmailNotificationEnabled] = useState(false);
     const [loadingConfig, setLoadingConfig] = useState(true);
     const [sendingCharge, setSendingCharge] = useState(false);
@@ -164,7 +160,25 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const campusIdForConfig = user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id;
     const isAdmin = user.level === UserLevel.ADMIN;
-    const activeSetorId = isAdmin ? selectedSetorId : user.setor_id;
+    const userCampusId = user.campus_id;
+    const activeSetorId = isAdmin
+        ? (selectedSetorId || user.setor_id || '')
+        : (userCampusId ? (setores.find(s => s.campus_id === userCampusId)?.id || user.setor_id || '') : '');
+
+    // Autoatendimento
+    const currentSetorId = activeSetorId || '';
+    const currentSetor = setores.find(s => s.id === currentSetorId);
+    const [kioskCode, setKioskCode] = useState(() => currentSetor?.kiosk_code || '');
+    const [copiedKioskCode, setCopiedKioskCode] = useState(false);
+    const kioskEnabled = kioskCode !== '';
+    const [showKioskModal, setShowKioskModal] = useState(false);
+    const [copiedKioskLink, setCopiedKioskLink] = useState(false);
+
+    const handleCloseKioskModal = useCallback(() => {
+        setShowKioskModal(false);
+        setCopiedKioskCode(false);
+        setCopiedKioskLink(false);
+    }, []);
 
     useEffect(() => {
         if (!campusIdForConfig) {
@@ -1124,9 +1138,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('name')}>
                                             <div className="flex items-center">Material {getInventorySortIcon('name')}</div>
                                         </th>
-                                        <th className="p-4 text-left">
-                                            <div className="flex items-center">Setor</div>
-                                        </th>
+                                        {user.level === UserLevel.ADMIN && (
+                                            <th className="p-4 text-left">
+                                                <div className="flex items-center">Setor</div>
+                                            </th>
+                                        )}
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestInventorySort('status')}>
                                             <div className="flex items-center">Status {getInventorySortIcon('status')}</div>
                                         </th>
@@ -1163,9 +1179,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                 </div>
                                             </td>
                                             <td className="p-4 font-bold text-gray-800">{item.name}</td>
-                                            <td className="p-4 text-xs text-gray-500">
-                                                {item.setor_id ? (setores.find(s => s.id === item.setor_id)?.name || '---') : '---'}
-                                            </td>
+                                            {user.level === UserLevel.ADMIN && (
+                                                <td className="p-4 text-xs text-gray-500">
+                                                    {item.setor_id ? (setores.find(s => s.id === item.setor_id)?.name || '---') : '---'}
+                                                </td>
+                                            )}
                                             <td className="p-4">
                                                 <span className={`px-2 py-1 rounded-full text-[10px] font-bold inline-flex items-center gap-1 ${
                                                     item.status === 'AVAILABLE' ? 'bg-green-100 text-green-800' :
@@ -1396,9 +1414,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('materialName')}>
                                             <div className="flex items-center">Material {getReportSortIcon('materialName')}</div>
                                         </th>
-                                        <th className="p-4 text-left">
-                                            <div className="flex items-center">Setor</div>
-                                        </th>
+                                        {user.level === UserLevel.ADMIN && (
+                                            <th className="p-4 text-left">
+                                                <div className="flex items-center">Setor</div>
+                                            </th>
+                                        )}
                                         <th className="p-4 text-left cursor-pointer hover:bg-gray-100" onClick={() => requestReportSort('personName')}>
                                             <div className="flex items-center">Pessoa {getReportSortIcon('personName')}</div>
                                         </th>
@@ -1493,9 +1513,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                                     <div className="font-bold text-gray-800">{loan.materialName}</div>
                                                     <div className="text-xs text-gray-500 font-mono">#{stripPrefix(loan.materialCode)}</div>
                                                 </td>
-                                                <td className="p-4 text-xs text-gray-500">
-                                                    {loan.setor_id ? (setores.find(s => s.id === loan.setor_id)?.name || '---') : '---'}
-                                                </td>
+                                                {user.level === UserLevel.ADMIN && (
+                                                    <td className="p-4 text-xs text-gray-500">
+                                                        {loan.setor_id ? (setores.find(s => s.id === loan.setor_id)?.name || '---') : '---'}
+                                                    </td>
+                                                )}
                                                 <td className="p-4">
                                                     <div className="font-medium text-gray-800">{loan.personName}</div>
                                                     <div className="text-xs text-gray-500">{loan.personMatricula}</div>

@@ -87,6 +87,7 @@ const App: React.FC = () => {
   const [notificationTypes, setNotificationTypes] = useState<NotificationType[]>([]);
   const [campuses, setCampuses] = useState<Campus[]>([]);
   const [setores, setSetores] = useState<Setor[]>([]);
+  const [allSetores, setAllSetores] = useState<Setor[]>([]);
 
   // Otimização para 50k+ alunos: Índice de busca pré-normalizado
   // Manter em Ref evita overhead de renderização e permite busca ultra-rápida
@@ -209,6 +210,7 @@ const App: React.FC = () => {
   const hasAccess = (mod: keyof NonNullable<User['permissions']>) => {
     if (!user) return false;
     if (user.level === UserLevel.ADMIN) return true;
+    if (!user.setor_id) return false;
 
     if (user.permissions && user.permissions[mod] !== undefined) {
       return user.permissions[mod];
@@ -281,17 +283,15 @@ const App: React.FC = () => {
 
   const refreshMaterials = useCallback(async () => {
     if (!user) return;
-    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
     setMaterials(await StorageService.getMaterials(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshMaterialLoans = useCallback(async () => {
     if (!user) return;
-    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-    const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
+    const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
     setMaterialLoans(await StorageService.getMaterialLoans(campusId, setorId));
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
@@ -374,13 +374,12 @@ const App: React.FC = () => {
       setLoading(true);
     }
 
-    const isGlobalOrAdvanced = user.level === UserLevel.ADMIN || user.level === UserLevel.ADVANCED;
     const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
     try {
       // Lazy Loading: Só carrega dados do sistema atual
       // Isso reduz drasticamente o uso de memória no Android
 
-      const setorId = isGlobalOrAdvanced ? (adminGlobalSetorId || undefined) : user.setor_id;
+      const setorId = (user.level === UserLevel.ADMIN) ? (adminGlobalSetorId || undefined) : user.setor_id;
 
       console.log(`[REFRESH DATA] level=${user.level} | currentSystem=${currentSystem} | activeTab=${activeTab} | campusId=${campusId ?? 'undefined'} | setorId=${setorId ?? 'undefined'}`);
 
@@ -664,6 +663,7 @@ const App: React.FC = () => {
     };
     initSession();
     refreshCampuses();
+    StorageService.getSetores().then(setAllSetores);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
@@ -2009,7 +2009,7 @@ const App: React.FC = () => {
                       setMoveResults(null);
                       try {
                         const sid = moveFromSetorId || 'unassigned';
-                        const preview = await StorageService.getMovePreview(sid);
+                            const preview = await StorageService.getMovePreview(sid, configCampusId || undefined);
                         setMovePreview(preview);
                         const allTables = moveSistema === 'Todos'
                           ? preview.map(p => p.table)
@@ -2103,7 +2103,7 @@ const App: React.FC = () => {
                                       setIsLoadingItems(true);
                                       try {
                                         const sid = moveFromSetorId || '';
-                                        const list = await StorageService.getMovePreviewItems(sid, p.table);
+                                        const list = await StorageService.getMovePreviewItems(sid, p.table, configCampusId || undefined);
                                         setPreviewItems(prev => ({
                                           ...prev,
                                           [p.table]: list.map(i => ({ ...i, checked: selectedMoveTables.has(p.table) }))
@@ -2294,15 +2294,14 @@ const App: React.FC = () => {
                               if (items.length > 0) {
                                 return checkedItems.length > 0 ? [{ table, ids: checkedItems.map(i => i.id) }] : [];
                               }
-                              if (!moveFromSetorId) return [];
                               return [{ table }];
                             });
-                            const results = await StorageService.moveSetorData(moveFromSetorId || '', moveToSetorId, selections);
+                            const results = await StorageService.moveSetorData(moveFromSetorId || '', moveToSetorId, selections, configCampusId || undefined);
                             setMoveResults(results);
                             await refreshData();
                             if (moveFromSetorId && adminGlobalSetorId === moveFromSetorId) setAdminGlobalSetorId(moveToSetorId);
                             const sid = moveFromSetorId || 'unassigned';
-                            const preview = await StorageService.getMovePreview(sid);
+                        const preview = await StorageService.getMovePreview(sid, configCampusId || undefined);
                             setMovePreview(preview);
                             setSelectedMoveTables(new Set());
                             setPreviewItems({});
@@ -2931,7 +2930,7 @@ const App: React.FC = () => {
                     adminGlobalSetorId={adminGlobalSetorId}
                   />
                 )}
-                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} setores={setores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
+                {activeTab === 'usuarios' && <UsersTab users={users} currentUser={user} onUpdate={refreshData} campuses={campuses} setores={setores} allSetores={allSetores} adminGlobalCampusId={adminGlobalCampusId} adminGlobalSetorId={adminGlobalSetorId} />}
               </>)}
           </ErrorBoundary>
         </div>

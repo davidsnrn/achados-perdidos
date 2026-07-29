@@ -11,11 +11,12 @@ interface Props {
   onUpdate: () => void;
   campuses: Campus[];
   setores: Setor[];
+  allSetores?: Setor[];
   adminGlobalCampusId?: string | null;
   adminGlobalSetorId?: string | null;
 }
 
-export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses, setores, adminGlobalCampusId, adminGlobalSetorId }) => {
+export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campuses, setores, allSetores, adminGlobalCampusId, adminGlobalSetorId }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -435,14 +436,16 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
               {visibleUsers.map(u => (
                 <tr
                   key={u.id}
-                  className={`hover:bg-gray-50 cursor-pointer ${u.id === currentUser.id ? 'bg-blue-50/50' : ''}`}
+                  className={`hover:bg-gray-50 cursor-pointer ${u.id === currentUser.id ? 'bg-blue-50/50' : ''} ${!u.setor_id && u.level !== UserLevel.ADMIN ? 'bg-red-50' : ''}`}
                   onClick={() => handleRowClick(u)}
                   title="Clique para ver detalhes"
                 >
                   <td className="p-4 font-mono text-ifrn-green font-bold whitespace-nowrap">{u.matricula}</td>
                   <td className="p-4 font-medium flex items-center gap-2 whitespace-nowrap">
                     {u.id === currentUser.id && <span className="text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Você</span>}
-                    {u.name}
+                    <span>
+                      {u.name}
+                    </span>
                   </td>
                   {currentUser.level === UserLevel.ADMIN && (
                     <td className="p-4 whitespace-nowrap">
@@ -454,7 +457,7 @@ export const UsersTab: React.FC<Props> = ({ users, currentUser, onUpdate, campus
                   {currentUser.level === UserLevel.ADMIN && (
                     <td className="p-4 whitespace-nowrap">
                       <span className="text-xs text-gray-500 font-medium">
-                        {u.level === UserLevel.ADMIN ? '-' : (setores.find(s => s.id === u.setor_id)?.name || 'Sem setor')}
+                        {u.level === UserLevel.ADMIN ? '-' : ((allSetores || setores).find(s => s.id === u.setor_id)?.name || 'Sem setor')}
                       </span>
                     </td>
                   )}

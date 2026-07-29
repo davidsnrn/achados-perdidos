@@ -96,7 +96,7 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  getMovePreview: async (fromSetorId: string): Promise<{ table: string; count: number; label: string }[]> => {
+  getMovePreview: async (fromSetorId: string, campusId?: string): Promise<{ table: string; count: number; label: string }[]> => {
     const tables: { table: string; label: string; pk: string }[] = [
       { table: 'lockers', label: 'Armários', pk: 'number' },
       { table: 'items', label: 'Achados - Itens', pk: 'id' },
@@ -116,10 +116,18 @@ export const StorageService = {
     ];
     const results: { table: string; count: number; label: string }[] = [];
     for (const { table, label, pk } of tables) {
-      const { count, error } = await supabase
+      let query = supabase
         .from(table)
-        .select(pk, { count: 'exact', head: true })
-        .eq('setor_id', fromSetorId);
+        .select(pk, { count: 'exact', head: true });
+      if (fromSetorId === 'unassigned') {
+        query = query.is('setor_id', null);
+      } else {
+        query = query.eq('setor_id', fromSetorId);
+      }
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+      const { count, error } = await query;
       if (error) {
         console.warn(`Erro ao contar ${table}:`, error.message);
       } else {
@@ -129,7 +137,7 @@ export const StorageService = {
     return results;
   },
 
-  getMovePreviewItems: async (fromSetorId: string, table: string): Promise<{ id: string | number; label: string; currentSetorId: string | null }[]> => {
+  getMovePreviewItems: async (fromSetorId: string, table: string, campusId?: string): Promise<{ id: string | number; label: string; currentSetorId: string | null }[]> => {
     const pkMap: Record<string, string> = {
       items: 'id',
       reports: 'id',
@@ -167,11 +175,17 @@ export const StorageService = {
     const columns = selectMap[table];
     const pk = pkMap[table] || 'id';
     if (!columns) return [];
-    const { data, error } = await supabase
-      .from(table)
-      .select(columns)
-      .or(`setor_id.eq.${fromSetorId},setor_id.is.null`)
-      .order(pk, { ascending: true });
+    let query = supabase.from(table).select(columns);
+    if (fromSetorId) {
+      query = query.or(`setor_id.eq.${fromSetorId},setor_id.is.null`);
+    } else {
+      query = query.is('setor_id', null);
+    }
+    if (campusId) {
+      query = query.eq('campus_id', campusId);
+    }
+    query = query.order(pk, { ascending: true });
+    const { data, error } = await query;
     if (error) return [];
     return (data || []).map((item: any) => {
       let label = '';
@@ -205,7 +219,7 @@ export const StorageService = {
     });
   },
 
-  moveSetorData: async (fromSetorId: string, toSetorId: string, selections?: { table: string; ids?: (string | number)[] }[]) => {
+  moveSetorData: async (fromSetorId: string, toSetorId: string, selections?: { table: string; ids?: (string | number)[] }[], campusId?: string) => {
     const pkMap: Record<string, string> = {
       items: 'id',
       reports: 'id',
@@ -230,8 +244,13 @@ export const StorageService = {
       let query = supabase.from(sel.table).update({ setor_id: toSetorId }).select(pk);
       if (sel.ids) {
         query = query.in(pk, sel.ids);
-      } else {
+      } else if (fromSetorId) {
         query = query.eq('setor_id', fromSetorId);
+      } else {
+        query = query.is('setor_id', null);
+      }
+      if (campusId && !sel.ids) {
+        query = query.eq('campus_id', campusId);
       }
       const { data, error } = await query;
       if (error) {

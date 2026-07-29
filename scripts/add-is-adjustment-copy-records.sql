@@ -1,2 +1,0 @@
-ALTER TABLE copy_records
-ADD COLUMN is_adjustment BOOLEAN DEFAULT FALSE;

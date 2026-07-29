@@ -72,6 +72,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
     name: string;
     matricula: string;
     email?: string;
+    foto?: string;
   } | null>(null);
 
   const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
@@ -279,10 +280,14 @@ export const SelfServiceKiosk: React.FC<Props> = ({
       });
       if (!userRes.ok) throw new Error('Falha ao carregar dados do SUAP.');
       const userData = await userRes.json();
+      const fotoUrl = userData.foto
+        ? (userData.foto.startsWith('http') ? userData.foto : `https://suap.ifrn.edu.br${userData.foto}`)
+        : null;
       setAuthenticatedUser({
         name: userData.nome_usual || userData.nome || 'Usuário',
         matricula: userData.matricula || matricula.trim(),
-        email: userData.email
+        email: userData.email,
+        foto: fotoUrl
       });
       setMatricula('');
       setPassword('');
@@ -483,36 +488,6 @@ export const SelfServiceKiosk: React.FC<Props> = ({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {authenticatedUser && (
-            <div className="flex items-center gap-3 bg-slate-800/80 border border-slate-700/60 rounded-xl px-3.5 py-1.5 text-xs shadow-sm">
-              <div className="w-7 h-7 bg-emerald-500/20 text-emerald-300 rounded-lg flex items-center justify-center font-bold">
-                <UserIcon size={15} />
-              </div>
-              <div className="text-left">
-                <p className="font-semibold text-slate-200 leading-tight">{authenticatedUser.name}</p>
-                <p className="text-slate-400 text-[10px] font-mono">Matrícula: {authenticatedUser.matricula}</p>
-              </div>
-              {pendingCartIds.length > 0 && (
-                <button
-                  onClick={() => setShowCheckoutDrawer(true)}
-                  className="ml-2 relative p-2 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 rounded-lg transition-all flex items-center justify-center"
-                  title="Abrir carrinho"
-                >
-                  <ShoppingBag size={16} />
-                  <span className="absolute -top-1.5 -right-1.5 bg-emerald-400 text-slate-950 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-md">
-                    {pendingCartIds.length}
-                  </span>
-                </button>
-              )}
-              <button
-                onClick={resetUserSession}
-                className="ml-1 p-1.5 hover:bg-slate-700/80 text-slate-400 hover:text-rose-400 rounded-lg transition-colors"
-                title="Encerrar Sessão"
-              >
-                <LogOut size={15} />
-              </button>
-            </div>
-          )}
           <button
             onClick={handleLockTerminal}
             className="p-2.5 bg-slate-800/60 hover:bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-slate-200 rounded-xl transition-all"
@@ -592,6 +567,44 @@ export const SelfServiceKiosk: React.FC<Props> = ({
                 <p className="text-xs font-semibold">{successMessage}</p>
               </div>
             )}
+            {authenticatedUser && (
+              <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-5 flex items-center justify-between shadow-xl backdrop-blur-xl">
+                <div className="flex items-center gap-4">
+                  {authenticatedUser.foto ? (
+                    <img src={authenticatedUser.foto} alt={authenticatedUser.name} className="w-12 h-12 rounded-2xl object-cover border border-emerald-500/30" />
+                  ) : (
+                    <div className="w-12 h-12 bg-emerald-500/15 text-emerald-400 rounded-2xl flex items-center justify-center border border-emerald-500/30">
+                      <UserIcon size={22} />
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-bold text-white text-lg">{authenticatedUser.name}</p>
+                    <p className="text-slate-400 text-xs font-mono">Matrícula: {authenticatedUser.matricula}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {pendingCartIds.length > 0 && (
+                    <button
+                      onClick={() => setShowCheckoutDrawer(true)}
+                      className="relative p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-slate-950 rounded-2xl transition-all flex items-center justify-center"
+                      title="Abrir carrinho"
+                    >
+                      <ShoppingBag size={20} />
+                      <span className="absolute -top-1.5 -right-1.5 bg-emerald-400 text-slate-950 text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-md">
+                        {pendingCartIds.length}
+                      </span>
+                    </button>
+                  )}
+                  <button
+                    onClick={resetUserSession}
+                    className="p-3 bg-slate-800/80 hover:bg-rose-500/20 border border-slate-700/60 hover:border-rose-500/40 text-slate-400 hover:text-rose-400 rounded-2xl transition-all"
+                    title="Encerrar Sessão"
+                  >
+                    <LogOut size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
                 onClick={() => setShowAddItemsModal(true)}
@@ -625,12 +638,12 @@ export const SelfServiceKiosk: React.FC<Props> = ({
                     <p className="text-xs text-emerald-300/80 mt-0.5">Clique para revisar a lista e confirmar a retirada.</p>
                   </div>
                 </button>
-              ) : (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col justify-center">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Status do Usuário</p>
-                  <p className="text-sm text-slate-200 font-medium">{userActiveLoans.length === 0 ? "Você não possui nenhum empréstimo pendente." : `Você possui ${userActiveLoans.length} item(ns) atualmente em sua posse.`}</p>
-                </div>
-              )}
+            ) : (
+              <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 flex flex-col justify-center">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Status do Usuário</p>
+                <p className="text-sm text-slate-200 font-medium">{userActiveLoans.length === 0 ? "Você não possui nenhum empréstimo pendente." : `Você possui ${userActiveLoans.length} item(ns) atualmente em sua posse.`}</p>
+              </div>
+            )}
             </div>
             <div className="bg-slate-900/80 border border-slate-800 rounded-3xl overflow-hidden backdrop-blur-xl shadow-xl">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/80 bg-slate-900/50">

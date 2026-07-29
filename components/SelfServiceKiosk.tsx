@@ -117,14 +117,6 @@ export const SelfServiceKiosk: React.FC<Props> = ({
   }, [mode]);
 
   useEffect(() => {
-    if (activeSetorId) {
-      StorageService.getMaterials(undefined, activeSetorId)
-        .then(setKioskMaterials)
-        .catch(err => console.warn('Erro ao buscar materiais para o kiosk:', err));
-    }
-  }, [activeSetorId]);
-
-  useEffect(() => {
     if (!authenticatedUser || !(activeCampusId || activeSetorId)) return;
     const sectorId = activeSetorId || undefined;
     const campusId = activeCampusId || undefined;
@@ -147,12 +139,12 @@ export const SelfServiceKiosk: React.FC<Props> = ({
   }, [authenticatedUser, activeCampusId, activeSetorId]);
 
   const effectiveMaterials = useMemo(() => {
-    return kioskMaterials.length > 0 ? kioskMaterials : materials;
-  }, [kioskMaterials, materials]);
+    return kioskMaterials;
+  }, [kioskMaterials]);
 
   const effectiveLoans = useMemo(() => {
-    return kioskLoans.length > 0 ? kioskLoans : loans;
-  }, [kioskLoans, loans]);
+    return kioskLoans;
+  }, [kioskLoans]);
 
   const refreshKioskData = useCallback(async () => {
     try {
@@ -164,6 +156,8 @@ export const SelfServiceKiosk: React.FC<Props> = ({
       setKioskLoans(fetchedLoans);
     } catch (err) {
       console.warn('Erro ao recarregar dados do kiosk:', err);
+      setKioskMaterials([]);
+      setKioskLoans([]);
     }
   }, [activeCampusId, activeSetorId]);
 
@@ -250,19 +244,16 @@ export const SelfServiceKiosk: React.FC<Props> = ({
   };
 
   const loadKioskData = async (campusId: string, setorId: string) => {
+    setKioskMaterials([]);
+    setKioskLoans([]);
     try {
       await ensureSession();
-      let fetchedMaterials: Material[];
       const setor = setorId || undefined;
       const campus = campusId || undefined;
-      if (setor) {
-        fetchedMaterials = await StorageService.getMaterials(undefined, setor);
-      } else if (campus) {
-        fetchedMaterials = await StorageService.getMaterials(campus, undefined);
-      } else {
-        fetchedMaterials = [];
-      }
-      const fetchedLoans = await StorageService.getMaterialLoans(campus, setor);
+      const [fetchedMaterials, fetchedLoans] = await Promise.all([
+        StorageService.getMaterials(campus, setor),
+        StorageService.getMaterialLoans(campus, setor)
+      ]);
       setKioskMaterials(fetchedMaterials);
       setKioskLoans(fetchedLoans);
     } catch (err) {

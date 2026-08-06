@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel, Setor } from '../../types';
-import { StorageService } from '../../services/storage';
+import { StorageService, extractRawKioskCode } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
 import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown, Repeat, X, Sparkles, ExternalLink, Bell } from 'lucide-react';
 import { Modal } from '../ui/Modal';
@@ -168,16 +168,26 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     // Autoatendimento
     const currentSetorId = activeSetorId || '';
     const currentSetor = setores.find(s => s.id === currentSetorId);
-    const [kioskCode, setKioskCode] = useState(() => currentSetor?.kiosk_code || '');
+    const [kioskCode, setKioskCode] = useState(() => extractRawKioskCode(currentSetor?.kiosk_code));
     const [copiedKioskCode, setCopiedKioskCode] = useState(false);
     const kioskEnabled = kioskCode !== '';
     const [showKioskModal, setShowKioskModal] = useState(false);
     const [copiedKioskLink, setCopiedKioskLink] = useState(false);
 
     useEffect(() => {
-        setKioskCode(currentSetor?.kiosk_code || '');
+        setKioskCode(extractRawKioskCode(currentSetor?.kiosk_code));
         setCopiedKioskCode(false);
-    }, [currentSetorId]);
+    }, [currentSetorId, currentSetor?.kiosk_code]);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const validCode = extractRawKioskCode(currentSetor?.kiosk_code);
+            if (validCode !== kioskCode) {
+                setKioskCode(validCode);
+            }
+        }, 15000);
+        return () => clearInterval(interval);
+    }, [currentSetor?.kiosk_code, kioskCode]);
 
     const handleCloseKioskModal = useCallback(() => {
         setShowKioskModal(false);

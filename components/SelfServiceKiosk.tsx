@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Material, MaterialLoan } from '../types-materiais';
 import { Campus, Setor } from '../types';
-import { StorageService, supabase } from '../services/storage';
+import { StorageService, supabase, extractRawKioskCode, isKioskCodeValid } from '../services/storage';
 import { 
   Lock, ArrowRight, ArrowLeft, CheckCircle, Package, RefreshCw, 
   User as UserIcon, ShieldCheck, Check, AlertCircle, LogOut, Loader2, Sparkles, Building2, Layers,
@@ -174,7 +174,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
         if (setorId) {
           try {
             const { data } = await supabase.from('setores').select('kiosk_code').eq('id', setorId).single();
-            if (data?.kiosk_code) return;
+            if (data?.kiosk_code && isKioskCodeValid(data.kiosk_code)) return;
           } catch { }
         }
         localStorage.removeItem('sigae_kiosk_config');
@@ -189,7 +189,8 @@ export const SelfServiceKiosk: React.FC<Props> = ({
   const handleUnlockTerminal = async (e: React.FormEvent) => {
     e.preventDefault();
     setTerminalError('');
-    const code = terminalCodeInput.trim();
+    const rawInput = terminalCodeInput.trim().toUpperCase();
+    const code = rawInput.split(':')[0].trim();
     if (!code) {
       setTerminalError('Digite o código de validação.');
       return;
@@ -198,23 +199,65 @@ export const SelfServiceKiosk: React.FC<Props> = ({
     try {
       const { data: matchedSetores, error: errSetor } = await supabase
         .from('setores')
-        .select('id, campus_id, name')
-        .ilike('kiosk_code', code);
-      if (errSetor) throw errSetor;
-      if (matchedSetores && matchedSetores.length > 0) {
-        const matched = matchedSetores[0];
-        setActiveCampusId(matched.campus_id);
-        setActiveSetorId(matched.id);
+        .select('id, campus_id, name, kiosk_code')
+        .or(`kiosk_code.ilike.${code},kiosk_code.ilike.${code}:%`);
+
+      let matchedSetor = null;
+
+      if (!errSetor && matchedSetores && matchedSetores.length > 0) {
+        matchedSetor = matchedSetores.find(s => {
+          const rawCode = extractRawKioskCode(s.kiosk_code);
+          return rawCode && rawCode === code;
+        });
+      } else {
+        // Fallback: se o filtro do Supabase .or falhar, busca os setores com chave definida
+        const { data: allSetores } = await supabase
+          .from('setores')
+          .select('id, campus_id, name, kiosk_code')
+          .not('kiosk_code', 'is', null);
+
+        if (allSetores) {
+          matchedSetor = allSetores.find(s => {
+            const rawCode = extractRawKioskCode(s.kiosk_code);
+            return rawCode && rawCode === code;
+          });
+        }
+      }
+
+      if (matchedSetor) {
+        setActiveCampusId(matchedSetor.campus_id);
+        setActiveSetorId(matchedSetor.id);
         setIsTerminalUnlocked(true);
         setTerminalCodeInput('');
-        await loadKioskData(matched.campus_id, matched.id);
+        await loadKioskData(matchedSetor.campus_id, matchedSetor.id);
         return;
+      }
+
+      const { data: matchedCampuses } = await supabase
+        .from('campuses')
+        .select('id, name, kiosk_code')
+        .or(`kiosk_code.ilike.${code},kiosk_code.ilike.${code}:%`);
+
+      if (matchedCampuses && matchedCampuses.length > 0) {
+        const matchedCampus = matchedCampuses.find(c => {
+          const rawCode = extractRawKioskCode(c.kiosk_code);
+          return rawCode && rawCode === code;
+        });
+
+        if (matchedCampus) {
+          setActiveCampusId(matchedCampus.id);
+          setActiveSetorId('');
+          setIsTerminalUnlocked(true);
+          setTerminalCodeInput('');
+          await loadKioskData(matchedCampus.id, '');
+          return;
+        }
       }
 
       const rawSectorId = localStorage.getItem('sigae_kiosk_setor_id');
       const rawCampusId = localStorage.getItem('sigae_kiosk_campus_id');
       const storedCode = localStorage.getItem('sigae_active_kiosk_code');
-      if ((rawSectorId || rawCampusId) && storedCode?.toUpperCase() === code.toUpperCase()) {
+      if ((rawSectorId || rawCampusId) && storedCode && extractRawKioskCode(storedCode) === code) {
         setActiveCampusId(rawCampusId || '');
         setActiveSetorId(rawSectorId || '');
         setIsTerminalUnlocked(true);
@@ -223,7 +266,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
         return;
       }
 
-      setTerminalError('Código do terminal/setor inválido.');
+      setTerminalError('Código do terminal/setor inválido ou expirado.');
     } catch (err) {
       setTerminalError('Erro ao validar código.');
     }

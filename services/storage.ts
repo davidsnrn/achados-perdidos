@@ -20,6 +20,38 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 
 import { DEFAULT_PASSWORD, SESSION_USER_KEY, LAST_ACTIVE_KEY, SYSTEM_CONFIG_KEY, TIMEOUT_MS } from "../constants";
 
+export const getTodayDateString = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export const extractRawKioskCode = (fullCode?: string | null): string => {
+  if (!fullCode) return '';
+  const parts = fullCode.split(':');
+  if (parts.length === 2) {
+    const [rawCode, dateStr] = parts;
+    if (dateStr === getTodayDateString()) {
+      return rawCode.toUpperCase();
+    }
+    return ''; // Expirou na mudança de dia
+  }
+  // Código legado sem data: aceita no dia
+  return fullCode.toUpperCase();
+};
+
+export const isKioskCodeValid = (fullCode?: string | null): boolean => {
+  return extractRawKioskCode(fullCode) !== '';
+};
+
+export const formatKioskCodeWithToday = (rawCode: string): string => {
+  if (!rawCode) return '';
+  const cleanCode = rawCode.split(':')[0].trim().toUpperCase();
+  return `${cleanCode}:${getTodayDateString()}`;
+};
+
 export const StorageService = {
   // Helpers
   generateId: (): string => {
@@ -45,7 +77,14 @@ export const StorageService = {
   getCampuses: async (): Promise<Campus[]> => {
     const { data, error } = await supabase.from('campuses').select('*').order('name', { ascending: true });
     if (error) throw error;
-    return data || [];
+    return (data || []).map(campus => {
+      const rawCode = extractRawKioskCode(campus.kiosk_code);
+      if (campus.kiosk_code && !rawCode) {
+        supabase.from('campuses').update({ kiosk_code: null }).eq('id', campus.id).then();
+        return { ...campus, kiosk_code: undefined };
+      }
+      return { ...campus, kiosk_code: rawCode || undefined };
+    });
   },
 
   saveCampus: async (campus: Partial<Campus>) => {
@@ -53,13 +92,14 @@ export const StorageService = {
       id: campus.id || undefined,
       name: campus.name,
       slug: campus.slug,
-      kiosk_code: campus.kiosk_code || null
+      kiosk_code: campus.kiosk_code ? formatKioskCodeWithToday(campus.kiosk_code) : null
     });
     if (error) throw error;
   },
 
   updateCampusKioskCode: async (campusId: string, kioskCode: string | null) => {
-    const { error } = await supabase.from('campuses').update({ kiosk_code: kioskCode }).eq('id', campusId);
+    const formattedCode = kioskCode ? formatKioskCodeWithToday(kioskCode) : null;
+    const { error } = await supabase.from('campuses').update({ kiosk_code: formattedCode }).eq('id', campusId);
     if (error) throw error;
   },
 
@@ -73,7 +113,14 @@ export const StorageService = {
     if (campusId) query = query.eq('campus_id', campusId);
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+    return (data || []).map(setor => {
+      const rawCode = extractRawKioskCode(setor.kiosk_code);
+      if (setor.kiosk_code && !rawCode) {
+        supabase.from('setores').update({ kiosk_code: null }).eq('id', setor.id).then();
+        return { ...setor, kiosk_code: undefined };
+      }
+      return { ...setor, kiosk_code: rawCode || undefined };
+    });
   },
 
   saveSetor: async (setor: Partial<Setor>) => {
@@ -82,13 +129,14 @@ export const StorageService = {
       campus_id: setor.campus_id,
       name: setor.name,
       slug: setor.slug,
-      kiosk_code: setor.kiosk_code
+      kiosk_code: setor.kiosk_code ? formatKioskCodeWithToday(setor.kiosk_code) : null
     });
     if (error) throw error;
   },
 
   updateSetorKioskCode: async (setorId: string, kioskCode: string | null) => {
-    const { error } = await supabase.from('setores').update({ kiosk_code: kioskCode }).eq('id', setorId);
+    const formattedCode = kioskCode ? formatKioskCodeWithToday(kioskCode) : null;
+    const { error } = await supabase.from('setores').update({ kiosk_code: formattedCode }).eq('id', setorId);
     if (error) throw error;
   },
 

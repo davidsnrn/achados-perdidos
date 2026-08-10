@@ -675,7 +675,12 @@ const App: React.FC = () => {
             if (u) {
               StorageService.setSessionUser(u);
               setUser(u);
-              StorageService.updateLastActive();
+              // Atualiza o relógio de inatividade apenas em login real (SIGNED_IN).
+              // TOKEN_REFRESHED dispara também ao revalidar sessões antigas no boot
+              // e não deve zerar o timeout de inatividade.
+              if (event === 'SIGNED_IN') {
+                StorageService.updateLastActive();
+              }
             }
           });
         }

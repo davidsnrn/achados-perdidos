@@ -1761,6 +1761,7 @@ export const StorageService = {
   getSessionUser: async (): Promise<User | null> => {
     const { data: { session } } = await supabase.auth.getSession();
 
+    // Nunca autenticar com a conta interna do kiosk como staff
     if (session?.user?.email === 'kiosk@sistema.local') {
       return null;
     }
@@ -1775,25 +1776,18 @@ export const StorageService = {
           .eq('matricula', matricula)
           .maybeSingle();
 
+        // SEGURANÇA: Se não houver registro local, não conceder acesso.
+        // Nunca criar um usuário ADMIN automático para sessão Supabase sem cadastro.
         if (userData) return userData as User;
-
-        // Auth session existe mas sem registro local — montar a partir dos metadados
-        const meta = session.user.user_metadata || {};
-        return {
-          id: `auth-${session.user.id}`,
-          matricula,
-          name: meta.name || meta.nome || meta.nome_usual || matricula,
-          email: session.user.email || `${matricula}@sistema.local`,
-          level: UserLevel.ADMIN,
-        } as User;
+        return null;
       }
     }
 
-    // 2. Fallback para o localStorage
+    // Fallback para o localStorage (sessão local persistida após login bem-sucedido)
     const cached = localStorage.getItem(SESSION_USER_KEY);
     if (cached) return JSON.parse(cached);
 
-    // 3. Migração: verificar sessionStorage antigo
+    // Migração: verificar sessionStorage antigo
     const oldCached = sessionStorage.getItem(SESSION_USER_KEY);
     if (oldCached) {
       localStorage.setItem(SESSION_USER_KEY, oldCached);
@@ -1829,7 +1823,8 @@ export const StorageService = {
 
   isSessionExpired: async (): Promise<boolean> => {
     const lastActive = localStorage.getItem(LAST_ACTIVE_KEY);
-    if (!lastActive) return false;
+    // Se não há registro de atividade, considerar expirado por segurança
+    if (!lastActive) return true;
     return Date.now() - parseInt(lastActive, 10) > TIMEOUT_MS;
   },
 

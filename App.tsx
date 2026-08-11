@@ -670,6 +670,9 @@ const App: React.FC = () => {
         setUser(null);
         setShowModuleSelector(false);
       } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        // Ignorar eventos gerados pela conta interna do kiosk
+        if (session?.user?.email === 'kiosk@sistema.local') return;
+
         if (session?.user) {
           StorageService.getSessionUser().then(u => {
             if (u) {

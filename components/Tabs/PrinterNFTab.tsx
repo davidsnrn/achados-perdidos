@@ -254,6 +254,9 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
   const [initialCountersDraft, setInitialCountersDraft] = useState<Record<string, number>>({});
   const [savingInitialCounters, setSavingInitialCounters] = useState(false);
 
+  // Multi-counter form values: key = "FMT_COLOR", value = counter_curr
+  const [multiCounterValues, setMultiCounterValues] = useState<Record<string, number>>({});
+
   // Editing states
   const [editingRecord, setEditingRecord]   = useState<PrinterCounterRecord | null>(null);
   const [editingPrinter, setEditingPrinter] = useState<PrinterRegistry | null>(null);
@@ -532,6 +535,10 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                 id: existing.id,
                 campus_id: campusId,
                 period: existing.period,
+                printer_id: existing.printer_id ?? undefined,
+                local_name: existing.local_name,
+                format: existing.format,
+                color_mode: existing.color_mode,
                 counter_prev: val,
                 counter_curr: Math.max(existing.counter_curr, val)
               }));
@@ -584,50 +591,90 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       alert('Selecione uma impressora cadastrada.');
       return;
     }
-    if (Number(counterForm.counter_prev) > Number(counterForm.counter_curr)) {
-      alert('O contador anterior não pode ser maior que o contador atual.');
-      return;
-    }
+
     const formPeriod = `${counterForm.formYear}-${String(counterForm.formMonth + 1).padStart(2, '0')}`;
-    const now = new Date().toISOString();
+    const createdAt = new Date(counterForm.date + 'T' + counterForm.time + ':00').toISOString();
+
+    // Determine if we are in multi mode (new record + printer supports >1 type)
+    const activePrn = printers.find(p => p.id === counterForm.printer_id);
+    const supportedModes: { fmt: 'A4'|'A3'; col: 'MONO'|'POLI' }[] = activePrn && !editingRecord ? [
+      ...(activePrn.supports_a4_mono ? [{ fmt: 'A4' as const, col: 'MONO' as const }] : []),
+      ...(activePrn.supports_a4_poli ? [{ fmt: 'A4' as const, col: 'POLI' as const }] : []),
+      ...(activePrn.supports_a3_mono ? [{ fmt: 'A3' as const, col: 'MONO' as const }] : []),
+      ...(activePrn.supports_a3_poli ? [{ fmt: 'A3' as const, col: 'POLI' as const }] : []),
+    ] : [];
+    const isMultiMode = supportedModes.length > 1;
 
     setSavingCounter(true);
     try {
-      await StorageService.savePrinterCounterRecord({
-        ...(editingRecord ? { id: editingRecord.id } : {}),
-        campus_id: campusId,
-        period: formPeriod,
-        printer_id: counterForm.printer_id || undefined,
-        local_name: counterForm.local_name,
-        serial_number: counterForm.serial_number || undefined,
-        ip_address: counterForm.ip_address || undefined,
-        model: counterForm.model || undefined,
-        format: counterForm.format,
-        color_mode: counterForm.color_mode,
-        counter_prev: Number(counterForm.counter_prev),
-        counter_curr: Number(counterForm.counter_curr),
-        operator_id: user.id,
-        ...(editingRecord ? {} : { created_at: new Date(counterForm.date + 'T' + counterForm.time + ':00').toISOString() }),
-      });
+      if (isMultiMode) {
+        // Save all modes in parallel
+        const promises = supportedModes.map(({ fmt, col }) => {
+          const key = `${fmt}_${col}`;
+          const curr = Number(multiCounterValues[key] ?? 0);
+          const prev = recalcCounterPrev(counterForm.printer_id, fmt, col, counterForm.date, counterForm.time);
+          if (curr < prev) {
+            throw new Error(`Contador atual de ${fmt} ${col} (${curr}) não pode ser menor que o anterior (${prev}).`);
+          }
+          return StorageService.savePrinterCounterRecord({
+            campus_id: campusId,
+            period: formPeriod,
+            printer_id: counterForm.printer_id || undefined,
+            local_name: counterForm.local_name,
+            serial_number: counterForm.serial_number || undefined,
+            ip_address: counterForm.ip_address || undefined,
+            model: counterForm.model || undefined,
+            format: fmt,
+            color_mode: col,
+            counter_prev: prev,
+            counter_curr: curr,
+            operator_id: user.id,
+            created_at: createdAt,
+          });
+        });
+        await Promise.all(promises);
+      } else {
+        // Single mode (or editing)
+        if (Number(counterForm.counter_prev) > Number(counterForm.counter_curr)) {
+          alert('O contador anterior não pode ser maior que o contador atual.');
+          setSavingCounter(false);
+          return;
+        }
+        await StorageService.savePrinterCounterRecord({
+          ...(editingRecord ? { id: editingRecord.id } : {}),
+          campus_id: campusId,
+          period: formPeriod,
+          printer_id: counterForm.printer_id || undefined,
+          local_name: counterForm.local_name,
+          serial_number: counterForm.serial_number || undefined,
+          ip_address: counterForm.ip_address || undefined,
+          model: counterForm.model || undefined,
+          format: counterForm.format,
+          color_mode: counterForm.color_mode,
+          counter_prev: Number(counterForm.counter_prev),
+          counter_curr: Number(counterForm.counter_curr),
+          operator_id: user.id,
+          ...(editingRecord ? {} : { created_at: createdAt }),
+        });
 
-      const savedCurr = Number(counterForm.counter_curr);
-
-      const allRecs = [...prevPeriodRecords, ...records, ...nextPeriodRecords];
-      const laterInconsistent = allRecs.filter(r =>
-        r.printer_id === counterForm.printer_id &&
-        r.format === counterForm.format &&
-        r.color_mode === counterForm.color_mode &&
-        r.created_at &&
-        r.id !== (editingRecord?.id || '') &&
-        new Date(r.created_at).getTime() > new Date(counterForm.date + 'T' + counterForm.time + ':00').getTime() &&
-        r.counter_prev < savedCurr
-      );
-      if (laterInconsistent.length > 0) {
-        const details = laterInconsistent.map(r => {
-          const d = new Date(r.created_at!.substring(0, 10) + 'T12:00:00');
-          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} (prev: ${r.counter_prev})`;
-        }).join(', ');
-        alert(`Atenção! Existe(m) registro(s) posterior(es) com contador anterior menor que ${savedCurr}: ${details}. Verifique se precisam ser corrigidos.`);
+        const savedCurr = Number(counterForm.counter_curr);
+        const allRecs = [...prevPeriodRecords, ...records, ...nextPeriodRecords];
+        const laterInconsistent = allRecs.filter(r =>
+          r.printer_id === counterForm.printer_id &&
+          r.format === counterForm.format &&
+          r.color_mode === counterForm.color_mode &&
+          r.created_at &&
+          r.id !== (editingRecord?.id || '') &&
+          new Date(r.created_at).getTime() > new Date(createdAt).getTime() &&
+          r.counter_prev < savedCurr
+        );
+        if (laterInconsistent.length > 0) {
+          const details = laterInconsistent.map(r => {
+            const d = new Date(r.created_at!.substring(0, 10) + 'T12:00:00');
+            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')} (prev: ${r.counter_prev})`;
+          }).join(', ');
+          alert(`Atenção! Existe(m) registro(s) posterior(es) com contador anterior menor que ${savedCurr}: ${details}. Verifique se precisam ser corrigidos.`);
+        }
       }
 
       setShowCounterForm(false);
@@ -848,6 +895,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         ip_address: '',
         model: '',
       }));
+      setMultiCounterValues({});
       return;
     }
 
@@ -860,7 +908,21 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     else if (prn.supports_a3_poli) { defaultFormat = 'A3'; defaultColor = 'POLI'; }
 
     const keepPrev = recalcCounterPrev(prn.id || '', defaultFormat, defaultColor, counterForm.date, counterForm.time, editingRecord?.id);
-    const keepCurr = keepPrev;
+
+    // Initialize multi-counter values for all supported modes
+    const allModes: { fmt: 'A4'|'A3'; col: 'MONO'|'POLI'; ok: boolean }[] = [
+      { fmt: 'A4', col: 'MONO', ok: prn.supports_a4_mono },
+      { fmt: 'A4', col: 'POLI', ok: prn.supports_a4_poli },
+      { fmt: 'A3', col: 'MONO', ok: prn.supports_a3_mono },
+      { fmt: 'A3', col: 'POLI', ok: prn.supports_a3_poli },
+    ];
+    const newMulti: Record<string, number> = {};
+    for (const m of allModes) {
+      if (!m.ok) continue;
+      const prev = recalcCounterPrev(prn.id || '', m.fmt, m.col, counterForm.date, counterForm.time, editingRecord?.id);
+      newMulti[`${m.fmt}_${m.col}`] = prev;
+    }
+    setMultiCounterValues(newMulti);
 
     setCounterForm(f => ({
       ...f,
@@ -872,7 +934,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
       format: defaultFormat,
       color_mode: defaultColor,
       counter_prev: keepPrev,
-      counter_curr: keepCurr,
+      counter_curr: keepPrev,
     }));
   };
 
@@ -1168,27 +1230,46 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
             {printerGroups.map((group, idx) => {
               const isExpanded = expandedPrinters.has(`group-${idx}`);
               const isCopiesOnly = !group.printer && group.records.length === 0 && group.copies.length > 0;
+
+              // ── Separate initial-counter records from real launch records ────
+              // A record is "initial" if it's the first chronological entry for
+              // that printer+format+color AND counter_prev === counter_curr (consumo = 0).
+              const seenKeys = new Set<string>();
+              const initialRecords: typeof group.records = [];
+              const regularRecords: typeof group.records = [];
+              for (const r of group.records) {
+                const key = `${r.format}_${r.color_mode}`;
+                if (!seenKeys.has(key) && r.counter_prev === r.counter_curr) {
+                  seenKeys.add(key);
+                  initialRecords.push(r);
+                } else {
+                  if (!seenKeys.has(key)) seenKeys.add(key);
+                  regularRecords.push(r);
+                }
+              }
+
+              const hasRegular = regularRecords.length > 0 || group.copies.length > 0;
               const hasContent = group.records.length > 0 || group.copies.length > 0;
-              const grupoConsumo = group.totalConsumo;
+              const grupoConsumo = regularRecords.reduce((s, r) => s + r.dynamic_consumo, 0);
               const grupoCopiaTotal = group.copies.reduce((s, c) => s + (c.quantity || 0), 0);
 
               return (
                 <div key={`group-${idx}`} className={`${isCopiesOnly ? 'bg-indigo-50/40' : ''}`}>
                   {/* Accordion Header */}
                   <button
-                    onClick={() => hasContent && togglePrinterExpand(`group-${idx}`)}
+                    onClick={() => hasRegular && togglePrinterExpand(`group-${idx}`)}
                     className={`w-full flex items-center gap-3 px-5 py-4 text-left transition-colors ${
                       isExpanded ? 'bg-slate-50' : 'hover:bg-gray-50'
-                    } ${!hasContent ? 'opacity-60 cursor-default' : ''}`}
+                    } ${!hasRegular ? 'cursor-default' : ''}`}
                   >
                     {/* Chevron */}
-                    <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
+                    <span className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''} ${!hasRegular ? 'opacity-20' : ''}`}>
                       <ChevronRightIcon size={18}/>
                     </span>
 
                     {/* Printer info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {isCopiesOnly ? (
                           <>
                             <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase rounded">CÓPIAS</span>
@@ -1205,12 +1286,40 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                           <span className="font-bold text-gray-800">Sem impressora vinculada</span>
                         )}
                       </div>
+
+                      {/* Initial counters shown as compact chips — not as launches */}
+                      {initialRecords.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5" onClick={e => e.stopPropagation()}>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 mr-0.5">Contador inicial:</span>
+                          {initialRecords.map(r => (
+                            <span
+                              key={r.id}
+                              title={`Contador inicial ${r.format} ${r.color_mode} = ${fmt(r.counter_curr)}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-bold"
+                            >
+                              <span className="font-mono">{r.format} {r.color_mode}</span>
+                              <span className="text-slate-400">·</span>
+                              <span className="font-black text-slate-600 font-mono">{fmt(r.counter_curr)}</span>
+                              <button
+                                onClick={() => openEditCounter(r)}
+                                className="ml-0.5 text-slate-400 hover:text-slate-700 transition-colors"
+                                title="Editar contador inicial"
+                              >
+                                <Pencil size={9}/>
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Stats */}
                     <div className="flex items-center gap-4 text-xs font-semibold text-gray-500 shrink-0">
-                      {group.printer && hasContent && (
-                        <span>{group.records.length + group.copies.length} lançamento(s)</span>
+                      {group.printer && regularRecords.length > 0 && (
+                        <span>{regularRecords.length + group.copies.length} lançamento(s)</span>
+                      )}
+                      {group.printer && regularRecords.length === 0 && group.copies.length > 0 && (
+                        <span>{group.copies.length} lançamento(s)</span>
                       )}
                       {!group.printer && group.copies.length > 0 && (
                         <span>{group.copies.length} lançamento(s)</span>
@@ -1224,11 +1333,14 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                       {!hasContent && (
                         <span className="text-gray-400 italic">sem registros</span>
                       )}
+                      {hasContent && !hasRegular && initialRecords.length > 0 && (
+                        <span className="text-slate-400 italic text-[11px]">sem lançamentos</span>
+                      )}
                     </div>
                   </button>
 
                   {/* Accordion Content */}
-                  {isExpanded && hasContent && (
+                  {isExpanded && hasRegular && (
                     <div className="border-t border-gray-100">
                       {/* Counter records + merged copies (printer groups only) */}
                       {group.printer && (
@@ -1246,7 +1358,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                             </tr>
                           </thead>
                           <tbody>
-                            {group.records.map(r => {
+                            {regularRecords.map(r => {
                               const consumo = r.dynamic_consumo;
                               const catMap = {
                                 'A4-MONO': { fq: cfg.a4_mono_franchise, ef: cfg.a4_mono_excess_franchise },
@@ -1335,7 +1447,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                               <td colSpan={5} className="px-5 py-3 font-black text-right text-sm uppercase tracking-widest text-gray-600">Total</td>
                               <td className="px-5 py-3 text-right font-black text-lg text-slate-800 font-mono">
                                 {fmt(
-                                  group.records.reduce((s, r) => s + r.dynamic_consumo, 0) +
+                                  regularRecords.reduce((s, r) => s + r.dynamic_consumo, 0) +
                                   group.copies.reduce((s, c) => s + (c.quantity || 0), 0)
                                 )}
                               </td>
@@ -1518,6 +1630,30 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   const prev = recalcCounterPrev(f.printer_id, f.format, f.color_mode, f.date, newTime, editingRecord?.id);
                   return { ...f, time: newTime, counter_prev: prev, counter_curr: f.counter_curr === 0 || f.counter_curr === f.counter_prev ? prev : f.counter_curr };
                 });
+                // Also refresh multiCounterValues when time changes
+                if (counterForm.printer_id) {
+                  const prn = printers.find(p => p.id === counterForm.printer_id);
+                  if (prn) {
+                    const allModes: { fmt: 'A4'|'A3'; col: 'MONO'|'POLI'; ok: boolean }[] = [
+                      { fmt: 'A4', col: 'MONO', ok: prn.supports_a4_mono },
+                      { fmt: 'A4', col: 'POLI', ok: prn.supports_a4_poli },
+                      { fmt: 'A3', col: 'MONO', ok: prn.supports_a3_mono },
+                      { fmt: 'A3', col: 'POLI', ok: prn.supports_a3_poli },
+                    ];
+                    setMultiCounterValues(prev => {
+                      const next = { ...prev };
+                      for (const m of allModes) {
+                        if (!m.ok) continue;
+                        const k = `${m.fmt}_${m.col}`;
+                        const p2 = recalcCounterPrev(prn.id || '', m.fmt, m.col, counterForm.date, newTime, editingRecord?.id);
+                        if (next[k] === undefined || next[k] === recalcCounterPrev(prn.id || '', m.fmt, m.col, counterForm.date, counterForm.time, editingRecord?.id)) {
+                          next[k] = p2;
+                        }
+                      }
+                      return next;
+                    });
+                  }
+                }
               }}/>
             </div>
             <div className="col-span-2">
@@ -1530,68 +1666,173 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
               </select>
             </div>
  
-            {counterForm.local_name && (
-              <>
-                <div className="col-span-2 p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1 text-xs text-gray-500">
-                  <p className="font-bold text-gray-700">Dados Técnicos Cadastrados:</p>
-                  <p>Número de Série: <strong className="text-gray-600 font-mono">{counterForm.serial_number || 'Não informado'}</strong></p>
-                  <p>IP: <strong className="text-gray-600 font-mono">{counterForm.ip_address || 'Não informado'}</strong></p>
-                  <p>Modelo: <strong className="text-gray-600">{counterForm.model || 'Não informado'}</strong></p>
-                </div>
- 
-                <div>
-                  <label className={labelCls}>Formato *</label>
-                   <select required className={inputCls} value={counterForm.format} onChange={e => {
-                    const newFmt = e.target.value as 'A4'|'A3';
-                    const keepPrev = recalcCounterPrev(counterForm.printer_id, newFmt, counterForm.color_mode, counterForm.date, counterForm.time, editingRecord?.id);
-                    setCounterForm(f=>({...f, format:newFmt, counter_prev: keepPrev, counter_curr: keepPrev }));
-                  }}>
-                    {activePrinter?.supports_a4_mono || activePrinter?.supports_a4_poli || !activePrinter ? <option value="A4">A4</option> : null}
-                    {activePrinter?.supports_a3_mono || activePrinter?.supports_a3_poli || !activePrinter ? <option value="A3">A3</option> : null}
-                  </select>
-                </div>
-                 
-                <div>
-                  <label className={labelCls}>Cor *</label>
-                   <select required className={inputCls} value={counterForm.color_mode} onChange={e => {
-                    const newColor = e.target.value as 'MONO'|'POLI';
-                    const keepPrev = recalcCounterPrev(counterForm.printer_id, counterForm.format, newColor, counterForm.date, counterForm.time, editingRecord?.id);
-                    setCounterForm(f=>({...f, color_mode:newColor, counter_prev: keepPrev, counter_curr: keepPrev }));
-                  }}>
-                    {(counterForm.format === 'A4' && (activePrinter?.supports_a4_mono || !activePrinter)) || 
-                     (counterForm.format === 'A3' && (activePrinter?.supports_a3_mono || !activePrinter)) ? (
-                      <option value="MONO">MONO (Preto e Branco)</option>
-                    ) : null}
-                    {(counterForm.format === 'A4' && (activePrinter?.supports_a4_poli || !activePrinter)) || 
-                     (counterForm.format === 'A3' && (activePrinter?.supports_a3_poli || !activePrinter)) ? (
-                      <option value="POLI">POLI (Colorido)</option>
-                    ) : null}
-                  </select>
-                </div>
- 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs h-full">
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-gray-500 uppercase tracking-wider">Contador Anterior</span>
-                    {(() => {
-                      const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.date, counterForm.time);
-                      if (mostRecent && mostRecent.created_at) {
-                        const d = new Date(mostRecent.created_at);
-                        return <span className="text-[10px] text-gray-400 font-semibold mt-0.5">último: {String(d.getDate()).padStart(2, '0')}/{String(d.getMonth() + 1).padStart(2, '0')}/{d.getFullYear()} {String(d.getHours()).padStart(2, '0')}:{String(d.getMinutes()).padStart(2, '0')}</span>;
-                      }
-                      return null;
-                    })()}
+            {counterForm.local_name && (() => {
+              // Determine supported modes for this printer
+              const prn = printers.find(p => p.id === counterForm.printer_id);
+              const supportedModes: { fmt: 'A4'|'A3'; col: 'MONO'|'POLI'; label: string }[] = prn ? [
+                ...(prn.supports_a4_mono ? [{ fmt: 'A4' as const, col: 'MONO' as const, label: 'A4 Mono' }] : []),
+                ...(prn.supports_a4_poli ? [{ fmt: 'A4' as const, col: 'POLI' as const, label: 'A4 Colorido' }] : []),
+                ...(prn.supports_a3_mono ? [{ fmt: 'A3' as const, col: 'MONO' as const, label: 'A3 Mono' }] : []),
+                ...(prn.supports_a3_poli ? [{ fmt: 'A3' as const, col: 'POLI' as const, label: 'A3 Colorido' }] : []),
+              ] : [];
+              const isMulti = supportedModes.length > 1 && !editingRecord;
+
+              return (
+                <>
+                  {/* Technical info */}
+                  <div className="col-span-2 p-3 bg-slate-50 border border-slate-100 rounded-xl space-y-1 text-xs text-gray-500">
+                    <p className="font-bold text-gray-700">Dados Técnicos Cadastrados:</p>
+                    <p>Número de Série: <strong className="text-gray-600 font-mono">{counterForm.serial_number || 'Não informado'}</strong></p>
+                    <p>IP: <strong className="text-gray-600 font-mono">{counterForm.ip_address || 'Não informado'}</strong></p>
+                    <p>Modelo: <strong className="text-gray-600">{counterForm.model || 'Não informado'}</strong></p>
                   </div>
-                  <span className="font-black text-slate-800 font-mono text-base mt-2">{fmt(counterForm.counter_prev)}</span>
-                </div>
-                <div>
-                  <label className={labelCls}>Contador Atual *</label>
-                  <input required type="number" min={counterForm.counter_prev} className={inputCls} value={counterForm.counter_curr} onChange={e => setCounterForm(f=>({...f,counter_curr:Number(e.target.value)}))}/>
-                </div>
-              </>
-            )}
+
+                  {isMulti ? (
+                    /* ── MULTI MODE: all format/color pairs at once ── */
+                    <div className="col-span-2">
+                      <div className="overflow-hidden rounded-xl border border-slate-200">
+                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
+                          <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">Contadores do Período</p>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
+                              <th className="px-4 py-2 text-left">Tipo</th>
+                              <th className="px-4 py-2 text-right">Cont. Anterior</th>
+                              <th className="px-4 py-2 text-right w-40">Cont. Atual *</th>
+                              <th className="px-4 py-2 text-right">Consumo</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-50">
+                            {supportedModes.map(({ fmt: modeFmt, col, label }) => {
+                              const key = `${modeFmt}_${col}`;
+                              const prev = recalcCounterPrev(counterForm.printer_id, modeFmt, col, counterForm.date, counterForm.time);
+                              const curr = multiCounterValues[key] ?? prev;
+                              const consumo = Math.max(0, curr - prev);
+                              return (
+                                <tr key={key} className="hover:bg-slate-50/50">
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                        col === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'
+                                      }`}>{modeFmt}</span>
+                                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                        col === 'MONO' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-700'
+                                      }`}>{col}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right text-gray-400 font-mono text-sm">{fmt(prev)}</td>
+                                  <td className="px-4 py-3">
+                                    <input
+                                      required
+                                      type="number"
+                                      min={prev}
+                                      className="w-full text-right px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent"
+                                      value={curr}
+                                      onChange={e => setMultiCounterValues(v => ({ ...v, [key]: Number(e.target.value) }))}
+                                    />
+                                  </td>
+                                  <td className="px-4 py-3 text-right">
+                                    <span className={`font-black font-mono text-sm ${
+                                      consumo > 0 ? 'text-emerald-600' : 'text-gray-400'
+                                    }`}>{consumo > 0 ? `+${fmt(consumo)}` : '0'}</span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── SINGLE MODE: original format+color selects ── */
+                    <>
+                      <div>
+                        <label className={labelCls}>Formato *</label>
+                         <select required className={inputCls} value={counterForm.format} onChange={e => {
+                          const newFmt = e.target.value as 'A4'|'A3';
+                          const keepPrev = recalcCounterPrev(counterForm.printer_id, newFmt, counterForm.color_mode, counterForm.date, counterForm.time, editingRecord?.id);
+                          setCounterForm(f=>({...f, format:newFmt, counter_prev: keepPrev, counter_curr: keepPrev }));
+                        }}>
+                          {activePrinter?.supports_a4_mono || activePrinter?.supports_a4_poli || !activePrinter ? <option value="A4">A4</option> : null}
+                          {activePrinter?.supports_a3_mono || activePrinter?.supports_a3_poli || !activePrinter ? <option value="A3">A3</option> : null}
+                        </select>
+                      </div>
+                       
+                      <div>
+                        <label className={labelCls}>Cor *</label>
+                         <select required className={inputCls} value={counterForm.color_mode} onChange={e => {
+                          const newColor = e.target.value as 'MONO'|'POLI';
+                          const keepPrev = recalcCounterPrev(counterForm.printer_id, counterForm.format, newColor, counterForm.date, counterForm.time, editingRecord?.id);
+                          setCounterForm(f=>({...f, color_mode:newColor, counter_prev: keepPrev, counter_curr: keepPrev }));
+                        }}>
+                          {(counterForm.format === 'A4' && (activePrinter?.supports_a4_mono || !activePrinter)) || 
+                           (counterForm.format === 'A3' && (activePrinter?.supports_a3_mono || !activePrinter)) ? (
+                            <option value="MONO">MONO (Preto e Branco)</option>
+                          ) : null}
+                          {(counterForm.format === 'A4' && (activePrinter?.supports_a4_poli || !activePrinter)) || 
+                           (counterForm.format === 'A3' && (activePrinter?.supports_a3_poli || !activePrinter)) ? (
+                            <option value="POLI">POLI (Colorido)</option>
+                          ) : null}
+                        </select>
+                      </div>
+ 
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col justify-between text-xs h-full">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-500 uppercase tracking-wider">Contador Anterior</span>
+                          {(() => {
+                            const mostRecent = findMostRecentPrev(counterForm.printer_id, counterForm.format, counterForm.color_mode, counterForm.date, counterForm.time);
+                            if (mostRecent && mostRecent.created_at) {
+                              const d = new Date(mostRecent.created_at);
+                              return <span className="text-[10px] text-gray-400 font-semibold mt-0.5">último: {String(d.getDate()).padStart(2, '0')}/{String(d.getMonth() + 1).padStart(2, '0')}/{d.getFullYear()} {String(d.getHours()).padStart(2, '0')}:{String(d.getMinutes()).padStart(2, '0')}</span>;
+                            }
+                            return null;
+                          })()}
+                        </div>
+                        <span className="font-black text-slate-800 font-mono text-base mt-2">{fmt(counterForm.counter_prev)}</span>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Contador Atual *</label>
+                        <input required type="number" min={counterForm.counter_prev} className={inputCls} value={counterForm.counter_curr} onChange={e => setCounterForm(f=>({...f,counter_curr:Number(e.target.value)}))}/>
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
  
-          {counterForm.local_name && counterForm.counter_curr >= counterForm.counter_prev && (
+          {counterForm.local_name && !editingRecord && (() => {
+            const prn = printers.find(p => p.id === counterForm.printer_id);
+            const modes: { fmt: 'A4'|'A3'; col: 'MONO'|'POLI' }[] = prn ? [
+              ...(prn.supports_a4_mono ? [{ fmt: 'A4' as const, col: 'MONO' as const }] : []),
+              ...(prn.supports_a4_poli ? [{ fmt: 'A4' as const, col: 'POLI' as const }] : []),
+              ...(prn.supports_a3_mono ? [{ fmt: 'A3' as const, col: 'MONO' as const }] : []),
+              ...(prn.supports_a3_poli ? [{ fmt: 'A3' as const, col: 'POLI' as const }] : []),
+            ] : [];
+            const isMulti = modes.length > 1;
+            if (!isMulti) {
+              return counterForm.counter_curr >= counterForm.counter_prev ? (
+                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl text-slate-700 text-sm font-semibold border border-slate-200">
+                  <CheckCircle2 size={16} className="text-emerald-500"/>
+                  Consumo: <strong>{fmt(counterForm.counter_curr - counterForm.counter_prev)} páginas</strong>
+                </div>
+              ) : null;
+            }
+            const totalConsumo = modes.reduce((sum, { fmt: f, col }) => {
+              const key = `${f}_${col}`;
+              const prev = recalcCounterPrev(counterForm.printer_id, f, col, counterForm.date, counterForm.time);
+              return sum + Math.max(0, (multiCounterValues[key] ?? prev) - prev);
+            }, 0);
+            return totalConsumo > 0 ? (
+              <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl text-slate-700 text-sm font-semibold border border-slate-200">
+                <CheckCircle2 size={16} className="text-emerald-500"/>
+                Consumo total: <strong>{fmt(totalConsumo)} páginas</strong>
+              </div>
+            ) : null;
+          })()}
+
+          {counterForm.local_name && editingRecord && counterForm.counter_curr >= counterForm.counter_prev && (
             <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl text-slate-700 text-sm font-semibold border border-slate-200">
               <CheckCircle2 size={16} className="text-emerald-500"/>
               Consumo: <strong>{fmt(counterForm.counter_curr - counterForm.counter_prev)} páginas</strong>

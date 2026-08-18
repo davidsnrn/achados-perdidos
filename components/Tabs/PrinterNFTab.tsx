@@ -531,6 +531,7 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
               promises.push(StorageService.savePrinterCounterRecord({
                 id: existing.id,
                 campus_id: campusId,
+                period: existing.period,
                 counter_prev: val,
                 counter_curr: Math.max(existing.counter_curr, val)
               }));

@@ -1876,7 +1876,13 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
 
                 return (
                   <div key={p.id} className="pt-3 first:pt-0">
-                    <p className="font-bold text-gray-800 text-sm mb-2">{p.local_name} <span className="text-xs font-normal text-gray-400">{p.model}</span></p>
+                    <p className="font-bold text-gray-800 text-sm mb-2">
+                      {p.local_name}{' '}
+                      <span className="text-xs font-normal text-gray-400">{p.model}</span>
+                      {p.ip_address && (
+                        <span className="ml-2 text-[10px] font-mono bg-slate-100 text-slate-500 border border-slate-200 rounded px-1.5 py-0.5">{p.ip_address}</span>
+                      )}
+                    </p>
                     <div className="grid grid-cols-2 gap-3">
                       {activeModes.map(m => {
                         const key = `${p.id}_${m.fmt}_${m.col}`;

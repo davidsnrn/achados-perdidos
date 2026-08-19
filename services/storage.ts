@@ -725,69 +725,62 @@ export const StorageService = {
     const tokens = searchTerm.split(/\s+/).filter(t => t.length > 0);
     if (tokens.length === 0) return [];
 
-    // Escolhe o melhor token para buscar no banco (preferindo o maior token alfabetico, ou o maior em geral)
-    let dbQueryToken = tokens[0];
-    const nonDigitTokens = tokens.filter(t => !/^\d+$/.test(t));
-    if (nonDigitTokens.length > 0) {
-      dbQueryToken = nonDigitTokens.reduce((a, b) => a.length > b.length ? a : b);
-    } else {
-      dbQueryToken = tokens.reduce((a, b) => a.length > b.length ? a : b);
-    }
+    const norm = (text: string) => (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const normalizedTokens = tokens.map(t => norm(t));
 
     try {
-      // Usar a RPC com o token principal para buscar de forma rapida e evitar timeouts
-      const { data: rpcData, error: rpcError } = await supabase.rpc('search_people_global', {
-        p_query: dbQueryToken,
-        p_limit: 500 // Trazemos mais resultados para filtrar em memoria
+      // Coletar buscas para os tokens individuais (máx 3) e para o termo completo se houver mais de 1 palavra
+      const queriesToFetch = new Set<string>();
+      if (tokens.length > 1) {
+        queriesToFetch.add(searchTerm);
+      }
+      tokens.slice(0, 3).forEach(t => queriesToFetch.add(t));
+
+      // Buscar no banco em paralelo com limite de 1000 por consulta para não cortar resultados em câmpus grandes
+      const rpcPromises = Array.from(queriesToFetch).map(qToken =>
+        supabase.rpc('search_people_global', {
+          p_query: qToken,
+          p_limit: 1000
+        })
+      );
+
+      const rpcResponses = await Promise.all(rpcPromises);
+      const candidatesMap = new Map<string, Person>();
+
+      rpcResponses.forEach(({ data, error }) => {
+        if (!error && data) {
+          (data as Person[]).forEach(person => {
+            if (person && person.matricula && !candidatesMap.has(person.matricula)) {
+              candidatesMap.set(person.matricula, person);
+            }
+          });
+        }
       });
 
-      if (!rpcError && rpcData) {
-        let results = rpcData as Person[];
-        
-        // Normalizacao para busca sem acentos
-        const norm = (text: string) => (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const normalizedTokens = tokens.map(t => norm(t));
+      if (candidatesMap.size > 0) {
+        let results = Array.from(candidatesMap.values());
 
-        // Todos os tokens digitados precisam bater com o nome ou matricula (normalizados)
+        // Filtrar em memória por Câmpus, Tipo, Setor e por TODOS os tokens digitados
         results = results.filter(p => {
+          if (campusId && p.campus_id !== campusId) return false;
+          if (type && type !== 'ALL' && p.type !== type) return false;
+          if (setorId && p.setor_id !== setorId) return false;
+
           const nameNorm = norm(p.name);
           const matriculaNorm = norm(p.matricula);
           return normalizedTokens.every(tok => nameNorm.includes(tok) || matriculaNorm.includes(tok));
         });
-        
-        if (campusId) {
-          results = results.filter(p => p.campus_id === campusId);
-        }
-        if (type && type !== 'ALL') {
-          results = results.filter(p => p.type === type);
-        }
-        if (setorId) {
-          results = results.filter(p => p.setor_id === setorId);
-        }
-        
+
         return results.slice(0, limit);
-      }
-      if (rpcError) {
-        console.warn("Erro ao buscar pessoas via RPC, tentando fallback direto:", rpcError);
       }
     } catch (e) {
       console.warn("Exceção ao buscar pessoas via RPC, tentando fallback direto:", e);
     }
 
-    // Fallback original direto na tabela (pode ser lento/timeout em bases grandes)
+    // Fallback original direto na tabela (com filtro por campus no banco para ser rápido e preciso)
     let supabaseQuery = supabase
       .from('people')
       .select('name, matricula, campus_id, type, email, setor_id');
-
-    if (tokens.length > 0) {
-      tokens.forEach(t => {
-        if (/^\d{6,}$/.test(t)) {
-          supabaseQuery = supabaseQuery.or(`matricula.eq.${t},name.ilike.%${t}%,matricula.ilike.%${t}%`);
-        } else {
-          supabaseQuery = supabaseQuery.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
-        }
-      });
-    }
 
     if (campusId) {
       supabaseQuery = supabaseQuery.eq('campus_id', campusId);
@@ -799,6 +792,16 @@ export const StorageService = {
 
     if (setorId) {
       supabaseQuery = supabaseQuery.eq('setor_id', setorId);
+    }
+
+    if (tokens.length > 0) {
+      tokens.forEach(t => {
+        if (/^\d{6,}$/.test(t)) {
+          supabaseQuery = supabaseQuery.or(`matricula.eq.${t},name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        } else {
+          supabaseQuery = supabaseQuery.or(`name.ilike.%${t}%,matricula.ilike.%${t}%`);
+        }
+      });
     }
 
     const { data, error } = await supabaseQuery

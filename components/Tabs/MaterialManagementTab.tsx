@@ -55,6 +55,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
     const [personTypeFilter, setPersonTypeFilter] = useState<'ALL' | 'Aluno' | 'Servidor'>('ALL');
+    const [searchAllCampuses, setSearchAllCampuses] = useState(false);
     const [hasSearchedPeople, setHasSearchedPeople] = useState(false);
     const [selectedResultIndex, setSelectedResultIndex] = useState(0);
     const [selectedMaterials, setSelectedMaterials] = useState<Material[]>([]);
@@ -368,8 +369,9 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
-    const handlePersonSearch = async (val?: string, isTriggered: boolean = true) => {
+    const handlePersonSearch = async (val?: string, isTriggered: boolean = true, searchAllOverride?: boolean) => {
         const query = val !== undefined ? val : personSearch;
+        const searchAll = searchAllOverride !== undefined ? searchAllOverride : searchAllCampuses;
         
         if (!isTriggered) {
             setHasSearchedPeople(false);
@@ -383,7 +385,8 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setHasSearchedPeople(true);
             setSelectedResultIndex(0);
             try {
-                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined, personTypeFilter);
+                const targetCampusId = searchAll ? undefined : (user.campus_id || undefined);
+                const results = await StorageService.searchPeople(query, 10, targetCampusId, personTypeFilter);
                 setSearchResultsPeople(results.slice(0, 10));
             } catch (error) {
                 console.error("Erro na busca:", error);
@@ -1805,6 +1808,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 setHasSearchedPeople(false);
                 setSelectedResultIndex(0);
                 setPersonTypeFilter('ALL');
+                setSearchAllCampuses(false);
                 setMaterialSearch('');
                 setShowMaterialDropdown(false);
                 setObservation('');
@@ -1829,13 +1833,40 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     </div>
                                     <div className="flex-1">
                                         <p className="font-bold text-blue-900 leading-tight">{selectedPerson.name}</p>
-                                        <p className="text-xs text-blue-600 font-medium">{selectedPerson.matricula} • {selectedPerson.type}</p>
+                                        <p className="text-xs text-blue-600 font-medium">
+                                            {selectedPerson.matricula} • {selectedPerson.type}
+                                            {selectedPerson.campus_id && campuses.length > 0 && (
+                                                <span> • {campuses.find(c => c.id === selectedPerson.campus_id)?.name || selectedPerson.campus_id}</span>
+                                            )}
+                                        </p>
                                     </div>
                                     <button type="button" onClick={() => { setSelectedPerson(null); setPersonTypeFilter('ALL'); }} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold hover:bg-red-50 transition-all">Alterar</button>
                                 </div>
                             </div>
                         ) : (
                             <div className="space-y-4 pt-2">
+                                {/* Opção de busca em todos os campi */}
+                                <div className="flex items-center justify-between">
+                                    <label className="flex items-center gap-1.5 text-xs text-blue-600 font-bold cursor-pointer hover:text-blue-800 transition-colors select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={searchAllCampuses}
+                                            onChange={e => {
+                                                const checked = e.target.checked;
+                                                setSearchAllCampuses(checked);
+                                                setSearchResultsPeople([]);
+                                                setSelectedResultIndex(0);
+                                                setHasSearchedPeople(false);
+                                                if (personSearch.trim().length >= 2) {
+                                                    handlePersonSearch(personSearch, true, checked);
+                                                }
+                                            }}
+                                            className="rounded border-blue-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                        />
+                                        Buscar em todos os Campi
+                                    </label>
+                                </div>
+
                                 {/* Campo de Busca Principal */}
                                 <div className="relative group">
                                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -1886,37 +1917,43 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     {/* Resultados da Busca */}
                                     {searchResultsPeople.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-white border border-blue-200 rounded-2xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-gray-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {searchResultsPeople.map((p, index) => (
-                                                <div
-                                                    key={p.matricula}
-                                                    onClick={() => { 
-                                                        setSelectedPerson(p); 
-                                                        setPersonSearch(''); 
-                                                        setSearchResultsPeople([]); 
-                                                        setHasSearchedPeople(false);
-                                                    }}
-                                                    className={`p-4 rounded-xl cursor-pointer text-sm group transition-all flex justify-between items-center ${
-                                                        index === selectedResultIndex 
-                                                        ? 'bg-blue-600 text-white shadow-lg scale-[1.01]' 
-                                                        : 'hover:bg-blue-50 text-gray-700'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${index === selectedResultIndex ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
-                                                            <UserIcon size={18} />
+                                            {searchResultsPeople.map((p, index) => {
+                                                const campusName = p.campus_id && campuses.length > 0 ? (campuses.find(c => c.id === p.campus_id)?.name || p.campus_id) : null;
+                                                return (
+                                                    <div
+                                                        key={p.matricula}
+                                                        onClick={() => { 
+                                                            setSelectedPerson(p); 
+                                                            setPersonSearch(''); 
+                                                            setSearchResultsPeople([]); 
+                                                            setHasSearchedPeople(false);
+                                                        }}
+                                                        className={`p-4 rounded-xl cursor-pointer text-sm group transition-all flex justify-between items-center ${
+                                                            index === selectedResultIndex 
+                                                            ? 'bg-blue-600 text-white shadow-lg scale-[1.01]' 
+                                                            : 'hover:bg-blue-50 text-gray-700'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${index === selectedResultIndex ? 'bg-white/20' : 'bg-blue-100 text-blue-600'}`}>
+                                                                <UserIcon size={18} />
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-black text-base">{p.name}</div>
+                                                                <div className={`text-xs ${index === selectedResultIndex ? 'text-blue-100' : 'text-gray-500'}`}>
+                                                                    {p.matricula} • {p.type}
+                                                                    {campusName && ` • ${campusName}`}
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <div className="font-black text-base">{p.name}</div>
-                                                            <div className={`text-xs ${index === selectedResultIndex ? 'text-blue-100' : 'text-gray-500'}`}>{p.matricula} • {p.type}</div>
-                                                        </div>
+                                                        {index === selectedResultIndex && (
+                                                            <div className="text-[10px] font-black bg-white/20 px-2 py-1 rounded-md">
+                                                                ENTER
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {index === selectedResultIndex && (
-                                                        <div className="text-[10px] font-black bg-white/20 px-2 py-1 rounded-md">
-                                                            ENTER
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
 
@@ -1938,7 +1975,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         onClick={() => {
                                             setPersonTypeFilter('ALL');
                                             if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'ALL').then(res => setSearchResultsPeople(res));
+                                                StorageService.searchPeople(personSearch, 10, searchAllCampuses ? undefined : (user.campus_id || undefined), 'ALL').then(res => setSearchResultsPeople(res));
                                             }
                                         }}
                                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
@@ -1950,7 +1987,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         onClick={() => {
                                             setPersonTypeFilter('Aluno');
                                             if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Aluno').then(res => setSearchResultsPeople(res));
+                                                StorageService.searchPeople(personSearch, 10, searchAllCampuses ? undefined : (user.campus_id || undefined), 'Aluno').then(res => setSearchResultsPeople(res));
                                             }
                                         }}
                                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
@@ -1962,7 +1999,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         onClick={() => {
                                             setPersonTypeFilter('Servidor');
                                             if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, user.campus_id || undefined, 'Servidor').then(res => setSearchResultsPeople(res));
+                                                StorageService.searchPeople(personSearch, 10, searchAllCampuses ? undefined : (user.campus_id || undefined), 'Servidor').then(res => setSearchResultsPeople(res));
                                             }
                                         }}
                                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}

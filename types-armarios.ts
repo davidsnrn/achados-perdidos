@@ -43,6 +43,7 @@ export interface LoanData {
   physicalLocation: string; // Localização Física
   registrationNumber: string; // Matrícula
   studentName: string; // Nome do Aluno
+  studentEmail?: string; // E-mail do Aluno
   studentClass: string; // Turma do Aluno
   loanDate: string; // Data do Empréstimo
   loanTime?: string; // Hora do Empréstimo

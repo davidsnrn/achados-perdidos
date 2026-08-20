@@ -17,6 +17,7 @@ import { Loader2, LayoutGrid, FileText, Settings, Key, Plus, Download, FileSprea
 import { LockerSchedule, LockerScheduleStatus } from '../../types-armarios';
 import { EmailService } from '../../services/emailService';
 import { ChargeHistory } from '../../types-materiais';
+import { exportBorrowedLockersToExcel } from '../../utils/exportArmariosExcel';
 
 interface ArmariosTabProps {
   user: any;
@@ -58,6 +59,19 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
   const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [pendingChargeLoanId, setPendingChargeLoanId] = useState<string | null>(null);
   const [pendingChargeLockerNumber, setPendingChargeLockerNumber] = useState<string | null>(null);
+
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+  const handleExportExcelQuick = async () => {
+    setIsExportingExcel(true);
+    try {
+      await exportBorrowedLockersToExcel(lockers);
+    } catch (e: any) {
+      alert('Erro ao exportar planilha Excel: ' + (e.message || 'Erro desconhecido'));
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   // Load charge history when detail modal opens with an active reserve key
   useEffect(() => {
@@ -874,6 +888,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
           <button onClick={() => setCurrentView('dashboard')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'dashboard' ? 'bg-green-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><LayoutGrid size={14} /> Painel</button>
           <button onClick={() => setCurrentView('schedules')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'schedules' ? 'bg-amber-500 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Calendar size={14} /> Agendamentos</button>
           <button onClick={() => setCurrentView('reports')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'reports' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileText size={14} /> Relatórios</button>
+          <button onClick={() => setCurrentView('export')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'export' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><FileSpreadsheet size={14} /> Exportar</button>
           {canViewConfig && (
             <button onClick={() => setCurrentView('config')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap ${currentView === 'config' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:bg-slate-100'}`}><Settings size={14} /> Configuração</button>
           )}
@@ -973,7 +988,26 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-10">
                 <h2 className="text-3xl font-black text-slate-800 tracking-tight">Mapa de Armários</h2>
 
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+                  <button
+                    onClick={handleExportExcelQuick}
+                    disabled={isExportingExcel || stats.occupied === 0}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 text-white px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 whitespace-nowrap"
+                    title="Exportar dados dos armários emprestados em formato Excel (.xlsx)"
+                  >
+                    {isExportingExcel ? (
+                      <>
+                        <Loader2 className="animate-spin" size={14} />
+                        Exportando...
+                      </>
+                    ) : (
+                      <>
+                        <FileSpreadsheet size={14} />
+                        Exportar Emprestados (.xlsx)
+                      </>
+                    )}
+                  </button>
+
                   <div className="relative flex-1 sm:w-64">
                     <input
                       type="text"
@@ -1023,6 +1057,10 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
 
         {currentView === 'reports' && (
           <ReportsTab lockers={lockers} />
+        )}
+
+        {currentView === 'export' && (
+          <ExportTab lockers={lockers} onClearAll={handleClearAllLoans} />
         )}
 
         {currentView === 'schedules' && (

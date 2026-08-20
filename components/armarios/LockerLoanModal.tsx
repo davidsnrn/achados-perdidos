@@ -60,7 +60,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
             name: p.name,
             course: '',
             situation: 'Ativo',
-            email: ''
+            email: p.email || ''
           } as Student));
         setSearchResults(students);
       } catch (error) {
@@ -76,6 +76,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
       ...prev,
       registrationNumber: student.registration,
       studentName: student.name,
+      studentEmail: student.email || prev.studentEmail,
       studentClass: student.course || prev.studentClass
     }));
     setStudentSearch(student.name);

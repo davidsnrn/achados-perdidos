@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Locker } from '../../types-armarios';
-import { Trash2, Download, FileSpreadsheet, Info, AlertTriangle, Loader2 } from 'lucide-react';
+import { Locker, LockerStatus } from '../../types-armarios';
+import { Trash2, Download, FileSpreadsheet, Info, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
+import { exportBorrowedLockersToExcel } from '../../utils/exportArmariosExcel';
 
 interface ExportTabProps {
     lockers: Locker[];
@@ -19,6 +20,22 @@ interface ExportEntry {
 const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
     const [isClearing, setIsClearing] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
+
+    const borrowedLockersCount = useMemo(() => {
+        return lockers.filter(l => l.status === LockerStatus.OCCUPIED || l.currentLoan).length;
+    }, [lockers]);
+
+    const handleExportExcel = async () => {
+        setIsExportingExcel(true);
+        try {
+            await exportBorrowedLockersToExcel(lockers);
+        } catch (e: any) {
+            alert('Erro ao exportar planilha Excel: ' + (e.message || 'Erro desconhecido'));
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
 
     const exportData = useMemo(() => {
         const entries: ExportEntry[] = [];
@@ -102,11 +119,56 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+            {/* Cartão Destaque: Exportação em Excel de Armários Emprestados */}
+            <div className="bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-800 p-8 md:p-10 rounded-[2.5rem] shadow-2xl text-white border border-emerald-500/20 relative overflow-hidden">
+                <div className="absolute -right-10 -bottom-10 opacity-10 text-emerald-300 pointer-events-none">
+                    <FileSpreadsheet size={280} />
+                </div>
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="space-y-3 max-w-xl">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-black uppercase tracking-widest">
+                            <FileSpreadsheet size={14} /> Planilha Excel (.xlsx)
+                        </div>
+                        <h2 className="text-3xl font-black tracking-tight text-white">
+                            Armários Emprestados
+                        </h2>
+                        <p className="text-emerald-100/80 text-sm font-medium leading-relaxed">
+                            Exporte apenas a lista atual de armários que estão sob empréstimo contendo <strong>Número do Armário</strong>, <strong>Matrícula</strong>, <strong>Nome</strong> e <strong>E-mail</strong>.
+                        </p>
+                        <div className="flex items-center gap-3 pt-2">
+                            <span className="bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 px-3.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                                <CheckCircle2 size={14} className="text-emerald-400" />
+                                {borrowedLockersCount} armários emprestados no momento
+                            </span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleExportExcel}
+                        disabled={isExportingExcel || borrowedLockersCount === 0}
+                        className="w-full md:w-auto flex items-center justify-center gap-3 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-500 text-slate-950 font-black px-8 py-5 rounded-[1.8rem] shadow-xl shadow-emerald-500/20 transition-all transform hover:scale-105 active:scale-95 uppercase text-xs tracking-widest shrink-0"
+                    >
+                        {isExportingExcel ? (
+                            <>
+                                <Loader2 className="animate-spin" size={20} />
+                                Exportando Excel...
+                            </>
+                        ) : (
+                            <>
+                                <FileSpreadsheet size={20} />
+                                Exportar Excel (.xlsx)
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {/* Cartão de Histórico Geral e Limpeza de Banco */}
             <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
                     <div>
-                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">Exportar Dados</h2>
-                        <p className="text-slate-500 font-medium">Extraia o histórico completo de movimentações para planilhas.</p>
+                        <h2 className="text-3xl font-black text-slate-800 tracking-tight">Histórico Geral (CSV)</h2>
+                        <p className="text-slate-500 font-medium">Extraia o histórico completo de movimentações (empréstimos e devoluções).</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-4">
                         <button
@@ -119,10 +181,10 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                         <button
                             onClick={handleDownloadCSV}
                             disabled={exportData.length === 0}
-                            className="flex items-center gap-3 bg-green-600 hover:bg-green-700 disabled:bg-slate-200 text-white px-8 py-4 rounded-3xl font-black shadow-xl shadow-green-100 transition-all transform hover:scale-105 active:scale-95 uppercase text-sm tracking-widest"
+                            className="flex items-center gap-3 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white px-8 py-4 rounded-3xl font-black shadow-xl transition-all transform hover:scale-105 active:scale-95 uppercase text-sm tracking-widest"
                         >
                             <Download size={20} />
-                            Baixar Planilha (CSV)
+                            Baixar Histórico (CSV)
                         </button>
                     </div>
                 </div>
@@ -170,14 +232,12 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                     <div className="space-y-1">
                         <p className="text-blue-900 font-black uppercase text-xs tracking-widest">Informações do Arquivo</p>
                         <p className="text-blue-700/80 text-sm font-medium leading-relaxed">
-                            O arquivo gerado contém <strong>{exportData.length} registros</strong> de empréstimos e devoluções.
-                            Ele está formatado com ponto e vírgula (;) para abertura direta no Microsoft Excel e inclui suporte a caracteres especiais (UTF-8).
+                            O arquivo de histórico contém <strong>{exportData.length} registros</strong> de empréstimos e devoluções.
+                            Para exportar exclusivamente a relação atual de alunos com armários emprestados com o e-mail cadastrado, utilize o botão <strong>Exportar Excel (.xlsx)</strong> acima.
                         </p>
                     </div>
                 </div>
             </div>
-
-
         </div>
     );
 };

@@ -913,12 +913,18 @@ export const StorageService = {
     if (error) throw error;
   },
 
-  importPeople: async (people: Person[]) => {
+  importPeople: async (
+    people: Person[],
+    onProgress?: (current: number, total: number, stepText: string) => void
+  ) => {
     let totalInserted = 0;
     let totalUpdated = 0;
 
     if (people.length > 0) {
-      const BATCH_SIZE = 500;
+      const totalSteps = people.length;
+      let processed = 0;
+      const BATCH_SIZE = 200;
+
       for (let i = 0; i < people.length; i += BATCH_SIZE) {
         const batch = people.slice(i, i + BATCH_SIZE);
         const { data, error } = await supabase.rpc('import_people_bulk', {
@@ -939,11 +945,20 @@ export const StorageService = {
           totalInserted += data[0].inserted_count || 0;
           totalUpdated += data[0].updated_count || 0;
         }
+        processed += batch.length;
+        if (onProgress) {
+          onProgress(
+            Math.min(processed, totalSteps),
+            totalSteps,
+            `Salvando registros no banco de dados (${Math.min(processed, totalSteps)} de ${totalSteps})...`
+          );
+        }
       }
 
       const withEmail = people.filter(p => p.email);
       if (withEmail.length > 0) {
         const CONCURRENT = 50;
+        let emailsProcessed = 0;
         for (let i = 0; i < withEmail.length; i += CONCURRENT) {
           const batch = withEmail.slice(i, i + CONCURRENT);
           await Promise.all(batch.map(p =>
@@ -955,6 +970,14 @@ export const StorageService = {
                 if (error) console.warn(`Email não atualizado: ${p.matricula}`, error);
               })
           ));
+          emailsProcessed += batch.length;
+          if (onProgress) {
+            onProgress(
+              totalSteps,
+              totalSteps,
+              `Atualizando e-mails (${emailsProcessed} de ${withEmail.length})...`
+            );
+          }
         }
       }
     }

@@ -55,6 +55,17 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
   // Import State
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    current: number;
+    total: number;
+    statusText: string;
+    percentage: number;
+  }>({
+    current: 0,
+    total: 0,
+    statusText: '',
+    percentage: 0,
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Edit State
@@ -287,6 +298,12 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       return;
     }
     setIsProcessing(true);
+    setImportProgress({
+      current: 0,
+      total: 100,
+      statusText: 'Lendo arquivos selecionados...',
+      percentage: 2,
+    });
 
     const newPeople: Person[] = [];
     let processingLog = '';
@@ -298,9 +315,18 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     let totalExternos = 0;
 
     try {
-      for (const file of selectedFiles) {
+      const totalFilesCount = selectedFiles.length;
+      for (let fileIdx = 0; fileIdx < totalFilesCount; fileIdx++) {
+        const file = selectedFiles[fileIdx];
         const isExcel = /\.xlsx?$/i.test(file.name);
         let rows: string[][];
+
+        setImportProgress({
+          current: fileIdx + 1,
+          total: totalFilesCount,
+          statusText: `Lendo arquivo (${fileIdx + 1}/${totalFilesCount}): ${file.name}...`,
+          percentage: Math.round(((fileIdx + 1) / totalFilesCount) * 15),
+        });
 
         if (isExcel) {
           const buffer = await file.arrayBuffer();
@@ -330,6 +356,9 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         const idxNome = colsHeader.indexOf('nome');
         const idxMatricula = colsHeader.findIndex(c => c.includes('matrícula'));
         const idxEmail = colsHeader.findIndex(c => c.includes('email') || c.includes('e-mail'));
+        const idxEmailPessoal = colsHeader.findIndex(c =>
+          c.includes('e-mail pessoal') || c.includes('email pessoal')
+        );
         const idxEmailAcademico = colsHeader.findIndex(c =>
           c.includes('e-mail acadêmico') || c.includes('email acadêmico')
         );
@@ -362,9 +391,15 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           const pName = cols[idxNome];
           const pMatricula = cols[idxMatricula];
           const pEmail =
-            detectedType === PersonType.STUDENT && idxEmailAcademico !== -1
-              ? cols[idxEmailAcademico]
-              : detectedType === PersonType.SERVER && idxEmailContato !== -1
+            detectedType === PersonType.STUDENT
+              ? (idxEmailPessoal !== -1 && cols[idxEmailPessoal]?.trim()
+                  ? cols[idxEmailPessoal]
+                  : idxEmailAcademico !== -1 && cols[idxEmailAcademico]?.trim()
+                    ? cols[idxEmailAcademico]
+                    : idxEmail !== -1
+                      ? cols[idxEmail]
+                      : undefined)
+              : detectedType === PersonType.SERVER && idxEmailContato !== -1 && cols[idxEmailContato]?.trim()
                 ? cols[idxEmailContato]
                 : idxEmail !== -1
                   ? cols[idxEmail]
@@ -401,7 +436,30 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       }
 
       if (newPeople.length > 0) {
-        const stats = await StorageService.importPeople(newPeople);
+        setImportProgress({
+          current: 0,
+          total: newPeople.length,
+          statusText: `Enviando ${newPeople.length} registros para o banco...`,
+          percentage: 15,
+        });
+
+        const stats = await StorageService.importPeople(newPeople, (current, total, statusText) => {
+          const percentage = Math.min(100, Math.max(15, Math.round(15 + (current / total) * 85)));
+          setImportProgress({
+            current,
+            total,
+            statusText,
+            percentage,
+          });
+        });
+
+        setImportProgress({
+          current: newPeople.length,
+          total: newPeople.length,
+          statusText: 'Importação concluída!',
+          percentage: 100,
+        });
+
         onUpdate();
         fetchData();
         setSelectedFiles([]);
@@ -432,6 +490,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       alert('Erro ao importar: ' + (err as Error).message);
     } finally {
       setIsProcessing(false);
+      setImportProgress({ current: 0, total: 0, statusText: '', percentage: 0 });
     }
   };
 
@@ -747,7 +806,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                     Formatos aceitos: CSV, XLSX e XLS.
                   </p>
                   <p>
-                    O arquivo deve conter as colunas <strong>Nome</strong> e <strong>Matrícula</strong> (obrigatórias) e opcionalmente <strong>E-mail</strong>.
+                    O arquivo deve conter as colunas <strong>Nome</strong> e <strong>Matrícula</strong> (obrigatórias) e opcionalmente <strong>E-mail Pessoal</strong> ou <strong>E-mail Acadêmico</strong>.
                   </p>
                   <p>
                     Para CSVs, ao salvar no Excel, escolha a opção:<br/>
@@ -775,37 +834,77 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 </div>
               )}
 
-              <div className="flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-3xl p-10 bg-gray-50/50 hover:bg-white hover:border-ifrn-green/30 transition-all cursor-pointer group" onClick={handleSelectFiles}>
-                <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx,.xls" multiple onChange={handleFileChange} />
-                <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-ifrn-green mb-4 group-hover:scale-110 transition-transform">
-                  <Upload size={32} />
-                </div>
-                <p className="font-black text-gray-700">Clique para selecionar arquivos</p>
-                <p className="text-xs text-gray-400 mt-1">Formatos aceitos: .csv, .xlsx, .xls</p>
-              </div>
-
-              {selectedFiles.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Arquivos selecionados ({selectedFiles.length})</p>
-                  <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
-                    {selectedFiles.map((file, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
-                        <div className="flex items-center gap-3">
-                          <FileText size={18} className="text-blue-500" />
-                          <span className="text-sm font-bold text-gray-700 truncate max-w-[200px]">{file.name}</span>
-                        </div>
-                        <button onClick={() => removeFile(idx)} className="text-gray-400 hover:text-red-500 p-1"><X size={16} /></button>
+              {isProcessing ? (
+                <div className="bg-white border-2 border-emerald-100 rounded-3xl p-6 shadow-xl space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-emerald-50 text-ifrn-green rounded-2xl animate-spin">
+                        <Loader2 size={24} />
                       </div>
-                    ))}
+                      <div>
+                        <h4 className="font-black text-gray-800 text-sm uppercase tracking-wide">Importando Registros</h4>
+                        <p className="text-xs font-semibold text-gray-500">{importProgress.statusText || 'Processando dados...'}</p>
+                      </div>
+                    </div>
+                    <span className="text-2xl font-black text-ifrn-green tracking-tight font-mono">
+                      {importProgress.percentage}%
+                    </span>
                   </div>
-                  <button
-                    onClick={processImport}
-                    disabled={isProcessing}
-                    className="w-full py-4 bg-ifrn-green text-white rounded-2xl hover:bg-ifrn-darkGreen font-black shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isProcessing ? 'Processando...' : <><CheckCircle size={20} /> Iniciar Importação</>}
-                  </button>
+
+                  {/* Barra de Progresso com Animação Shimmer */}
+                  <div className="relative w-full bg-gray-100 rounded-full h-4 overflow-hidden p-0.5 shadow-inner">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 to-ifrn-green h-full rounded-full transition-all duration-300 ease-out shadow-md relative overflow-hidden"
+                      style={{ width: `${Math.max(4, importProgress.percentage)}%` }}
+                    >
+                      <div className="absolute inset-0 bg-white/30 animate-pulse" />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-500 pt-2 border-t border-gray-100">
+                    <span>
+                      {importProgress.total > 0 ? `${importProgress.current} / ${importProgress.total} registros` : 'Iniciando...'}
+                    </span>
+                    <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">
+                      Processando...
+                    </span>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center justify-center border-4 border-dashed border-gray-100 rounded-3xl p-10 bg-gray-50/50 hover:bg-white hover:border-ifrn-green/30 transition-all cursor-pointer group" onClick={handleSelectFiles}>
+                    <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx,.xls" multiple onChange={handleFileChange} />
+                    <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-ifrn-green mb-4 group-hover:scale-110 transition-transform">
+                      <Upload size={32} />
+                    </div>
+                    <p className="font-black text-gray-700">Clique para selecionar arquivos</p>
+                    <p className="text-xs text-gray-400 mt-1">Formatos aceitos: .csv, .xlsx, .xls</p>
+                  </div>
+
+                  {selectedFiles.length > 0 && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Arquivos selecionados ({selectedFiles.length})</p>
+                      <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                        {selectedFiles.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                            <div className="flex items-center gap-3">
+                              <FileText size={18} className="text-blue-500" />
+                              <span className="text-sm font-bold text-gray-700 truncate max-w-[200px]">{file.name}</span>
+                            </div>
+                            <button onClick={() => removeFile(idx)} className="text-gray-400 hover:text-red-500 p-1"><X size={16} /></button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={processImport}
+                        disabled={isProcessing}
+                        className="w-full py-4 bg-ifrn-green text-white rounded-2xl hover:bg-ifrn-darkGreen font-black shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
+                      >
+                        <CheckCircle size={20} /> Iniciar Importação
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

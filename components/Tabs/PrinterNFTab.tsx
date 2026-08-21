@@ -608,8 +608,22 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
     setSavingCounter(true);
     try {
       if (isMultiMode) {
-        // Save all modes in parallel
-        const promises = supportedModes.map(({ fmt, col }) => {
+        // Filter out modes with zero consumption (counter_curr <= counter_prev)
+        const modesToSave = supportedModes.filter(({ fmt, col }) => {
+          const key = `${fmt}_${col}`;
+          const curr = Number(multiCounterValues[key] ?? 0);
+          const prev = recalcCounterPrev(counterForm.printer_id, fmt, col, counterForm.date, counterForm.time);
+          return curr > prev;
+        });
+
+        if (modesToSave.length === 0) {
+          alert('Nenhum consumo registrado (todos os contadores estão sem alteração).');
+          setSavingCounter(false);
+          return;
+        }
+
+        // Save only modes with consumption > 0
+        const promises = modesToSave.map(({ fmt, col }) => {
           const key = `${fmt}_${col}`;
           const curr = Number(multiCounterValues[key] ?? 0);
           const prev = recalcCounterPrev(counterForm.printer_id, fmt, col, counterForm.date, counterForm.time);
@@ -1244,7 +1258,9 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
                   initialRecords.push(r);
                 } else {
                   if (!seenKeys.has(key)) seenKeys.add(key);
-                  regularRecords.push(r);
+                  if (r.dynamic_consumo > 0) {
+                    regularRecords.push(r);
+                  }
                 }
               }
 

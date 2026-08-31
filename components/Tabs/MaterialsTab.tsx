@@ -24,13 +24,21 @@ export const MaterialsTab: React.FC<Props> = ({ materials, onUpdate }) => {
     // Form state
     const [formName, setFormName] = useState('');
 
+    const normalizeText = (text: string) => {
+        return text
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase();
+    };
+
     const filteredMaterials = useMemo(() => {
-        if (!searchTerm.trim()) return materials;
-        const term = searchTerm.toLowerCase();
-        return materials.filter(m =>
-            m.name.toLowerCase().includes(term) ||
-            m.code.toLowerCase().includes(term)
-        );
+        const searchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
+        if (searchTerms.length === 0) return materials;
+
+        return materials.filter(m => {
+            const itemText = normalizeText(`${m.name} ${m.code}`);
+            return searchTerms.every(term => itemText.includes(term));
+        });
     }, [materials, searchTerm]);
 
     const generateCode = (): string => {

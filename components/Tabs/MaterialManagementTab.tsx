@@ -299,14 +299,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     };
 
     const filteredInventory = useMemo(() => {
-        return inventory.filter(item => {
-            const matchesSearch =
-                item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.activeLoan?.personName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.activeLoan?.personMatricula || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const searchTerms = normalizeText(searchTerm).split(/\s+/).filter(t => t.length > 0);
 
-            if (!matchesSearch) return false;
+        return inventory.filter(item => {
+            if (searchTerms.length > 0) {
+                const itemText = normalizeText(`${item.name} ${item.code} ${item.activeLoan?.personName || ''} ${item.activeLoan?.personMatricula || ''}`);
+                const matchesSearch = searchTerms.every(term => itemText.includes(term));
+                if (!matchesSearch) return false;
+            }
 
             if (filterStatus === 'ALL') return true;
             if (filterStatus === 'AVAILABLE') return item.status === 'AVAILABLE';

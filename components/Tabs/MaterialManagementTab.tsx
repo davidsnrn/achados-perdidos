@@ -369,9 +369,10 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
 
     const totalPagesInventory = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
 
-    const handlePersonSearch = async (val?: string, isTriggered: boolean = true, searchAllOverride?: boolean) => {
+    const handlePersonSearch = async (val?: string, isTriggered: boolean = true, searchAllOverride?: boolean, typeFilterOverride?: 'ALL' | 'Aluno' | 'Servidor') => {
         const query = val !== undefined ? val : personSearch;
         const searchAll = searchAllOverride !== undefined ? searchAllOverride : searchAllCampuses;
+        const currentType = typeFilterOverride !== undefined ? typeFilterOverride : personTypeFilter;
         
         if (!isTriggered) {
             setHasSearchedPeople(false);
@@ -385,8 +386,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             setHasSearchedPeople(true);
             setSelectedResultIndex(0);
             try {
-                const targetCampusId = searchAll ? undefined : (user.campus_id || undefined);
-                const results = await StorageService.searchPeople(query, 10, targetCampusId, personTypeFilter);
+                const effectiveCampusId = user.level === UserLevel.ADMIN 
+                    ? (selectedCampusId || adminGlobalCampusId || user.campus_id || undefined)
+                    : (user.campus_id || undefined);
+                const targetCampusId = searchAll ? undefined : effectiveCampusId;
+                const results = await StorageService.searchPeople(query, 10, targetCampusId, currentType);
                 setSearchResultsPeople(results.slice(0, 10));
             } catch (error) {
                 console.error("Erro na busca:", error);
@@ -1975,7 +1979,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         onClick={() => {
                                             setPersonTypeFilter('ALL');
                                             if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, searchAllCampuses ? undefined : (user.campus_id || undefined), 'ALL').then(res => setSearchResultsPeople(res));
+                                                handlePersonSearch(personSearch, true, searchAllCampuses, 'ALL');
                                             }
                                         }}
                                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'ALL' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
@@ -1987,7 +1991,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         onClick={() => {
                                             setPersonTypeFilter('Aluno');
                                             if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, searchAllCampuses ? undefined : (user.campus_id || undefined), 'Aluno').then(res => setSearchResultsPeople(res));
+                                                handlePersonSearch(personSearch, true, searchAllCampuses, 'Aluno');
                                             }
                                         }}
                                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'Aluno' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}
@@ -1999,7 +2003,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                         onClick={() => {
                                             setPersonTypeFilter('Servidor');
                                             if (personSearch.trim().length >= 2) {
-                                                StorageService.searchPeople(personSearch, 10, searchAllCampuses ? undefined : (user.campus_id || undefined), 'Servidor').then(res => setSearchResultsPeople(res));
+                                                handlePersonSearch(personSearch, true, searchAllCampuses, 'Servidor');
                                             }
                                         }}
                                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${personTypeFilter === 'Servidor' ? 'bg-blue-600 text-white shadow-lg' : 'text-blue-400 hover:bg-blue-50'}`}

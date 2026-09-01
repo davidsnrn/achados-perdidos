@@ -212,7 +212,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
         campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
         document: type === PersonType.EXTERNAL ? document : undefined,
         document_type: type === PersonType.EXTERNAL ? documentType : undefined,
-        phone: type === PersonType.EXTERNAL ? phone || undefined : undefined,
+        phone: phone.trim() || undefined,
       });
       setName('');
       setMatricula('');
@@ -239,6 +239,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
     const rawName = formData.get('name') as string;
     const newMatricula = formData.get('matricula') as string;
     const rawEmail = formData.get('email') as string;
+    const rawPhone = formData.get('phone') as string;
     const personType = formData.get('type') as PersonType;
 
     const updatedPerson: Person = {
@@ -250,7 +251,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
       campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : (editingPerson.campus_id || user.campus_id),
       document: personType === PersonType.EXTERNAL ? (formData.get('document') as string || editingPerson.document) : undefined,
       document_type: personType === PersonType.EXTERNAL ? (formData.get('document_type') as string || editingPerson.document_type) : undefined,
-      phone: personType === PersonType.EXTERNAL ? (formData.get('phone') as string || editingPerson.phone) : undefined,
+      phone: rawPhone ? rawPhone.trim() : undefined,
     };
 
     try {
@@ -368,6 +369,13 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
           c.includes('e-mail de contato') ||
           c.includes('email de contato')
         );
+        const idxPhone = colsHeader.findIndex(c =>
+          c.includes('telefone') ||
+          c.includes('celular') ||
+          c.includes('whatsapp') ||
+          c.includes('contato') ||
+          c.includes('fone')
+        );
 
         if (idxNome === -1 || idxMatricula === -1) {
           processingLog += `❌ ${file.name}: Colunas 'Nome' ou 'Matrícula' não identificadas.\n`;
@@ -404,12 +412,14 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                 : idxEmail !== -1
                   ? cols[idxEmail]
                   : undefined;
+          const pPhone = idxPhone !== -1 && cols[idxPhone]?.trim() ? cols[idxPhone] : undefined;
 
           if (!pName || !pMatricula) continue;
 
           const cleanName = toTitleCase(pName.trim().replace(/^["']|["']$/g, ''));
           const cleanMatricula = pMatricula.trim().replace(/^["']|["']$/g, '');
           const cleanEmail = pEmail ? pEmail.trim().replace(/^["']|["']$/g, '') : undefined;
+          const cleanPhone = pPhone ? formatPhone(pPhone.trim().replace(/^["']|["']$/g, '')) : undefined;
 
           if (cleanName.toLowerCase() === 'nome' && cleanMatricula.toLowerCase().includes('matrícula')) continue;
           if (cleanName.length < 2 || cleanMatricula.length < 2) continue;
@@ -428,6 +438,7 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             matricula: cleanMatricula,
             type: detectedType,
             email: cleanEmail || undefined,
+            phone: cleanPhone || undefined,
             campus_id: user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id,
           });
           fileCount++;
@@ -705,17 +716,15 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
                     placeholder="Ex: nome@ifrn.edu.br..." 
                   />
                 </div>
-                {type === PersonType.EXTERNAL && (
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Telefone (opcional)</label>
-                    <input
-                      value={phone}
-                      onChange={e => setPhone(formatPhone(e.target.value))}
-                      className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all"
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
-                )}
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Telefone (opcional)</label>
+                  <input
+                    value={phone}
+                    onChange={e => setPhone(formatPhone(e.target.value))}
+                    className="w-full border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-ifrn-green outline-none transition-all"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
               </div>
 
               {/* Feedback de Verificação dentro do Modal */}
@@ -1038,8 +1047,6 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
 
       <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Editar Pessoa">
         <form onSubmit={handleEditSubmit} className="space-y-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label><input name="name" required defaultValue={editingPerson?.name} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">E-mail (opcional)</label><input name="email" type="email" defaultValue={editingPerson?.email} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Ex: nome@ifrn.edu.br..." /></div>
           <div className="grid grid-cols-2 gap-4">
             {editingPerson?.type !== PersonType.EXTERNAL ? (
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Matrícula</label><input name="matricula" required defaultValue={editingPerson?.matricula} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
@@ -1061,18 +1068,18 @@ export const PeopleTab: React.FC<Props> = ({ onUpdate, user, campuses, adminGlob
             )}
             <div><label className="block text-sm font-medium text-gray-700 mb-1">Vínculo</label><select name="type" defaultValue={editingPerson?.type} className="w-full border rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-ifrn-green outline-none"><option value={PersonType.STUDENT}>Aluno</option><option value={PersonType.SERVER}>Servidor</option><option value={PersonType.EXTERNAL}>Externo</option></select></div>
           </div>
-          {editingPerson?.type === PersonType.EXTERNAL && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (opcional)</label>
-              <input
-                name="phone"
-                defaultValue={editingPerson?.phone}
-                onChange={e => { const input = e.target as HTMLInputElement; input.value = formatPhone(input.value); }}
-                className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
-                placeholder="(00) 00000-0000"
-              />
-            </div>
-          )}
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label><input name="name" required defaultValue={editingPerson?.name} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" /></div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">E-mail (opcional)</label><input name="email" type="email" defaultValue={editingPerson?.email} className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none" placeholder="Ex: nome@ifrn.edu.br..." /></div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (opcional)</label>
+            <input
+              name="phone"
+              defaultValue={editingPerson?.phone}
+              onChange={e => { const input = e.target as HTMLInputElement; input.value = formatPhone(input.value); }}
+              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
+              placeholder="(00) 00000-0000"
+            />
+          </div>
           {user.level === UserLevel.ADMIN && (
             <>
               <div>

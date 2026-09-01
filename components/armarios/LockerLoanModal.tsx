@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, User, BookOpen, Clock, Loader2, Search, Calendar, FileText } from 'lucide-react';
+import { X, Phone, BookOpen, Clock, Loader2, Search, Calendar, FileText } from 'lucide-react';
 import { Locker, Student, LoanData } from '../../types-armarios';
 import { StorageService } from '../../services/storage';
 
@@ -23,12 +23,21 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return `(${digits}`;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
   const [formData, setFormData] = useState<Partial<LoanData>>({
     id: Math.random().toString(36).substr(2, 6).toUpperCase(),
     lockerNumber: locker.number,
     physicalLocation: locker.location || '',
     registrationNumber: '',
     studentName: '',
+    studentEmail: '',
+    studentPhone: '',
     studentClass: '',
     loanDate: new Date().toLocaleDateString('en-CA'),
     observation: '',
@@ -60,7 +69,8 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
             name: p.name,
             course: '',
             situation: 'Ativo',
-            email: p.email || ''
+            email: p.email || '',
+            phone: p.phone || ''
           } as Student));
         setSearchResults(students);
       } catch (error) {
@@ -77,6 +87,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
       registrationNumber: student.registration,
       studentName: student.name,
       studentEmail: student.email || prev.studentEmail,
+      studentPhone: student.phone ? formatPhone(student.phone) : prev.studentPhone,
       studentClass: student.course || prev.studentClass
     }));
     setStudentSearch(student.name);
@@ -85,13 +96,28 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name === 'studentPhone') {
+      setFormData(prev => ({ ...prev, studentPhone: formatPhone(value) }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.studentName && formData.registrationNumber) {
       const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // Atualizar o telefone da pessoa no banco se foi preenchido/alterado
+      if (formData.studentPhone && formData.registrationNumber) {
+        const rawPhone = formData.studentPhone.replace(/\D/g, '');
+        try {
+          await StorageService.updatePersonPhone(formData.registrationNumber, rawPhone);
+        } catch (err) {
+          console.error('Erro ao atualizar telefone da pessoa:', err);
+        }
+      }
+
       onSubmit({ ...formData, loanTime: now } as LoanData);
     }
   };
@@ -205,19 +231,21 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
                 </div>
               </div>
 
-              {/* Responsável/Operador */}
+              {/* Telefone / Contato */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1 block">
-                  Operador
+                  Telefone (Opcional)
                 </label>
-                <div className="relative">
+                <div className="relative group">
                   <input
                     type="text"
-                    readOnly
-                    className="w-full bg-slate-50 border-2 border-transparent rounded-2xl p-5 pl-14 text-slate-400 font-bold cursor-default"
-                    value={operatorName}
+                    name="studentPhone"
+                    placeholder="(00) 00000-0000"
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-5 pl-14 text-slate-800 font-bold focus:border-green-500 focus:bg-white outline-none transition-all shadow-inner"
+                    value={formData.studentPhone || ''}
+                    onChange={handleInputChange}
                   />
-                  <User size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-200" />
+                  <Phone size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
                 </div>
               </div>
             </div>

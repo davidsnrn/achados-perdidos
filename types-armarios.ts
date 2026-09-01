@@ -35,6 +35,7 @@ export interface Student {
   course: string;
   situation: string;
   email: string;
+  phone?: string;
 }
 
 export interface LoanData {
@@ -44,6 +45,7 @@ export interface LoanData {
   registrationNumber: string; // Matrícula
   studentName: string; // Nome do Aluno
   studentEmail?: string; // E-mail do Aluno
+  studentPhone?: string; // Telefone do Aluno
   studentClass: string; // Turma do Aluno
   loanDate: string; // Data do Empréstimo
   loanTime?: string; // Hora do Empréstimo

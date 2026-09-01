@@ -146,10 +146,29 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                       </a>
                     </div>
                   </div>
+                  {locker.currentLoan.studentPhone && (
+                    <div className="col-span-2 flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-100 rounded-xl">
+                      <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center shrink-0">
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-0.5">Telefone para contato</p>
+                        <a
+                          href={`tel:${locker.currentLoan.studentPhone.replace(/\D/g, '')}`}
+                          className="text-sm font-black text-slate-800 hover:text-green-700 transition-colors"
+                        >
+                          {locker.currentLoan.studentPhone}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="col-span-2 py-3 border-t border-slate-100 mt-2 flex justify-between items-center">
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Turma</p>
-                      <p className="text-sm font-bold text-slate-700">{locker.currentLoan.studentClass}</p>
+                      <p className="text-sm font-bold text-slate-700">{locker.currentLoan.studentClass || '—'}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] uppercase font-bold text-slate-400 mb-0.5">Retirada em</p>

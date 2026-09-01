@@ -216,6 +216,16 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       };
 
       await StorageService.updateSingleLocker(updatedLocker);
+
+      // Atualiza o telefone no cadastro da pessoa se foi informado
+      if (loan.registrationNumber && loan.studentPhone) {
+        try {
+          await StorageService.updatePersonPhone(loan.registrationNumber, loan.studentPhone);
+        } catch (phoneErr) {
+          console.warn("Erro ao sincronizar telefone com cadastro da pessoa:", phoneErr);
+        }
+      }
+
       onUpdate();
       setShowLoanModal(false);
       setSelectedLocker(null);

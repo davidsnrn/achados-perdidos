@@ -655,7 +655,7 @@ export const StorageService = {
 
     let query = supabase
       .from('people')
-      .select('name, matricula, campus_id, type, email')
+      .select('name, matricula, campus_id, type, email, phone, document, document_type')
       .range(from, to)
       .order('name', { ascending: true });
 
@@ -771,7 +771,22 @@ export const StorageService = {
           return normalizedTokens.every(tok => nameNorm.includes(tok) || matriculaNorm.includes(tok));
         });
 
-        return results.slice(0, limit);
+        const sliced = results.slice(0, limit);
+
+        // Enriquecer com phone: buscar por matrícula em lote
+        try {
+          const matriculas = sliced.map(p => p.matricula);
+          const { data: phoneData } = await supabase
+            .from('people')
+            .select('matricula, phone')
+            .in('matricula', matriculas);
+          if (phoneData && phoneData.length > 0) {
+            const phoneMap = new Map(phoneData.map(p => [p.matricula, p.phone]));
+            sliced.forEach(p => { if (phoneMap.has(p.matricula)) p.phone = phoneMap.get(p.matricula) ?? undefined; });
+          }
+        } catch (_) { /* phone enrichment failed silently */ }
+
+        return sliced;
       }
     } catch (e) {
       console.warn("Exceção ao buscar pessoas via RPC, tentando fallback direto:", e);
@@ -780,7 +795,7 @@ export const StorageService = {
     // Fallback original direto na tabela (com filtro por campus no banco para ser rápido e preciso)
     let supabaseQuery = supabase
       .from('people')
-      .select('name, matricula, campus_id, type, email, setor_id');
+      .select('name, matricula, campus_id, type, email, phone, setor_id');
 
     if (campusId) {
       supabaseQuery = supabaseQuery.eq('campus_id', campusId);
@@ -821,6 +836,14 @@ export const StorageService = {
     // In most tabs, we should use searchPeople
     console.warn("StorageService.getPeople() is deprecated for performance reasons. Use searchPeople() or getAllPeople() instead.");
     return [];
+  },
+
+  updatePersonPhone: async (matricula: string, phone: string): Promise<void> => {
+    const { error } = await supabase
+      .from('people')
+      .update({ phone: phone || null })
+      .eq('matricula', matricula);
+    if (error) throw error;
   },
 
   savePerson: async (person: Person, oldMatricula?: string) => {
@@ -892,6 +915,12 @@ export const StorageService = {
     }
   },
 
+  updatePersonPhone: async (matricula: string, phone: string) => {
+    if (!matricula || !phone) return;
+    const { error } = await supabase.from('people').update({ phone: phone.trim() }).eq('matricula', matricula);
+    if (error) throw error;
+  },
+
   deletePerson: async (matricula: string) => {
     const { error } = await supabase.from('people').delete().eq('matricula', matricula);
     if (error) throw error;
@@ -955,27 +984,30 @@ export const StorageService = {
         }
       }
 
-      const withEmail = people.filter(p => p.email);
-      if (withEmail.length > 0) {
+      const withExtraData = people.filter(p => p.email || p.phone);
+      if (withExtraData.length > 0) {
         const CONCURRENT = 50;
-        let emailsProcessed = 0;
-        for (let i = 0; i < withEmail.length; i += CONCURRENT) {
-          const batch = withEmail.slice(i, i + CONCURRENT);
-          await Promise.all(batch.map(p =>
-            supabase
+        let extrasProcessed = 0;
+        for (let i = 0; i < withExtraData.length; i += CONCURRENT) {
+          const batch = withExtraData.slice(i, i + CONCURRENT);
+          await Promise.all(batch.map(p => {
+            const updatePayload: Record<string, any> = {};
+            if (p.email) updatePayload.email = p.email;
+            if (p.phone) updatePayload.phone = p.phone;
+            return supabase
               .from('people')
-              .update({ email: p.email })
+              .update(updatePayload)
               .eq('matricula', p.matricula)
               .then(({ error }) => {
-                if (error) console.warn(`Email não atualizado: ${p.matricula}`, error);
-              })
-          ));
-          emailsProcessed += batch.length;
+                if (error) console.warn(`Dados de contato não atualizados: ${p.matricula}`, error);
+              });
+          }));
+          extrasProcessed += batch.length;
           if (onProgress) {
             onProgress(
               totalSteps,
               totalSteps,
-              `Atualizando e-mails (${emailsProcessed} de ${withEmail.length})...`
+              `Atualizando contatos (${extrasProcessed} de ${withExtraData.length})...`
             );
           }
         }

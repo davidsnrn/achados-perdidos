@@ -72,7 +72,8 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
             name: p.name,
             course: '',
             situation: 'Ativo',
-            email: ''
+            email: p.email || '',
+            phone: p.phone || ''
           } as Student))
           .slice(0, 10)
         );

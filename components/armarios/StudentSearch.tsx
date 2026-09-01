@@ -107,6 +107,12 @@ const StudentSearch: React.FC<StudentSearchProps> = ({
 
   const handleReturnDirectly = () => {
     if (!editingLoan) return;
+    const l = lockers.find(loc => loc.number === editingLoan.lockerNumber);
+    const hasActiveReserve = (l?.loanHistory || []).some(h => h.loanType === 'reserve_key' && !h.returnDate);
+    if (hasActiveReserve) {
+      alert('Não é possível devolver a chave original enquanto a chave reserva estiver em posse do solicitante!\n\nPor favor, registre a devolução da chave reserva primeiro.');
+      return;
+    }
     if (window.confirm(`Confirmar devolução da chave do armário #${editingLoan.lockerNumber}?`)) {
       onReturnLocker(editingLoan.lockerNumber);
       setEditingLoan(null);

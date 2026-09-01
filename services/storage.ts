@@ -838,14 +838,6 @@ export const StorageService = {
     return [];
   },
 
-  updatePersonPhone: async (matricula: string, phone: string): Promise<void> => {
-    const { error } = await supabase
-      .from('people')
-      .update({ phone: phone || null })
-      .eq('matricula', matricula);
-    if (error) throw error;
-  },
-
   savePerson: async (person: Person, oldMatricula?: string) => {
     if (oldMatricula && oldMatricula !== person.matricula) {
       // 1. Verificar se a nova matrícula já existe (para evitar conflito de PK)

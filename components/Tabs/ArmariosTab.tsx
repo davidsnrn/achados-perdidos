@@ -241,6 +241,12 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     const l = lockers.find(loc => loc.number === lockerNumber);
     if (!l || !l.currentLoan) return;
 
+    const hasActiveReserve = (l.loanHistory || []).some(h => h.loanType === 'reserve_key' && !h.returnDate);
+    if (hasActiveReserve) {
+      alert('Não é possível devolver a chave original enquanto a chave reserva estiver em posse do solicitante!\n\nPor favor, registre a devolução da chave reserva primeiro.');
+      return;
+    }
+
     const now = new Date();
     const finishedLoan = {
       ...l.currentLoan,
@@ -329,8 +335,8 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
     try {
       await StorageService.updateSingleLocker(updatedLocker);
       onUpdate();
-      setShowDetail(false);
-      setSelectedLocker(null);
+      setSelectedLocker(updatedLocker);
+      // Mantém o modal aberto e atualizado para permitir a devolução da chave original em seguida
       alert("Chave reserva devolvida com sucesso!");
     } catch (e) {
       alert("Erro ao registrar devolução da chave reserva.");

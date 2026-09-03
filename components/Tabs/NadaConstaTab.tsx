@@ -82,12 +82,11 @@ export const NadaConstaTab: React.FC<NadaConstaTabProps> = ({
                 : [rawSearch];
 
             const campusId = (user.level === UserLevel.ADMIN) ? (adminGlobalCampusId || undefined) : user.campus_id;
-            const searchSetorId = isAdmin ? activeSetorId || undefined : user.setor_id;
             let allResults: Person[] = [];
 
-            // Buscar cada grupo no servidor de forma assíncrona
+            // Buscar cada grupo no servidor de forma assíncrona (sem restrição por setor)
             const searchPromises = searchGroups.map(group =>
-                StorageService.searchPeople(group, 50, campusId, undefined, searchSetorId)
+                StorageService.searchPeople(group, 50, campusId)
             );
 
             const promiseResults = await Promise.all(searchPromises);

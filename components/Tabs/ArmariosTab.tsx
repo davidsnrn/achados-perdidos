@@ -1175,6 +1175,7 @@ export const ArmariosTab: React.FC<ArmariosTabProps> = ({ user, lockers, onUpdat
       {showLoanModal && selectedLocker && (
         <LockerLoanModal
           locker={selectedLocker}
+          lockers={lockers}
           operatorName={user?.name}
           onClose={() => setShowLoanModal(false)}
           onSubmit={handleLoanSubmit}

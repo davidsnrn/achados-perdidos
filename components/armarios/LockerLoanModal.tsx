@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Phone, BookOpen, Clock, Loader2, Search, Calendar, FileText } from 'lucide-react';
-import { Locker, Student, LoanData } from '../../types-armarios';
+import { X, Phone, BookOpen, Clock, Loader2, Search, Calendar, FileText, AlertTriangle, KeyRound } from 'lucide-react';
+import { Locker, Student, LoanData, LockerStatus } from '../../types-armarios';
 import { StorageService } from '../../services/storage';
 
 
 interface LockerLoanModalProps {
   locker: Locker;
+  lockers?: Locker[];
   operatorName?: string;
   onClose: () => void;
   onSubmit: (data: LoanData) => void;
@@ -13,6 +14,7 @@ interface LockerLoanModalProps {
 
 const LockerLoanModal: React.FC<LockerLoanModalProps> = ({ 
   locker, 
+  lockers = [],
   operatorName, 
   onClose, 
   onSubmit 
@@ -21,6 +23,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Student[]>([]);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const formatPhone = (value: string) => {
@@ -46,6 +49,62 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
     loanTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     campus_id: locker.campus_id
   });
+
+  // Identificar empréstimos ativos (titular ou chave reserva) para a mesma matrícula
+  const activeStudentLoans = useMemo(() => {
+    if (!formData.registrationNumber || !lockers || lockers.length === 0) return [];
+    const reg = formData.registrationNumber.trim().toLowerCase();
+    const loans: {
+      lockerNumber: string;
+      location: string;
+      type: 'titular' | 'reserve_key';
+      date: string;
+      time?: string;
+    }[] = [];
+
+    lockers.forEach(l => {
+      // 1. Empréstimo titular ativo
+      if (l.status === LockerStatus.OCCUPIED && l.currentLoan) {
+        if (l.currentLoan.registrationNumber?.trim().toLowerCase() === reg) {
+          loans.push({
+            lockerNumber: l.number,
+            location: l.location || '',
+            type: 'titular',
+            date: l.currentLoan.loanDate,
+            time: l.currentLoan.loanTime
+          });
+        }
+      }
+
+      // 2. Chave reserva ativa (pendente de devolução)
+      if (l.loanHistory && l.loanHistory.length > 0) {
+        l.loanHistory.forEach(hist => {
+          if (hist.loanType === 'reserve_key' && !hist.returnDate) {
+            if (hist.registrationNumber?.trim().toLowerCase() === reg) {
+              loans.push({
+                lockerNumber: l.number,
+                location: l.location || '',
+                type: 'reserve_key',
+                date: hist.loanDate,
+                time: hist.loanTime
+              });
+            }
+          }
+        });
+      }
+    });
+
+    return loans;
+  }, [formData.registrationNumber, lockers]);
+
+  const formatDisplayDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    if (dateStr.includes('-')) {
+      const [y, m, d] = dateStr.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    return dateStr;
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -93,6 +152,7 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
     }));
     setStudentSearch(student.name);
     setShowSearchDropdown(false);
+    setConfirmDuplicate(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -107,6 +167,11 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.studentName && formData.registrationNumber) {
+      if (activeStudentLoans.length > 0 && !confirmDuplicate) {
+        alert('Este aluno já possui uma chave/armário emprestado. Marque a caixa de confirmação para prosseguir.');
+        return;
+      }
+
       const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
       // Atualizar o telefone da pessoa no banco se foi preenchido/alterado
@@ -123,7 +188,11 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
     }
   };
 
-  const isFormValid = formData.studentName && formData.registrationNumber;
+  const isFormValid = Boolean(
+    formData.studentName && 
+    formData.registrationNumber && 
+    (activeStudentLoans.length === 0 || confirmDuplicate)
+  );
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -212,6 +281,64 @@ const LockerLoanModal: React.FC<LockerLoanModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Alerta Imediato de Chave/Armário Já Emprestado */}
+            {activeStudentLoans.length > 0 && (
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-5 space-y-4 animate-fade-in shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-amber-900 uppercase tracking-wider">
+                      Atenção: Aluno já possui chave/armário emprestado!
+                    </h4>
+                    <p className="text-[11px] font-bold text-amber-700">
+                      Esta matrícula ({formData.registrationNumber}) possui {activeStudentLoans.length === 1 ? '1 pendência ativa' : `${activeStudentLoans.length} pendências ativas`}:
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {activeStudentLoans.map((loan, idx) => (
+                    <div key={idx} className="bg-white/90 border border-amber-200 rounded-2xl p-3.5 flex items-center justify-between text-xs shadow-2xs">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-800 uppercase">Armário #{loan.lockerNumber}</span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${loan.type === 'titular' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                            {loan.type === 'titular' ? 'Armário Titular' : 'Chave Reserva'}
+                          </span>
+                        </div>
+                        {loan.location && (
+                          <p className="text-[11px] text-slate-500 font-medium">{loan.location}</p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[11px] font-black text-amber-900">
+                          {formatDisplayDate(loan.date)}
+                        </p>
+                        {loan.time && (
+                          <p className="text-[10px] text-slate-500 font-bold">às {loan.time}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-amber-200/60 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="confirmDuplicateLoan"
+                    checked={confirmDuplicate}
+                    onChange={(e) => setConfirmDuplicate(e.target.checked)}
+                    className="w-5 h-5 rounded-lg border-2 border-amber-400 text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600 shrink-0"
+                  />
+                  <label htmlFor="confirmDuplicateLoan" className="text-xs font-bold text-amber-900 cursor-pointer select-none leading-snug">
+                    Confirmar empréstimo mesmo assim
+                  </label>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Turma / Curso */}

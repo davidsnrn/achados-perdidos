@@ -44,6 +44,8 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
   const [deletedLoanIds, setDeletedLoanIds] = useState<string[]>([]);
   const [deletedMaintenanceIndices, setDeletedMaintenanceIndices] = useState<number[]>([]);
 
+  const activeReserve = (locker.loanHistory || []).find(l => l.loanType === 'reserve_key' && !l.returnDate);
+
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return '';
     if (dateStr.includes('-')) {
@@ -121,6 +123,74 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
           </div>
 
           <div className="space-y-6">
+            {activeReserve && (
+              <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5 space-y-4 shadow-sm animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="px-3 py-1 bg-amber-200 text-amber-800 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                    Chave Reserva Pendente
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-700">
+                    Emprestada em {formatDisplayDate(activeReserve.loanDate)} {activeReserve.loanTime ? `às ${activeReserve.loanTime}` : ''}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-black text-slate-800 uppercase">{activeReserve.studentName}</p>
+                  <p className="text-[11px] font-bold text-slate-500">{activeReserve.registrationNumber} • {activeReserve.studentClass || '—'}</p>
+                  {activeReserve.observation && (
+                    <p className="text-xs italic text-amber-800 mt-1 font-medium bg-amber-100/50 p-2 rounded-lg">{activeReserve.observation}</p>
+                  )}
+                </div>
+
+                {onReturnReserveKey && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
+                        onReturnReserveKey(locker.number, activeReserve.id);
+                      }
+                    }}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-3.5 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Devolver Chave Reserva
+                  </button>
+                )}
+
+                {onSendReserveKeyCharge && (
+                  <div className="bg-white/90 border border-amber-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Lembretes Enviados</p>
+                      <button
+                        onClick={() => onSendReserveKeyCharge(locker.number, activeReserve.id)}
+                        disabled={sendingReserveKeyCharge}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-lg transition-all flex items-center gap-1.5 uppercase text-[9px] tracking-wider"
+                      >
+                        {sendingReserveKeyCharge ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
+                        Enviar Lembrete
+                      </button>
+                    </div>
+                    {reserveKeyChargeHistory.length > 0 ? (
+                      <div className="space-y-2 max-h-[180px] overflow-y-auto">
+                        {reserveKeyChargeHistory.map((ch, i) => (
+                          <div key={ch.id || i} className="flex items-start gap-2 text-[10px] bg-slate-50 rounded-lg p-2 border border-amber-100">
+                            <Mail size={10} className="text-amber-500 mt-0.5 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-slate-700 truncate">{ch.person_name} — {ch.person_email}</p>
+                              <p className="text-slate-400 font-medium">
+                                {new Date(ch.sent_at).toLocaleString('pt-BR')}
+                                {ch.triggered_by_name ? ` por ${ch.triggered_by_name}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic text-center">Nenhum lembrete enviado ainda.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Estado Atual</h4>
 
@@ -211,128 +281,69 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                   </div>
 
                   <div className="col-span-2 pt-4 flex flex-col gap-3">
-                    {(() => {
-                      const activeReserve = (locker.loanHistory || []).find(l => l.loanType === 'reserve_key' && !l.returnDate);
-                      return (
-                        <>
+                    <button
+                      onClick={() => {
+                        if (activeReserve) {
+                          alert('Não é possível devolver a chave original enquanto a chave reserva estiver em posse do solicitante!\n\nPor favor, registre a devolução da chave reserva primeiro.');
+                          return;
+                        }
+                        if (window.confirm(`Confirmar devolução da chave do armário #${locker.number}?`)) {
+                          onReturnLocker(locker.number);
+                        }
+                      }}
+                      className={`w-full font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest ${
+                        activeReserve
+                          ? 'bg-red-300 text-white cursor-pointer hover:bg-red-400'
+                          : 'bg-red-600 hover:bg-red-700 text-white'
+                      }`}
+                    >
+                      Registrar Devolução da Chave
+                    </button>
+
+                    {!activeReserve && onReserveKeyLoan && !showReserveForm && (
+                      <button
+                        onClick={() => setShowReserveForm(true)}
+                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                        Emprestar Chave Reserva
+                      </button>
+                    )}
+
+                    {!activeReserve && onReserveKeyLoan && showReserveForm && (
+                      <div className="space-y-3 animate-fade-in">
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                          <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Motivo do Empréstimo da Chave Reserva</p>
+                          <textarea
+                            placeholder="Ex: Aluno perdeu a chave original, precisa de cópia..."
+                            className="w-full bg-white border border-amber-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:border-amber-500 outline-none resize-none"
+                            rows={3}
+                            value={reserveReason}
+                            onChange={(e) => setReserveReason(e.target.value)}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setShowReserveForm(false); setReserveReason(''); }}
+                            className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-black text-slate-400 uppercase text-[10px] hover:bg-slate-50"
+                          >
+                            Cancelar
+                          </button>
                           <button
                             onClick={() => {
-                              if (activeReserve) {
-                                alert('Não é possível devolver a chave original enquanto a chave reserva estiver em posse do solicitante!\n\nPor favor, registre a devolução da chave reserva primeiro.');
-                                return;
-                              }
-                              if (window.confirm(`Confirmar devolução da chave do armário #${locker.number}?`)) {
-                                onReturnLocker(locker.number);
-                              }
+                              if (!reserveReason.trim()) { alert("Informe o motivo do empréstimo da chave reserva."); return; }
+                              onReserveKeyLoan(locker, reserveReason.trim());
+                              setShowReserveForm(false);
+                              setReserveReason('');
                             }}
-                            className={`w-full font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest ${
-                              activeReserve
-                                ? 'bg-red-300 text-white cursor-pointer hover:bg-red-400'
-                                : 'bg-red-600 hover:bg-red-700 text-white'
-                            }`}
+                            className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg hover:bg-amber-700"
                           >
-                            Registrar Devolução da Chave
+                            Confirmar
                           </button>
-
-                          {activeReserve && onReturnReserveKey ? (
-                            <>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
-                                    onReturnReserveKey(locker.number, activeReserve.id);
-                                  }
-                                }}
-                                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Devolver Chave Reserva
-                              </button>
-
-                              {onSendReserveKeyCharge && (
-                                <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">Lembretes Enviados</p>
-                                    <button
-                                      onClick={() => onSendReserveKeyCharge(locker.number, activeReserve.id)}
-                                      disabled={sendingReserveKeyCharge}
-                                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-lg transition-all flex items-center gap-1.5 uppercase text-[9px] tracking-wider"
-                                    >
-                                      {sendingReserveKeyCharge ? <Loader2 size={12} className="animate-spin" /> : <Mail size={12} />}
-                                      Enviar Lembrete
-                                    </button>
-                                  </div>
-                                  {reserveKeyChargeHistory.length > 0 ? (
-                                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                      {reserveKeyChargeHistory.map((ch, i) => (
-                                        <div key={ch.id || i} className="flex items-start gap-2 text-[10px] bg-white rounded-lg p-2 border border-amber-100">
-                                          <Mail size={10} className="text-amber-500 mt-0.5 shrink-0" />
-                                          <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-slate-700 truncate">{ch.person_name} — {ch.person_email}</p>
-                                            <p className="text-slate-400 font-medium">
-                                              {new Date(ch.sent_at).toLocaleString('pt-BR')}
-                                              {ch.triggered_by_name ? ` por ${ch.triggered_by_name}` : ''}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-[10px] text-slate-400 italic text-center">Nenhum lembrete enviado ainda.</p>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {onReserveKeyLoan && !showReserveForm && (
-                                <button
-                                  onClick={() => setShowReserveForm(true)}
-                                  className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                                  Emprestar Chave Reserva
-                                </button>
-                              )}
-
-                              {onReserveKeyLoan && showReserveForm && (
-                                <div className="space-y-3 animate-fade-in">
-                                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                                    <p className="text-[10px] font-black text-amber-600 uppercase mb-2">Motivo do Empréstimo da Chave Reserva</p>
-                                    <textarea
-                                      placeholder="Ex: Aluno perdeu a chave original, precisa de cópia..."
-                                      className="w-full bg-white border border-amber-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:border-amber-500 outline-none resize-none"
-                                      rows={3}
-                                      value={reserveReason}
-                                      onChange={(e) => setReserveReason(e.target.value)}
-                                      autoFocus
-                                    />
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() => { setShowReserveForm(false); setReserveReason(''); }}
-                                      className="flex-1 px-4 py-3 border border-slate-200 rounded-xl font-black text-slate-400 uppercase text-[10px] hover:bg-slate-50"
-                                    >
-                                      Cancelar
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        if (!reserveReason.trim()) { alert("Informe o motivo do empréstimo da chave reserva."); return; }
-                                        onReserveKeyLoan(locker, reserveReason.trim());
-                                        setShowReserveForm(false);
-                                        setReserveReason('');
-                                      }}
-                                      className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-xl font-black uppercase text-[10px] shadow-lg hover:bg-amber-700"
-                                    >
-                                      Confirmar
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </>
-                      );
-                    })()}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : locker.status === LockerStatus.MAINTENANCE && locker.maintenanceRecord ? (
@@ -455,6 +466,19 @@ const LockerDetailModal: React.FC<LockerDetailModalProps> = ({
                                 </p>
                                 <div className="flex items-center gap-1.5">
                                   <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase inline-block ${item.returnDate ? 'bg-green-100 text-green-700' : item.loanType === 'reserve_key' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{item.returnDate ? 'Concluído' : item.loanType === 'reserve_key' ? 'Ativo (Reserva)' : 'Ativo'}</span>
+                                  {item.loanType === 'reserve_key' && !item.returnDate && onReturnReserveKey && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Confirmar devolução da chave reserva do armário #${locker.number}?`)) {
+                                          onReturnReserveKey(locker.number, item.id);
+                                        }
+                                      }}
+                                      className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-[8px] font-black uppercase transition-all shadow-sm flex items-center gap-1"
+                                      title="Devolver Chave Reserva"
+                                    >
+                                      Devolver
+                                    </button>
+                                  )}
                                   {onDeleteLoanHistory && (
                                     <button
                                       onClick={() => {

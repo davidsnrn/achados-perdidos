@@ -69,6 +69,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [reloanPerson, setReloanPerson] = useState<Person | null>(null);
     const [reloanPersonSearch, setReloanPersonSearch] = useState('');
     const [reloanSearchResults, setReloanSearchResults] = useState<Person[]>([]);
+    const [reloanPersonTypeFilter, setReloanPersonTypeFilter] = useState<'ALL' | 'Aluno' | 'Servidor'>('ALL');
     const [isSearchingReloan, setIsSearchingReloan] = useState(false);
     const [hasSearchedReloan, setHasSearchedReloan] = useState(false);
     const [isProcessingReloan, setIsProcessingReloan] = useState(false);
@@ -403,13 +404,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
         }
     };
 
-    const handleReloanPersonSearch = async (val?: string) => {
+    const handleReloanPersonSearch = async (val?: string, typeFilterOverride?: 'ALL' | 'Aluno' | 'Servidor') => {
         const query = val !== undefined ? val : reloanPersonSearch;
+        const currentType = typeFilterOverride !== undefined ? typeFilterOverride : reloanPersonTypeFilter;
         if (query.trim().length >= 2) {
             setIsSearchingReloan(true);
             setHasSearchedReloan(true);
             try {
-                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined, 'ALL');
+                const results = await StorageService.searchPeople(query, 10, user.campus_id || undefined, currentType);
                 setReloanSearchResults(results.slice(0, 10));
             } catch (error) {
                 console.error("Erro na busca:", error);
@@ -2163,7 +2165,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             </Modal>
 
             {/* Item Details/Action Modal */}
-            <Modal isOpen={!!viewingItem} onClose={() => setViewingItem(null)} title="Detalhes do Material">
+            <Modal isOpen={!!viewingItem} onClose={() => {
+                setViewingItem(null);
+                setShowReloanSearch(false);
+                setReloanPerson(null);
+                setReloanPersonSearch('');
+                setReloanSearchResults([]);
+                setHasSearchedReloan(false);
+            }} title="Detalhes do Material">
                 {viewingItem && (
                     <div className="space-y-6">
                         <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-xl">
@@ -2258,7 +2267,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             {viewingItem.status === 'LOANED' && !showReloanSearch ? (
                                 <>
                                     <button
-                                        onClick={() => { setShowReloanSearch(true); setReloanPersonSearch(''); setReloanSearchResults([]); setReloanPerson(null); }}
+                                        onClick={() => { setShowReloanSearch(true); setReloanPersonSearch(''); setReloanSearchResults([]); setReloanPerson(null); setReloanPersonTypeFilter('ALL'); }}
                                         className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
                                     >
                                         <Repeat size={18} /> Reemprestar
@@ -2283,6 +2292,47 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                 <div className="w-full space-y-4">
                                     <div>
                                         <p className="text-xs font-bold text-gray-400 uppercase mb-2">Selecionar Nova Pessoa para Empréstimo</p>
+                                        
+                                        {/* Filtros Secundários da busca de reempréstimo - Opção A (Botões) */}
+                                        <div className="flex bg-gray-100 p-1 rounded-xl mb-3 border border-gray-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setReloanPersonTypeFilter('ALL');
+                                                    if (reloanPersonSearch.trim().length >= 2) {
+                                                        handleReloanPersonSearch(reloanPersonSearch, 'ALL');
+                                                    }
+                                                }}
+                                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${reloanPersonTypeFilter === 'ALL' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-800'}`}
+                                            >
+                                                <Users size={13} /> Todos
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setReloanPersonTypeFilter('Aluno');
+                                                    if (reloanPersonSearch.trim().length >= 2) {
+                                                        handleReloanPersonSearch(reloanPersonSearch, 'Aluno');
+                                                    }
+                                                }}
+                                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${reloanPersonTypeFilter === 'Aluno' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-800'}`}
+                                            >
+                                                <GraduationCap size={13} /> Alunos
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setReloanPersonTypeFilter('Servidor');
+                                                    if (reloanPersonSearch.trim().length >= 2) {
+                                                        handleReloanPersonSearch(reloanPersonSearch, 'Servidor');
+                                                    }
+                                                }}
+                                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${reloanPersonTypeFilter === 'Servidor' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:text-gray-800'}`}
+                                            >
+                                                <UserCog size={13} /> Servidores
+                                            </button>
+                                        </div>
+
                                         <div className="relative">
                                             <input
                                                 type="text"
@@ -2335,11 +2385,11 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                     )}
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => { setShowReloanSearch(false); setReloanPerson(null); setReloanSearchResults([]); }}
+                                            onClick={() => { setShowReloanSearch(false); setReloanPerson(null); setReloanSearchResults([]); setReloanPersonSearch(''); setHasSearchedReloan(false); }}
                                             className="flex-1 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-all"
                                             disabled={isProcessingReloan}
                                         >
-                                            Cancelar
+                                            Cancelar Reempréstimo
                                         </button>
                                         <button
                                             onClick={handleReloan}
@@ -2349,7 +2399,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                                             {isProcessingReloan ? (
                                                 <><Loader2 size={18} className="animate-spin" /> Processando...</>
                                             ) : (
-                                                <><Repeat size={18} /> Reemprestar</>
+                                                <><Repeat size={18} /> Confirmar Reempréstimo</>
                                             )}
                                         </button>
                                     </div>

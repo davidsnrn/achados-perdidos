@@ -77,8 +77,9 @@ export function enrichRecordsWithDynamicPrev<T extends PrinterCounterRecord>(rec
 function calcBilling(records: PrinterCounterRecord[], copies: CopyRecord[], cfg: PrinterBillingConfig) {
   const enriched = enrichRecordsWithDynamicPrev(records);
   const sum = (format: 'A4'|'A3', color: 'MONO'|'POLI') => {
+    // Exclude 'Controle de Cópias' synced mirror records — they duplicate copySum below.
     const counterSum = enriched
-      .filter(r => r.format === format && r.color_mode === color)
+      .filter(r => r.format === format && r.color_mode === color && r.local_name !== 'Controle de Cópias')
       .reduce((s, r) => s + r.dynamic_consumo, 0);
     const copySum = copies
       .filter(r => r.format === format && r.color_mode === color)
@@ -1556,15 +1557,35 @@ export const PrinterNFTab: React.FC<PrinterNFTabProps> = ({ user, campuses, admi
         )}
 
         {/* Total footer */}
-        <div className="bg-slate-800 text-white px-5 py-3 flex items-center justify-between text-sm">
-          <span className="font-black uppercase tracking-widest">Total Consumo</span>
-          <span className="font-black text-xl font-mono">
-            {fmt(
-              records.reduce((s, r) => s + Math.max(0, r.counter_curr - r.counter_prev), 0) +
-              copyRecords.reduce((s, r) => s + (r.quantity || 0), 0)
-            )}
-          </span>
-        </div>
+        {(() => {
+          // Sum directly from printerGroups to avoid double-counting.
+          // 'Controle de Cópias' synced counter records are excluded — they mirror
+          // copy_records which are already counted via group.copies.
+          const totalConsumo = printerGroups.reduce((groupSum, group) => {
+            const seenKeys = new Set<string>();
+            const regularRecs: typeof group.records = [];
+            for (const r of group.records) {
+              if (r.local_name === 'Controle de Cópias') continue; // skip synced mirror records
+              const key = `${r.format}_${r.color_mode}`;
+              if (!seenKeys.has(key) && r.counter_prev === r.counter_curr) {
+                seenKeys.add(key);
+              } else {
+                if (!seenKeys.has(key)) seenKeys.add(key);
+                if (r.dynamic_consumo > 0) regularRecs.push(r);
+              }
+            }
+            const counterSum = regularRecs.reduce((s, r) => s + r.dynamic_consumo, 0);
+            const copySum = group.copies.reduce((s, c) => s + (c.quantity || 0), 0);
+            return groupSum + counterSum + copySum;
+          }, 0);
+
+          return (
+            <div className="bg-slate-800 text-white px-5 py-3 flex items-center justify-between text-sm">
+              <span className="font-black uppercase tracking-widest">Total Consumo</span>
+              <span className="font-black text-xl font-mono">{fmt(totalConsumo)}</span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Billing Detail */}

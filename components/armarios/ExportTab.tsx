@@ -15,6 +15,7 @@ interface ExportEntry {
     studentClass: string;
     actionType: 'Empréstimo' | 'Devolução';
     actionDate: string;
+    observation?: string;
 }
 
 const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
@@ -49,7 +50,8 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                     studentName: locker.currentLoan.studentName,
                     studentClass: locker.currentLoan.studentClass,
                     actionType: 'Empréstimo',
-                    actionDate: locker.currentLoan.loanDate
+                    actionDate: locker.currentLoan.loanDate,
+                    observation: locker.currentLoan.observation || ''
                 });
             }
 
@@ -62,7 +64,8 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                     studentName: loan.studentName,
                     studentClass: loan.studentClass,
                     actionType: 'Empréstimo',
-                    actionDate: loan.loanDate
+                    actionDate: loan.loanDate,
+                    observation: loan.observation || ''
                 });
 
                 // Registro da Devolução (Se devolvido)
@@ -73,7 +76,8 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                         studentName: loan.studentName,
                         studentClass: loan.studentClass,
                         actionType: 'Devolução',
-                        actionDate: loan.returnDate
+                        actionDate: loan.returnDate,
+                        observation: loan.observation || ''
                     });
                 }
             });
@@ -93,7 +97,7 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
         if (exportData.length === 0) return;
 
         // Cabeçalhos do CSV
-        const headers = ["Número do Armário", "Matrícula", "Nome do Aluno", "Turma", "Tipo de Ação", "Data"];
+        const headers = ["Número do Armário", "Matrícula", "Nome do Aluno", "Turma", "Tipo de Ação", "Data", "Observação"];
 
         // Conteúdo formatado
         const csvRows = exportData.map(entry => [
@@ -102,7 +106,8 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
             `"${entry.studentName.replace(/"/g, '""')}"`, // Escapar aspas em nomes
             `"${entry.studentClass.replace(/"/g, '""')}"`,
             entry.actionType,
-            entry.actionDate
+            entry.actionDate,
+            `"${(entry.observation || '').replace(/"/g, '""')}"`
         ].join(';')); // Usamos ponto e vírgula para compatibilidade com Excel em PT-BR
 
         const csvContent = "\uFEFF" + [headers.join(';'), ...csvRows].join('\n'); // Adicionamos BOM para acentuação correta no Excel
@@ -133,7 +138,7 @@ const ExportTab: React.FC<ExportTabProps> = ({ lockers, onClearAll }) => {
                             Armários Emprestados
                         </h2>
                         <p className="text-emerald-100/80 text-sm font-medium leading-relaxed">
-                            Exporte apenas a lista atual de armários que estão sob empréstimo contendo <strong>Número do Armário</strong>, <strong>Matrícula</strong>, <strong>Nome</strong> e <strong>E-mail</strong>.
+                            Exporte apenas a lista atual de armários que estão sob empréstimo contendo <strong>Número do Armário</strong>, <strong>Matrícula</strong>, <strong>Nome</strong>, <strong>E-mail</strong> e <strong>Observação</strong>.
                         </p>
                         <div className="flex items-center gap-3 pt-2">
                             <span className="bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 px-3.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5">

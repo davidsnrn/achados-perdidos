@@ -4,7 +4,7 @@ import { StorageService } from '../services/storage';
 
 /**
  * Exporta dados exclusivamente dos armários que estão sob empréstimo para um arquivo Excel (.xlsx).
- * Colunas: Número do Armário, Matrícula, Nome, E-mail.
+ * Colunas: Número do Armário, Matrícula, Nome, E-mail, Observação.
  */
 export async function exportBorrowedLockersToExcel(lockers: Locker[]): Promise<void> {
   const borrowedLockers = lockers.filter(l => l.status === LockerStatus.OCCUPIED || l.currentLoan);
@@ -20,6 +20,7 @@ export async function exportBorrowedLockersToExcel(lockers: Locker[]): Promise<v
       const registration = loan?.registrationNumber || '';
       const name = loan?.studentName || 'Não Informado';
       let email = loan?.studentEmail || '';
+      const observation = loan?.observation || '';
 
       if (!email && registration) {
         try {
@@ -34,7 +35,8 @@ export async function exportBorrowedLockersToExcel(lockers: Locker[]): Promise<v
         'Número do Armário': locker.number,
         'Matrícula': registration,
         'Nome': name,
-        'E-mail': email || 'Sem e-mail'
+        'E-mail': email || 'Sem e-mail',
+        'Observação': observation
       };
     })
   );
@@ -47,7 +49,8 @@ export async function exportBorrowedLockersToExcel(lockers: Locker[]): Promise<v
     { wch: 20 }, // Número do Armário
     { wch: 22 }, // Matrícula
     { wch: 40 }, // Nome
-    { wch: 40 }  // E-mail
+    { wch: 40 }, // E-mail
+    { wch: 50 }  // Observação
   ];
 
   const workbook = XLSX.utils.book_new();

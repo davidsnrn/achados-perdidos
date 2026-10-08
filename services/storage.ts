@@ -414,7 +414,17 @@ export const StorageService = {
       // 2. Criar usuário no Supabase Auth via API
       try {
         const authEmail = `${user.matricula}@sistema.local`;
-        const { error: signUpError } = await supabase.auth.signUp({
+        
+        // Instância temporária sem persistência de sessão para não desconectar o admin atual
+        const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          }
+        });
+
+        const { error: signUpError } = await tempSupabase.auth.signUp({
           email: authEmail,
           password: password,
           options: { data: { matricula: user.matricula, name: user.name } }

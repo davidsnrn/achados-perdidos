@@ -411,13 +411,20 @@ export const StorageService = {
 
       if (error) throw error;
 
+      // Guarda a sessão de quem está criando o usuário. O signUp do Supabase
+      // autentica automaticamente o usuário recém-criado no client que o executa,
+      // então precisamos garantir que a sessão do criador não seja substituída.
+      const { data: { session: creatorSession } } = await supabase.auth.getSession();
+
       // 2. Criar usuário no Supabase Auth via API
       try {
         const authEmail = `${user.matricula}@sistema.local`;
-        
-        // Instância temporária sem persistência de sessão para não desconectar o admin atual
+
+        // Instância temporária sem persistência de sessão para não desconectar o admin atual.
+        // O storageKey próprio evita compartilhar estado/chaves com o client principal.
         const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
           auth: {
+            storageKey: 'sb-temp-user-creation',
             persistSession: false,
             autoRefreshToken: false,
             detectSessionInUrl: false
@@ -438,6 +445,21 @@ export const StorageService = {
           }
         } else {
           console.log(`[SAVE USER] Usuário ${user.matricula} criado com sucesso no Auth.`);
+        }
+
+        // Defesa extra: se o client principal tiver assumido a sessão do novo
+        // usuário por qualquer motivo, restaura a sessão de quem fez o cadastro.
+        if (creatorSession) {
+          const { data: { session: sessionAfterCreate } } = await supabase.auth.getSession();
+          if (sessionAfterCreate?.user?.email !== creatorSession.user.email) {
+            const { error: restoreError } = await supabase.auth.setSession({
+              access_token: creatorSession.access_token,
+              refresh_token: creatorSession.refresh_token
+            });
+            if (restoreError) {
+              console.warn(`[SAVE USER] Não foi possível restaurar a sessão do criador: ${restoreError.message}`);
+            }
+          }
         }
       } catch (authEx) {
         console.error(`[SAVE USER] Exceção ao criar no Auth:`, authEx);

@@ -1655,7 +1655,7 @@ export const StorageService = {
   },
 
 
-  loginSuap: async (matricula: string, pass: string): Promise<User | null> => {
+  loginSuap: async (matricula: string, pass: string): Promise<User | null | 'NOT_REGISTERED'> => {
     const cleanMatricula = matricula ? matricula.trim() : '';
     const cleanPass = pass ? pass.trim() : '';
 
@@ -1757,7 +1757,7 @@ export const StorageService = {
         }
       }
 
-      // 4. Buscar ou criar o usuário na tabela local (Supabase)
+      // 4. Buscar o usuário na tabela local (Supabase)
       const { data: existingUser, error: findErr } = await supabase
         .from('users')
         .select('*')
@@ -1782,33 +1782,8 @@ export const StorageService = {
 
         return { ...existingUser, level: userLevel, access_logs: updatedAccessLogs } as User;
       } else {
-        console.log('[LOGIN SUAP] Novo usuário via SUAP. Criando registro local...');
-        const newUser: Partial<User> = {
-          matricula: cleanMatricula,
-          name: profileName,
-          email: profileEmail,
-          level: UserLevel.ADMIN,
-          access_logs: [dateStr]
-        };
-
-        const { data: createdUser, error: createError } = await supabase
-          .from('users')
-          .insert(newUser)
-          .select('*')
-          .maybeSingle();
-
-        if (!createError && createdUser) return createdUser as User;
-
-        if (createError) console.warn('[LOGIN SUAP] Erro ao inserir usuário local:', createError);
-
-        return {
-          id: `suap-${cleanMatricula}`,
-          matricula: cleanMatricula,
-          name: profileName,
-          email: profileEmail,
-          level: UserLevel.ADMIN,
-          access_logs: [dateStr]
-        } as User;
+        console.log('[LOGIN SUAP] Usuário não encontrado na tabela local. Acesso negado.');
+        return 'NOT_REGISTERED';
       }
     } catch (err) {
       console.error('[LOGIN SUAP] Erro na requisição SUAP:', err);

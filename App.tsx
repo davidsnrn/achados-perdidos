@@ -854,11 +854,19 @@ const App: React.FC = () => {
       let loggedUser = null;
       if (useSuapTestMode) {
         console.log('[LOGIN] Tentando autenticação via SUAP...');
+        let suapResult: User | null | 'NOT_REGISTERED' = null;
         try {
-          loggedUser = await StorageService.loginSuap(mat, pass);
+          suapResult = await StorageService.loginSuap(mat, pass);
         } catch (suapErr) {
           console.warn('[LOGIN] Falha/Erro na API do SUAP, tentando fallback local...', suapErr);
         }
+
+        if (suapResult === 'NOT_REGISTERED') {
+          setLoginError('Você não possui cadastro no sistema. Contate o administrador.');
+          return;
+        }
+
+        loggedUser = suapResult;
 
         // Fallback automático para login local caso o SUAP não retorne usuário
         if (!loggedUser) {

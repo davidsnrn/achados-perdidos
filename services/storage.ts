@@ -455,18 +455,33 @@ export const StorageService = {
 
   deleteUser: async (id: string) => {
     await supabase.from('student_notifications').update({ operator_id: null }).eq('operator_id', id);
+    await supabase.from('teacher_attendance').update({ operator_id: null }).eq('operator_id', id);
+    await supabase.from('teacher_planned_absences').update({ operator_id: null }).eq('operator_id', id);
+    await supabase.from('teacher_reposicoes').update({ operator_id: null }).eq('operator_id', id);
+    await supabase.from('room_bookings').update({ operator_id: null }).eq('operator_id', id);
     const { error } = await supabase.from('users').delete().eq('id', id);
     if (error) throw error;
   },
 
   deleteAllUsers: async (currentAdminId: string, campusId?: string, setorId?: string) => {
-    let query = supabase.from('users').delete();
-    if (campusId) {
-      query = query.eq('campus_id', campusId);
+    let userIds: string[] = [];
+    let userQuery = supabase.from('users').select('id');
+    if (campusId) userQuery = userQuery.eq('campus_id', campusId);
+    if (setorId) userQuery = userQuery.eq('setor_id', setorId);
+    const { data: users } = await userQuery;
+    userIds = (users || []).map(u => u.id).filter(id => id !== currentAdminId);
+
+    for (const uid of userIds) {
+      await supabase.from('student_notifications').update({ operator_id: null }).eq('operator_id', uid);
+      await supabase.from('teacher_attendance').update({ operator_id: null }).eq('operator_id', uid);
+      await supabase.from('teacher_planned_absences').update({ operator_id: null }).eq('operator_id', uid);
+      await supabase.from('teacher_reposicoes').update({ operator_id: null }).eq('operator_id', uid);
+      await supabase.from('room_bookings').update({ operator_id: null }).eq('operator_id', uid);
     }
-    if (setorId) {
-      query = query.eq('setor_id', setorId);
-    }
+
+    let query = supabase.from('users').delete().neq('id', currentAdminId);
+    if (campusId) query = query.eq('campus_id', campusId);
+    if (setorId) query = query.eq('setor_id', setorId);
     const { error } = await query;
     if (error) throw error;
   },

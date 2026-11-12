@@ -878,6 +878,36 @@ export const StorageService = {
     return data || [];
   },
 
+  getPeopleByMatriculas: async (matriculas: string[], campusId?: string): Promise<Person[]> => {
+    const unique = Array.from(new Set(matriculas.map(m => m.trim()).filter(Boolean)));
+    if (unique.length === 0) return [];
+
+    // Tenta variações de caixa para tolerar matrículas digitadas em minúsculas/maiúsculas
+    const variants = Array.from(new Set([
+      ...unique,
+      ...unique.map(m => m.toUpperCase()),
+      ...unique.map(m => m.toLowerCase())
+    ]));
+
+    try {
+      let query = supabase
+        .from('people')
+        .select('name, matricula, campus_id, type, email, phone, setor_id')
+        .in('matricula', variants);
+
+      if (campusId) {
+        query = query.eq('campus_id', campusId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Erro ao buscar pessoas por matrícula:', e);
+      return [];
+    }
+  },
+
   getPeople: async (): Promise<Person[]> => {
     // Keep it for backward compatibility but return empty if not absolutely needed
     // In most tabs, we should use searchPeople

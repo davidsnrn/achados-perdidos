@@ -168,6 +168,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     const [searchResultsPeople, setSearchResultsPeople] = useState<Person[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
     const [selectedPersonIndex, setSelectedPersonIndex] = useState<number | null>(null);
+    const [personSearchNotFound, setPersonSearchNotFound] = useState<string[]>([]);
+    const [isMultiSearch, setIsMultiSearch] = useState(false);
 
     // View Borrowers State
     const [showBorrowersModal, setShowBorrowersModal] = useState(false);
@@ -326,21 +328,48 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         setLoanPersonSearch(val);
         // Clear results on change, matching FoundItemsTab behavior
         setSearchResultsPeople([]);
+        setPersonSearchNotFound([]);
+        setIsMultiSearch(false);
         setSelectedPersonIndex(null);
     };
 
     const performPersonSearch = async () => {
-        const val = loanPersonSearch.trim();
-        if (val.length < 2) return;
+        const raw = loanPersonSearch.trim();
+        if (raw.length < 2) return;
+
+        const campusFilter = user.level === UserLevel.ADMIN ? undefined : user.campus_id;
+        const parts = raw.split(/[,;]+/).map(p => p.trim()).filter(Boolean);
 
         setIsSearchingPeople(true);
         try {
-            const results = await StorageService.searchPeople(val, 10, user.level === UserLevel.ADMIN ? undefined : user.campus_id);
-            setSearchResultsPeople(results);
-            if (results.length > 0) {
-                setSelectedPersonIndex(0);
+            // Múltiplas matrículas separadas por vírgula/ponto e vírgula
+            if (parts.length > 1) {
+                setIsMultiSearch(true);
+                const found = await StorageService.getPeopleByMatriculas(parts, campusFilter);
+                const foundByMatricula = new Map(found.map(p => [p.matricula.trim().toLowerCase(), p]));
+
+                const results: Person[] = [];
+                const seen = new Set<string>();
+                for (const m of parts) {
+                    const key = m.toLowerCase();
+                    const person = foundByMatricula.get(key);
+                    if (person && !seen.has(key)) {
+                        seen.add(key);
+                        results.push(person);
+                    }
+                }
+
+                setSearchResultsPeople(results);
+                setPersonSearchNotFound(parts.filter(m => !foundByMatricula.has(m.toLowerCase())));
+                setSelectedPersonIndex(results.length > 0 ? 0 : null);
             } else {
-                setSelectedPersonIndex(null);
+                // Busca atual: nome ou matrícula
+                setIsMultiSearch(false);
+                const results = await StorageService.searchPeople(raw, 10, campusFilter);
+                setSearchResultsPeople(results);
+                const looksLikeMatricula = /^[0-9A-Za-z._-]+$/.test(raw) && /\d{3,}/.test(raw);
+                setPersonSearchNotFound(results.length === 0 && looksLikeMatricula ? [raw] : []);
+                setSelectedPersonIndex(results.length > 0 ? 0 : null);
             }
         } catch (err) {
             console.error("Erro busca pessoas:", err);
@@ -349,12 +378,32 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
         }
     };
 
-    const handleAddPerson = (p: Person) => {
+    const handleAddPerson = (p: Person, keepResults = false) => {
         if (!loanPersons.find(lp => lp.matricula === p.matricula)) {
             setLoanPersons(prev => [...prev, p]);
         }
+        if (keepResults) {
+            setSearchResultsPeople(prev => prev.filter(r => r.matricula !== p.matricula));
+            setSelectedPersonIndex(null);
+        } else {
+            setLoanPersonSearch('');
+            setSearchResultsPeople([]);
+            setPersonSearchNotFound([]);
+            setIsMultiSearch(false);
+            setSelectedPersonIndex(null);
+        }
+    };
+
+    const handleAddAllFound = () => {
+        setLoanPersons(prev => {
+            const existing = new Set(prev.map(p => p.matricula));
+            const toAdd = searchResultsPeople.filter(p => !existing.has(p.matricula));
+            return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+        });
         setLoanPersonSearch('');
         setSearchResultsPeople([]);
+        setPersonSearchNotFound([]);
+        setIsMultiSearch(false);
         setSelectedPersonIndex(null);
     };
 
@@ -375,7 +424,9 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
             }
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            if (selectedPersonIndex !== null && searchResultsPeople[selectedPersonIndex]) {
+            if (/[,;]/.test(loanPersonSearch)) {
+                performPersonSearch();
+            } else if (selectedPersonIndex !== null && searchResultsPeople[selectedPersonIndex]) {
                 handleAddPerson(searchResultsPeople[selectedPersonIndex]);
             } else if (loanPersonSearch.trim().length >= 2) {
                 performPersonSearch();
@@ -491,6 +542,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                 setLoanPersons([]);
                 setLoanPersonSearch('');
                 setSearchResultsPeople([]);
+                setPersonSearchNotFound([]);
+                setIsMultiSearch(false);
                 setLoanBookSearch('');
                 setLoanObs('');
                 setShowQuickLoanModal(false);
@@ -560,6 +613,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
     });
 
     const campusName = campuses.find(c => c.id === (user.level === UserLevel.ADMIN ? selectedCampusId : user.campus_id))?.name || 'Câmpus Principal';
+
+    const visibleSearchPeople = searchResultsPeople.filter(p => !loanPersons.find(lp => lp.matricula === p.matricula));
 
     const handlePrint = () => {
         const now = new Date();
@@ -1000,6 +1055,8 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                     setShowQuickLoanModal(false);
                     setLoanPersonSearch('');
                     setSearchResultsPeople([]);
+                    setPersonSearchNotFound([]);
+                    setIsMultiSearch(false);
                     setLoanBookSearch('');
                 }}
                 title="Empréstimo Rápido (Múltiplos Livros)"
@@ -1082,7 +1139,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                 <Search className="absolute left-3 top-2.5 text-gray-400 group-focus-within/search:text-ifrn-green" size={16} />
                                 <input
                                     type="text"
-                                    placeholder={loanPersons.length === 0 ? 'Buscar por nome ou matrícula...' : 'Adicionar outro aluno...'}
+                                    placeholder={loanPersons.length === 0 ? 'Nome/matrícula, ou várias matrículas separadas por vírgula...' : 'Adicionar outro aluno...'}
                                     className="w-full pl-10 pr-12 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-ifrn-green outline-none"
                                     value={loanPersonSearch}
                                     onChange={e => handlePersonSearchChange(e.target.value)}
@@ -1097,24 +1154,32 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
                                 >
                                     <Search size={18} />
                                 </button>
-                                {searchResultsPeople.length > 0 && (
+                                {(visibleSearchPeople.length > 0 || personSearchNotFound.length > 0) && (
                                     <div className="absolute z-[100] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                                        {searchResultsPeople
-                                            .filter(p => !loanPersons.find(lp => lp.matricula === p.matricula))
-                                            .map((p, idx) => (
-                                                <button
-                                                    key={p.matricula}
-                                                    onClick={() => handleAddPerson(p)}
-                                                    className={`w-full text-left p-3 transition-colors border-b last:border-0 border-gray-100 ${selectedPersonIndex === idx ? 'bg-ifrn-green/10 border-l-4 border-l-ifrn-green' : 'hover:bg-gray-50'}`}
-                                                    onMouseMove={() => setSelectedPersonIndex(idx)}
-                                                >
-                                                    <p className={`font-bold text-sm ${selectedPersonIndex === idx ? 'text-ifrn-darkGreen' : 'text-gray-800'}`}>{p.name}</p>
-                                                    <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula || 'Matrícula não informada'}</p>
-                                                </button>
-                                            ))
-                                        }
-                                        {searchResultsPeople.filter(p => !loanPersons.find(lp => lp.matricula === p.matricula)).length === 0 && !isSearchingPeople && (
-                                            <div className="p-4 text-center text-xs text-gray-400">Nenhum aluno encontrado.</div>
+                                        {isMultiSearch && visibleSearchPeople.length > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={handleAddAllFound}
+                                                className="w-full text-left px-3 py-2 bg-ifrn-green/10 text-ifrn-darkGreen font-bold text-xs hover:bg-ifrn-green/20 border-b border-ifrn-green/20 sticky top-0"
+                                            >
+                                                Adicionar todos os encontrados ({visibleSearchPeople.length})
+                                            </button>
+                                        )}
+                                        {visibleSearchPeople.map((p, idx) => (
+                                            <button
+                                                key={p.matricula}
+                                                onClick={() => handleAddPerson(p, isMultiSearch)}
+                                                className={`w-full text-left p-3 transition-colors border-b last:border-0 border-gray-100 ${selectedPersonIndex === idx ? 'bg-ifrn-green/10 border-l-4 border-l-ifrn-green' : 'hover:bg-gray-50'}`}
+                                                onMouseMove={() => setSelectedPersonIndex(idx)}
+                                            >
+                                                <p className={`font-bold text-sm ${selectedPersonIndex === idx ? 'text-ifrn-darkGreen' : 'text-gray-800'}`}>{p.name}</p>
+                                                <p className="text-[10px] text-gray-400 font-bold uppercase">{p.matricula || 'Matrícula não informada'}</p>
+                                            </button>
+                                        ))}
+                                        {personSearchNotFound.length > 0 && (
+                                            <div className="p-3 text-xs text-red-600 bg-red-50 border-t border-red-100">
+                                                Matrícula{personSearchNotFound.length > 1 ? 's' : ''} não encontrada{personSearchNotFound.length > 1 ? 's' : ''}: <span className="font-bold">{personSearchNotFound.join(', ')}</span>
+                                            </div>
                                         )}
                                     </div>
                                 )}
@@ -1134,7 +1199,7 @@ export const BooksTab: React.FC<Props> = ({ books, bookLoans, onUpdate, user, ca
 
                     <div className="pt-6 flex justify-end gap-3 border-t">
                         <button
-                            onClick={() => { setSelectedLoanBooks([]); setLoanPersons([]); setLoanPersonSearch(''); setSearchResultsPeople([]); setLoanBookSearch(''); setLoanObs(''); setShowQuickLoanModal(false); }}
+                            onClick={() => { setSelectedLoanBooks([]); setLoanPersons([]); setLoanPersonSearch(''); setSearchResultsPeople([]); setPersonSearchNotFound([]); setIsMultiSearch(false); setLoanBookSearch(''); setLoanObs(''); setShowQuickLoanModal(false); }}
                             className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-semibold"
                         >
                             Cancelar

@@ -21,11 +21,12 @@ interface LoanRowProps {
     onViewDetail: () => void;
     onReturn: () => void;
     onDelete?: () => void;
+    onDeleteBook?: (book: BookLoan['books'][number]) => void;
     isAdmin?: boolean;
     setores: Setor[];
 }
 
-const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, onDelete, isAdmin, setores }) => {
+const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, onDelete, onDeleteBook, isAdmin, setores }) => {
     const [expanded, setExpanded] = useState(false);
     const activeBooks = loan.books.filter(b => b.status === 'Ativo');
     const returnedBooks = loan.books.filter(b => b.status === 'Devolvido');
@@ -35,7 +36,7 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, onDelet
         <div className={`transition-colors ${isReturned ? 'bg-white' : 'bg-white hover:bg-gray-50/70'}`}>
             {/* Main Row */}
             <div
-                className="grid grid-cols-[32px_1fr_80px_60px_100px_100px_80px] gap-x-3 items-center px-4 py-3 cursor-pointer"
+                className="grid grid-cols-[32px_1fr_60px_170px] md:grid-cols-[32px_1fr_80px_60px_170px] lg:grid-cols-[32px_1fr_80px_60px_100px_100px_170px] gap-x-3 items-center px-4 py-3 cursor-pointer"
                 onClick={() => setExpanded(prev => !prev)}
             >
                 {/* Expand chevron */}
@@ -142,6 +143,18 @@ const LoanRow: React.FC<LoanRowProps> = ({ loan, onViewDetail, onReturn, onDelet
                                         </div>
                                     </div>
                                     {isBookReturned && <CheckCircle size={14} className="text-emerald-500 shrink-0" />}
+                                    {isAdmin && onDeleteBook && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDeleteBook(book);
+                                            }}
+                                            className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors shrink-0"
+                                            title="Excluir este livro do empréstimo"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -156,10 +169,13 @@ interface StudentLoanGroupProps {
     loans: BookLoan[];
     onViewDetail: (loan: BookLoan) => void;
     onReturn: (loan: BookLoan) => void;
+    onDelete?: (loan: BookLoan) => void;
+    onDeleteBook?: (loan: BookLoan, book: BookLoan['books'][number]) => void;
+    isAdmin?: boolean;
     setores: Setor[];
 }
 
-const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail, onReturn, setores }) => {
+const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail, onReturn, onDelete, onDeleteBook, isAdmin, setores }) => {
     const [expanded, setExpanded] = useState(false);
     const first = loans[0];
     const totalBooks = loans.reduce((acc, l) => acc + l.books.length, 0);
@@ -173,7 +189,7 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
         <div className="transition-colors">
             {/* Group Header */}
             <div
-                className="grid grid-cols-[32px_1fr_80px_60px_100px_100px_80px] gap-x-3 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
+                className="grid grid-cols-[32px_1fr_60px_170px] md:grid-cols-[32px_1fr_80px_60px_170px] lg:grid-cols-[32px_1fr_80px_60px_100px_100px_170px] gap-x-3 items-center px-4 py-3 cursor-pointer hover:bg-gray-50/70"
                 onClick={() => setExpanded(prev => !prev)}
             >
                 <span className="text-gray-400 w-5">
@@ -239,6 +255,9 @@ const StudentLoanGroup: React.FC<StudentLoanGroupProps> = ({ loans, onViewDetail
                                 loan={loan}
                                 onViewDetail={() => onViewDetail(loan)}
                                 onReturn={() => onReturn(loan)}
+                                onDelete={isAdmin && onDelete ? () => onDelete(loan) : undefined}
+                                onDeleteBook={isAdmin && onDeleteBook ? (book) => onDeleteBook(loan, book) : undefined}
+                                isAdmin={isAdmin}
                                 setores={setores}
                             />
                         </div>
@@ -304,14 +323,55 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
     const isAdmin = user.level === UserLevel.ADMIN;
 
     const handleDeleteLoan = useCallback(async (loan: BookLoan) => {
-        if (!window.confirm(`Excluir permanentemente o empréstimo de ${loan.personName}?`)) return;
+        if (!window.confirm(`Excluir permanentemente o empréstimo de ${loan.personName}?\n\nEsta ação remove o registro do histórico e não pode ser desfeita.`)) return;
         try {
             await StorageService.deleteBookLoan(loan.id);
+            setViewingLoan(prev => (prev?.id === loan.id ? null : prev));
             onUpdate();
         } catch (error) {
             console.error('Erro ao excluir empréstimo:', error);
+            alert('Erro ao excluir empréstimo.');
         }
     }, [onUpdate]);
+
+    const handleDeleteBookFromLoan = useCallback(async (loan: BookLoan, book: BookLoan['books'][number]) => {
+        if (!window.confirm(`Excluir permanentemente o livro "${book.title}" deste empréstimo?\n\nEsta ação não pode ser desfeita.`)) return;
+        try {
+            const remainingBooks = loan.books.filter(b => b.id !== book.id);
+
+            if (remainingBooks.length === 0) {
+                await StorageService.deleteBookLoan(loan.id);
+            } else {
+                const now = new Date().toISOString();
+                const allReturned = remainingBooks.every(b => b.status === 'Devolvido');
+                const updatedLoan: BookLoan = {
+                    ...loan,
+                    books: remainingBooks,
+                    status: allReturned ? BookLoanStatus.RETURNED : BookLoanStatus.ACTIVE,
+                    returnDate: allReturned ? (loan.returnDate || now) : loan.returnDate,
+                    history: [
+                        ...(loan.history || []),
+                        {
+                            action: `Livro excluído do empréstimo: ${book.title} (#${book.code || 'S/C'})`,
+                            user: user.name,
+                            timestamp: now
+                        }
+                    ]
+                };
+                await StorageService.saveBookLoan(updatedLoan);
+            }
+
+            setViewingLoan(prev => {
+                if (prev?.id !== loan.id) return prev;
+                if (remainingBooks.length === 0) return null;
+                return { ...prev, books: remainingBooks };
+            });
+            onUpdate();
+        } catch (error) {
+            console.error('Erro ao excluir livro do empréstimo:', error);
+            alert('Erro ao excluir livro do empréstimo.');
+        }
+    }, [onUpdate, user.name]);
 
     const handleAddBook = (book: Book) => {
         if (selectedBooks.find(b => b.id === book.id)) return;
@@ -744,14 +804,14 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                 ) : (
                     <>
                         {/* Table Header */}
-                        <div className="grid grid-cols-[32px_1fr_80px_60px_100px_100px_80px] gap-x-3 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                        <div className="grid grid-cols-[32px_1fr_60px_170px] md:grid-cols-[32px_1fr_80px_60px_170px] lg:grid-cols-[32px_1fr_80px_60px_100px_100px_170px] gap-x-3 items-center px-4 py-2.5 bg-gray-50 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                             <span className="w-6" />
                             <span>Aluno</span>
                             <span className="hidden md:block text-right">Data</span>
                             <span className="text-center">Livros</span>
                             <span className="hidden lg:block text-right">Operador</span>
                             <span className="hidden lg:block">Setor</span>
-                            <div className="w-[60px]" />
+                            <div className="w-[170px]" />
                         </div>
 
                         {/* Table Rows */}
@@ -767,6 +827,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                             setShowPartialReturnModal(true);
                                         }}
                                         onDelete={isAdmin ? () => handleDeleteLoan(loan) : undefined}
+                                        onDeleteBook={isAdmin ? (book) => handleDeleteBookFromLoan(loan, book) : undefined}
                                         isAdmin={isAdmin}
                                         setores={setores}
                                     />
@@ -782,6 +843,7 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                 setShowPartialReturnModal(true);
                                             }}
                                             onDelete={isAdmin ? () => handleDeleteLoan(group[0]) : undefined}
+                                            onDeleteBook={isAdmin ? (book) => handleDeleteBookFromLoan(group[0], book) : undefined}
                                             isAdmin={isAdmin}
                                             setores={setores}
                                           />
@@ -793,6 +855,9 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                                                 setSelectedLoanForReturn(loan);
                                                 setShowPartialReturnModal(true);
                                             }}
+                                            onDelete={isAdmin ? handleDeleteLoan : undefined}
+                                            onDeleteBook={isAdmin ? handleDeleteBookFromLoan : undefined}
+                                            isAdmin={isAdmin}
                                             setores={setores}
                                           />
                                 ))
@@ -1425,7 +1490,16 @@ export const BookLoansTab: React.FC<Props> = ({ loans, books, onUpdate, user, ca
                             </div>
                         </div>
 
-                        <div className="pt-4 flex justify-end">
+                        <div className="pt-4 flex justify-end gap-3">
+                            {isAdmin && (
+                                <button
+                                    onClick={() => handleDeleteLoan(viewingLoan)}
+                                    className="px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-bold transition-all text-sm flex items-center gap-2"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                    Excluir empréstimo
+                                </button>
+                            )}
                             <button
                                 onClick={() => setViewingLoan(null)}
                                 className="px-8 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-all text-sm"

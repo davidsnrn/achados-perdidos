@@ -69,6 +69,10 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   const [searchResults, setSearchResults] = useState<Person[]>([]);
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [searchedOnce, setSearchedOnce] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState<Person[]>([]);
+  const [personSearchNotFound, setPersonSearchNotFound] = useState<string[]>([]);
+  const [isMultiSearch, setIsMultiSearch] = useState(false);
+  const [selectedPersonIndex, setSelectedPersonIndex] = useState<number | null>(null);
 
   const groupedNotifications = useMemo(() => {
     let filtered = notifications.filter(n => 
@@ -157,18 +161,47 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
   };
 
   const handleSearchPeople = async (query?: string) => {
-    const searchQuery = query ?? personSearch;
-    if (searchQuery.length < 3) {
+    const raw = (query ?? personSearch).trim();
+    if (raw.length < 2) {
       setSearchResults([]);
+      setPersonSearchNotFound([]);
       setSearchedOnce(false);
       return;
     }
 
+    const campusFilter = (user.level === UserLevel.ADMIN ? adminGlobalCampusId : user.campus_id) || undefined;
+    const parts = raw.split(/[,;]+/).map(p => p.trim()).filter(Boolean);
+
     setSearchedOnce(true);
     setIsSearchingPeople(true);
     try {
-      const results = await StorageService.searchPeople(searchQuery, 5, adminGlobalCampusId || user.campus_id);
-      setSearchResults(results);
+      if (parts.length > 1) {
+        setIsMultiSearch(true);
+        const found = await StorageService.getPeopleByMatriculas(parts, campusFilter);
+        const foundByMatricula = new Map(found.map(p => [p.matricula.trim().toLowerCase(), p]));
+
+        const results: Person[] = [];
+        const seen = new Set<string>();
+        for (const m of parts) {
+          const key = m.toLowerCase();
+          const person = foundByMatricula.get(key);
+          if (person && !seen.has(key)) {
+            seen.add(key);
+            results.push(person);
+          }
+        }
+
+        setSearchResults(results);
+        setPersonSearchNotFound(parts.filter(m => !foundByMatricula.has(m.toLowerCase())));
+        setSelectedPersonIndex(results.length > 0 ? 0 : null);
+      } else {
+        setIsMultiSearch(false);
+        const results = await StorageService.searchPeople(raw, 10, campusFilter);
+        setSearchResults(results);
+        const looksLikeMatricula = /^[0-9A-Za-z._-]+$/.test(raw) && /\d{3,}/.test(raw);
+        setPersonSearchNotFound(results.length === 0 && looksLikeMatricula ? [raw] : []);
+        setSelectedPersonIndex(results.length > 0 ? 0 : null);
+      }
     } catch (error) {
       console.error("Erro ao buscar pessoas:", error);
     } finally {
@@ -176,43 +209,124 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     }
   };
 
-  const selectPerson = (person: Person) => {
-    setFormData(prev => ({
-      ...prev,
-      student_matricula: person.matricula,
-      student_name: person.name
-    }));
-    setPersonSearch(person.name);
+  const addStudent = (person: Person, keepResults = false) => {
+    setSelectedStudents(prev =>
+      prev.some(p => p.matricula === person.matricula) ? prev : [...prev, person]
+    );
+    if (keepResults) {
+      setSearchResults(prev => prev.filter(p => p.matricula !== person.matricula));
+      setSelectedPersonIndex(null);
+    } else {
+      setPersonSearch('');
+      setSearchResults([]);
+      setPersonSearchNotFound([]);
+      setIsMultiSearch(false);
+      setSearchedOnce(false);
+      setSelectedPersonIndex(null);
+    }
+  };
+
+  const addAllFoundStudents = () => {
+    setSelectedStudents(prev => {
+      const existing = new Set(prev.map(p => p.matricula));
+      const toAdd = searchResults.filter(p => !existing.has(p.matricula));
+      return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+    });
+    setPersonSearch('');
     setSearchResults([]);
+    setPersonSearchNotFound([]);
+    setIsMultiSearch(false);
     setSearchedOnce(false);
+    setSelectedPersonIndex(null);
+  };
+
+  const removeStudent = (matricula: string) => {
+    setSelectedStudents(prev => prev.filter(p => p.matricula !== matricula));
+  };
+
+  const selectPerson = (person: Person) => {
+    if (formData.id) {
+      setFormData(prev => ({
+        ...prev,
+        student_matricula: person.matricula,
+        student_name: person.name
+      }));
+      setPersonSearch(person.name);
+      setSearchResults([]);
+      setSearchedOnce(false);
+      setSelectedPersonIndex(null);
+      return;
+    }
+    addStudent(person, isMultiSearch);
+  };
+
+  const handlePersonSearchKeyDown = (e: React.KeyboardEvent) => {
+    const visible = searchResults.filter(p => !selectedStudents.some(s => s.matricula === p.matricula));
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (visible.length > 0) {
+        setSelectedPersonIndex(prev => prev === null || prev >= visible.length - 1 ? 0 : prev + 1);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (visible.length > 0) {
+        setSelectedPersonIndex(prev => prev === null || prev <= 0 ? visible.length - 1 : prev - 1);
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (/[,;]/.test(personSearch)) {
+        handleSearchPeople();
+      } else if (selectedPersonIndex !== null && visible[selectedPersonIndex]) {
+        selectPerson(visible[selectedPersonIndex]);
+      } else if (personSearch.trim().length >= 2) {
+        handleSearchPeople();
+      }
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.student_matricula || !formData.student_name) {
-      alert("Por favor, selecione um aluno.");
+
+    const students: { matricula: string; name: string }[] = formData.id
+      ? (formData.student_matricula && formData.student_name
+          ? [{ matricula: formData.student_matricula, name: formData.student_name }]
+          : [])
+      : selectedStudents.map(p => ({ matricula: p.matricula, name: p.name }));
+
+    if (students.length === 0) {
+      alert("Por favor, selecione pelo menos um aluno.");
       return;
     }
 
     setIsSaving(true);
     try {
-      const payload: any = {
+      const basePayload: Partial<StudentNotification> = {
         ...formData,
         campus_id: adminGlobalCampusId || user.campus_id || '',
-        setor_id: isAdmin ? selectedSetorId : user.setor_id || null,
+        setor_id: isAdmin ? selectedSetorId : user.setor_id || undefined,
         operator_id: formData.id ? formData.operator_id : user.id,
         operator_name: formData.id ? formData.operator_name : user.name,
         operator_matricula: formData.id ? formData.operator_matricula : user.matricula,
       };
 
       if (formData.id) {
-        payload.updated_by = user.id;
-        payload.updated_by_name = user.name;
-        payload.updated_by_matricula = user.matricula;
-        payload.updated_at = new Date().toISOString();
+        basePayload.updated_by = user.id;
+        basePayload.updated_by_name = user.name;
+        basePayload.updated_by_matricula = user.matricula;
+        basePayload.updated_at = new Date().toISOString();
+        basePayload.student_matricula = students[0].matricula;
+        basePayload.student_name = students[0].name;
+        await StorageService.saveNotification(basePayload);
+      } else {
+        const payloads = students.map(student => ({
+          ...basePayload,
+          id: undefined,
+          student_matricula: student.matricula,
+          student_name: student.name
+        }));
+        await StorageService.saveNotificationsBulk(payloads);
       }
 
-      await StorageService.saveNotification(payload);
       onUpdate();
       setIsModalOpen(false);
       resetForm();
@@ -675,6 +789,10 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
       operator_matricula: n.operator_matricula
     });
     setPersonSearch(n.student_name);
+    setSelectedStudents([]);
+    setPersonSearchNotFound([]);
+    setIsMultiSearch(false);
+    setSelectedPersonIndex(null);
     setIsStudentDetailOpen(false); // Fecha o modal de detalhes
     setIsModalOpen(true); // Abre o modal de edição
   };
@@ -749,12 +867,20 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
     setPersonSearch('');
     setSearchResults([]);
     setSearchedOnce(false);
+    setSelectedStudents([]);
+    setPersonSearchNotFound([]);
+    setIsMultiSearch(false);
+    setSelectedPersonIndex(null);
   };
 
   const openNewModal = () => {
     resetForm();
     setIsModalOpen(true);
   };
+
+  const visibleSearchResults = searchResults.filter(
+    p => !selectedStudents.some(s => s.matricula === p.matricula)
+  );
 
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -1134,73 +1260,145 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
                   <UserIcon size={14} /> Identificação do Aluno
                 </h4>
                 
-                {!formData.student_matricula ? (
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Nome ou Matrícula..."
-                      value={personSearch}
-                      onChange={e => { setPersonSearch(e.target.value); if (e.target.value.length === 0) { setSearchResults([]); setSearchedOnce(false); } }}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchPeople(); } }}
-                      className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl pl-12 pr-12 py-4 text-sm focus:border-red-500 outline-none font-bold transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSearchPeople()}
-                      disabled={isSearchingPeople}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                    >
-                      {isSearchingPeople ? (
-                        <Loader2 size={20} className="animate-spin" />
-                      ) : (
-                        <Search size={20} />
-                      )}
-                    </button>
-                    {isSearchingPeople && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-4 text-center">
-                        <p className="text-sm text-gray-400 font-bold">Buscando...</p>
+                {formData.id ? (
+                  formData.student_matricula && (
+                    <div className="p-4 bg-green-50 border-2 border-green-100 rounded-2xl flex items-center justify-between group animate-scale-in">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-500 shadow-sm">
+                          <CheckCircle2 size={24} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-green-600 uppercase tracking-tight">Aluno Selecionado</p>
+                          <p className="font-bold text-gray-800 leading-tight">{formData.student_name}</p>
+                          <p className="text-xs text-gray-400 font-mono">{formData.student_matricula}</p>
+                        </div>
                       </div>
-                    )}
-                    {!isSearchingPeople && searchedOnce && searchResults.length > 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto">
-                        {searchResults.map(p => (
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="text-xs font-bold text-red-500 hover:bg-white px-3 py-1.5 rounded-lg transition-all"
+                      >
+                        Trocar
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <div className="space-y-3">
+                    {selectedStudents.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <p className="text-[10px] font-bold text-green-600 uppercase tracking-tight">
+                            {selectedStudents.length} aluno{selectedStudents.length > 1 ? 's' : ''} selecionado{selectedStudents.length > 1 ? 's' : ''}
+                          </p>
                           <button
-                            key={p.matricula}
                             type="button"
-                            onClick={() => selectPerson(p)}
-                            className="w-full p-4 text-left hover:bg-red-50 flex flex-col gap-0.5 transition-all group border-b border-gray-50 last:border-0"
+                            onClick={() => setSelectedStudents([])}
+                            className="text-[10px] font-bold text-red-500 hover:underline"
                           >
-                            <p className="font-bold text-gray-800 group-hover:text-red-600 transition-colors">{p.name}</p>
-                            <p className="text-xs text-gray-400 font-mono">{p.matricula}</p>
+                            Limpar
                           </button>
+                        </div>
+                        {selectedStudents.map(p => (
+                          <div key={p.matricula} className="p-3 bg-green-50 border-2 border-green-100 rounded-2xl flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-green-500 shadow-sm shrink-0">
+                                <CheckCircle2 size={18} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-gray-800 leading-tight truncate">{p.name}</p>
+                                <p className="text-xs text-gray-400 font-mono">{p.matricula}</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeStudent(p.matricula)}
+                              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-white rounded-lg transition-colors shrink-0"
+                              title="Remover aluno"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
-                    {!isSearchingPeople && searchedOnce && searchResults.length === 0 && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-4 text-center">
-                        <p className="text-sm text-gray-400 font-bold">Nenhum aluno encontrado</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-4 bg-green-50 border-2 border-green-100 rounded-2xl flex items-center justify-between group animate-scale-in">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-500 shadow-sm">
-                        <CheckCircle2 size={24} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-green-600 uppercase tracking-tight">Aluno Selecionado</p>
-                        <p className="font-bold text-gray-800 leading-tight">{formData.student_name}</p>
-                        <p className="text-xs text-gray-400 font-mono">{formData.student_matricula}</p>
-                      </div>
+
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Nome/matrícula, ou várias matrículas separadas por vírgula..."
+                        value={personSearch}
+                        onChange={e => {
+                          setPersonSearch(e.target.value);
+                          setPersonSearchNotFound([]);
+                          setIsMultiSearch(false);
+                          setSelectedPersonIndex(null);
+                          if (e.target.value.trim().length === 0) {
+                            setSearchResults([]);
+                            setSearchedOnce(false);
+                          }
+                        }}
+                        onKeyDown={handlePersonSearchKeyDown}
+                        className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl pl-12 pr-12 py-4 text-sm focus:border-red-500 outline-none font-bold transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSearchPeople()}
+                        disabled={isSearchingPeople}
+                        className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                      >
+                        {isSearchingPeople ? (
+                          <Loader2 size={20} className="animate-spin" />
+                        ) : (
+                          <Search size={20} />
+                        )}
+                      </button>
+                      {isSearchingPeople && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-4 text-center">
+                          <p className="text-sm text-gray-400 font-bold">Buscando...</p>
+                        </div>
+                      )}
+                      {!isSearchingPeople && searchedOnce && (visibleSearchResults.length > 0 || personSearchNotFound.length > 0) && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                          {isMultiSearch && visibleSearchResults.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={addAllFoundStudents}
+                              className="w-full text-left px-4 py-3 bg-red-50 text-red-700 font-bold text-xs hover:bg-red-100 border-b border-red-100 sticky top-0"
+                            >
+                              Adicionar todos os encontrados ({visibleSearchResults.length})
+                            </button>
+                          )}
+                          {visibleSearchResults.map((p, idx) => (
+                            <button
+                              key={p.matricula}
+                              type="button"
+                              onClick={() => selectPerson(p)}
+                              onMouseMove={() => setSelectedPersonIndex(idx)}
+                              className={`w-full p-4 text-left flex flex-col gap-0.5 transition-all group border-b border-gray-50 last:border-0 ${selectedPersonIndex === idx ? 'bg-red-50' : 'hover:bg-red-50'}`}
+                            >
+                              <p className="font-bold text-gray-800 group-hover:text-red-600 transition-colors">{p.name}</p>
+                              <p className="text-xs text-gray-400 font-mono">{p.matricula}</p>
+                            </button>
+                          ))}
+                          {personSearchNotFound.length > 0 && (
+                            <div className="p-3 text-xs text-red-600 bg-red-50 border-t border-red-100">
+                              Matrícula{personSearchNotFound.length > 1 ? 's' : ''} não encontrada{personSearchNotFound.length > 1 ? 's' : ''}: <span className="font-bold">{personSearchNotFound.join(', ')}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {!isSearchingPeople && searchedOnce && visibleSearchResults.length === 0 && personSearchNotFound.length === 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 p-4 text-center">
+                          <p className="text-sm text-gray-400 font-bold">Nenhum aluno encontrado</p>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={resetForm}
-                      className="text-xs font-bold text-red-500 hover:bg-white px-3 py-1.5 rounded-lg transition-all"
-                    >
-                      Trocar
-                    </button>
+
+                    {selectedStudents.length === 0 && (
+                      <p className="text-[10px] text-gray-400 px-1">
+                        Adicione um aluno pela busca ou cole várias matrículas separadas por vírgula.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1405,11 +1603,15 @@ export const NotificationsTab: React.FC<NotificationsTabProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSaving || !formData.student_matricula}
+              disabled={isSaving || (formData.id ? !formData.student_matricula : selectedStudents.length === 0)}
               className="flex-[2] py-5 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-2xl font-black hover:shadow-2xl hover:shadow-red-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 text-xl"
             >
               {isSaving ? <Loader2 className="animate-spin" size={24} /> : <CheckCircle2 size={24} />}
-              {formData.id ? 'Salvar Alterações' : 'Finalizar Registro'}
+              {formData.id
+                ? 'Salvar Alterações'
+                : selectedStudents.length > 1
+                  ? `Finalizar ${selectedStudents.length} Registros`
+                  : 'Finalizar Registro'}
             </button>
           </div>
         </form>

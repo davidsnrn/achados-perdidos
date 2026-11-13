@@ -52,6 +52,40 @@ export const formatKioskCodeWithToday = (rawCode: string): string => {
   return `${cleanCode}:${getTodayDateString()}`;
 };
 
+const buildStudentNotificationPayload = (notification: Partial<StudentNotification>) => ({
+  id: notification.id || undefined,
+  campus_id: notification.campus_id,
+  setor_id: notification.setor_id || null,
+  date: notification.date,
+  time: notification.time,
+  student_matricula: notification.student_matricula,
+  student_name: notification.student_name,
+  period: notification.period,
+  class_name: notification.class_name,
+  notification_type_ids: notification.notification_type_ids || [],
+  notification_type_id: notification.notification_type_ids?.[0] || null, // Backward compatibility
+  selected_subtypes: notification.selected_subtypes || [],
+  justification: notification.justification,
+  teacher_referral: notification.teacher_referral,
+  teacher_name: notification.teacher_name,
+  operator_id: notification.operator_id,
+  operator_name: notification.operator_name,
+  operator_matricula: notification.operator_matricula,
+  updated_by: notification.updated_by,
+  updated_by_name: notification.updated_by_name,
+  updated_by_matricula: notification.updated_by_matricula,
+  updated_at: notification.updated_at,
+  deleted_at: notification.deleted_at,
+  deleted_by: notification.deleted_by,
+  deleted_by_name: notification.deleted_by_name,
+  deleted_by_matricula: notification.deleted_by_matricula,
+  deleted_justification: notification.deleted_justification,
+  out_of_hours: notification.out_of_hours || false,
+  mobile_use: notification.mobile_use || false,
+  no_uniform: notification.no_uniform || false,
+  no_sneakers: notification.no_sneakers || false
+});
+
 export const StorageService = {
   // Helpers
   generateId: (): string => {
@@ -3184,41 +3218,14 @@ export const StorageService = {
   },
 
   saveNotification: async (notification: Partial<StudentNotification>) => {
-    const payload = {
-      id: notification.id || undefined,
-      campus_id: notification.campus_id,
-      setor_id: notification.setor_id || null,
-      date: notification.date,
-      time: notification.time,
-      student_matricula: notification.student_matricula,
-      student_name: notification.student_name,
-      period: notification.period,
-      class_name: notification.class_name,
-      notification_type_ids: notification.notification_type_ids || [],
-      notification_type_id: notification.notification_type_ids?.[0] || null, // Backward compatibility
-      selected_subtypes: notification.selected_subtypes || [],
-      justification: notification.justification,
-      teacher_referral: notification.teacher_referral,
-      teacher_name: notification.teacher_name,
-      operator_id: notification.operator_id,
-      operator_name: notification.operator_name,
-      operator_matricula: notification.operator_matricula,
-      updated_by: notification.updated_by,
-      updated_by_name: notification.updated_by_name,
-      updated_by_matricula: notification.updated_by_matricula,
-      updated_at: notification.updated_at,
-      deleted_at: notification.deleted_at,
-      deleted_by: notification.deleted_by,
-      deleted_by_name: notification.deleted_by_name,
-      deleted_by_matricula: notification.deleted_by_matricula,
-      deleted_justification: notification.deleted_justification,
-      out_of_hours: notification.out_of_hours || false,
-      mobile_use: notification.mobile_use || false,
-      no_uniform: notification.no_uniform || false,
-      no_sneakers: notification.no_sneakers || false
-    };
+    const { error } = await supabase.from('student_notifications').upsert(buildStudentNotificationPayload(notification));
+    if (error) throw error;
+  },
 
-    const { error } = await supabase.from('student_notifications').upsert(payload);
+  saveNotificationsBulk: async (notifications: Partial<StudentNotification>[]) => {
+    if (notifications.length === 0) return;
+    const payloads = notifications.map(buildStudentNotificationPayload).map(({ id, ...payload }) => payload);
+    const { error } = await supabase.from('student_notifications').insert(payloads);
     if (error) throw error;
   },
 

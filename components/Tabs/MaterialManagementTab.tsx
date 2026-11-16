@@ -3,7 +3,7 @@ import { Material, MaterialLoan } from '../../types-materiais';
 import { Person, User, Campus, UserLevel, Setor } from '../../types';
 import { StorageService, extractRawKioskCode } from '../../services/storage';
 import { EmailService } from '../../services/emailService';
-import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown, Repeat, X, Sparkles, ExternalLink, Bell } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Hash, AlertTriangle, Copy, CheckCircle, AlertCircle, Calendar, User as UserIcon, FileText, CornerUpRight, TrendingUp, Loader2, Users, GraduationCap, UserCog, Package, Mail, ChevronUp, ChevronDown, Repeat, X, Sparkles, ExternalLink, Bell, History as HistoryIcon } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 
 interface Props {
@@ -73,6 +73,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
     const [isSearchingReloan, setIsSearchingReloan] = useState(false);
     const [hasSearchedReloan, setHasSearchedReloan] = useState(false);
     const [isProcessingReloan, setIsProcessingReloan] = useState(false);
+    const [showLoanHistory, setShowLoanHistory] = useState(false);
 
     // Inventory Sort
     type InventorySortKey = 'code' | 'name' | 'status' | 'personName' | 'loanDate';
@@ -291,6 +292,14 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             };
         });
     }, [materials, loans]);
+
+    const materialHistory = useMemo(() => {
+        if (!viewingItem) return [] as MaterialLoan[];
+        return loans
+            .filter(l => l.materialId === viewingItem.id && l.status !== 'DELETED')
+            .sort((a, b) => new Date(b.loanDate).getTime() - new Date(a.loanDate).getTime())
+            .slice(0, 10);
+    }, [loans, viewingItem]);
 
     const normalizeText = (text: string) => {
         return text
@@ -750,6 +759,59 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
             alert(`Material devolvido de ${activeLoan.personName} e emprestado para ${reloanPerson.name}!`);
         } catch (error) {
             alert('Erro ao processar novo empréstimo.');
+        } finally {
+            setIsProcessingReloan(false);
+        }
+    };
+
+    const handleReloanFromHistory = async (loan: MaterialLoan) => {
+        if (!viewingItem) return;
+        if (viewingItem.activeLoan?.id === loan.id) {
+            alert('Este material já está emprestado para essa pessoa.');
+            return;
+        }
+
+        const currentlyLoaned = !!viewingItem.activeLoan;
+        const confirmMsg = currentlyLoaned
+            ? `Devolver o empréstimo atual de ${viewingItem.activeLoan!.personName} e emprestar novamente para ${loan.personName} (${loan.personMatricula})?`
+            : `Emprestar novamente para ${loan.personName} (${loan.personMatricula})?`;
+        if (!window.confirm(confirmMsg)) return;
+
+        setIsProcessingReloan(true);
+        try {
+            if (viewingItem.activeLoan) {
+                await StorageService.returnMaterialLoan(viewingItem.activeLoan.id, `${user.name} (${user.matricula})`);
+            }
+
+            let email = loan.personEmail || null;
+            if (!email) {
+                try { email = await StorageService.getPersonEmail(loan.personMatricula); } catch { email = null; }
+            }
+
+            const newLoan: MaterialLoan = {
+                id: Math.random().toString(36).substr(2, 9),
+                materialId: viewingItem.id,
+                materialName: viewingItem.name,
+                materialCode: viewingItem.code,
+                personName: loan.personName,
+                personMatricula: loan.personMatricula,
+                personEmail: email || undefined,
+                loanDate: new Date().toISOString(),
+                status: 'ACTIVE',
+                loanedBy: `${user.name} (${user.matricula})`,
+                campus_id: user.level === UserLevel.ADMIN ? (selectedCampusId || user.campus_id) : user.campus_id,
+                setor_id: isAdmin ? selectedSetorId : user.setor_id || null
+            };
+            await StorageService.saveMaterialLoan(newLoan);
+
+            onUpdate();
+            setViewingItem(null);
+            setShowLoanHistory(false);
+            setShowReloanSearch(false);
+            setReloanPerson(null);
+            alert(`Empréstimo registrado para ${loan.personName}!`);
+        } catch (error) {
+            alert('Erro ao processar empréstimo.');
         } finally {
             setIsProcessingReloan(false);
         }
@@ -2172,6 +2234,7 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                 setReloanPersonSearch('');
                 setReloanSearchResults([]);
                 setHasSearchedReloan(false);
+                setShowLoanHistory(false);
             }} title="Detalhes do Material">
                 {viewingItem && (
                     <div className="space-y-6">
@@ -2202,11 +2265,29 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                         <div className="grid grid-cols-1 gap-4">
                             <div className="p-4 rounded-xl border border-gray-100 bg-white">
                                 <p className="text-xs font-bold text-gray-400 uppercase mb-2">Status Atual</p>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
                                     <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${viewingItem.status === 'AVAILABLE' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                         {viewingItem.status === 'AVAILABLE' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
                                         {viewingItem.status === 'AVAILABLE' ? 'DISPONÍVEL PARA USO' : 'EMPRESTADO NO MOMENTO'}
                                     </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const next = !showLoanHistory;
+                                            setShowLoanHistory(next);
+                                            if (next) {
+                                                setShowReloanSearch(false);
+                                                setReloanPerson(null);
+                                                setReloanPersonSearch('');
+                                                setReloanSearchResults([]);
+                                                setHasSearchedReloan(false);
+                                            }
+                                        }}
+                                        className="text-[11px] font-medium text-gray-400 hover:text-indigo-600 flex items-center gap-1 transition-colors"
+                                    >
+                                        <HistoryIcon size={12} />
+                                        {showLoanHistory ? 'Ocultar histórico' : 'Ver últimos 10 empréstimos'}
+                                    </button>
                                 </div>
                             </div>
 
@@ -2263,11 +2344,65 @@ export const MaterialManagementTab: React.FC<Props> = ({ materials = [], loans =
                             )}
                         </div>
 
+                        {showLoanHistory && (
+                            <div className="p-4 rounded-xl border border-gray-100 bg-white space-y-3 animate-fadeIn">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-bold text-gray-400 uppercase">Últimos 10 Empréstimos</p>
+                                    <span className="text-[10px] text-gray-400">{materialHistory.length} registro(s)</span>
+                                </div>
+                                {materialHistory.length === 0 ? (
+                                    <p className="text-xs text-gray-400 italic">Nenhum empréstimo registrado para este material.</p>
+                                ) : (
+                                    <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+                                        {materialHistory.map(loan => {
+                                            const isCurrent = viewingItem.activeLoan?.id === loan.id;
+                                            const isReturned = loan.status === 'RETURNED';
+                                            const isPending = loan.status === 'PENDING_RETURN';
+                                            return (
+                                                <div key={loan.id} className="flex items-center justify-between gap-3 py-2.5">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-gray-800 truncate">{loan.personName}</p>
+                                                        <p className="text-[10px] text-gray-500">{loan.personMatricula}</p>
+                                                        <p className="text-[10px] text-gray-400">
+                                                            Empréstimo: {new Date(loan.loanDate).toLocaleDateString('pt-BR')}
+                                                            {loan.returnDate ? ` • Devolução: ${new Date(loan.returnDate).toLocaleDateString('pt-BR')}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <div className="shrink-0 flex flex-col items-end gap-1">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide ${isCurrent ? 'bg-amber-100 text-amber-700' : isPending ? 'bg-orange-100 text-orange-700' : isReturned ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                                            {isCurrent ? 'Em andamento' : isPending ? 'Devolução pendente' : isReturned ? 'Devolvido' : loan.status}
+                                                        </span>
+                                                        {isCurrent ? (
+                                                            <span className="text-[10px] font-bold text-amber-600">Empréstimo atual</span>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleReloanFromHistory(loan)}
+                                                                disabled={isProcessingReloan}
+                                                                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 disabled:opacity-50 transition-colors"
+                                                            >
+                                                                <Repeat size={12} /> Reemprestar
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                <p className="text-[10px] text-gray-400 italic">
+                                    {viewingItem.status === 'LOANED'
+                                        ? 'Ao reemprestar, o empréstimo atual é devolvido automaticamente.'
+                                        : 'Selecione uma pessoa do histórico para emprestar novamente.'}
+                                </p>
+                            </div>
+                        )}
+
                         <div className="flex gap-3 pt-4 border-t">
                             {viewingItem.status === 'LOANED' && !showReloanSearch ? (
                                 <>
                                     <button
-                                        onClick={() => { setShowReloanSearch(true); setReloanPersonSearch(''); setReloanSearchResults([]); setReloanPerson(null); setReloanPersonTypeFilter('ALL'); }}
+                                        onClick={() => { setShowReloanSearch(true); setShowLoanHistory(false); setReloanPersonSearch(''); setReloanSearchResults([]); setReloanPerson(null); setReloanPersonTypeFilter('ALL'); }}
                                         className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-md flex items-center justify-center gap-2 transition-all whitespace-nowrap"
                                     >
                                         <Repeat size={18} /> Reemprestar

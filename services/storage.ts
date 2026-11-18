@@ -2132,7 +2132,7 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('materials')
-        .select('*')
+        .select('id, code, name, createdAt, campus_id, setor_id')
         .order('name', { ascending: true })
         .range(from, from + limit - 1);
 
@@ -2239,7 +2239,9 @@ export const StorageService = {
   },
 
   // Material Loans
-  getMaterialLoans: async (campusId?: string, setorId?: string): Promise<MaterialLoan[]> => {
+  // activeOnly: usado pelo autoatendimento, que só precisa dos empréstimos em aberto.
+  // Evita baixar o histórico inteiro de empréstimos a cada atualização (egress).
+  getMaterialLoans: async (campusId?: string, setorId?: string, options: { activeOnly?: boolean } = {}): Promise<MaterialLoan[]> => {
     let allData: any[] = [];
     let from = 0;
     const limit = 1000;
@@ -2247,7 +2249,7 @@ export const StorageService = {
     while (true) {
       let query = supabase
         .from('material_loans')
-        .select('*')
+        .select('id, materialId, materialName, materialCode, personName, personMatricula, personEmail, loanDate, returnDate, observation, status, loanedBy, returnedBy, campus_id, setor_id')
         .order('loanDate', { ascending: false })
         .range(from, from + limit - 1);
 
@@ -2256,6 +2258,9 @@ export const StorageService = {
       }
       if (setorId) {
         query = query.eq('setor_id', setorId);
+      }
+      if (options.activeOnly) {
+        query = query.in('status', ['ACTIVE', 'PENDING_RETURN']);
       }
 
       const { data, error } = await query;

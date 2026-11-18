@@ -123,19 +123,38 @@ export const SelfServiceKiosk: React.FC<Props> = ({
     const campusId = activeCampusId || undefined;
 
     const refreshLoans = () =>
-      StorageService.getMaterialLoans(campusId, sectorId)
+      StorageService.getMaterialLoans(campusId, sectorId, { activeOnly: true })
         .then(setKioskLoans)
         .catch(err => console.warn('Erro ao buscar empréstimos:', err));
 
+    const refreshMaterials = () =>
+      StorageService.getMaterials(campusId, sectorId)
+        .then(setKioskMaterials)
+        .catch(err => console.warn('Erro ao buscar materiais:', err));
+
     refreshLoans();
+
+    // Atualizações chegam pelo Realtime (sem polling de 15s, que gerava
+    // milhares de downloads por dia e era o maior consumidor de egress).
     const channel = supabase.channel('kiosk-loans')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'material_loans' }, refreshLoans)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, refreshMaterials)
       .subscribe();
 
-    const pollInterval = setInterval(refreshLoans, 15000);
+    // Fallback leve: só roda com a aba visível e a cada 5 minutos.
+    const pollInterval = setInterval(() => {
+      if (!document.hidden) refreshLoans();
+    }, 300000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) refreshLoans();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       supabase.removeChannel(channel);
       clearInterval(pollInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [authenticatedUser, activeCampusId, activeSetorId]);
 
@@ -151,7 +170,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
     try {
       const [fetchedMaterials, fetchedLoans] = await Promise.all([
         StorageService.getMaterials(activeCampusId || undefined, activeSetorId || undefined),
-        StorageService.getMaterialLoans(activeCampusId || undefined, activeSetorId || undefined)
+        StorageService.getMaterialLoans(activeCampusId || undefined, activeSetorId || undefined, { activeOnly: true })
       ]);
       setKioskMaterials(fetchedMaterials);
       setKioskLoans(fetchedLoans);
@@ -182,7 +201,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
       }
     };
     checkKioskActive();
-    const interval = setInterval(checkKioskActive, 5000);
+    const interval = setInterval(checkKioskActive, 60000);
     return () => clearInterval(interval);
   }, [isTerminalUnlocked, activeSetorId]);
 
@@ -281,7 +300,7 @@ export const SelfServiceKiosk: React.FC<Props> = ({
       const campus = campusId || undefined;
       const [fetchedMaterials, fetchedLoans] = await Promise.all([
         StorageService.getMaterials(campus, setor),
-        StorageService.getMaterialLoans(campus, setor)
+        StorageService.getMaterialLoans(campus, setor, { activeOnly: true })
       ]);
       setKioskMaterials(fetchedMaterials);
       setKioskLoans(fetchedLoans);

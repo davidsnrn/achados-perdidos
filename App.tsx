@@ -296,12 +296,8 @@ const App: React.FC = () => {
   }, [user, adminGlobalCampusId, adminGlobalSetorId]);
 
   const refreshKioskData = useCallback(async (campusId?: string, setorId?: string) => {
-    const [newMaterials, newLoans] = await Promise.all([
-      StorageService.getMaterials(campusId || undefined, setorId || undefined),
-      StorageService.getMaterialLoans(campusId || undefined, setorId || undefined)
-    ]);
-    setMaterials(newMaterials);
-    setMaterialLoans(newLoans);
+    // O autoatendimento mantém o próprio estado e é atualizado por Realtime.
+    // Não é necessário baixar os dados de novo aqui (evita egress duplicado).
   }, []);
 
   const refreshCopyRecords = useCallback(async () => {
@@ -547,52 +543,129 @@ const App: React.FC = () => {
 
   // Debounced notification handler to avoid too many refreshes in bulk operations
   const debounceTimers = useRef<Record<string, number>>({});
+  const pendingRealtimeTables = useRef<Set<string>>(new Set());
+  const lastTableRefreshRef = useRef<Record<string, number>>({});
+  const MIN_REFRESH_INTERVAL_MS = 15000;
+
+  const applyRealtimeRefresh = useCallback((table: string) => {
+    switch (table) {
+      case 'items': refreshItems(); break;
+      case 'reports': refreshReports(); break;
+      case 'people': /* People data is now fetched directly by PeopleTab */ break;
+      case 'users': refreshUsers(); break;
+      case 'books': refreshBooks(); break;
+      case 'book_loans': refreshBookLoans(); break;
+      case 'lockers': refreshLockers(); break;
+      case 'materials': refreshMaterials(); break;
+      case 'material_loans': refreshMaterialLoans(); break;
+      case 'supplies': refreshSupplies(); break;
+      case 'supply_records': refreshSupplyRecords(); break;
+      case 'copy_records': refreshCopyRecords(); break;
+      case 'student_notifications': refreshNotifications(); break;
+      case 'teacher_schedules':
+      case 'teacher_attendance': refreshData(); break;
+      case 'setores': refreshSetores(adminGlobalCampusId || undefined); break;
+    }
+  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans, refreshSupplies, refreshSupplyRecords, refreshCopyRecords, refreshNotifications, refreshSetores, refreshData, adminGlobalCampusId]);
+
+  // Só recarrega tabelas que pertencem à tela atual. Antes, qualquer alteração
+  // no banco disparava o download de tabelas que nem estavam sendo exibidas.
+  const isTableRelevantToScreen = useCallback((table: string): boolean => {
+    switch (table) {
+      case 'items':
+      case 'reports':
+        return currentSystem === 'achados' || activeTab === 'achados' || activeTab === 'relatos';
+      case 'users':
+        return activeTab === 'usuarios';
+      case 'books':
+      case 'book_loans':
+        return currentSystem === 'livros' || activeTab.startsWith('livros') || currentSystem === 'nadaconsta';
+      case 'lockers':
+        return currentSystem === 'armarios' || currentSystem === 'nadaconsta';
+      case 'materials':
+      case 'material_loans':
+        return currentSystem === 'materiais' || currentSystem === 'nadaconsta';
+      case 'supplies':
+      case 'supply_records':
+        return currentSystem === 'insumos' || activeTab === 'insumos';
+      case 'copy_records':
+        return currentSystem === 'copias' || activeTab === 'copias' || activeTab === 'copias-nf';
+      case 'student_notifications':
+        return currentSystem === 'notificacoes' || activeTab === 'notificacoes';
+      case 'teacher_schedules':
+      case 'teacher_attendance':
+        return currentSystem === 'frequencia' || activeTab === 'frequencia' || activeTab === 'salas';
+      case 'setores':
+        return true;
+      default:
+        return false;
+    }
+  }, [currentSystem, activeTab]);
+
   const handleRealtimeChange = useCallback((table: string) => {
+    if (!isTableRelevantToScreen(table)) return;
+
+    // Aba em segundo plano: acumula e atualiza quando o usuário voltar.
+    if (document.hidden) {
+      pendingRealtimeTables.current.add(table);
+      return;
+    }
+
     if (debounceTimers.current[table]) {
       window.clearTimeout(debounceTimers.current[table]);
     }
 
+    // Debounce de 3s para agrupar rajadas + limite de 1 recarga a cada 15s
+    // por tabela (evita baixar a mesma tabela inteira repetidamente).
+    const elapsed = Date.now() - (lastTableRefreshRef.current[table] || 0);
+    const wait = Math.max(3000, MIN_REFRESH_INTERVAL_MS - elapsed);
+
     debounceTimers.current[table] = window.setTimeout(() => {
-      switch (table) {
-        case 'items': refreshItems(); break;
-        case 'reports': refreshReports(); break;
-        case 'people': /* People data is now fetched directly by PeopleTab */ break;
-        case 'users': refreshUsers(); break;
-        case 'books': refreshBooks(); break;
-        case 'book_loans': refreshBookLoans(); break;
-        case 'lockers': refreshLockers(); break;
-        case 'materials': refreshMaterials(); break;
-        case 'material_loans': refreshMaterialLoans(); break;
-        case 'supplies': refreshSupplies(); break;
-        case 'supply_records': refreshSupplyRecords(); break;
-        case 'copy_records': refreshCopyRecords(); break;
-        case 'student_notifications': refreshNotifications(); break;
-        case 'teacher_schedules':
-        case 'teacher_attendance': refreshData(); break;
-        case 'setores': refreshSetores(adminGlobalCampusId || undefined); break;
-      }
-    }, 1000); // 1 second debounce
-  }, [refreshItems, refreshReports, refreshUsers, refreshBooks, refreshBookLoans, refreshLockers, refreshMaterials, refreshMaterialLoans, refreshSupplies, refreshSupplyRecords, refreshCopyRecords, refreshNotifications, refreshSetores, adminGlobalCampusId]);
+      lastTableRefreshRef.current[table] = Date.now();
+      applyRealtimeRefresh(table);
+    }, wait);
+  }, [applyRealtimeRefresh, isTableRelevantToScreen]);
+
+  // Mantém o handler atualizado sem recriar o WebSocket a cada troca de aba.
+  const realtimeHandlerRef = useRef(handleRealtimeChange);
+  useEffect(() => {
+    realtimeHandlerRef.current = handleRealtimeChange;
+  }, [handleRealtimeChange]);
+
+  const refreshDataRef = useRef(refreshData);
+  useEffect(() => {
+    refreshDataRef.current = refreshData;
+  }, [refreshData]);
 
   // 0. Setup Realtime Listeners
   useEffect(() => {
     if (!user) return;
 
+    // Assina o schema, mas o handler abaixo filtra apenas as tabelas da tela
+    // atual (evita baixar dados que não estão sendo exibidos).
     const channel = supabase.channel('schema-db-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public' },
         (payload) => {
-          handleRealtimeChange(payload.table);
+          realtimeHandlerRef.current(payload.table);
         }
       )
       .subscribe();
 
+    const handleVisibilityChange = () => {
+      if (document.hidden || pendingRealtimeTables.current.size === 0) return;
+      pendingRealtimeTables.current.clear();
+      refreshDataRef.current();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       supabase.removeChannel(channel);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       Object.values(debounceTimers.current).forEach(t => window.clearTimeout(t));
     };
-  }, [user, handleRealtimeChange]);
+  }, [user]);
 
   const loadSystemConfig = useCallback(async () => {
     // System-wide sector/campus configuration removed
